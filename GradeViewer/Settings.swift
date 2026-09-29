@@ -35,7 +35,7 @@ struct CourseOrderView: View {
     var body: some View {
         List {
             ForEach(store.courses.sorted { $0.order < $1.order }) { course in
-                Toggle(isOn: Binding(get: { !course.hidden }, set: { store.setHidden(course.id, hidden: !$0) })) { VStack(alignment: .leading) { Text(course.display.title); Text(course.display.term.name).font(.caption).foregroundStyle(.secondary) } }
+                Toggle(isOn: Binding(get: { !course.hidden }, set: { store.setHidden(course.id, hidden: !$0) })) { VStack(alignment: .leading) { Text(course.name) } }
             }.onMove { store.move(from: $0, to: $1) }
         }.navigationTitle("Edit courses").navigationBarTitleDisplayMode(.inline).toolbar { EditButton() }
     }
@@ -60,6 +60,7 @@ struct SchoologySetupView: View {
                 SecureField("Token secret", text: $tokenSecret).textInputAutocapitalization(.never).autocorrectionDisabled()
             }
             if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+            ConnectionRetryView(provider: .schoology)
             Button {
                 saving = true
                 Task { defer { saving = false }; do { try await store.connectSchoology(SchoologyCredentials(key: key.trimmingCharacters(in: .whitespacesAndNewlines), secret: secret.trimmingCharacters(in: .whitespacesAndNewlines), token: token, tokenSecret: tokenSecret)); secret = ""; token = ""; tokenSecret = ""; dismiss() } catch { self.error = store.message(error, provider: .schoology) } }
@@ -79,8 +80,9 @@ struct CampusSetupView: View {
         Form {
             Section {
                 TextField("Campus Student portal URL", text: $portalURL).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-            } footer: { Text("Paste your district’s Campus Student login address. Sign in directly on its page.") }
+            } footer: { Text("Paste your district’s Campus Student address. Sign in directly on its page.") }
             if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+            ConnectionRetryView(provider: .infiniteCampus)
             Button("Sign in to Infinite Campus") { loginURL = validURL }.disabled(validURL == nil || store.refreshing || store.demo)
             Button("Find your district") { loginURL = URL(string: "https://www.infinitecampus.com/login")! }.disabled(store.refreshing || store.demo)
         }.navigationTitle("Infinite Campus").navigationBarTitleDisplayMode(.inline)
@@ -112,6 +114,7 @@ struct CampusLoginView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 if let error { Text(error).font(.footnote).foregroundStyle(.secondary).padding(10) }
+                if let detail = store.connectionDetails[.infiniteCampus] { Text(detail).font(.caption).foregroundStyle(.secondary).padding(10) }
                 CampusWebView(session: session)
             }.navigationTitle(session.host).navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -128,6 +131,24 @@ struct CampusLoginView: View {
                     }.disabled(saving || session.studentPortal == nil) }
                 }
         }.interactiveDismissDisabled(saving)
+    }
+}
+struct ConnectionRetryView: View {
+    @Environment(AppStore.self) private var store
+    let provider: ProviderID
+    @State private var error: String?
+    var body: some View {
+        if let detail = store.connectionDetails[provider] { Text(detail).font(.caption).foregroundStyle(.secondary) }
+        if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+        if store.pending.contains(provider) {
+            Section {
+                Button(provider == .schoology ? "Retry saved API credentials" : "Retry saved session") {
+                    error = nil
+                    Task { do { try await store.retryConnection(provider) } catch { self.error = store.message(error, provider: provider) } }
+                }.disabled(store.refreshing || store.demo)
+                Button("Forget saved connection", role: .destructive) { store.forgetPending(provider) }.disabled(store.refreshing)
+            } footer: { Text("Stored in Keychain for retry. Grades load after the connection succeeds.") }
+        } else if store.connected.contains(provider) { Text("Connected").foregroundStyle(.secondary) }
     }
 }
 struct CampusWebView: UIViewRepresentable {

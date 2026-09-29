@@ -18,7 +18,7 @@ public enum Demo {
                 let score = Score(earned: values[i] + [-4.0, 2.0, 2.0][j % 3], possible: 100)
                 return SourceAssignment(source: Provenance(.infiniteCampus, id + ":assignment:" + String(j)), title: title, categoryID: categoryID, due: due, updated: updated, score: score)
             }
-            let source = SourceCourse(source: Provenance(.infiniteCampus, id), title: name, teacher: "Taylor", term: Term(id: "fall", name: "Fall 2026"), grade: OverallGrade(percent: values[i], letter: i == 2 ? "B" : "A"), categories: [GradingCategory(id: categoryID, name: "Assessments", weight: 70), GradingCategory(id: id + ":practice", name: "Practice", weight: 30)], assignments: assignments, method: .weightedCategories, fetched: now)
+            let source = SourceCourse(source: Provenance(.infiniteCampus, id), title: name, teacher: "Taylor", term: Term(id: "fall", name: "Fall 2026"), grade: OverallGrade(percent: values[i], letter: i == 2 ? "B" : "A"), categories: i == 0 ? [GradingCategory(id: categoryID, name: "Total Points")] : [GradingCategory(id: categoryID, name: "Assessments", weight: 70), GradingCategory(id: id + ":practice", name: "Practice", weight: 30)], assignments: assignments, method: i == 0 ? .points : .weightedCategories, fetched: now)
             var course = Reconciler.reconcile([source], now: now)[0]; course.order = i
             course.history = (0..<9).map { j in GradeHistorySnapshot(date: now.addingTimeInterval(Double(j - 8) * 3 * 86400), grade: OverallGrade(percent: values[i] + [1.4, 1, -0.6, 0.8, 0.1, -0.4, -0.2, 0.3, 0][j], letter: i == 2 ? "B" : "A"), provider: .infiniteCampus) }
             result.append(course)
@@ -28,7 +28,7 @@ public enum Demo {
 }
 public struct WidgetCourse: Codable, Identifiable, Sendable {
     public var id: String; public var name: String; public var grade: OverallGrade
-    public init(course: Course) { id = course.id; name = course.display.title; grade = course.display.grade }
+    public init(course: Course) { id = course.id; name = course.name; grade = course.display.grade }
 }
 public struct WidgetSnapshot: Codable, Sendable {
     public var courses: [WidgetCourse]; public var refreshed: Date?

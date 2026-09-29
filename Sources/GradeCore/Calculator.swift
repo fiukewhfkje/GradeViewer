@@ -37,7 +37,7 @@ public enum GradeCalculator {
         guard possible > 0 else { throw CalculationError.noGradedAssignments }
         return rows.reduce(0) { $0 + ($1.score.earned ?? 0) * $1.multiplier } / possible * 100
     }
-    /// A baseline discrepancy suggests hidden grades, overrides, or unsupported rules.
+    /// Require the available source data to reproduce its reported overall before estimating changes.
     public static func isReliable(_ course: SourceCourse) -> Bool {
         guard let reported = course.grade.percent, let calculated = try? percent(course: course) else { return false }
         return abs(reported - calculated) <= 0.15

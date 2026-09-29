@@ -13,10 +13,16 @@ final class GradeCoreTests: XCTestCase {
         XCTAssertEqual(courses[0].categories[0].weight, 100); XCTAssertEqual(courses[0].method, .weightedCategories)
     }
     func testCampusParsingZeroAndExtraCredit() throws {
-        let courses = try ProviderParsing.campus(grades: fixture("campus-grades"), details: ["detail-100": fixture("campus-detail")])
+        let courses = try ProviderParsing.campus(grades: fixture("campus-grades"), details: ["100": fixture("campus-detail")])
         XCTAssertEqual(courses.count, 1); XCTAssertEqual(courses[0].grade.percent, 0); XCTAssertEqual(courses[0].grade.letter, "F")
-        XCTAssertEqual(courses[0].assignments[0].score.earned, 0); XCTAssertEqual(courses[0].assignments[1].score.possible, 0); XCTAssertEqual(courses[0].source.fields["detail_id"], "detail-100")
+        XCTAssertEqual(courses[0].assignments[0].score.earned, 0); XCTAssertEqual(courses[0].assignments[1].score.possible, 0); XCTAssertEqual(courses[0].source.fields["detail_id"], "100")
         XCTAssertEqual(try GradeCalculator.percent(course: courses[0]), 5)
+    }
+    func testCampusDetailRouteUsesSectionIDRatherThanCourseOpaqueID() throws {
+        let summary = try ProviderParsing.campus(grades: fixture("campus-grades"))
+        XCTAssertEqual(summary[0].source.fields["detail_id"], "100")
+        let full = try ProviderParsing.campus(grades: fixture("campus-grades"), details: ["100": fixture("campus-detail")])
+        XCTAssertEqual(full[0].assignments.count, 2)
     }
     func testMalformedPayloadDoesNotBecomeEmptySuccess() { XCTAssertThrowsError(try ProviderParsing.campus(grades: Data("{}".utf8))); XCTAssertThrowsError(try ProviderParsing.campus(grades: Data("[{\"foo\":1}]".utf8))) }
     func testTermsAndTasksStaySeparate() throws {
@@ -132,5 +138,33 @@ extension GradeCoreTests {
         XCTAssertEqual(Reconciler.reconcile([a,b]).count, 2)
         let mappings = [a.id:b.id,b.id:a.id]; let matched = Reconciler.reconcile([a,b], mappings: mappings)
         XCTAssertEqual(matched.count, 1); XCTAssertEqual(matched[0].assignments.count, 2); XCTAssertEqual(matched[0].sources.count, 2)
+    }
+}
+
+
+extension GradeCoreTests {
+    func testInitialProgressionUsesCanonicalCalculationWithoutInventingObservedHistory() throws {
+        var course = source(); course.method = .points; course.categories = []
+        course.fetched = Date(timeIntervalSince1970: 500_000)
+        course.assignments = [assignment(earned: 100), assignment(id: "2", earned: 90)]
+        course.assignments[0].updated = Date(timeIntervalSince1970: 100_000)
+        course.assignments[1].updated = Date(timeIntervalSince1970: 200_000)
+        course.grade.percent = 95
+        let points = GradeProgression.calculated(course, before: course.fetched)
+        XCTAssertEqual(points.map { $0.grade.percent }, [100,95]); XCTAssertTrue(points.allSatisfy(\.calculated))
+        XCTAssertTrue(points.allSatisfy { !$0.usesDueDate })
+        course.grade.percent = 85
+        XCTAssertTrue(GradeProgression.calculated(course, before: course.fetched).isEmpty)
+    }
+    func testProgressionGroupsDatesAndDistinguishesDueDateFallback() {
+        var course = source(); course.method = .points; course.categories = []
+        course.fetched = Date(timeIntervalSince1970: 500_000)
+        course.assignments = [assignment(earned: 100), assignment(id: "2", earned: 90)]
+        for i in course.assignments.indices { course.assignments[i].updated = nil; course.assignments[i].due = Date(timeIntervalSince1970: 100_000) }
+        course.grade.percent = 95
+        let points = GradeProgression.calculated(course, before: course.fetched)
+        XCTAssertEqual(points.count, 1); XCTAssertTrue(points[0].usesDueDate); XCTAssertEqual(points[0].grade.percent, 95)
+        course.assignments[0].due = nil
+        XCTAssertTrue(GradeProgression.calculated(course, before: course.fetched).isEmpty)
     }
 }

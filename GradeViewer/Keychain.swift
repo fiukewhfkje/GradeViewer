@@ -38,7 +38,11 @@ struct StoredCookie: Codable {
 struct CampusSession: Codable {
     var portal: URL; var base: URL; var cookies: [StoredCookie]
     init(portal: URL, cookies: [HTTPCookie]) throws {
-        guard portal.scheme == "https", portal.user == nil, portal.password == nil, portal.port == nil || portal.port == 443, let host = portal.host, let range = portal.path.range(of: "/portal/"), portal.path.contains("/portal/students/") else { throw ProviderError.unsafeURL }
+        guard portal.scheme == "https", portal.user == nil, portal.password == nil, portal.port == nil || portal.port == 443, let host = portal.host else { throw ProviderError.unsafeURL }
+        let range: Range<String.Index>
+        if portal.path.contains("/portal/students/"), let found = portal.path.range(of: "/portal/") { range = found }
+        else if portal.path.contains("/nav-wrapper/student/portal/student/"), let found = portal.path.range(of: "/nav-wrapper/") { range = found }
+        else { throw ProviderError.unsafeURL }
         self.portal = portal
         var components = URLComponents(url: portal, resolvingAgainstBaseURL: false)!; components.path = String(portal.path[..<range.lowerBound]) + "/"; components.query = nil; components.fragment = nil
         guard let base = components.url else { throw ProviderError.unsafeURL }; self.base = base

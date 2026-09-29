@@ -53,6 +53,7 @@ public struct Course: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceCourse]; public var assignments: [Assignment]; public var history: [GradeHistorySnapshot]; public var hidden: Bool; public var order: Int
     public var display: SourceCourse { sources.first(where: { $0.source.provider == .infiniteCampus && ($0.grade.percent != nil || $0.grade.letter != nil) }) ?? sources.first(where: { $0.grade.percent != nil || $0.grade.letter != nil }) ?? sources[0] }
     public var calculationSource: SourceCourse { display }
+    public var name: String { display.source.fields["course_name"] ?? display.title }
     public var disagrees: Bool { Set(sources.map(\.grade)).count > 1 }
     public init(id: String, sources: [SourceCourse], assignments: [Assignment] = [], history: [GradeHistorySnapshot] = [], hidden: Bool = false, order: Int = 0) { self.id = id; self.sources = sources; self.assignments = assignments; self.history = history; self.hidden = hidden; self.order = order }
 }

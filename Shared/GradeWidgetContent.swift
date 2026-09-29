@@ -17,7 +17,7 @@ struct GradeWidgetContent: View {
                     if course.id != snapshot.courses.prefix(3).last?.id { Divider() }
                 }.font(.subheadline)
             }
-            if let date = snapshot.refreshed { Text(date, style: .relative).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
+            if let date = snapshot.refreshed { Text(date, format: .dateTime.month(.abbreviated).day().hour().minute()).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 }

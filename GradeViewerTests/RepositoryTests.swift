@@ -29,6 +29,30 @@ import GradeCore
         XCTAssertEqual(session.base.absoluteString, "https://district.example.org/campus/"); XCTAssertEqual(session.cookies.count, 1); XCTAssertEqual(session.cookies[0].cookie?.value, "fixture")
         XCTAssertThrowsError(try CampusSession(portal: URL(string: "https://district.example.org/campus/portal/parents/district.jsp")!, cookies: []))
     }
+    func testCampusModernStudentHomeUsesCampusBase() throws {
+        let url = URL(string: "https://district.example.org/campus/nav-wrapper/student/portal/student/home?appName=district")!
+        let session = try CampusSession(portal: url, cookies: [])
+        XCTAssertEqual(session.base.absoluteString, "https://district.example.org/campus/")
+        XCTAssertThrowsError(try CampusSession(portal: URL(string: "https://district.example.org/campus/nav-wrapper/parent/portal/student/home")!, cookies: []))
+    }
+    func testConnectionReportNeverIncludesUnderlyingErrorText() throws {
+        let underlying = NSError(domain: NSURLErrorDomain, code: URLError.timedOut.rawValue, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_URL_AND_TOKEN"])
+        let report = ConnectionDiagnostics(provider: .schoology, result: ConnectionDiagnostics.result(underlying), responses: [])
+        let encoded = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("PRIVATE_URL_AND_TOKEN")); XCTAssertTrue(encoded.contains("network error"))
+        XCTAssertEqual(ConnectionDiagnostics.result(ProviderError.malformed), "unexpected JSON structure")
+    }
+    func testInitialTermChoosesCurrentRatherThanFutureQuarter() throws {
+        let repository = try GradeRepository(memory: true)
+        var courses = Array(Demo.courses().prefix(2))
+        courses[0].sources[0].term = Term(id: "current", name: "Current quarter", start: Date().addingTimeInterval(-86_400), end: Date().addingTimeInterval(86_400))
+        courses[1].sources[0].term = Term(id: "future", name: "Future quarter", start: Date().addingTimeInterval(172_800), end: Date().addingTimeInterval(259_200))
+        try repository.save(courses)
+        let store = AppStore(repository: repository, demo: false, readCredentials: false)
+        XCTAssertEqual(store.terms.first, "Future quarter")
+        XCTAssertEqual(store.selectedTerm, "Current quarter")
+        XCTAssertEqual(store.visibleCourses.count, 1)
+    }
 }
 
 extension RepositoryTests {

@@ -126,55 +126,76 @@ struct InteractiveAssignmentRow: View {
     }
     var body: some View {
         HStack(spacing: 0) {
-            NavigationLink { AssignmentDetailView(assignment: assignment, course: course) } label: {
-                if compact {
-                    HStack { Text(source.title).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true); Spacer(); Text(percentText(simulated.display.score.percent)).monospacedDigit().foregroundStyle(changed ? Color.blue : Palette.grade).strikethrough(dropped) }.padding(.vertical, 8)
-                } else { AssignmentRow(assignment: simulated).strikethrough(dropped).overlay(alignment: .bottomLeading) { if changed { Text("What-If").font(.caption2).foregroundStyle(.blue).padding(.leading, 16).padding(.bottom, 3) } } }
-            }.buttonStyle(.plain)
+            AssignmentRow(assignment: simulated, changed: changed, dropped: dropped)
             Menu {
-                Button("Edit score", systemImage: "pencil") { editing = true }
-                Button(dropped ? "Restore assignment" : "Drop assignment", systemImage: dropped ? "plus.circle" : "minus.circle") {
+                Button("Edit Grade", systemImage: "pencil") { editing = true }
+                Button(dropped ? "Undrop Assignment" : "Drop Assignment", systemImage: dropped ? "plus.circle" : "minus.circle") {
                     var h = scenario; if dropped { h.ignored.remove(source.id) } else { h.ignored.insert(source.id) }; store.saveScenario(h, course: course)
                 }
-                Button("Reset assignment", systemImage: "arrow.uturn.backward") { var h = scenario; h.scores[source.id] = nil; h.ignored.remove(source.id); store.saveScenario(h, course: course) }.disabled(!changed)
-            } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).foregroundStyle(.secondary).frame(width: 36, height: 44) }
-                .accessibilityLabel("Options for \(source.title)").disabled(!GradeCalculator.isReliable(course.calculationSource) || !course.calculationSource.assignments.contains(where: { $0.id == source.id }))
+                Button("Reset Assignment", systemImage: "arrow.uturn.backward") { var h = scenario; h.scores[source.id] = nil; h.ignored.remove(source.id); store.saveScenario(h, course: course) }.disabled(!changed)
+            } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).foregroundStyle(.primary).frame(width: 38, height: 44) }
+                .tint(.primary).accessibilityLabel("Options for \(source.title)")
+                .disabled(!GradeCalculator.isReliable(course.calculationSource) || !course.calculationSource.assignments.contains(where: { $0.id == source.id }))
         }.background(compact ? Color.clear : Palette.row, in: RoundedRectangle(cornerRadius: compact ? 0 : 16))
             .sheet(isPresented: $editing) {
-                NavigationStack { EditScoreView(assignment: source, value: scenario.scores[source.id] ?? source.score.earned) { value in var h = scenario; h.scores[source.id] = value; store.saveScenario(h, course: course); editing = false }.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { editing = false } } } }.presentationDetents([.medium])
+                EditScoreView(assignment: source, value: scenario.scores[source.id] ?? source.score.earned) { value in var h = scenario; h.scores[source.id] = value; store.saveScenario(h, course: course); editing = false }
+                    .presentationDetents([.height(280)]).presentationDragIndicator(.visible)
             }
     }
 }
+
 struct EditScoreView: View {
     let assignment: SourceAssignment
     let save: (Double) -> Void
     @State private var text: String
     init(assignment: SourceAssignment, value: Double?, save: @escaping (Double) -> Void) { self.assignment = assignment; self.save = save; _text = State(initialValue: value.map(pointsText) ?? "") }
     var number: Double? { guard let n = Double(text.replacingOccurrences(of: ",", with: ".")), n.isFinite, n >= 0 else { return nil }; return n }
+    @FocusState private var focused: Bool
     var body: some View {
-        Form {
-            Section { Text(assignment.title); HStack { TextField("Score", text: $text).keyboardType(.decimalPad).font(.title2).accessibilityIdentifier("edit-score-field"); Text("/ " + pointsText(assignment.score.possible)).font(.title2) } }
-            Button("Save What-If score") { if let number { save(number) } }.disabled(number == nil).accessibilityIdentifier("save-score")
-        }.navigationTitle("Edit score").navigationBarTitleDisplayMode(.inline)
+        VStack(spacing: 26) {
+            Text("Edit Assignment Grade").font(.title2.bold())
+            HStack(spacing: 12) {
+                TextField("Score", text: $text).keyboardType(.decimalPad).focused($focused).font(.largeTitle.weight(.semibold)).multilineTextAlignment(.center).frame(width: 90, height: 64).background(Palette.row, in: RoundedRectangle(cornerRadius: 16)).accessibilityIdentifier("edit-score-field")
+                Text("/ " + pointsText(assignment.score.possible)).font(.largeTitle.weight(.medium))
+            }
+            Button("Save") { if let number { save(number) } }.font(.headline).foregroundStyle(Palette.background).frame(maxWidth: .infinity).padding(.vertical, 18).background(Color.primary, in: RoundedRectangle(cornerRadius: 16)).disabled(number == nil).accessibilityIdentifier("save-score")
+        }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.background).onAppear { focused = true }
     }
 }
+
 struct CourseGradeSummary: View {
     @Environment(AppStore.self) private var store
     let course: Course
+    @State private var destination: Destination?
+    enum Destination: String, Identifiable { case assignments, whatif, final, sources; var id: String { rawValue } }
     var body: some View {
         let h = store.scenario(course)
         let changed = !h.scores.isEmpty || !h.ignored.isEmpty || !h.added.isEmpty
         let showScenario = changed && GradeCalculator.isReliable(course.calculationSource)
         let simulated = showScenario ? try? GradeCalculator.percent(course: course.calculationSource, hypothesis: h) : nil
-        HStack {
-            VStack(alignment: .leading, spacing: 6) { Text(showScenario ? "What-If grade" : "Course grade").font(.headline); Text(course.display.term.name).font(.caption).foregroundStyle(.secondary) }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 7) { Text("Course Grade").font(.title3.bold()); UpdatedLabel(date: course.updated) }.frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .center, spacing: 5) {
                 if showScenario {
                     Text(percentText(simulated)).font(.title2.bold()).foregroundStyle(.blue).monospacedDigit()
-                    if let simulated, let original = course.display.grade.percent { Text(String(format: "%+.2f%%", simulated - original)).font(.caption.weight(.semibold)).foregroundStyle(.blue) }
+                    if let simulated, let original = course.display.grade.percent { Text(String(format: "%+.2f%%", simulated - original)).font(.subheadline.bold()).foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 2).background(Palette.grade, in: RoundedRectangle(cornerRadius: 4)) }
                 } else { GradeLabel(grade: course.display.grade, large: true) }
+            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : "Course grade")
+            Menu {
+                Button("View All Assignments", systemImage: "list.bullet") { destination = .assignments }
+                Button("What If? Calculator", systemImage: "pencil") { destination = .whatif }
+                Button("Final Grade Calculator", systemImage: "equal") { destination = .final }
+                Button("Reset All Changes", systemImage: "arrow.uturn.backward") { store.saveScenario(Hypothesis(), course: course) }.disabled(!changed)
+                if course.disagrees { Button("Source Grades", systemImage: "rectangle.on.rectangle") { destination = .sources } }
+            } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).frame(width: 32, height: 44).foregroundStyle(.primary) }.tint(.primary).accessibilityLabel("Course options")
+        }.padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 24).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
+            .navigationDestination(item: $destination) { destination in
+                switch destination {
+                case .assignments: AssignmentsView(course: course)
+                case .whatif: WhatIfView(course: course)
+                case .final: FinalCalculatorView(course: course)
+                case .sources: SourceGradesView(course: course)
+                }
             }
-        }.padding(18).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
     }
 }

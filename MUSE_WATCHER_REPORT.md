@@ -4,17 +4,17 @@ Prepared September 29, 2026. GradeViewer has no dependency on this watcher. No w
 
 ## Read this first: evidence and release gate
 
-**No endpoint has yet been verified with the user's real student authentication.** Schoology keys and the district Campus session have not been supplied locally. This report gives exact documented paths, historical public-client candidates, a concrete implementation design, and the outstanding validation checklist. It must not be represented as an already verified production endpoint inventory.
+**Both complete authenticated GradeViewer fetch pipelines succeeded on the student's iPhone.** Campus summary and six corrected sectionID detail reads returned HTTP 200 JSON with the expected task/category/assignment structure. Schoology user, sections, grades, accessible enrolled-section metadata/items/categories completed successfully. Verification used structural/status reports only; no secrets or student values were exported. Incremental cursors, event feeds, session TTL and sustained polling remain unverified. This report is an implementation handoff, not a deployed watcher.
 
 Evidence labels used below:
 
-- **D**: official published documentation; account permissions not personally verified.
+- **D**: official published documentation; does not by itself establish student permissions.
 - **P**: publicly visible source implementation; may be obsolete or district-specific.
 - **L**: GradeViewer fixture/unit/simulator tests; not server validation.
-- **V**: this user's authenticated request succeeded. Currently **none**.
+- **V**: this user's authenticated request and relevant parse succeeded; limited to the paths explicitly marked below.
 - **R**: proposed engineering choice/inference; not provider behavior.
 
-Muse can implement the deterministic state machine and fixture tests now. Before enabling sustained checking, complete one normal authenticated baseline and a genuine subsequent score-edit/grade-change observation on both providers. Do not manufacture a grade, hammer a school, or infer endpoint success from HTTP 200 alone.
+Muse can implement the deterministic state machine and fixture tests now. Before enabling sustained checking, retain the successful authenticated baselines and complete a genuine subsequent score-edit/grade-change observation on both providers. Do not manufacture a grade, hammer a school, or infer endpoint success from HTTP 200 alone.
 
 ## Recommended architecture (R)
 
@@ -30,13 +30,13 @@ All below require a newly signed OAuth 1.0 Authorization header over HTTPS. User
 
 | Method and path | Purpose/queries | Status | Suitable for checking? |
 | --- | --- | --- | --- |
-| `GET users/me` | Resolve the authorized user; may redirect | D/L | Once at login; re-sign redirects |
-| `GET users/{USER_ID}/sections` | Course discovery; follow `links.next`; `limit` paging | D | Baseline and occasional roster changes |
-| `GET sections/{SECTION_ID}` | Course settings/title | D | Metadata cache; periodic reconciliation |
-| `GET users/{USER_ID}/grades?section_id={SECTION_ID}&timestamp={CURSOR}` | Student grade updates; section_id required; timestamp is server changed-since | D/L parsing | Preferred student detection candidate |
+| `GET users/me` | Resolve the authorized user; may redirect | D/L/V | Once at login; re-sign redirects |
+| `GET users/{USER_ID}/sections` | Course discovery; follow `links.next`; `limit` paging | D/V | Baseline and occasional roster changes |
+| `GET sections/{SECTION_ID}` | Course settings/title | D/V enrolled ID | Metadata cache; periodic reconciliation |
+| `GET users/{USER_ID}/grades?section_id={SECTION_ID}&timestamp={CURSOR}` | Student grade updates; section_id required; timestamp is server changed-since | D/L; V without timestamp | Preferred student detection candidate |
 | `GET sections/{SECTION_ID}/grades?enrollment_id={ENROLLMENT_ID}&timestamp={CURSOR}` | Enrollment-scoped grade updates | D | Alternative only if student permissions allow; never query all students |
-| `GET sections/{SECTION_ID}/grade_items` | Assignment/discussion/assessment metadata; paginated | D/L | Initial load, missing IDs, occasional metadata refresh |
-| `GET sections/{SECTION_ID}/grading_categories` | Category weights/method/drop rules | D/L | Cache; refresh after configuration changes |
+| `GET sections/{SECTION_ID}/grade_items` | Assignment/discussion/assessment metadata; paginated | D/L/V enrolled ID | Initial load, missing IDs, occasional metadata refresh |
+| `GET sections/{SECTION_ID}/grading_categories` | Category weights/method/drop rules | D/L/V enrolled ID | Cache; refresh after configuration changes |
 | `GET triggers/targets` / `GET triggers/subscriptions` | Existing school webhook configuration | D | Admin-only authority gate; no periodic student probe |
 | `POST triggers/targets` / `PUT triggers/subscriptions` | Configure a webhook target and subscriptions | D | Requires admin authorization; Muse must not configure with student authority |
 | `GET reminders/{type}` or `{realm}/{realm_id}/reminders/{type}` | Reminder collections | D | Not a documented complete score-change journal |
@@ -50,8 +50,8 @@ The application's path can vary. Derive it from the actual Campus Student URL; d
 | Method and relative path | Purpose/queries | Status | Suitable for checking? |
 | --- | --- | --- | --- |
 | `GET portal/students/{DISTRICT}.jsp` | Open district login; subsequent form/SSO flow varies | D concept/P path | Interactive initial login only |
-| `GET resources/portal/grades` | Student schools/terms/courses/grading tasks, overall percentages | P/L parsing | Moderate summary polling candidate after V validation |
-| `GET resources/portal/grades/detail/{COURSE_OPAQUE_ID}` | Tasks/categories/assignments/scores | P/L parsing | Fetch on event/summary change, plus occasional reconciliation |
+| `GET resources/portal/grades` | Student schools/terms/courses/grading tasks, overall percentages | P/L/V | Moderate summary polling candidate; cadence unverified |
+| `GET resources/portal/grades/detail/{SECTION_ID}` | Tasks/categories/assignments/scores | P/L/V | Fetch on event/summary change, plus occasional reconciliation |
 | `GET resources/portal/roster?_expand=%7BsectionPlacements-%7Bterm%7D%7D` | Schedule/section discovery | P | Baseline only if needed |
 | `GET prism?x=notifications.Notification-retrieve&limitCount=200` | Historical public client's notification collection | P, historical | Best event-feed candidate to validate; no current guarantee |
 | `GET prism?x=notifications.NotificationUser-countUnviewed` | Historical unseen count | P, historical | Poor primary detector: a count can be reset independently |
@@ -61,6 +61,14 @@ The application's path can vary. Derive it from the actual Campus Student URL; d
 **Do not use** the old query-string-password `verify.jsp?nonBrowser=true...` login. Do not use endpoints that mark notifications read/viewed, toggleRead, updateLastViewed, or markAllRead. A watcher must not change the user's notification state.
 
 The official [Campus Student guide](https://kb.infinitecampus.com/help/campus-student-portal) describes recent grade/assignment updates, supporting investigation of a current feed; it does not publish the JSON endpoint behind them. [OneRoster](https://kb.infinitecampus.com/help/oneroster-api) is a district integration route and is not a student's personal login API. No student webhook subscription or supported changed-since Campus grade endpoint was found in the official material reviewed.
+
+## Observed integration corrections (V/L)
+
+Dublin City application base is `https://dublincityoh.infinitecampus.org/campus/`, discovered through the normal Student login, including the modern nav-wrapper homepage. Campus details must use the summary course's `sectionID`, not its `_id`. The wrong identifier returned authenticated empty arrays; corrected detail responses were objects with details/tasks/categories/assignments. Summary response was 58,368 bytes; corrected six detail responses ranged from 970 to 41,062 bytes. One detail legitimately had no categories. These are observed payload sizes, not latency or rate-limit measurements.
+
+Schoology returned a grade-owner ID different from the requested enrolled section. Direct grade-items access through that owner was HTTP 403; metadata/items/categories through the enrolled section succeeded. GradeViewer validates metadata against the requested enrolled ID, accepts an alternate grade owner only when the grades response is unambiguous, retains both IDs in provenance, and namespaces/deduplicates grades by their actual owner. Do not blindly rewrite all section URLs to the returned owner. This is observed response behavior, not proof of a documented linking mechanism.
+
+Both active Keychain connections survived app reinstalls and relaunch. Cookies/keys were not exported to a VM. No expiry TTL or cross-host cookie behavior was measured.
 
 ## Login and session behavior
 
@@ -76,7 +84,7 @@ The official [Campus Student guide](https://kb.infinitecampus.com/help/campus-st
 
 **D:** User visits the district's Campus Student page and completes normal student login or district SSO. The official mobile app offers Stay Logged In. These documented behaviors do not establish the TTL of a third-party browser session. [Student login help](https://www.infinitecampus.com/support/parents-and-students)
 
-**GradeViewer implementation:** Nonpersistent WKWebView, in-app district lookup or a supplied student URL, user-entered password/SSO, Campus-origin cookie extraction after login, read-only verification, and Keychain cookie persistence. Safari login sessions are separate and are not imported. Raw passwords and identity-provider cookies are not saved by GradeViewer. No password appears in URLs or logs. This is an implementation choice awaiting V validation.
+**GradeViewer implementation:** Nonpersistent WKWebView, in-app district lookup or a supplied student URL, user-entered password/SSO, Campus-origin cookie extraction after login, read-only verification, and Keychain cookie persistence. Safari login sessions are separate and are not imported. Raw passwords and identity-provider cookies are not saved by GradeViewer. No password appears in URLs or logs. Failed setup saves a separate pending Keychain session for manual retry/forget; a provider is marked Connected only after complete read verification. The observed Dublin City Student home uses `/campus/nav-wrapper/student/portal/student/home?appName=dublincity`, with `/campus/` as the application base. Login navigation was observed by the user; grade resource success still awaits V validation.
 
 **Muse implication:** iOS Keychain cannot simply be read from Linux. Muse needs a separately authorized local browser login/session on its VM, or an explicitly authorized encrypted session transfer mechanism developed later. GradeViewer has no session-export feature. Linux initial login must be interactive if SSO/MFA requires it; a headless browser is not grounds to bypass those controls. Do not maintain the student's raw password just for automatic relogin.
 
@@ -176,7 +184,7 @@ Cookie: <SESSION_COOKIE_NAME>=<REDACTED_COOKIE>
 {"details":[{"task":{"termID":"<TERM_ID>","taskID":"<TASK_ID>"},"categories":[{"name":"<CATEGORY>","weight":"<WEIGHT>","isWeighted":true,"assignments":[{"objectSectionID":"<ASSIGNMENT_ID>","assignmentName":"<ASSIGNMENT>","scorePoints":"<SCORE>","totalPoints":"<POSSIBLE>","multiplier":1,"dueDate":"<DUE>"}]}]}]}
 ```
 
-The opaque course `_id` is the detail reference. Do not substitute sectionID without validating the current client. Preserve task and term boundaries. Missing progressPercent must not erase a valid posted percent; numeric zero must not fall through to another value.
+Use `sectionID` for the detail reference. The public home page passes that ID to its detail page and then the worker. GradeViewer initially misread this relationship and used `_id`; real attempts returned empty arrays. A focused regression reproduced it and the route was corrected. Current district detail success remains pending the corrected build. Preserve task and term boundaries. Missing progressPercent must not erase a valid posted percent; numeric zero must not fall through to another value.
 
 ## Rates, latency, size, and caching
 
@@ -331,12 +339,12 @@ Idle checking uses deterministic code. Model wakeups should be limited to a genu
 
 ## Required V validation before sustained operation
 
-1. Enter Schoology credentials locally and complete `/users/me`, sections, one section's grades/grade_items/categories. Record methods/path, status, permission, page count, server time, redacted field structure, latency/bytes. Do not record secrets or personal scores here.
+1. Completed locally: Schoology identity, enrolled sections and full grades/metadata/items/categories pipeline. Still measure paging/latency and retain safe structural evidence; never export secrets or personal scores.
 2. Make one genuine naturally occurring new/edited grade observation with timestamp filtering; verify overlap, inclusive/exclusive semantics, returned period overalls, and cursor safety.
-3. Sign into the exact district Campus Student page normally. Verify summary and opaque-ID detail requests. Confirm task/term schema, assignment identity, missing/excused/drop flags, weighting, and date timezone.
+3. Completed locally: normal Dublin City Student sign-in, summary and six section-ID detail requests, complete parse. Still calibrate timezone, exception flags and advanced rules against actual portal values.
 4. Validate the current Campus recent-score/notification feed using the actual client or authorized requests; compare stable event IDs, edit behavior, overflow, and whether reads are nonmutating. Retire the historical prism candidate if the district no longer uses it.
 5. Observe session rotation and eventual expiry, including HTML/login redirects. Demonstrate one reconnect and recovery without fake deletions. Do not infer a TTL from one successful hour.
 6. Measure a low-frequency trial first, including normal response size/latency and cache validators. Record any actual throttling. Change cadence only with evidence.
 7. Observe the same assignment in both systems and a later score edit; verify one score wakeup and correct handling of an independently changed Campus overall.
 
-Until these checks are complete, the report's exact endpoints remain D/P candidates. Update this file with a redacted V matrix instead of making undocumented claims.
+Only the explicitly marked full-fetch paths are V. Timestamp/delta behavior, event feeds, webhook authority, renewal and sustained cadence remain D/P/R candidates until separately verified. Update evidence labels for actual observations.

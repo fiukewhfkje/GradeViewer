@@ -10,10 +10,13 @@ import GradeCore
     var demo = false
     var selectedTerm = ""
     var connected: Set<ProviderID> = []
+    var pending: Set<ProviderID> = []
+    var connectionDetails: [ProviderID: String] = [:]
     var scenarios: [String: Hypothesis] = [:]
     var mappings: [String: String] = [:]
     var deadlines: [ProviderID: Date] = [:]
     private var repository: GradeRepository?
+    private var started = false
     init(repository provided: GradeRepository? = nil, demo requested: Bool? = nil, readCredentials: Bool = true) {
         let arguments = ProcessInfo.processInfo.arguments
         demo = requested ?? arguments.contains("--demo")
@@ -21,15 +24,25 @@ import GradeCore
             repository = try provided ?? GradeRepository(memory: demo)
             mappings = try repository!.mappings()
             courses = demo ? Demo.courses(longList: arguments.contains("--long-list")) : try repository!.load()
+            if demo && arguments.contains("--single-history") { for i in courses.indices { courses[i].history = Array(courses[i].history.suffix(1)) } }
+            if demo && arguments.contains("--multiple-terms"), courses.count > 1 {
+                for i in courses.indices { courses[i].sources[0].term.start = Date().addingTimeInterval(-86_400); courses[i].sources[0].term.end = Date().addingTimeInterval(86_400) }
+                courses[1].sources[0].term = Term(id: "future", name: "Future quarter", start: Date().addingTimeInterval(172_800), end: Date().addingTimeInterval(259_200))
+            }
             if arguments.contains("--empty") { courses = [] }
             if arguments.contains("--error") { errors[.infiniteCampus] = "Infinite Campus could not refresh." }
             if !demo && readCredentials {
                 if try SecureStore.load(SchoologyCredentials.self, account: "schoology") != nil { connected.insert(.schoology) }
                 if try SecureStore.load(CampusSession.self, account: "campus") != nil { connected.insert(.infiniteCampus) }
+                if try SecureStore.load(SchoologyCredentials.self, account: "schoology-pending") != nil { pending.insert(.schoology) }
+                if try SecureStore.load(CampusSession.self, account: "campus-pending") != nil { pending.insert(.infiniteCampus) }
             }
         } catch { localError = "Saved grades could not be opened." }
         for course in courses { scenarios[course.id] = (try? repository?.scenario(course.id)) ?? Hypothesis() }
-        selectedTerm = terms.first ?? ""
+        selectedTerm = preferredTerm()
+        #if DEBUG
+        verifyLayout(phase: "cached startup")
+        #endif
     }
     var terms: [String] {
         let unique = Set(courses.map { $0.display.term.name })
@@ -40,11 +53,55 @@ import GradeCore
         }
     }
     var visibleCourses: [Course] { courses.filter { !$0.hidden && (selectedTerm.isEmpty || $0.display.term.name == selectedTerm) }.sorted { $0.order < $1.order } }
-    func refresh() async {
+    func preferredTerm(at now: Date = Date()) -> String {
+        let current = terms.first { name in courses.contains { course in
+            let term = course.display.term
+            return term.name == name && term.start.map { $0 <= now } == true && term.end.map { $0 >= now } == true
+        } }
+        if let current { return current }
+        return terms.first { name in courses.contains { course in
+            let source = course.display
+            return source.term.name == name && (source.term.start == nil || source.term.start! <= now) && (source.grade.percent != nil || source.grade.letter?.isEmpty == false)
+        } } ?? terms.first ?? ""
+    }
+    func startup() async {
+        guard !started else { return }; started = true
+        let attempted = pending
+        for provider in ProviderID.allCases where attempted.contains(provider) {
+            do { try await retryConnection(provider) }
+            catch { errors[provider] = message(error, provider: provider) }
+        }
+        await refresh(excluding: attempted)
+        #if DEBUG
+        verifyLayout(phase: "after startup refresh")
+        #endif
+    }
+    #if DEBUG
+    /// Explicit CLI verification only; no names, IDs, scores, dates, or credentials.
+    private func verifyLayout(phase: String) {
+        guard ProcessInfo.processInfo.arguments.contains("--verify-layout"),
+              let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let rows: [[String: Any]] = visibleCourses.map { course in
+            let source = course.calculationSource
+            let generated = GradeProgression.calculated(source, before: course.history.first?.date ?? source.fetched)
+            return ["method": source.method.rawValue, "provider": source.source.provider.rawValue,
+                    "assignments": source.assignments.count, "reliableBaseline": GradeCalculator.isReliable(source),
+                    "calculatedPoints": generated.count, "observedPoints": course.history.count,
+                    "hasUpdateDate": course.updated != nil]
+        }
+        let payload: [String: Any] = ["phase": phase, "schoologyConnected": connected.contains(.schoology),
+                                     "campusConnected": connected.contains(.infiniteCampus), "pendingConnections": pending.count,
+                                     "cachedCourses": courses.count, "visibleCourses": rows, "storageError": localError != nil]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: root.appendingPathComponent("layout-verification.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+    #endif
+    func refresh(excluding: Set<ProviderID> = []) async {
         guard !demo, !refreshing, repository != nil else { return }
         refreshing = true; defer { refreshing = false }
         var successes: [ProviderID: [SourceCourse]] = [:]
-        for provider in ProviderID.allCases where connected.contains(provider) {
+        for provider in ProviderID.allCases where connected.contains(provider) && !excluding.contains(provider) {
             if let deadline = deadlines[provider], deadline > Date() { continue }
             do {
                 switch provider {
@@ -72,32 +129,67 @@ import GradeCore
     func connectSchoology(_ credentials: SchoologyCredentials) async throws {
         guard !refreshing else { throw ProviderError.unavailable }
         refreshing = true; defer { refreshing = false }
-        let fetched = try await SchoologyProvider(credentials: credentials).fetch()
-        try SecureStore.save(credentials, account: "schoology")
-        connected.insert(.schoology); errors[.schoology] = nil
-        persist(Reconciler.refreshing(previous: courses, successful: [.schoology: fetched], mappings: mappings))
+        let provider = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: true)
+        try SecureStore.save(credentials, account: "schoology-pending"); pending.insert(.schoology)
+        do {
+            let fetched = try await provider.fetch()
+            try SecureStore.save(credentials, account: "schoology")
+            try SecureStore.delete(account: "schoology-pending"); pending.remove(.schoology)
+            connected.insert(.schoology); errors[.schoology] = nil
+            persist(Reconciler.refreshing(previous: courses, successful: [.schoology: fetched], mappings: mappings))
+            recordConnection(.schoology, responses: await provider.diagnostics(), error: nil)
+        } catch {
+            recordConnection(.schoology, responses: await provider.diagnostics(), error: error); throw error
+        }
     }
     func connectCampus(_ supplied: CampusSession) async throws {
         guard !refreshing else { throw ProviderError.unavailable }
         refreshing = true; defer { refreshing = false }
         var session = supplied
-        let provider = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie))
-        let fetched = try await provider.fetch()
-        session.cookies = await provider.sessionCookies().map(StoredCookie.init)
-        try SecureStore.save(session, account: "campus")
-        connected.insert(.infiniteCampus); errors[.infiniteCampus] = nil
-        persist(Reconciler.refreshing(previous: courses, successful: [.infiniteCampus: fetched], mappings: mappings))
+        let provider = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: true)
+        try SecureStore.save(session, account: "campus-pending"); pending.insert(.infiniteCampus)
+        do {
+            let fetched = try await provider.fetch()
+            session.cookies = await provider.sessionCookies().map(StoredCookie.init)
+            try SecureStore.save(session, account: "campus")
+            try SecureStore.delete(account: "campus-pending"); pending.remove(.infiniteCampus)
+            connected.insert(.infiniteCampus); errors[.infiniteCampus] = nil
+            persist(Reconciler.refreshing(previous: courses, successful: [.infiniteCampus: fetched], mappings: mappings))
+            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: nil)
+        } catch {
+            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: error); throw error
+        }
+    }
+    private func recordConnection(_ provider: ProviderID, responses: [HTTPDiagnostic], error: Error?) {
+        let report = ConnectionDiagnostics(provider: provider, result: ConnectionDiagnostics.result(error), responses: responses)
+        report.save(); connectionDetails[provider] = error == nil ? nil : report.summary
+    }
+    func retryConnection(_ provider: ProviderID) async throws {
+        switch provider {
+        case .schoology:
+            guard let saved = try SecureStore.load(SchoologyCredentials.self, account: "schoology-pending") else { throw ProviderError.reconnect }
+            try await connectSchoology(saved)
+        case .infiniteCampus:
+            guard let saved = try SecureStore.load(CampusSession.self, account: "campus-pending") else { throw ProviderError.reconnect }
+            try await connectCampus(saved)
+        }
+    }
+    func forgetPending(_ provider: ProviderID) {
+        do {
+            try SecureStore.delete(account: provider == .schoology ? "schoology-pending" : "campus-pending")
+            pending.remove(provider); connectionDetails[provider] = nil
+        } catch { localError = "The saved connection could not be removed." }
     }
     func disconnect(_ provider: ProviderID) {
         guard !refreshing else { return }
-        do { try SecureStore.delete(account: provider == .schoology ? "schoology" : "campus"); connected.remove(provider); errors[provider] = nil; deadlines[provider] = nil
+        do { try SecureStore.delete(account: provider == .schoology ? "schoology" : "campus"); try SecureStore.delete(account: provider == .schoology ? "schoology-pending" : "campus-pending"); pending.remove(provider); connectionDetails[provider] = nil; connected.remove(provider); errors[provider] = nil; deadlines[provider] = nil
             // Clear history and scenarios when disconnecting to avoid leaving another account's data.
             let remaining = courses.flatMap(\.sources).filter { $0.source.provider != provider }
             try repository?.clearScenarios(); scenarios = [:]; mappings = [:]; try repository?.saveMappings(mappings); persist(Reconciler.reconcile(remaining))
         } catch { localError = "The connection could not be removed." }
     }
     func persist(_ updated: [Course]) {
-        do { try repository?.save(updated); courses = updated; if !terms.contains(selectedTerm) { selectedTerm = terms.first ?? "" } }
+        do { try repository?.save(updated); courses = updated; if !terms.contains(selectedTerm) { selectedTerm = preferredTerm() } }
         catch { localError = "Grades could not be saved on this device."; return }
         updateWidget()
     }
