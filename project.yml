@@ -1,0 +1,93 @@
+name: GradeViewer
+options:
+  bundleIdPrefix: com.ashtonchang
+  deploymentTarget:
+    iOS: '17.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    DEVELOPMENT_TEAM: S5MUKGHJR2
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: '1.0'
+    CURRENT_PROJECT_VERSION: '1'
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GENERATE_INFOPLIST_FILE: YES
+packages:
+  GradeCore:
+    path: .
+targets:
+  GradeViewer:
+    type: application
+    platform: iOS
+    sources:
+      - GradeViewer
+      - Shared
+    dependencies:
+      - package: GradeCore
+      - target: GradeViewerWidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ashtonchang.GradeViewer
+        TARGETED_DEVICE_FAMILY: '1'
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+    info:
+      path: GradeViewer/Info.plist
+      properties:
+        CFBundleDisplayName: GradeViewer
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [gradeviewer]
+        UIUserInterfaceStyle: Automatic
+    entitlements:
+      path: GradeViewer/GradeViewer.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.ashtonchang.GradeViewer]
+  GradeViewerWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - GradeViewerWidget
+      - Shared
+    dependencies:
+      - package: GradeCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ashtonchang.GradeViewer.widget
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: '1'
+    info:
+      path: GradeViewerWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Grades
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: GradeViewerWidget/GradeViewerWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.ashtonchang.GradeViewer]
+  GradeViewerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [GradeViewerTests]
+    dependencies:
+      - target: GradeViewer
+      - package: GradeCore
+  GradeViewerUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [GradeViewerUITests]
+    dependencies:
+      - target: GradeViewer
+schemes:
+  GradeViewer:
+    build:
+      targets:
+        GradeViewer: all
+        GradeViewerWidget: all
+    test:
+      targets: [GradeViewerTests, GradeViewerUITests]

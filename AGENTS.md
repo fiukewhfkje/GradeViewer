@@ -1,4 +1,12 @@
-# GradeViewer
-Read README.md, ARCHITECTURE.md, RESEARCH.md, PROJECT_STATUS.md, TODO.md, and MUSE_WATCHER_REPORT.md before continuing.
-Native SwiftUI, local only; no backend, ads, analytics, or third-party runtime dependencies. Never put credentials or student data in fixtures, logs, or Git. Use CLI tooling only; no computer use. Provider behavior unverified with the student's account must be labeled as such. Do not assume Campus portal endpoints are a supported public API.
-Run `swift test`, regenerate with `xcodegen generate`, and build the simulator scheme after changes. UI changes require CLI simulator screenshots. Project-specific details and current signing instructions are in README.md.
+# GradeViewer development instructions
+
+Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, and RESEARCH.md before continuing. docs/PRODUCT_BRIEF.md preserves the user's detailed scope.
+
+- Keep the native app fast, simple, local, and independent of Muse. No paid tiers, analytics, ads, backend, alternate icons, planner, or speculative features.
+- Use Apple frameworks; GradeCore is the canonical implementation for parsing, reconciliation, and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
+- Never invent provider data or assume a hypothetical provider failure occurred in this student's account. Distinguish official docs, public-client evidence, fixture tests, and student-verified behavior.
+- Store credentials and session cookies only in Keychain. Never log raw responses, cookies, keys, or student grades. Source fixtures must stay synthetic.
+- Preserve last successful data on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
+- Use CLI tooling and XCTest for simulator/device work. The user explicitly prohibits computer use and mouse/keyboard GUI automation.
+- Modify project.yml and regenerate the committed Xcode project for target/build changes. Simulator Keychain/App Group tests require ad-hoc signing, not CODE_SIGNING_ALLOWED=NO. Run swift test for GradeCore changes and relevant hosted/UI tests for app changes.
+- Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, device trust, district verification, and Home Screen widget testing.

@@ -1,0 +1,750 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0B0E5605A995714C60A1E0EB /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98159709677525B908F2C335 /* Keychain.swift */; };
+		26996047A94C088AA9A1AB26 /* Calculators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5814EBBBBDCC8A255F033416 /* Calculators.swift */; };
+		2D69ABD2D7A3DEA522A31D5E /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D47EA70C4ABB293423328FE /* Persistence.swift */; };
+		34F21B5BD0F3F9AE592DA847 /* GradeWidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A1D3534E6941B3A0743D8A /* GradeWidgetContent.swift */; };
+		42A4CA6C5D269044C8A890F3 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9BF64DDCFC5F50DB81223D /* Views.swift */; };
+		54BEA4022C4CB07A07700700 /* GradeViewerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24761D599836481C8D90A3BC /* GradeViewerUITests.swift */; };
+		7E0C7295F9728F9CB4670D73 /* GradeWidgetContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A1D3534E6941B3A0743D8A /* GradeWidgetContent.swift */; };
+		88E11E4276B9C4D90C703E0C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 28899438404B74189F510FBD /* Assets.xcassets */; };
+		930658233082B7238D542C51 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C7E51E98CAF2007D308A7B /* AppStore.swift */; };
+		A0BBA4B8B7A71494CFB2BAFF /* GradeViewerWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975D6EECA6C6299957458AA /* GradeViewerWidget.swift */; };
+		AC44D320995DF39524183FDD /* GradeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8397BDFC205633D36090BB86 /* GradeCore */; };
+		B0F86ECA710DDF0E2BFB8F2E /* GradeViewerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F5D06051415E9F8A5F6AA2 /* GradeViewerApp.swift */; };
+		B9810B16ABD887DDD73D4235 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = F25675D431A35F83A18D22E9 /* Settings.swift */; };
+		BEDCFC5DF426B06D0BAD96F0 /* RepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD44C2703B2BF10619359510 /* RepositoryTests.swift */; };
+		C68669A4F084D278A169164D /* GradeCore in Frameworks */ = {isa = PBXBuildFile; productRef = F6A5E512673BC136D8EA1A22 /* GradeCore */; };
+		DB5C209D885D900E0CEE6C15 /* GradeViewerWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = E89AD0B7D98CF1F37218B64B /* GradeViewerWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E6F2EF759381D8AAEEF6D14A /* GradeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2C83CD73F03EAE513F4FAE4A /* GradeCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		44468BE7F91747AE9BC4330C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E5C53C976D811268672635 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0B1CDFCBF4614324DF98A489;
+			remoteInfo = GradeViewerWidget;
+		};
+		807D3F0CACBDC343587306AF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E5C53C976D811268672635 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3793E7580F0D66561E917F5E;
+			remoteInfo = GradeViewer;
+		};
+		F7EC88F992265BDEB4F40826 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7E5C53C976D811268672635 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3793E7580F0D66561E917F5E;
+			remoteInfo = GradeViewer;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C2D229D8DCF357F455E7D4A9 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				DB5C209D885D900E0CEE6C15 /* GradeViewerWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		24761D599836481C8D90A3BC /* GradeViewerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeViewerUITests.swift; sourceTree = "<group>"; };
+		25ED7DE8D99472863FB4945C /* GradeViewer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GradeViewer.entitlements; sourceTree = "<group>"; };
+		28899438404B74189F510FBD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2D47EA70C4ABB293423328FE /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
+		2D9BF64DDCFC5F50DB81223D /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		577BEB768B8D5A202F90EF31 /* GradeViewerUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GradeViewerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5814EBBBBDCC8A255F033416 /* Calculators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Calculators.swift; sourceTree = "<group>"; };
+		6975D6EECA6C6299957458AA /* GradeViewerWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeViewerWidget.swift; sourceTree = "<group>"; };
+		70A1D3534E6941B3A0743D8A /* GradeWidgetContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeWidgetContent.swift; sourceTree = "<group>"; };
+		80C7E51E98CAF2007D308A7B /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		98159709677525B908F2C335 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		A2F5D06051415E9F8A5F6AA2 /* GradeViewerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradeViewerApp.swift; sourceTree = "<group>"; };
+		A89C7FAB73E92FE8C4F922AD /* GradeViewerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GradeViewerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AD44C2703B2BF10619359510 /* RepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryTests.swift; sourceTree = "<group>"; };
+		B4D22EE6F43C6472E0E86BF7 /* GradeViewerWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GradeViewerWidget.entitlements; sourceTree = "<group>"; };
+		B8AB020D47C9E22E3D2A8DBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D237F2D9594077B7B0CB34EA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E14579149E21567393FA6824 /* GradeViewer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GradeViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2476B7B41A602C42C70D0B1 /* GradeViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GradeViewer; path = .; sourceTree = SOURCE_ROOT; };
+		E89AD0B7D98CF1F37218B64B /* GradeViewerWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = GradeViewerWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F25675D431A35F83A18D22E9 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		54DD2CBBD0F6FA963BC38F38 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C68669A4F084D278A169164D /* GradeCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		628FCD21487FFA2069BEF8D8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E6F2EF759381D8AAEEF6D14A /* GradeCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB9CBFA696DB4E347C8D559D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AC44D320995DF39524183FDD /* GradeCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		22FB6C42F97CB1237B474AE5 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				E2476B7B41A602C42C70D0B1 /* GradeViewer */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		2E2F2847ACE6D5933228D9B3 /* GradeViewerTests */ = {
+			isa = PBXGroup;
+			children = (
+				AD44C2703B2BF10619359510 /* RepositoryTests.swift */,
+			);
+			path = GradeViewerTests;
+			sourceTree = "<group>";
+		};
+		388855C818965EA07BFD21AB /* GradeViewerWidget */ = {
+			isa = PBXGroup;
+			children = (
+				B4D22EE6F43C6472E0E86BF7 /* GradeViewerWidget.entitlements */,
+				6975D6EECA6C6299957458AA /* GradeViewerWidget.swift */,
+				D237F2D9594077B7B0CB34EA /* Info.plist */,
+			);
+			path = GradeViewerWidget;
+			sourceTree = "<group>";
+		};
+		3CBF9BE009B2391BDB8D01DB /* GradeViewerUITests */ = {
+			isa = PBXGroup;
+			children = (
+				24761D599836481C8D90A3BC /* GradeViewerUITests.swift */,
+			);
+			path = GradeViewerUITests;
+			sourceTree = "<group>";
+		};
+		53459D8082360B652CC68A05 = {
+			isa = PBXGroup;
+			children = (
+				6F04929312A5670C30588D4F /* GradeViewer */,
+				2E2F2847ACE6D5933228D9B3 /* GradeViewerTests */,
+				3CBF9BE009B2391BDB8D01DB /* GradeViewerUITests */,
+				388855C818965EA07BFD21AB /* GradeViewerWidget */,
+				22FB6C42F97CB1237B474AE5 /* Packages */,
+				85C5C9955C7F0D4571B8448E /* Shared */,
+				890E27765F754EB6B6B30413 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6F04929312A5670C30588D4F /* GradeViewer */ = {
+			isa = PBXGroup;
+			children = (
+				80C7E51E98CAF2007D308A7B /* AppStore.swift */,
+				28899438404B74189F510FBD /* Assets.xcassets */,
+				5814EBBBBDCC8A255F033416 /* Calculators.swift */,
+				25ED7DE8D99472863FB4945C /* GradeViewer.entitlements */,
+				A2F5D06051415E9F8A5F6AA2 /* GradeViewerApp.swift */,
+				B8AB020D47C9E22E3D2A8DBF /* Info.plist */,
+				98159709677525B908F2C335 /* Keychain.swift */,
+				2D47EA70C4ABB293423328FE /* Persistence.swift */,
+				F25675D431A35F83A18D22E9 /* Settings.swift */,
+				2D9BF64DDCFC5F50DB81223D /* Views.swift */,
+			);
+			path = GradeViewer;
+			sourceTree = "<group>";
+		};
+		85C5C9955C7F0D4571B8448E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				70A1D3534E6941B3A0743D8A /* GradeWidgetContent.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		890E27765F754EB6B6B30413 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E14579149E21567393FA6824 /* GradeViewer.app */,
+				A89C7FAB73E92FE8C4F922AD /* GradeViewerTests.xctest */,
+				577BEB768B8D5A202F90EF31 /* GradeViewerUITests.xctest */,
+				E89AD0B7D98CF1F37218B64B /* GradeViewerWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0B1CDFCBF4614324DF98A489 /* GradeViewerWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2E03717D23FACE886EEF961E /* Build configuration list for PBXNativeTarget "GradeViewerWidget" */;
+			buildPhases = (
+				11A672175C1F1EBED59683A8 /* Sources */,
+				EB9CBFA696DB4E347C8D559D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GradeViewerWidget;
+			packageProductDependencies = (
+				8397BDFC205633D36090BB86 /* GradeCore */,
+			);
+			productName = GradeViewerWidget;
+			productReference = E89AD0B7D98CF1F37218B64B /* GradeViewerWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		3793E7580F0D66561E917F5E /* GradeViewer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 525582B949063E965C82AC8D /* Build configuration list for PBXNativeTarget "GradeViewer" */;
+			buildPhases = (
+				DB573579FBCCDC65302D182F /* Sources */,
+				42C05AAC88297BEAB108AE21 /* Resources */,
+				54DD2CBBD0F6FA963BC38F38 /* Frameworks */,
+				C2D229D8DCF357F455E7D4A9 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1E2111AA6392A658D9D9A9E /* PBXTargetDependency */,
+			);
+			name = GradeViewer;
+			packageProductDependencies = (
+				F6A5E512673BC136D8EA1A22 /* GradeCore */,
+			);
+			productName = GradeViewer;
+			productReference = E14579149E21567393FA6824 /* GradeViewer.app */;
+			productType = "com.apple.product-type.application";
+		};
+		59519E3EDB033DE3CE84B178 /* GradeViewerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2BB0734FD9314997BE616E30 /* Build configuration list for PBXNativeTarget "GradeViewerTests" */;
+			buildPhases = (
+				92A924B7A3CF3E08B752FC13 /* Sources */,
+				628FCD21487FFA2069BEF8D8 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AD5E3B3C1D7FF296D301BB62 /* PBXTargetDependency */,
+			);
+			name = GradeViewerTests;
+			packageProductDependencies = (
+				2C83CD73F03EAE513F4FAE4A /* GradeCore */,
+			);
+			productName = GradeViewerTests;
+			productReference = A89C7FAB73E92FE8C4F922AD /* GradeViewerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		6A629A3E438D24D2ECEE16A2 /* GradeViewerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 836B7276B1D6632B40862533 /* Build configuration list for PBXNativeTarget "GradeViewerUITests" */;
+			buildPhases = (
+				2F4DAF9FDE6BDB07B104E5D0 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				316EF77D405C3F63EF2AFD49 /* PBXTargetDependency */,
+			);
+			name = GradeViewerUITests;
+			packageProductDependencies = (
+			);
+			productName = GradeViewerUITests;
+			productReference = 577BEB768B8D5A202F90EF31 /* GradeViewerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A7E5C53C976D811268672635 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0B1CDFCBF4614324DF98A489 = {
+						DevelopmentTeam = S5MUKGHJR2;
+						ProvisioningStyle = Automatic;
+					};
+					3793E7580F0D66561E917F5E = {
+						DevelopmentTeam = S5MUKGHJR2;
+						ProvisioningStyle = Automatic;
+					};
+					59519E3EDB033DE3CE84B178 = {
+						DevelopmentTeam = S5MUKGHJR2;
+						ProvisioningStyle = Automatic;
+					};
+					6A629A3E438D24D2ECEE16A2 = {
+						DevelopmentTeam = S5MUKGHJR2;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 3793E7580F0D66561E917F5E;
+					};
+				};
+			};
+			buildConfigurationList = 35A47DCDAEF3034F73E0C910 /* Build configuration list for PBXProject "GradeViewer" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 53459D8082360B652CC68A05;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				49BCAEEB844334B7A0FB796C /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 890E27765F754EB6B6B30413 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3793E7580F0D66561E917F5E /* GradeViewer */,
+				0B1CDFCBF4614324DF98A489 /* GradeViewerWidget */,
+				59519E3EDB033DE3CE84B178 /* GradeViewerTests */,
+				6A629A3E438D24D2ECEE16A2 /* GradeViewerUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		42C05AAC88297BEAB108AE21 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				88E11E4276B9C4D90C703E0C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		11A672175C1F1EBED59683A8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0BBA4B8B7A71494CFB2BAFF /* GradeViewerWidget.swift in Sources */,
+				7E0C7295F9728F9CB4670D73 /* GradeWidgetContent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2F4DAF9FDE6BDB07B104E5D0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				54BEA4022C4CB07A07700700 /* GradeViewerUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		92A924B7A3CF3E08B752FC13 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEDCFC5DF426B06D0BAD96F0 /* RepositoryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DB573579FBCCDC65302D182F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				930658233082B7238D542C51 /* AppStore.swift in Sources */,
+				26996047A94C088AA9A1AB26 /* Calculators.swift in Sources */,
+				B0F86ECA710DDF0E2BFB8F2E /* GradeViewerApp.swift in Sources */,
+				34F21B5BD0F3F9AE592DA847 /* GradeWidgetContent.swift in Sources */,
+				0B0E5605A995714C60A1E0EB /* Keychain.swift in Sources */,
+				2D69ABD2D7A3DEA522A31D5E /* Persistence.swift in Sources */,
+				B9810B16ABD887DDD73D4235 /* Settings.swift in Sources */,
+				42A4CA6C5D269044C8A890F3 /* Views.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		316EF77D405C3F63EF2AFD49 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3793E7580F0D66561E917F5E /* GradeViewer */;
+			targetProxy = 807D3F0CACBDC343587306AF /* PBXContainerItemProxy */;
+		};
+		A1E2111AA6392A658D9D9A9E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0B1CDFCBF4614324DF98A489 /* GradeViewerWidget */;
+			targetProxy = 44468BE7F91747AE9BC4330C /* PBXContainerItemProxy */;
+		};
+		AD5E3B3C1D7FF296D301BB62 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3793E7580F0D66561E917F5E /* GradeViewer */;
+			targetProxy = F7EC88F992265BDEB4F40826 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		03B3B98C6D944F3D50628F10 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewerUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GradeViewer;
+			};
+			name = Release;
+		};
+		09923FA8671F47A510F279DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewerTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeViewer.app/GradeViewer";
+			};
+			name = Release;
+		};
+		0A5537B054FEDB2CA4C5A3E3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = GradeViewer/GradeViewer.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = GradeViewer/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		6719AF98A59BD16A34E55B9A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewerUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = GradeViewer;
+			};
+			name = Debug;
+		};
+		83C5EFF0FDBBC4899ED96E7E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = S5MUKGHJR2;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		8DE3376EFA10677097B8BC65 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewerTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GradeViewer.app/GradeViewer";
+			};
+			name = Debug;
+		};
+		AB1A163954BB2B61AF69E418 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = GradeViewerWidget/GradeViewerWidget.entitlements;
+				INFOPLIST_FILE = GradeViewerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewer.widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D64F6F85462157D84ADCC915 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = GradeViewerWidget/GradeViewerWidget.entitlements;
+				INFOPLIST_FILE = GradeViewerWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewer.widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		E220E826E8243BF3CA9930A1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = GradeViewer/GradeViewer.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = GradeViewer/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ashtonchang.GradeViewer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		E2C4F0DE333EAEE8BA60B486 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = S5MUKGHJR2;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2BB0734FD9314997BE616E30 /* Build configuration list for PBXNativeTarget "GradeViewerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8DE3376EFA10677097B8BC65 /* Debug */,
+				09923FA8671F47A510F279DD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2E03717D23FACE886EEF961E /* Build configuration list for PBXNativeTarget "GradeViewerWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB1A163954BB2B61AF69E418 /* Debug */,
+				D64F6F85462157D84ADCC915 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		35A47DCDAEF3034F73E0C910 /* Build configuration list for PBXProject "GradeViewer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				83C5EFF0FDBBC4899ED96E7E /* Debug */,
+				E2C4F0DE333EAEE8BA60B486 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		525582B949063E965C82AC8D /* Build configuration list for PBXNativeTarget "GradeViewer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A5537B054FEDB2CA4C5A3E3 /* Debug */,
+				E220E826E8243BF3CA9930A1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		836B7276B1D6632B40862533 /* Build configuration list for PBXNativeTarget "GradeViewerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6719AF98A59BD16A34E55B9A /* Debug */,
+				03B3B98C6D944F3D50628F10 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		49BCAEEB844334B7A0FB796C /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2C83CD73F03EAE513F4FAE4A /* GradeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GradeCore;
+		};
+		8397BDFC205633D36090BB86 /* GradeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GradeCore;
+		};
+		F6A5E512673BC136D8EA1A22 /* GradeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = GradeCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A7E5C53C976D811268672635 /* Project object */;
+}

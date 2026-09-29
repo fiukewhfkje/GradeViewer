@@ -1,0 +1,1 @@
+[{"schoolID":1,"terms":[{"termID":1,"termName":"Fall 2026","startDate":"2026-08-20","endDate":"2026-12-20","courses":[{"sectionID":100,"_id":"detail-100","courseName":"AP Physics 1","teacherDisplay":"Taylor","gradingTasks":[{"taskID":1,"taskName":"Grade","progressPercent":"0","progressScore":"F","percent":99}]}]}]}]

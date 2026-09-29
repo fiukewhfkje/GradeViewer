@@ -10,3 +10,10 @@ xcuserdata/
 *.key
 Secrets/
 artifacts/
+
+DeviceDerivedData/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.har
+__pycache__/
