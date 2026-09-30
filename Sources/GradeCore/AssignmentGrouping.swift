@@ -12,28 +12,22 @@ public enum AssignmentGrouping {
         let rows = groups(for: course, schoology: schoology).flatMap(\.assignments)
         return AssignmentOrdering.graded(Dictionary(rows.map { ($0.id,$0) }, uniquingKeysWith: { a,_ in a }).values)
     }
-    private struct LabelKey: Hashable { let title: String; let possible: Double }
-    private static func labelKey(_ row: SourceAssignment) -> LabelKey? {
-        let title = Reconciler.normalize(row.title)
-        guard !title.isEmpty, let points = row.score.possible else { return nil }
-        return LabelKey(title: title, possible: points)
-    }
     public static func schoologySource(for course: Course, among available: [SourceCourse]) -> SourceCourse? {
         if let linked = course.sources.first(where: { $0.source.provider == .schoology && !$0.categories.isEmpty }) { return linked }
         let name = Reconciler.normalize(course.name)
         guard !name.isEmpty else { return nil }
-        let own = Set(course.calculationSource.assignments.compactMap(labelKey))
+        let own = Set(course.calculationSource.assignments.compactMap(Reconciler.assignmentLabelKey))
         let unique = Dictionary(available.filter { $0.source.provider == .schoology }.map { ($0.id, $0) }, uniquingKeysWith: { a,b in a.fetched > b.fetched ? a : b }).values
         let candidates = unique.filter { source in
             guard !source.categories.isEmpty, Reconciler.normalize(source.source.fields["course_name"] ?? source.title) == name else { return false }
-            let shared = own.intersection((source.assignments + (source.assignmentCatalog ?? [])).compactMap(labelKey))
+            let shared = own.intersection((source.assignments + (source.assignmentCatalog ?? [])).compactMap(Reconciler.assignmentLabelKey))
             // Matching names alone must never borrow another period/section's categories.
             return shared.count >= 2
         }
         let owners = Dictionary(grouping: candidates, by: { $0.source.fields["grade_section_id"] ?? $0.id })
         guard owners.count == 1 else { return nil }
         return owners.values.first?.max { a,b in
-            own.intersection(a.assignments.compactMap(labelKey)).count < own.intersection(b.assignments.compactMap(labelKey)).count
+            own.intersection(a.assignments.compactMap(Reconciler.assignmentLabelKey)).count < own.intersection(b.assignments.compactMap(Reconciler.assignmentLabelKey)).count
         }
     }
 
@@ -85,15 +79,15 @@ public enum AssignmentGrouping {
         }
         let canonicalByKey = Dictionary(grouping: graded.compactMap { row in Reconciler.assignmentKey(row.display).map { ($0,row) } }, by: { $0.0 })
         let schoologyByKey = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentKey(row).map { ($0,row) } }, by: { $0.0 })
-        let canonicalByLabel = Dictionary(grouping: graded.compactMap { row in labelKey(row.display).map { ($0,row) } }, by: { $0.0 })
-        let schoologyByLabel = Dictionary(grouping: sourceRows.compactMap { row in labelKey(row).map { ($0,row) } }, by: { $0.0 })
+        let canonicalByLabel = Dictionary(grouping: graded.compactMap { row in Reconciler.assignmentLabelKey(row.display).map { ($0,row) } }, by: { $0.0 })
+        let schoologyByLabel = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentLabelKey(row).map { ($0,row) } }, by: { $0.0 })
         var rows: [Assignment] = [], used = Set<String>()
         for item in sourceRows {
             let direct = graded.first { $0.sources.contains { $0.id == item.id } }
             let key = Reconciler.assignmentKey(item)
             let candidate = key.flatMap { canonicalByKey[$0] }
             let unambiguous = candidate?.count == 1 && key.flatMap { schoologyByKey[$0]?.count } == 1
-            let label = labelKey(item)
+            let label = Reconciler.assignmentLabelKey(item)
             let labeled = label.flatMap { canonicalByLabel[$0] }
             let uniqueLabel = labeled?.count == 1 && label.flatMap { schoologyByLabel[$0]?.count } == 1
             // Date differences do not prevent borrowing a category within an evidenced class.

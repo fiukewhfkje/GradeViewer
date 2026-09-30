@@ -110,7 +110,7 @@ struct CourseListView: View {
                         if store.connected.isEmpty { NavigationLink("Connect a school account") { SettingsView() } }
                     }.frame(maxWidth: .infinity).padding(.vertical, 60)
                 } else if store.visibleCourses.isEmpty {
-                    NavigationLink("Edit courses") { CourseOrderView() }.padding(.vertical, 40)
+                    Text("No courses available").padding(.vertical, 40)
                 }
                 ForEach(store.visibleCourses) { course in
                     Button { selected = course } label: {
@@ -162,7 +162,7 @@ struct GradeProgressionView: View {
     var body: some View {
         GradeChart(history: course.history, calculated: calculated)
             .task(id: course.calculationSource.fetched) {
-                let source = course.calculationSource, first = course.history.first?.date ?? source.fetched
+                let source = course.calculationSource, first = course.calculationSource.fetched
                 let points = await Task.detached(priority: .userInitiated) { GradeProgression.calculated(source, before: first) }.value
                 if !Task.isCancelled { calculated = points }
             }
@@ -178,17 +178,15 @@ struct GradeChart: View {
         _selection = State(initialValue: ProcessInfo.processInfo.arguments.contains("--demo") && ProcessInfo.processInfo.arguments.contains("--preview-chart-touch") ? 0.5 : nil)
         #endif
     }
-    private var firstDate: Date { curve.nodes.first?.date ?? .distantPast }
-    private var duration: Double { curve.nodes.last?.date.timeIntervalSince(firstDate) ?? 0 }
-    private var selectedDate: Date { firstDate.addingTimeInterval(Double(selection ?? 0) * duration) }
-    private var selectedValue: Double? { curve.value(at: selectedDate) }
+    private var selectedEvent: GradeCurve.Node? { curve.event(at: Double(selection ?? 0)) }
+    private var selectedValue: Double? { selectedEvent?.value }
     private var bounds: ClosedRange<Double> {
         let low = curve.nodes.map(\.value).min() ?? 0, high = curve.nodes.map(\.value).max() ?? 100
         let padding = max(1, (high - low) * 0.12)
         return (low - padding)...(high + padding)
     }
-    private func position(date: Date, value: Double, size: CGSize) -> CGPoint {
-        let x = duration > 0 ? date.timeIntervalSince(firstDate) / duration : 0.5
+    private func position(fraction: Double, value: Double, size: CGSize) -> CGPoint {
+        let x = fraction
         let y = (value - bounds.lowerBound) / (bounds.upperBound - bounds.lowerBound)
         return CGPoint(x: x * size.width, y: 12 + (1 - y) * (size.height - 24))
     }
@@ -196,15 +194,15 @@ struct GradeChart: View {
         Path { path in
             guard let first = curve.nodes.first else { return }
             if curve.nodes.count == 1 {
-                let y = position(date: first.date, value: first.value, size: size).y
+                let y = position(fraction: first.fraction, value: first.value, size: size).y
                 path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y)); return
             }
-            path.move(to: position(date: first.date, value: first.value, size: size))
+            path.move(to: position(fraction: first.fraction, value: first.value, size: size))
             for segment in curve.segments {
                 let step = segment.duration / 3
-                path.addCurve(to: position(date: segment.end.date, value: segment.end.value, size: size),
-                              control1: position(date: segment.start.date.addingTimeInterval(step), value: segment.start.value + segment.startSlope * step, size: size),
-                              control2: position(date: segment.end.date.addingTimeInterval(-step), value: segment.end.value - segment.endSlope * step, size: size))
+                path.addCurve(to: position(fraction: segment.end.fraction, value: segment.end.value, size: size),
+                              control1: position(fraction: segment.start.fraction + step, value: segment.start.value + segment.startSlope * step, size: size),
+                              control2: position(fraction: segment.end.fraction - step, value: segment.end.value - segment.endSlope * step, size: size))
             }
         }
     }
@@ -233,13 +231,13 @@ struct GradeChart: View {
                     #endif
                 }.onEnded { _ in selection = nil })
                 .overlay(alignment: .topLeading) {
-                    if let selection, let value = selectedValue {
-                        let y = position(date: selectedDate, value: value, size: size).y
+                    if let selection, let event = selectedEvent, let trace = curve.traceValue(at: Double(selection)) {
+                        let y = position(fraction: Double(selection), value: trace, size: size).y
                         Circle().fill(Color.primary.opacity(0.12)).frame(width: 32, height: 32).position(x: selection * size.width, y: y)
                         Circle().fill(Color.primary).frame(width: 8, height: 8).position(x: selection * size.width, y: y)
                         VStack(spacing: 6) {
-                            Text(value, format: .number.precision(.fractionLength(2))).font(.subheadline.bold())
-                            Text(selectedDate, format: .dateTime.month(.defaultDigits).day().year()).font(.subheadline)
+                            Text(event.value, format: .number.precision(.fractionLength(2))).font(.subheadline.bold())
+                            Text(event.date, format: .dateTime.month(.defaultDigits).day().year()).font(.subheadline)
                         }.foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.12)).padding(12)
                             .background(Color(red: 0.99, green: 0.976, blue: 0.95), in: RoundedRectangle(cornerRadius: 16))
                             .fixedSize().position(x: min(size.width - 48, max(48, selection * size.width)), y: -62)
@@ -251,11 +249,11 @@ struct GradeChart: View {
             .accessibilityValue(accessibilityValue)
     }
     private var accessibilityValue: String {
-        if selection != nil { return "Selected \(percentText(selectedValue)) on \(selectedDate.formatted(date: .numeric, time: .omitted))" }
+        if selection != nil { return "Selected \(percentText(selectedValue)) on \((selectedEvent?.date.formatted(date: .numeric, time: .omitted) ?? ""))" }
         #if DEBUG
         // Explicit fixture instrumentation checks real gesture samples after XCTest releases its touch.
         if ProcessInfo.processInfo.arguments.contains("--record-chart-touch"), let lastTouch {
-            return "Released; last touch \(percentText(curve.value(at: firstDate.addingTimeInterval(Double(lastTouch) * duration))))"
+            return "Released; last touch \(percentText(curve.event(at: Double(lastTouch))?.value))"
         }
         #endif
         return "\(curve.nodes.count) grades, latest \(percentText(curve.nodes.last?.value))"

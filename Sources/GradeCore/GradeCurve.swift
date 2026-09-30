@@ -1,12 +1,17 @@
 import Foundation
 
-/// One monotone cubic curve shared by drawing and continuous touch sampling.
+/// Smooth geometry across evenly spaced grade events. The tooltip selects an
+/// event independently: interpolated geometry is never an historical grade.
 public struct GradeCurve: Sendable {
-    public struct Node: Sendable { public let date: Date; public let value: Double }
+    public struct Node: Sendable {
+        public let date: Date
+        public let value: Double
+        public let fraction: Double
+    }
     public struct Segment: Sendable {
         public let start: Node; public let end: Node
         public let startSlope: Double; public let endSlope: Double
-        public var duration: Double { end.date.timeIntervalSince(start.date) }
+        public var duration: Double { end.fraction - start.fraction }
         public func value(at fraction: Double) -> Double {
             let t = min(1, max(0, fraction)), t2 = t * t, t3 = t2 * t
             return (2 * t3 - 3 * t2 + 1) * start.value + (t3 - 2 * t2 + t) * duration * startSlope
@@ -16,13 +21,20 @@ public struct GradeCurve: Sendable {
     public let nodes: [Node]
     public let segments: [Segment]
     public init(points: [GradeProgressionPoint]) {
-        // Prefer actual observations when a calculated point has the same date.
-        let sorted = points.sorted { $0.date == $1.date ? $0.calculated && !$1.calculated : $0.date < $1.date }
-        var unique: [Date: Double] = [:]
-        for point in sorted { if let value = point.grade.percent, value.isFinite { unique[point.date] = value } }
-        nodes = unique.keys.sorted().map { Node(date: $0, value: unique[$0]!) }
+        // Stable input order preserves distinct contributions with identical dates.
+        // An observed value wins at its timestamp, after any calculated events.
+        let sorted = points.enumerated().filter { $0.element.grade.percent?.isFinite == true }.sorted {
+            if $0.element.date != $1.element.date { return $0.element.date < $1.element.date }
+            if $0.element.calculated != $1.element.calculated { return $0.element.calculated }
+            return $0.offset < $1.offset
+        }
+        var seen = Set<String>()
+        let events = sorted.map(\.element).filter { seen.insert($0.id).inserted }
+        nodes = events.enumerated().map { index, point in
+            Node(date: point.date, value: point.grade.percent!, fraction: events.count > 1 ? Double(index) / Double(events.count - 1) : 0.5)
+        }
         guard nodes.count > 1 else { segments = []; return }
-        let widths = zip(nodes, nodes.dropFirst()).map { $1.date.timeIntervalSince($0.date) }
+        let widths = zip(nodes, nodes.dropFirst()).map { $1.fraction - $0.fraction }
         let slopes = zip(nodes, nodes.dropFirst()).enumerated().map { ($1.1.value - $1.0.value) / widths[$0] }
         var tangents = [slopes[0]]
         if nodes.count > 2 {
@@ -36,14 +48,23 @@ public struct GradeCurve: Sendable {
         }
         tangents.append(slopes.last!)
         var built: [Segment] = []
-        for i in 0..<(nodes.count - 1) { built.append(Segment(start: nodes[i], end: nodes[i + 1], startSlope: tangents[i], endSlope: tangents[i + 1])) }
+        for i in 0..<(nodes.count - 1) {
+            built.append(Segment(start: nodes[i], end: nodes[i + 1], startSlope: tangents[i], endSlope: tangents[i + 1]))
+        }
         segments = built
     }
-    public func value(at date: Date) -> Double? {
-        guard let first = nodes.first, let last = nodes.last else { return nil }
-        if date <= first.date { return first.value }
-        if date >= last.date { return last.value }
-        guard let segment = segments.first(where: { date <= $0.end.date }) else { return last.value }
-        return segment.value(at: date.timeIntervalSince(segment.start.date) / segment.duration)
+    /// Only for the line and tracing marker; never show this as a grade.
+    public func traceValue(at fraction: Double) -> Double? {
+        guard fraction.isFinite, let first = nodes.first, let last = nodes.last else { return nil }
+        if fraction <= first.fraction { return first.value }
+        if fraction >= last.fraction { return last.value }
+        guard let segment = segments.first(where: { fraction <= $0.end.fraction }) else { return last.value }
+        return segment.value(at: (fraction - segment.start.fraction) / segment.duration)
+    }
+    /// Changes once at each midpoint threshold, with the actual event's date/value.
+    public func event(at fraction: Double) -> Node? {
+        guard fraction.isFinite, !nodes.isEmpty else { return nil }
+        let index = Int((min(1, max(0, fraction)) * Double(nodes.count - 1)).rounded())
+        return nodes[index]
     }
 }

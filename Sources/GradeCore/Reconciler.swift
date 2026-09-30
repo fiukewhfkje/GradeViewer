@@ -6,7 +6,29 @@ public enum Reconciler {
     private static func courseMatch(_ a: SourceCourse, _ b: SourceCourse, mappings: [String: String]) -> Bool {
         if a.source.provider == b.source.provider { return false }
         if mappings[a.id] != nil || mappings[b.id] != nil { return mappings[a.id] == b.id || mappings[b.id] == a.id }
-        return a.source.provider != b.source.provider && !normalize(a.title).isEmpty && normalize(a.title) == normalize(b.title) && !normalize(a.term.name).isEmpty && normalize(a.term.name) == normalize(b.term.name) && !normalize(a.teacher).isEmpty && normalize(a.teacher) == normalize(b.teacher)
+        let teacherA = normalize(a.teacher), teacherB = normalize(b.teacher)
+        if !teacherA.isEmpty && !teacherB.isEmpty && teacherA != teacherB { return false }
+        if let startA = a.term.start, let endA = a.term.end, let startB = b.term.start, let endB = b.term.end,
+           startA > endB || startB > endA { return false }
+        if !normalize(a.title).isEmpty && normalize(a.title) == normalize(b.title)
+            && !normalize(a.term.name).isEmpty && normalize(a.term.name) == normalize(b.term.name)
+            && !teacherA.isEmpty && teacherA == teacherB { return true }
+        // Names may reorder words and omit teacher/term metadata. Require two
+        // distinct shared assignment identities, then a mutual unique course pair.
+        let nameA = normalize(a.source.fields["course_name"] ?? a.title).split(separator: " ").sorted()
+        let nameB = normalize(b.source.fields["course_name"] ?? b.title).split(separator: " ").sorted()
+        guard !nameA.isEmpty, nameA == nameB else { return false }
+        return sharedAssignmentCount(a, b) >= 2
+    }
+    struct AssignmentLabelKey: Hashable { let title: String; let possible: Double }
+    static func assignmentLabelKey(_ row: SourceAssignment) -> AssignmentLabelKey? {
+        let title = normalize(row.title)
+        guard !title.isEmpty, let possible = row.score.possible, possible.isFinite else { return nil }
+        return AssignmentLabelKey(title: title, possible: possible)
+    }
+    static func sharedAssignmentCount(_ a: SourceCourse, _ b: SourceCourse) -> Int {
+        let own = Set(a.assignments.compactMap(assignmentLabelKey))
+        return own.intersection(b.assignments.compactMap(assignmentLabelKey)).count
     }
     struct AssignmentKey: Hashable {
         var title: String; var day: Int; var possible: Double?
@@ -37,7 +59,14 @@ public enum Reconciler {
             let preferred = candidates.first { groups[$0].contains { $0.id == old.id } }
                 ?? candidates.first { groups[$0].contains { $0.id == old.display.id } }
                 ?? candidates.first
-            if let preferred, oldByGroup[preferred] == nil { oldByGroup[preferred] = old }
+            if let preferred {
+                // When separately cached provider courses first auto-merge, keep
+                // the authoritative Campus identity/history and its local scenario.
+                let existing = oldByGroup[preferred]
+                if existing == nil || (old.display.source.provider == .infiniteCampus && existing?.display.source.provider != .infiniteCampus) {
+                    oldByGroup[preferred] = old
+                }
+            }
         }
         return groups.enumerated().map { index, group in
             let old = oldByGroup[index]

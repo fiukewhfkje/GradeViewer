@@ -86,6 +86,14 @@ extension GradeViewerUITests {
 
 
 extension GradeViewerUITests {
+    @MainActor func testSettingsHaveNoManualCourseControls() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--overview-fixture", "--screen=settings"]; app.launch()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Edit courses"].exists)
+        XCTAssertFalse(app.staticTexts["Match courses"].exists)
+        XCTAssertTrue(app.buttons["Reload widgets"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "automatic-course-settings"; attachment.lifetime = .keepAlways; add(attachment)
+    }
     @MainActor func testCleanOverviewKeepsToolsInsideCourseMenu() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--multiple-terms"]; app.launch()
         XCTAssertTrue(app.buttons["course-0"].waitForExistence(timeout: 10))
@@ -112,7 +120,7 @@ extension GradeViewerUITests {
 
 
 extension GradeViewerUITests {
-    @MainActor func testGraphSelectionMovesContinuouslyBetweenRecordedGrades() {
+    @MainActor func testGraphTracingShowsOnlyEventGradesAtThresholds() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--curve-fixture", "--screen=detail", "-appearance", "dark", "--record-chart-touch"]; app.launch()
         let chart = app.otherElements["grade-chart"]; XCTAssertTrue(chart.waitForExistence(timeout: 10))
         let a = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: 0.5))
@@ -121,7 +129,10 @@ extension GradeViewerUITests {
         let first = chart.value as? String
         a.press(forDuration: 0.2, thenDragTo: b)
         let second = chart.value as? String
-        XCTAssertNotEqual(first, second, "Moving inside the same interval must update the grade instead of snapping to a recorded point")
+        XCTAssertEqual(first, second, "Tracing within an event threshold must keep the actual event grade")
+        XCTAssertTrue(second?.contains("80%") == true)
+        chart.coordinate(withNormalizedOffset: CGVector(dx: 0.60, dy: 0.5)).press(forDuration: 0.3)
+        XCTAssertTrue((chart.value as? String)?.contains("100%") == true)
         XCTAssertTrue(second?.contains("Released; last touch") == true)
         XCTAssertFalse(app.descendants(matching: .any)["chart-selection"].exists)
         XCTAssertFalse(app.staticTexts["Calculated · due date"].exists)

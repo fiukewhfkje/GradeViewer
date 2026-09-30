@@ -16,8 +16,6 @@ struct SettingsView: View {
             }
             Section {
                 Picker("Appearance", selection: $appearance) { Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark") }
-                NavigationLink("Edit courses") { CourseOrderView() }
-                if Set(store.courses.flatMap(\.sources).map { $0.source.provider }).count > 1 { NavigationLink("Match courses") { CourseMatchingView() } }
                 Button("Reload widgets") { WidgetCenter.shared.reloadAllTimelines() }
             }
             Section {
@@ -28,16 +26,6 @@ struct SettingsView: View {
             .confirmationDialog("Disconnect \(disconnecting?.name ?? "account")?", isPresented: Binding(get: { disconnecting != nil }, set: { if !$0 { disconnecting = nil } }), titleVisibility: .visible) {
                 Button("Disconnect and remove its saved grades", role: .destructive) { if let provider = disconnecting { store.disconnect(provider) }; disconnecting = nil }
             } message: { Text("Local grade history and What-If scenarios will be reset.") }
-    }
-}
-struct CourseOrderView: View {
-    @Environment(AppStore.self) private var store
-    var body: some View {
-        List {
-            ForEach(store.courses.sorted { $0.order < $1.order }) { course in
-                Toggle(isOn: Binding(get: { !course.hidden }, set: { store.setHidden(course.id, hidden: !$0) })) { VStack(alignment: .leading) { Text(course.name) } }
-            }.onMove { store.move(from: $0, to: $1) }
-        }.navigationTitle("Edit courses").navigationBarTitleDisplayMode(.inline).toolbar { EditButton() }
     }
 }
 struct SchoologySetupView: View {
@@ -178,23 +166,5 @@ struct WidgetPreviewView: View {
             GradeWidgetContent(snapshot: WidgetSnapshot(courses: courses.prefix(1).map(WidgetCourse.init), refreshed: Demo.now), compact: true)
                 .frame(width: 130, height: 130).padding(16).background(.background, in: RoundedRectangle(cornerRadius: 24))
         }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(uiColor: .systemGroupedBackground)).navigationTitle("Widgets").navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct CourseMatchingView: View {
-    @Environment(AppStore.self) private var store
-    var sourceRows: [SourceCourse] { store.courses.flatMap(\.sources).filter { $0.source.provider == .schoology }.sorted { $0.title < $1.title } }
-    var targets: [SourceCourse] { store.courses.flatMap(\.sources).filter { $0.source.provider == .infiniteCampus }.sorted { $0.title < $1.title } }
-    var body: some View {
-        Form {
-            Section {
-                ForEach(sourceRows) { course in
-                    Picker(selection: Binding(get: { store.mappings[course.id] ?? "" }, set: { store.match(course.id, with: $0.isEmpty ? nil : $0) })) {
-                        Text("Automatic").tag("")
-                        ForEach(targets) { target in Text(target.title + " · " + target.term.name).tag(target.id) }
-                    } label: { VStack(alignment: .leading) { Text(course.title); Text(course.term.name).font(.caption).foregroundStyle(.secondary) } }
-                }
-            } footer: { Text("Match a Schoology course to the same Infinite Campus course when their names or terms differ.") }
-        }.navigationTitle("Match courses").navigationBarTitleDisplayMode(.inline)
     }
 }

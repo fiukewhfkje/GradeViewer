@@ -132,7 +132,7 @@ import GradeCore
               let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
         let rows: [[String: Any]] = visibleCourses.map { course in
             let source = course.calculationSource
-            let generated = GradeProgression.calculated(source, before: course.history.first?.date ?? source.fetched)
+            let generated = GradeProgression.calculated(source, before: source.fetched)
             let schoology = AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))
             let matchingTitles = (schoology?.assignments ?? []).filter { a in source.assignments.contains { Reconciler.normalize($0.title) == Reconciler.normalize(a.title) } }
             let overview = AssignmentGrouping.overview(for:course,schoology:schoology)

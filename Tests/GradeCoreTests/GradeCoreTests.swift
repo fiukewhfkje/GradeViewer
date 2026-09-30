@@ -39,7 +39,7 @@ final class GradeCoreTests: XCTestCase {
     func testAmbiguousCourseAndAssignmentNamesStaySeparate() {
         let a = source(.schoology), b = source(.infiniteCampus, id: "a"), c = source(.infiniteCampus, id: "b")
         XCTAssertEqual(Reconciler.reconcile([a,b,c]).count, 3)
-        var missingTeacher = b; missingTeacher.teacher = ""; XCTAssertEqual(Reconciler.reconcile([a,missingTeacher]).count, 2)
+        var missingTeacher = b; missingTeacher.teacher = ""; missingTeacher.assignments = []; XCTAssertEqual(Reconciler.reconcile([a,missingTeacher]).count, 2)
         var repeated = b; var extra = repeated.assignments[0]; extra.source.id = "extra"; repeated.assignments.append(extra)
         XCTAssertEqual(Reconciler.reconcile([a,repeated])[0].assignments.count, 4)
     }
@@ -134,7 +134,7 @@ extension GradeCoreTests {
 }
 extension GradeCoreTests {
     func testExplicitCourseMappingWorksWithDifferentNamesAndTerms() {
-        let a = source(); var b = source(.infiniteCampus); b.title = "Physics 1 AP"; b.term.name = "Semester 1"; b.teacher = ""
+        let a = source(); var b = source(.infiniteCampus); b.title = "District Advanced Science"; b.term.name = "Semester 1"; b.teacher = ""
         XCTAssertEqual(Reconciler.reconcile([a,b]).count, 2)
         let mappings = [a.id:b.id,b.id:a.id]; let matched = Reconciler.reconcile([a,b], mappings: mappings)
         XCTAssertEqual(matched.count, 1); XCTAssertEqual(matched[0].assignments.count, 2); XCTAssertEqual(matched[0].sources.count, 2)
@@ -143,6 +143,70 @@ extension GradeCoreTests {
 
 
 extension GradeCoreTests {
+    func testAutomaticCourseMatchingUsesUniqueAssignmentEvidenceAcrossLabels() {
+        let a = source()
+        var b = source(.infiniteCampus)
+        b.teacher = ""; b.title = "Physics 1 AP"; b.term.name = "Q1"
+        let matched = Reconciler.reconcile([a, b])
+        XCTAssertEqual(matched.count, 1); XCTAssertEqual(matched[0].sources.count, 2)
+        XCTAssertEqual(matched[0].calculationSource.id, b.id)
+        var duplicate = b; duplicate.source.id = "other-section"
+        XCTAssertEqual(Reconciler.reconcile([a, b, duplicate]).count, 3)
+        b.assignments = Array(b.assignments.prefix(1))
+        XCTAssertEqual(Reconciler.reconcile([a, b]).count, 2)
+    }
+    func testAutomaticMatchingRejectsDisjointTermsAndConflictingTeachers() {
+        var a = source(), b = source(.infiniteCampus)
+        a.term.start = Date(timeIntervalSince1970: 10); a.term.end = Date(timeIntervalSince1970: 20)
+        b.term.start = Date(timeIntervalSince1970: 30); b.term.end = Date(timeIntervalSince1970: 40)
+        XCTAssertEqual(Reconciler.reconcile([a, b]).count, 2)
+        b.term = a.term; b.teacher = "Another teacher"
+        XCTAssertEqual(Reconciler.reconcile([a, b]).count, 2)
+    }
+    func testNewAutomaticMergeKeepsCampusIdentityAndHistoryRegardlessOfCacheOrder() {
+        let schoology = source()
+        var campus = source(.infiniteCampus); campus.teacher = ""
+        let oldSchoology = Reconciler.reconcile([schoology], now: Demo.now)[0]
+        var oldCampus = Reconciler.reconcile([campus], now: Demo.now)[0]
+        oldCampus.order = 3
+        let matched = Reconciler.reconcile([schoology, campus], previous: [oldSchoology, oldCampus], now: Demo.now.addingTimeInterval(20))
+        XCTAssertEqual(matched.count, 1)
+        XCTAssertEqual(matched[0].id, oldCampus.id)
+        XCTAssertEqual(matched[0].history, oldCampus.history)
+        XCTAssertEqual(matched[0].order, 3)
+    }
+    func testBatchScoreEventsRemainDistinctWithStableDatesAndOrder() throws {
+        var c = source(); c.method = .points; c.categories = []
+        c.fetched = Date(timeIntervalSince1970: 500_000)
+        c.assignments = [assignment(id: "a", earned: 100), assignment(id: "b", earned: 80), assignment(id: "c", earned: 90)]
+        for i in c.assignments.indices {
+            c.assignments[i].updated = Date(timeIntervalSince1970: 200_000)
+            c.assignments[i].due = Date(timeIntervalSince1970: Double(100_000 + i * 10))
+        }
+        c.grade.percent = 90
+        let points = GradeProgression.calculated(c, before: c.fetched)
+        XCTAssertEqual(points.map { $0.grade.percent }, [100, 90, 90])
+        XCTAssertEqual(Set(points.map(\.id)).count, 3)
+        XCTAssertEqual(Set(points.map(\.date)), [Date(timeIntervalSince1970: 200_000)])
+        c.assignments.reverse()
+        XCTAssertEqual(GradeProgression.calculated(c, before: c.fetched).map(\.id), points.map(\.id))
+        let curve = GradeCurve(points: points)
+        XCTAssertEqual(curve.nodes.count, 3); XCTAssertEqual(curve.nodes.map(\.fraction), [0, 0.5, 1])
+    }
+    func testTooltipJumpsAtThresholdAndNeverUsesInterpolatedValueOrDate() throws {
+        let first = GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_000), grade: OverallGrade(percent: 100), provider: .infiniteCampus)
+        let second = GradeHistorySnapshot(date: Date(timeIntervalSince1970: 10_000), grade: OverallGrade(percent: 91.92), provider: .infiniteCampus)
+        let curve = GradeCurve(points: [GradeProgressionPoint(first), GradeProgressionPoint(second)])
+        for i in 0...1000 {
+            let event = try XCTUnwrap(curve.event(at: Double(i) / 1000))
+            XCTAssertTrue([100, 91.92].contains(event.value))
+            XCTAssertTrue([first.date, second.date].contains(event.date))
+        }
+        XCTAssertEqual(curve.event(at: 0.4999)?.value, 100)
+        XCTAssertEqual(curve.event(at: 0.5)?.value, 91.92)
+        XCTAssertNotEqual(curve.traceValue(at: 0.5), curve.event(at: 0.5)?.value)
+        XCTAssertNil(curve.event(at: .nan)); XCTAssertNil(curve.traceValue(at: .infinity))
+    }
     func testInitialProgressionUsesCanonicalCalculationWithoutInventingObservedHistory() throws {
         var course = source(); course.method = .points; course.categories = []
         course.fetched = Date(timeIntervalSince1970: 500_000)
@@ -163,7 +227,7 @@ extension GradeCoreTests {
         for i in course.assignments.indices { course.assignments[i].updated = nil; course.assignments[i].due = Date(timeIntervalSince1970: 100_000) }
         course.grade.percent = 95
         let points = GradeProgression.calculated(course, before: course.fetched)
-        XCTAssertEqual(points.count, 1); XCTAssertTrue(points[0].usesDueDate); XCTAssertEqual(points[0].grade.percent, 95)
+        XCTAssertEqual(points.count, 2); XCTAssertTrue(points.allSatisfy(\.usesDueDate)); XCTAssertEqual(points.map { $0.grade.percent }, [100, 95])
         course.assignments[0].due = nil
         XCTAssertTrue(GradeProgression.calculated(course, before: course.fetched).isEmpty)
     }
@@ -190,18 +254,18 @@ extension GradeCoreTests {
             GradeProgressionPoint(GradeHistorySnapshot(date: start.addingTimeInterval(seconds), grade: OverallGrade(percent: value), provider: .infiniteCampus))
         }
         let curve = GradeCurve(points: [point(0,90),point(100,95),point(300,100),point(400,92)])
-        let a = try XCTUnwrap(curve.value(at: start.addingTimeInterval(50)))
-        let b = try XCTUnwrap(curve.value(at: start.addingTimeInterval(51)))
-        XCTAssertGreaterThan(b, a); XCTAssertLessThan(b - a, 0.2)
+        let a = try XCTUnwrap(curve.traceValue(at: 0.16))
+        let b = try XCTUnwrap(curve.traceValue(at: 0.17))
+        XCTAssertGreaterThan(b, a); XCTAssertLessThan(b - a, 0.3)
         for segment in curve.segments { for i in 0...100 {
             let value = segment.value(at: Double(i)/100)
             XCTAssertGreaterThanOrEqual(value, min(segment.start.value, segment.end.value) - 0.00001)
             XCTAssertLessThanOrEqual(value, max(segment.start.value, segment.end.value) + 0.00001)
         } }
         let flat = GradeCurve(points: [point(0,100),point(100,100),point(200,100)])
-        XCTAssertEqual(flat.value(at: start.addingTimeInterval(75)), 100)
+        XCTAssertEqual(flat.traceValue(at: 0.375), 100)
         let single = GradeCurve(points: [point(0,100)])
-        XCTAssertEqual(single.value(at: start.addingTimeInterval(1)), 100)
+        XCTAssertEqual(single.traceValue(at: 0.5), 100)
     }
 }
 
@@ -218,7 +282,7 @@ extension GradeCoreTests {
         XCTAssertEqual(groups.map(\.title), ["Schoology quizzes", "Schoology homework"])
         XCTAssertEqual(groups.flatMap(\.assignments).count, 2)
         XCTAssertTrue(groups.flatMap(\.assignments).allSatisfy { $0.display.score.isGraded })
-        XCTAssertEqual(Reconciler.reconcile([campus,schoology]).count, 2, "Category association must not weaken canonical course matching")
+        XCTAssertEqual(Reconciler.reconcile([campus,schoology]).count, 1, "Two shared assignments now support automatic course matching")
         var duplicate = schoology; duplicate.source.id = "second-section"
         XCTAssertNil(AssignmentGrouping.schoologySource(for: course, among: [schoology,duplicate]))
     }

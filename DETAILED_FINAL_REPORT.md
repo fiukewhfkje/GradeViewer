@@ -1,3 +1,5 @@
+> September 29 follow-up: manual course controls were removed and unique assignment-evidence matching is automatic. Graph marker geometry remains smooth, but tooltip grade/date now selects discrete events at thresholds; timestamp batches retain individual contributions with equal horizontal spacing. Validation: 47 core tests, 11 hosted tests and 4 focused UI tests passed. Updated app/widget installed and launched on iPhone 15. Schoology refresh succeeds; Campus currently returns HTTP 401 and preserves its cached grades. Current behavior and limitations in PROJECT_STATUS.md and ARCHITECTURE.md supersede earlier descriptions below.
+
 # GradeViewer detailed final report
 
 September 29, 2026. Native iOS app, local repository `/Users/ashtonchang/Documents/GradeViewer`, private GitHub repository [fiukewhfkje/GradeViewer](https://github.com/fiukewhfkje/GradeViewer). The original Git history is retained. The exact final commit is recorded in the delivered validation record and Git HEAD.
