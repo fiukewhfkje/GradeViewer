@@ -1,14 +1,16 @@
 # GradeViewer
 
-A native, local-first iPhone grade viewer built with SwiftUI, Swift Charts, SwiftData, URLSession, Keychain, and WidgetKit. No required backend or third-party runtime dependencies. iOS 17 or later; one original app icon.
+A native, local-first iPhone grade viewer built with SwiftUI, a smooth native graph, SwiftData, URLSession, Keychain, and WidgetKit. No required backend or third-party runtime dependencies. iOS 17 or later; one original app icon.
 
-The working project is `/Users/ashtonchang/Documents/GradeViewer`. Open `GradeViewer.xcodeproj` for development. Git started on `main` before implementation; no GitHub remote was created.
+The working project is `/Users/ashtonchang/Documents/GradeViewer`. Open `GradeViewer.xcodeproj` for development. Git started on `main` before implementation. The private GitHub repository is https://github.com/fiukewhfkje/GradeViewer; the full history is preserved.
 
 ## Current build
 
 Course grades, assignments, collapsible assignment groups, stored grade history, graph point selection, shared local What-If edits/drop/restore/reset, added hypothetical assignments, final calculator, course ordering/visibility, manual course matching, pull-to-refresh, system/light/dark mode, and small/medium widgets are implemented. Cached grades render before one asynchronous startup refresh; pull down to refresh manually. There is no refresh timer or foreground polling. The normal list has no quarter picker. The course sheet shows Course Grade, Grade Progression, five recent assignments, and View All Assignments. Calculators and resets are inside the course three-dot menu. A failed provider keeps its last successful data.
 
-The graph combines actual locally observed changes with separately labeled calculated prefixes when the complete source data reproduces the reported grade. Calculated points are presentation-only, use score-update dates or explicitly labeled due dates, and never become observed history. Incomplete dates retain an actual selectable point instead of inventing a curve. Update labels use available score-change timestamps, not a refresh countdown.
+The graph combines actual locally observed changes with separately labeled calculated prefixes when the complete source data reproduces the reported grade. Calculated points are presentation-only, prefer actual score-update dates, and never become observed history. The hold tooltip shows only grade/date per the user’s preference; the reconstruction basis is described in ARCHITECTURE.md. Incomplete dates retain an actual selectable point instead of inventing a curve. Update labels use available score-change timestamps, not a refresh countdown. Campus scoreModifiedDate is parsed first; all five current courses were verified on the phone with update dates and progression curves. Finger selection samples the same smooth curve continuously, dims the remaining line, and shows a light grade/date tooltip and marker halo. Even one recorded grade renders a flat line. Releasing your finger clears the selection. Assignment titles and update labels use stronger font weights.
+
+Ungraded assignments are omitted from visible lists. The overview retains graded Schoology-only work; the full view uses Schoology categories and includes cached graded work from past quarters, with physical-item deduplication. One stable score-date ordering rule serves every class. Past work and category metadata never change the current grade calculation.
 
 Provider adapters have fixture and transport tests. **Both providers completed successful authenticated grade fetches on this student's iPhone.** Campus detail requests now use sectionID; Schoology handles a returned grade-owner ID that differs from the enrolled section used for accessible metadata. Saved Keychain connections survived reinstall and relaunch. Campus uses normal login on the district's own page and then same-origin cookies; the grade resources are based on public client evidence rather than a supported student API contract. Read RESEARCH.md before claiming live compatibility.
 
@@ -60,6 +62,12 @@ xcrun simctl io <SIMULATOR_ID> screenshot <SCREENSHOT_PATH>.png
 
 Wait until presentation animations finish before an immediate simctl screenshot; XCTest's screenshot test waits for the visible navigation screen. Routes: `detail`, `assignments`, `categories`, `whatif`, `final`, `settings`, `widget`; default is grades. `--empty`, `--error`, and `--long-list` exercise empty, retained-cache error, and 2,100-assignment fixtures. `-appearance light|dark|system` overrides the stored appearance for QA. Real app launch uses no fixture arguments. The widget QA route renders the same shared content as the extension, not an actual Home Screen placement.
 
+## Add the widget
+
+The installed build includes a Home Screen widget with small (first course) and medium (first three courses) sizes. Open GradeViewer once so its saved summary is available. Touch and hold an empty Home Screen area → Edit → Add Widget → search GradeViewer → choose a size → Add Widget → Done. [Apple's current steps](https://support.apple.com/en-gb/118610).
+
+Widgets follow current visible courses and saved ordering. Profile → Edit courses changes those choices. Tap the widget to open Grades. A successful app refresh updates the summary and requests a widget reload; the widget does not poll providers while the app is closed. Profile → Reload widgets requests another reload. Physical Home Screen placement remains a user action, while the extension, shared rendering, App Group transport, and signed installation are validated.
+
 ## Connected iPhone
 
 The configured development team is `S5MUKGHJR2`. CLI signing/build and installation succeeded on the connected iPhone 15. The user completed developer trust and confirmed launch; devicectl launch also succeeded. If installing on another device, developer trust must be performed on the phone under Settings → General → VPN & Device Management, selecting the developer profile. Follow Trust/Allow & Restart if offered. See [Apple's developer trust instructions](https://help.apple.com/xcode/mac/current/en.lproj/dev96a12fb84.html).
@@ -75,4 +83,4 @@ The current development provisioning profile expires October 6, 2026. Rebuild/re
 
 ## Continue the project
 
-Read PROJECT_STATUS.md and TODO.md first, then ARCHITECTURE.md and RESEARCH.md. The original requirements are preserved in docs/PRODUCT_BRIEF.md. MUSE_WATCHER_REPORT.md is a separate implementation handoff with endpoint evidence labels, recommended cadence, session considerations, redacted examples, deduplication/state design, and a live verification checklist. **No Muse watcher was implemented or deployed.**
+Read PROJECT_STATUS.md and TODO.md first, then ARCHITECTURE.md and RESEARCH.md. The original requirements are preserved in docs/PRODUCT_BRIEF.md. DETAILED_FINAL_REPORT.md explains UI behavior, normalization, desynchronization, observed bugs, validation and remaining limits. MUSE_WATCHER_REPORT.md is a separate implementation handoff with endpoint evidence labels, recommended cadence, session considerations, redacted examples, deduplication/state design, and a live verification checklist. **No Muse watcher was implemented or deployed.**

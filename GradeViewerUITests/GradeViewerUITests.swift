@@ -48,10 +48,11 @@ extension GradeViewerUITests {
         XCTAssertEqual(app.descendants(matching: .any)["course-grade-value"].label, "Course grade")
     }
     @MainActor func testGraphHoldShowsGradeAndDate() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=detail"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=detail", "--record-chart-touch"]; app.launch()
         let chart = app.otherElements["grade-chart"]; XCTAssertTrue(chart.waitForExistence(timeout: 10))
         chart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.6)
-        XCTAssertTrue((chart.value as? String)?.contains("Selected") == true)
+        XCTAssertTrue((chart.value as? String)?.contains("Released; last touch") == true)
+        XCTAssertFalse(app.descendants(matching: .any)["chart-selection"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "graph-selected"; attachment.lifetime = .keepAlways; add(attachment)
     }
     @MainActor func testLaunchResponsivenessWithLongAssignmentLists() {
@@ -100,10 +101,75 @@ extension GradeViewerUITests {
         XCTAssertTrue(app.navigationBars["What-If"].waitForExistence(timeout: 5))
     }
     @MainActor func testFirstRecordedGradeAlreadyHasSelectableChart() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--single-history", "--screen=detail"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--single-history", "--screen=detail", "--record-chart-touch"]; app.launch()
         let chart = app.otherElements["grade-chart"]; XCTAssertTrue(chart.waitForExistence(timeout: 10))
         chart.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).press(forDuration: 0.6)
-        XCTAssertTrue((chart.value as? String)?.contains("Selected") == true)
+        XCTAssertTrue((chart.value as? String)?.contains("Released; last touch") == true)
+        XCTAssertFalse(app.descendants(matching: .any)["chart-selection"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "first-grade-chart"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+
+extension GradeViewerUITests {
+    @MainActor func testGraphSelectionMovesContinuouslyBetweenRecordedGrades() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--curve-fixture", "--screen=detail", "-appearance", "dark", "--record-chart-touch"]; app.launch()
+        let chart = app.otherElements["grade-chart"]; XCTAssertTrue(chart.waitForExistence(timeout: 10))
+        let a = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.40, dy: 0.5))
+        let b = chart.coordinate(withNormalizedOffset: CGVector(dx: 0.41, dy: 0.5))
+        a.press(forDuration: 0.3)
+        let first = chart.value as? String
+        a.press(forDuration: 0.2, thenDragTo: b)
+        let second = chart.value as? String
+        XCTAssertNotEqual(first, second, "Moving inside the same interval must update the grade instead of snapping to a recorded point")
+        XCTAssertTrue(second?.contains("Released; last touch") == true)
+        XCTAssertFalse(app.descendants(matching: .any)["chart-selection"].exists)
+        XCTAssertFalse(app.staticTexts["Calculated · due date"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "continuous-selection-dark"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+
+extension GradeViewerUITests {
+    @MainActor func testUnchangedSavedScoreKeepsRealCourseGrade() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--noop-scenario", "--screen=detail"]; app.launch()
+        let value = app.descendants(matching: .any)["course-grade-value"]
+        XCTAssertTrue(value.waitForExistence(timeout: 10)); XCTAssertEqual(value.label, "Course grade")
+        XCTAssertFalse(app.staticTexts["+0.01%"].exists)
+    }
+}
+
+
+extension GradeViewerUITests {
+    @MainActor func testFullViewUsesSchoologyCategoriesAndIncludesPastQuarterWork() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--past-quarter-fixture", "--screen=assignments"]; app.launch()
+        XCTAssertTrue(app.buttons["Quizzes"].waitForExistence(timeout: 10)); XCTAssertTrue(app.buttons["Labs"].exists)
+        app.buttons["Labs"].tap()
+        XCTAssertTrue(app.staticTexts["Past quarter lab"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Ungraded"].exists)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "schoology-categories-past-quarter"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+
+extension GradeViewerUITests {
+    @MainActor func testOverviewKeepsRecentSchoologyOnlyGradeInOrder() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--overview-fixture", "--screen=detail"]; app.launch()
+        let first = app.staticTexts["2-D Kinematics Quiz"], extra = app.staticTexts["Recent extra credit"], next = app.staticTexts["1-D Kinematics Quiz"]
+        XCTAssertTrue(extra.waitForExistence(timeout:10))
+        XCTAssertTrue(first.frame.minY < extra.frame.minY)
+        XCTAssertTrue(extra.frame.minY < next.frame.minY)
+        XCTAssertFalse(app.staticTexts["Pending future assignment"].exists)
+    }
+    @MainActor func testHeldGraphTooltipAppearanceInBothModes() {
+        let app = XCUIApplication()
+        for mode in ["light","dark"] {
+            app.launchArguments = ["--demo", "--screen=detail", "--preview-chart-touch", "-appearance", mode]; app.launch()
+            let chart = app.otherElements["grade-chart"]
+            XCTAssertTrue(chart.waitForExistence(timeout: 10)); XCTAssertTrue((chart.value as? String)?.contains("Selected") == true)
+            XCTAssertFalse(app.staticTexts["Calculated · due date"].exists)
+            let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "graph-held-" + mode; attachment.lifetime = .keepAlways; add(attachment)
+            app.terminate()
+        }
     }
 }

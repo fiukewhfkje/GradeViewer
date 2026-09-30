@@ -8,10 +8,10 @@ public enum Reconciler {
         if mappings[a.id] != nil || mappings[b.id] != nil { return mappings[a.id] == b.id || mappings[b.id] == a.id }
         return a.source.provider != b.source.provider && !normalize(a.title).isEmpty && normalize(a.title) == normalize(b.title) && !normalize(a.term.name).isEmpty && normalize(a.term.name) == normalize(b.term.name) && !normalize(a.teacher).isEmpty && normalize(a.teacher) == normalize(b.teacher)
     }
-    private struct AssignmentKey: Hashable {
+    struct AssignmentKey: Hashable {
         var title: String; var day: Int; var possible: Double?
     }
-    private static func assignmentKey(_ a: SourceAssignment) -> AssignmentKey? {
+    static func assignmentKey(_ a: SourceAssignment) -> AssignmentKey? {
         let title = normalize(a.title)
         guard !title.isEmpty, let date = a.due else { return nil }
         return AssignmentKey(title: title, day: Int(floor(date.timeIntervalSince1970 / 86400)), possible: a.score.possible)

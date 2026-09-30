@@ -29,6 +29,41 @@ import GradeCore
                 for i in courses.indices { courses[i].sources[0].term.start = Date().addingTimeInterval(-86_400); courses[i].sources[0].term.end = Date().addingTimeInterval(86_400) }
                 courses[1].sources[0].term = Term(id: "future", name: "Future quarter", start: Date().addingTimeInterval(172_800), end: Date().addingTimeInterval(259_200))
             }
+            if demo && arguments.contains("--curve-fixture"), !courses.isEmpty {
+                courses[0].history = [GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_000_000), grade: OverallGrade(percent: 80), provider: .infiniteCampus), GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_172_800), grade: OverallGrade(percent: 100), provider: .infiniteCampus)]
+                courses[0].sources[0].assignments = []
+            }
+            if demo && arguments.contains("--noop-scenario"), let course = courses.first, let assignment = course.calculationSource.assignments.first, let score = assignment.score.earned {
+                var scenario = Hypothesis(); scenario.scores[assignment.id] = score; try repository?.saveScenario(scenario, id: course.id)
+            }
+            if demo && arguments.contains("--past-quarter-fixture"), !courses.isEmpty {
+                for i in courses[0].sources[0].assignments.indices { courses[0].sources[0].assignments[i].source.fields["objectSectionID"] = "fixture:\(i)" }
+                courses[0].sources[0].source.fields["section_id"] = "fixture-section"; courses[0].sources[0].source.fields["task_id"] = "fixture-task"
+                courses[0].assignments = courses[0].sources[0].assignments.map { Assignment(id: $0.id, sources: [$0]) }
+                var past = courses[0].display
+                past.source.id = "fixture-past"; past.term = Term(id: "past", name: "Past quarter")
+                let old = SourceAssignment(source: Provenance(.infiniteCampus, "fixture-old", fields: ["objectSectionID":"fixture-old"]), title: "Past quarter lab", due: Demo.now.addingTimeInterval(-40 * 86400), updated: Demo.now.addingTimeInterval(-39 * 86400), score: Score(earned: 90, possible: 100))
+                past.assignments = [old]
+                courses += Reconciler.reconcile([past])
+                var schoology = courses[0].display
+                schoology.source = Provenance(.schoology, "fixture-schoology"); schoology.teacher = ""
+                schoology.categories = [GradingCategory(id: "quizzes", name: "Quizzes"), GradingCategory(id: "labs", name: "Labs")]
+                for i in schoology.assignments.indices {
+                    schoology.assignments[i].source = Provenance(.schoology, "fixture-schoology:\(i)")
+                    schoology.assignments[i].categoryID = "quizzes"
+                }
+                var metadata = old; metadata.source = Provenance(.schoology, "fixture-catalog-old"); metadata.categoryID = "labs"; metadata.score.earned = nil
+                schoology.assignmentCatalog = [metadata]
+                courses += Reconciler.reconcile([schoology])
+            }
+            if demo && arguments.contains("--overview-fixture"), !courses.isEmpty {
+                var schoology = courses[0].display
+                schoology.source = Provenance(.schoology, "overview-schoology"); schoology.teacher = ""
+                for i in schoology.assignments.indices { schoology.assignments[i].source = Provenance(.schoology, "overview:\(i)") }
+                schoology.assignments.append(SourceAssignment(source: Provenance(.schoology, "overview:extra"), title: "Recent extra credit", categoryID: schoology.categories[0].id, updated: courses[0].display.assignments[0].updated!.addingTimeInterval(-3600), score: Score(earned:1, possible:1)))
+                schoology.assignments.append(SourceAssignment(source: Provenance(.schoology, "overview:pending"), title: "Pending future assignment", categoryID: schoology.categories[0].id, due: Demo.now.addingTimeInterval(86400), score: Score(possible:100)))
+                courses += Reconciler.reconcile([schoology])
+            }
             if arguments.contains("--empty") { courses = [] }
             if arguments.contains("--error") { errors[.infiniteCampus] = "Infinite Campus could not refresh." }
             if !demo && readCredentials {
@@ -66,8 +101,22 @@ import GradeCore
     }
     func startup() async {
         guard !started else { return }; started = true
-        let attempted = pending
-        for provider in ProviderID.allCases where attempted.contains(provider) {
+        let pendingAttempts = pending
+        var attempted = pendingAttempts
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--verify-connections") {
+            for provider in ProviderID.allCases where connected.contains(provider) {
+                do {
+                    switch provider {
+                    case .schoology: if let value = try SecureStore.load(SchoologyCredentials.self, account: "schoology") { try await connectSchoology(value) }
+                    case .infiniteCampus: if let value = try SecureStore.load(CampusSession.self, account: "campus") { try await connectCampus(value) }
+                    }
+                } catch { errors[provider] = message(error, provider: provider) }
+                attempted.insert(provider)
+            }
+        }
+        #endif
+        for provider in ProviderID.allCases where pendingAttempts.contains(provider) && pending.contains(provider) {
             do { try await retryConnection(provider) }
             catch { errors[provider] = message(error, provider: provider) }
         }
@@ -84,14 +133,34 @@ import GradeCore
         let rows: [[String: Any]] = visibleCourses.map { course in
             let source = course.calculationSource
             let generated = GradeProgression.calculated(source, before: course.history.first?.date ?? source.fetched)
+            let schoology = AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))
+            let matchingTitles = (schoology?.assignments ?? []).filter { a in source.assignments.contains { Reconciler.normalize($0.title) == Reconciler.normalize(a.title) } }
+            let overview = AssignmentGrouping.overview(for:course,schoology:schoology)
+            let dates = overview.compactMap { $0.display.updated }
             return ["method": source.method.rawValue, "provider": source.source.provider.rawValue,
+                    "sameTitleRows": matchingTitles.count,
+                    "sameTitlePointConflicts": matchingTitles.filter { a in source.assignments.contains { Reconciler.normalize($0.title) == Reconciler.normalize(a.title) && $0.score.possible != a.score.possible } }.count,
+                    "overviewGradedRows": AssignmentGrouping.overview(for: course, schoology: schoology).count,
+                    "overviewSorted": zip(dates,dates.dropFirst()).allSatisfy { $0 >= $1 },
+                    "overviewUnique": Set(overview.map(\.id)).count == overview.count,
                     "assignments": source.assignments.count, "reliableBaseline": GradeCalculator.isReliable(source),
                     "calculatedPoints": generated.count, "observedPoints": course.history.count,
-                    "hasUpdateDate": course.updated != nil]
+                    "hasUpdateDate": course.updated != nil,
+                    "schoologyCategoryCount": AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))?.categories.count ?? 0,
+                    "schoologyNameMatches": courses.flatMap(\.sources).filter { $0.source.provider == .schoology && Reconciler.normalize($0.source.fields["course_name"] ?? $0.title) == Reconciler.normalize(course.name) }.count,
+                    "schoologyAvailableCategoryCount": courses.flatMap(\.sources).filter { $0.source.provider == .schoology && Reconciler.normalize($0.source.fields["course_name"] ?? $0.title) == Reconciler.normalize(course.name) }.flatMap(\.categories).count,
+                    "fullGradedRows": AssignmentGrouping.fullCourse(for: course, among: courses).assignments.count,
+                    "gradedRows": course.assignments.filter { $0.display.score.isGraded }.count,
+                    "numericScoreWithoutPoints": source.assignments.filter { $0.score.earned == nil && $0.source.fields["score"].flatMap(Double.init) != nil }.count,
+                    "schoologyGradedRows": AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))?.assignments.filter { $0.score.isGraded }.count ?? 0,
+                    "schoologyOnlyGradedRows": AssignmentGrouping.groups(for: course, schoology: AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))).flatMap(\.assignments).filter { row in !row.sources.contains { $0.source.provider == source.source.provider } }.count,
+                    "missingScoredDates": source.assignments.filter { $0.score.earned != nil && $0.updated == nil && $0.due == nil }.count,
+                    "futureScoredDates": source.assignments.filter { $0.score.earned != nil && ($0.updated ?? $0.due).map { $0 > source.fetched } == true }.count]
         }
         let payload: [String: Any] = ["phase": phase, "schoologyConnected": connected.contains(.schoology),
                                      "campusConnected": connected.contains(.infiniteCampus), "pendingConnections": pending.count,
-                                     "cachedCourses": courses.count, "visibleCourses": rows, "storageError": localError != nil]
+                                     "cachedCourses": courses.count, "visibleCourses": rows, "storageError": localError != nil,
+                                     "providerErrorCount": errors.count]
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: root.appendingPathComponent("layout-verification.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         }
@@ -212,6 +281,6 @@ import GradeCore
     }
     func setHidden(_ id: String, hidden: Bool) { var updated = courses; if let i = updated.firstIndex(where: { $0.id == id }) { updated[i].hidden = hidden }; persist(updated) }
     func move(from: IndexSet, to: Int) { var ordered = courses.sorted { $0.order < $1.order }; ordered.move(fromOffsets: from, toOffset: to); for i in ordered.indices { ordered[i].order = i }; persist(ordered) }
-    func scenario(_ course: Course) -> Hypothesis { scenarios[course.id] ?? Hypothesis() }
-    func saveScenario(_ scenario: Hypothesis, course: Course) { do { try repository?.saveScenario(scenario, id: course.id); scenarios[course.id] = scenario } catch { localError = "What-If could not be saved." } }
+    func scenario(_ course: Course) -> Hypothesis { (scenarios[course.id] ?? Hypothesis()).normalized(for: course.calculationSource) }
+    func saveScenario(_ supplied: Hypothesis, course: Course) { let scenario = supplied.normalized(for: course.calculationSource); do { try repository?.saveScenario(scenario, id: course.id); scenarios[course.id] = scenario } catch { localError = "What-If could not be saved." } }
 }

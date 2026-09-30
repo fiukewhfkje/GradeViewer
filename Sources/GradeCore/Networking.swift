@@ -38,9 +38,11 @@ public struct HTTPDiagnostic: Codable, Sendable {
     public let responseBytes: Int
     public let structure: [String: String]
     public let redirect: String?
+    public var elapsedMilliseconds: Double? = nil
+    public var retryAfterSeconds: Double? = nil
     static func structure(_ data: Data) -> [String: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return ["root": "non-JSON"] }
-        let allowed: Set<String> = ["data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor"]
+        let allowed: Set<String> = ["data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
         var result: [String: String] = [:]
         func visit(_ value: Any, _ path: String, _ depth: Int) {
             guard depth <= 9 else { return }
@@ -79,6 +81,7 @@ public actor ReadOnlyHTTP {
             guard current.scheme == "https", current.host?.lowercased() == origin.host?.lowercased(), current.port == origin.port, current.user == nil, current.password == nil, current.path.hasPrefix(origin.path) else { throw ProviderError.unsafeURL }
             var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue("application/json", forHTTPHeaderField: "Accept")
             if let credentials { request.setValue(OAuth1.header(url: current, credentials: credentials), forHTTPHeaderField: "Authorization") }
+            let requestStarted = Date()
             let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw ProviderError.unavailable }
             if diagnosticsEnabled {
@@ -98,7 +101,10 @@ public actor ReadOnlyHTTP {
                 if let location = response.value(forHTTPHeaderField: "Location"), let target = URL(string: location, relativeTo: current)?.absoluteURL {
                     redirect = target.host?.lowercased() == origin.host?.lowercased() ? (target.scheme == "https" ? "same host HTTPS" : "same host other scheme") : "other host"
                 }
-                records.append(HTTPDiagnostic(route: route, status: response.statusCode, contentType: mime, responseBytes: data.count, structure: HTTPDiagnostic.structure(data), redirect: redirect))
+                var record = HTTPDiagnostic(route: route, status: response.statusCode, contentType: mime, responseBytes: data.count, structure: HTTPDiagnostic.structure(data), redirect: redirect)
+                record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
+                record.retryAfterSeconds = response.value(forHTTPHeaderField: "Retry-After").map(Self.retryAfter)
+                records.append(record)
                 if records.count > 20 { records.remove(at: 1) }
             }
             switch response.statusCode {

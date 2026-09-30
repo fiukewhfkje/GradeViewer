@@ -1,5 +1,4 @@
 import SwiftUI
-import Charts
 import GradeCore
 
 struct Palette {
@@ -15,11 +14,11 @@ struct UpdatedLabel: View {
     let date: Date?
     var body: some View {
         if let date {
-            let hours = max(0, Int(Date().timeIntervalSince(date) / 3600))
+            let age = GradeUpdateAge(date: date)
             HStack(spacing: 5) {
-                Text(hours < 1 ? "updated recently" : hours < 24 ? "updated \(hours) \(hours == 1 ? "hour" : "hours") ago" : "updated \(hours / 24) \(hours / 24 == 1 ? "day" : "days") ago")
-                Image(systemName: hours < 24 ? "checkmark.circle.fill" : "clock").accessibilityHidden(true)
-            }.font(.subheadline).foregroundStyle(hours < 24 ? Palette.grade : Color.secondary)
+                Text(age.text)
+                Image(systemName: age.fresh ? "checkmark.circle.fill" : "clock").accessibilityHidden(true)
+            }.font(.subheadline.weight(.semibold)).foregroundStyle(age.fresh ? Palette.grade : Color.secondary)
         }
     }
 }
@@ -49,6 +48,8 @@ struct RootView: View {
         Group {
             if tab == 0 { NavigationStack { CourseListView() } }
             else { NavigationStack { SettingsView() } }
+        }.onOpenURL { url in
+            if url.scheme == "gradeviewer", url.host == "grades" { tab = 0; previewCourse = nil }
         }.safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
                 tabButton("Grades", icon: nil, selected: 0)
@@ -138,12 +139,13 @@ struct CourseDetailView: View {
                 VStack(alignment: .leading, spacing: 34) {
                     CourseGradeSummary(course: course)
                     VStack(alignment: .leading, spacing: 17) {
-                        Text("Grade Progression").font(.title3.weight(.semibold))
-                        GradeProgressionView(course: course)
-                    }
+                        Text("Grade Progression").font(.title3.bold())
+                        GradeProgressionView(course: course).zIndex(1)
+                    }.zIndex(1)
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Recently Graded Assignments").font(.title3.weight(.semibold)).padding(.bottom, 7)
-                        let recent = course.assignments.filter { $0.display.score.earned != nil || $0.display.score.letter != nil }.prefix(5)
+                        Text("Recently Graded Assignments").font(.title3.bold()).padding(.bottom, 7)
+                        let schoology = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
+                        let recent = AssignmentGrouping.overview(for: course, schoology: schoology).prefix(5)
                         ForEach(Array(recent)) { assignment in InteractiveAssignmentRow(assignment: assignment, course: course) }
                     }
                     NavigationLink { AssignmentsView(course: course) } label: {
@@ -167,33 +169,96 @@ struct GradeProgressionView: View {
     }
 }
 struct GradeChart: View {
-    let history: [GradeHistorySnapshot]
-    var calculated: [GradeProgressionPoint] = []
-    @State private var selection: Date?
-    var points: [GradeProgressionPoint] { (calculated + history.filter { $0.grade.percent != nil }.map(GradeProgressionPoint.init)).sorted { $0.date < $1.date } }
-    var selectedPoint: GradeProgressionPoint? { guard let selection else { return nil }; return points.min { abs($0.date.timeIntervalSince(selection)) < abs($1.date.timeIntervalSince(selection)) } }
-    var domain: ClosedRange<Double> { let values = points.compactMap { $0.grade.percent }; let padding = max(1, ((values.max() ?? 100) - (values.min() ?? 0)) * 0.15); return (values.min() ?? 0) - padding...(values.max() ?? 100) + padding }
-    var dates: ClosedRange<Date> { let first = points.first?.date ?? Date(); let last = points.last?.date ?? first; return first == last ? first.addingTimeInterval(-43_200)...last.addingTimeInterval(43_200) : first...last }
-    var body: some View {
-        Chart {
-            if points.count > 1 {
-                ForEach(points) { point in
-                    AreaMark(x: .value("Date", point.date), yStart: .value("Baseline", domain.lowerBound), yEnd: .value("Grade", point.grade.percent!)).interpolationMethod(.monotone).foregroundStyle(LinearGradient(colors: [.primary.opacity(0.20), .primary.opacity(0)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Date", point.date), y: .value("Grade", point.grade.percent!)).interpolationMethod(.monotone).foregroundStyle(Color.primary).lineStyle(StrokeStyle(lineWidth: 3))
-                }
-            } else if let point = points.first { PointMark(x: .value("Date", point.date), y: .value("Grade", point.grade.percent!)).foregroundStyle(Color.primary).symbolSize(42) }
-            if let selected = selectedPoint {
-                PointMark(x: .value("Date", selected.date), y: .value("Grade", selected.grade.percent!)).foregroundStyle(Color.primary).symbolSize(80)
-                    .annotation(position: .top, overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))) {
-                        VStack(spacing: 4) { Text(pointsText(selected.grade.percent)).bold(); Text(selected.date, format: .dateTime.month().day().year()); if selected.calculated { Text(selected.usesDueDate ? "Calculated · due date" : "Calculated").font(.caption2).foregroundStyle(.secondary) } }.font(.subheadline).padding(12).background(Palette.background, in: RoundedRectangle(cornerRadius: 14)).accessibilityIdentifier("chart-selection")
-                    }
+    let curve: GradeCurve
+    @State private var selection: CGFloat?
+    @State private var lastTouch: CGFloat?
+    init(history: [GradeHistorySnapshot], calculated: [GradeProgressionPoint] = []) {
+        curve = GradeCurve(points: calculated + history.map(GradeProgressionPoint.init))
+        #if DEBUG
+        _selection = State(initialValue: ProcessInfo.processInfo.arguments.contains("--demo") && ProcessInfo.processInfo.arguments.contains("--preview-chart-touch") ? 0.5 : nil)
+        #endif
+    }
+    private var firstDate: Date { curve.nodes.first?.date ?? .distantPast }
+    private var duration: Double { curve.nodes.last?.date.timeIntervalSince(firstDate) ?? 0 }
+    private var selectedDate: Date { firstDate.addingTimeInterval(Double(selection ?? 0) * duration) }
+    private var selectedValue: Double? { curve.value(at: selectedDate) }
+    private var bounds: ClosedRange<Double> {
+        let low = curve.nodes.map(\.value).min() ?? 0, high = curve.nodes.map(\.value).max() ?? 100
+        let padding = max(1, (high - low) * 0.12)
+        return (low - padding)...(high + padding)
+    }
+    private func position(date: Date, value: Double, size: CGSize) -> CGPoint {
+        let x = duration > 0 ? date.timeIntervalSince(firstDate) / duration : 0.5
+        let y = (value - bounds.lowerBound) / (bounds.upperBound - bounds.lowerBound)
+        return CGPoint(x: x * size.width, y: 12 + (1 - y) * (size.height - 24))
+    }
+    private func line(size: CGSize) -> Path {
+        Path { path in
+            guard let first = curve.nodes.first else { return }
+            if curve.nodes.count == 1 {
+                let y = position(date: first.date, value: first.value, size: size).y
+                path.move(to: CGPoint(x: 0, y: y)); path.addLine(to: CGPoint(x: size.width, y: y)); return
             }
-        }.chartYScale(domain: domain).chartXScale(domain: dates).chartYAxis(.hidden).chartXAxis(.hidden)
-            .chartXSelection(value: $selection)
-            .chartGesture { proxy in DragGesture(minimumDistance: 0).onChanged { proxy.selectXValue(at: $0.location.x) }.onEnded { proxy.selectXValue(at: $0.location.x) } }
-            .frame(height: 130).padding(.vertical, 12).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
-            .accessibilityIdentifier("grade-chart").accessibilityLabel("Grade progression")
-            .accessibilityValue(selectedPoint.map { "Selected " + percentText($0.grade.percent) + " on " + $0.date.formatted(date: .abbreviated, time: .omitted) } ?? "\(points.count) recorded grades, latest \(percentText(points.last?.grade.percent))")
+            path.move(to: position(date: first.date, value: first.value, size: size))
+            for segment in curve.segments {
+                let step = segment.duration / 3
+                path.addCurve(to: position(date: segment.end.date, value: segment.end.value, size: size),
+                              control1: position(date: segment.start.date.addingTimeInterval(step), value: segment.start.value + segment.startSlope * step, size: size),
+                              control2: position(date: segment.end.date.addingTimeInterval(-step), value: segment.end.value - segment.endSlope * step, size: size))
+            }
+        }
+    }
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size, path = line(size: size)
+            let x = (selection ?? 1) * size.width
+            ZStack(alignment: .topLeading) {
+                var fill = path
+                let _ = fill.addLine(to: CGPoint(x: size.width, y: size.height))
+                let _ = fill.addLine(to: CGPoint(x: 0, y: size.height))
+                let _ = fill.closeSubpath()
+                fill.fill(LinearGradient(colors: [.primary.opacity(0.20), .primary.opacity(0)], startPoint: .top, endPoint: .bottom))
+                path.stroke(Color.primary.opacity(selection == nil ? 1 : 0.25), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                if selection != nil {
+                    path.stroke(Color.primary, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .mask(alignment: .leading) { Rectangle().frame(width: x) }
+                }
+            }.background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0).onChanged {
+                    selection = min(1, max(0, $0.location.x / size.width))
+                    #if DEBUG
+                    if ProcessInfo.processInfo.arguments.contains("--record-chart-touch") { lastTouch = selection }
+                    #endif
+                }.onEnded { _ in selection = nil })
+                .overlay(alignment: .topLeading) {
+                    if let selection, let value = selectedValue {
+                        let y = position(date: selectedDate, value: value, size: size).y
+                        Circle().fill(Color.primary.opacity(0.12)).frame(width: 32, height: 32).position(x: selection * size.width, y: y)
+                        Circle().fill(Color.primary).frame(width: 8, height: 8).position(x: selection * size.width, y: y)
+                        VStack(spacing: 6) {
+                            Text(value, format: .number.precision(.fractionLength(2))).font(.subheadline.bold())
+                            Text(selectedDate, format: .dateTime.month(.defaultDigits).day().year()).font(.subheadline)
+                        }.foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.12)).padding(12)
+                            .background(Color(red: 0.99, green: 0.976, blue: 0.95), in: RoundedRectangle(cornerRadius: 16))
+                            .fixedSize().position(x: min(size.width - 48, max(48, selection * size.width)), y: -62)
+                            .accessibilityIdentifier("chart-selection")
+                    }
+                }
+        }.frame(height: 154)
+            .accessibilityElement(children: .ignore).accessibilityIdentifier("grade-chart").accessibilityLabel("Grade progression")
+            .accessibilityValue(accessibilityValue)
+    }
+    private var accessibilityValue: String {
+        if selection != nil { return "Selected \(percentText(selectedValue)) on \(selectedDate.formatted(date: .numeric, time: .omitted))" }
+        #if DEBUG
+        // Explicit fixture instrumentation checks real gesture samples after XCTest releases its touch.
+        if ProcessInfo.processInfo.arguments.contains("--record-chart-touch"), let lastTouch {
+            return "Released; last touch \(percentText(curve.value(at: firstDate.addingTimeInterval(Double(lastTouch) * duration))))"
+        }
+        #endif
+        return "\(curve.nodes.count) grades, latest \(percentText(curve.nodes.last?.value))"
     }
 }
 struct AssignmentRow: View {
@@ -204,30 +269,28 @@ struct AssignmentRow: View {
         let a = assignment.display
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(a.title).font(.body).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
+                Text(a.title).font(.body.weight(.semibold)).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
                 UpdatedLabel(date: a.updated)
             }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .trailing, spacing: 6) {
                 if a.score.excused { Text("Excused").foregroundStyle(.secondary) }
-                else if a.score.earned != nil { Text("\(pointsText(a.score.earned))/\(pointsText(a.score.possible))").font(.body.weight(.semibold)); Text(percentText(a.score.percent)).font(.body) }
+                else if a.score.earned != nil { Text("\(pointsText(a.score.earned))/\(pointsText(a.score.possible))").font(.body.weight(.semibold)); Text(percentText(a.score.percent)).font(.body.weight(.medium)) }
                 else { Text(a.score.letter ?? "Ungraded").foregroundStyle(.secondary) }
             }.foregroundStyle(changed ? Color.blue : Palette.grade).strikethrough(dropped).monospacedDigit().fixedSize()
         }.padding(.vertical, 23).padding(.leading, 16).padding(.trailing, 6)
     }
 }
 struct AssignmentsView: View {
+    @Environment(AppStore.self) private var store
     let course: Course
     var body: some View {
+        let source = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
+        let full = AssignmentGrouping.fullCourse(for: course, among: store.courses)
+        let groups = AssignmentGrouping.groups(for: full, schoology: source)
         ScrollView {
             VStack(spacing: 20) {
                 CourseGradeSummary(course: course)
-                if course.calculationSource.method == .points || course.calculationSource.categories.isEmpty {
-                    AssignmentGroup(course: course, title: "Total Points", assignments: course.assignments)
-                } else {
-                    ForEach(course.calculationSource.categories) { category in
-                        AssignmentGroup(course: course, title: category.name, assignments: course.assignments.filter { $0.sources.contains { $0.source.provider == course.calculationSource.source.provider && $0.categoryID == category.id } })
-                    }
-                }
+                ForEach(groups) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
             }.padding(16)
         }.background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
     }
@@ -243,7 +306,7 @@ struct AssignmentGroup: View {
                 HStack(spacing: 16) {
                     Image(systemName: expanded ? "chevron.down" : "chevron.right").font(.body.weight(.semibold)).frame(width: 46, height: 46).background(Palette.background, in: Circle())
                     Text(title).font(.title3.bold()).frame(maxWidth: .infinity, alignment: .leading)
-                    if course.calculationSource.method == .points { GradeLabel(grade: course.display.grade) }
+                    if title == "Total Points" { GradeLabel(grade: course.display.grade) }
                 }.foregroundStyle(.primary).padding(16)
             }.buttonStyle(.plain).accessibilityLabel(title).accessibilityValue(expanded ? "Expanded" : "Collapsed")
             if expanded {

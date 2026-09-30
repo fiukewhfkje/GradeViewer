@@ -28,6 +28,11 @@ public enum ProviderParsing {
             guard let id = text(r["id"]), let title = text(r["title"]) else { return nil }
             return GradingCategory(id: "schoology:\(gradeOwner):category:\(id)", name: title, weight: number(r["weight"]), method: number(r["calculation_type"]) == 1 ? .percent : .points, dropLowest: Int(number(r["drop_lowest"]) ?? 0))
         }
+        let catalog = itemRows.compactMap { item -> SourceAssignment? in
+            guard let id = text(item["id"] ?? item["grade_item_id"]) else { return nil }
+            let kind = text(item["type"]) ?? "assignment"
+            return SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):catalog:\(kind):\(id)", fields: raw(item, ["id", "type", "grading_period"])), title: text(item["title"]) ?? "Assignment \(id)", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1)
+        }
         let options = section["options"] as? [String: Any]
         let method: CourseMethod = options?["weighted_grading_categories"] == nil ? .unknown : flag(options?["weighted_grading_categories"]) ? .weightedCategories : .equalCategories
         return rows(g["period"]).compactMap { period in
@@ -49,7 +54,7 @@ public enum ProviderParsing {
                 guard let id = text(item["id"] ?? item["grade_item_id"]), !existing.contains(id) else { continue }
                 assignments.append(SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(text(item["type"]) ?? "assignment"):\(id)"), title: text(item["title"]) ?? "Assignment \(id)", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1))
             }
-            return SourceCourse(source: Provenance(.schoology, "\(gradeOwner):\(periodID)", fields: ["section_id": sectionID, "grade_section_id": gradeOwner, "period_id": periodID, "course_name": text(section["course_title"]) ?? text(section["section_title"]) ?? "Course"]), title: text(section["course_title"]) ?? text(section["section_title"]) ?? "Course", teacher: text(section["teacher_display"] ?? section["teacherDisplay"]) ?? "", term: Term(id: periodID, name: text(period["period_title"]) ?? periodID), grade: grade, categories: parsedCategories, assignments: assignments, method: method, fetched: fetched)
+            return SourceCourse(source: Provenance(.schoology, "\(gradeOwner):\(periodID)", fields: ["section_id": sectionID, "grade_section_id": gradeOwner, "period_id": periodID, "course_name": text(section["course_title"]) ?? text(section["section_title"]) ?? "Course"]), title: text(section["course_title"]) ?? text(section["section_title"]) ?? "Course", teacher: text(section["teacher_display"] ?? section["teacherDisplay"]) ?? "", term: Term(id: periodID, name: text(period["period_title"]) ?? periodID), grade: grade, categories: parsedCategories, assignments: assignments, method: method, fetched: fetched, assignmentCatalog: catalog)
         }
     }
     public static func campus(grades: Data, details: [String: Data] = [:], fetched: Date = Date()) throws -> [SourceCourse] {
@@ -81,7 +86,7 @@ public enum ProviderParsing {
                                 if c["isWeighted"] != nil { weighted.append(flag(c["isWeighted"])) }
                                 for a in rows(c["assignments"]) {
                                     guard let aID = text(a["objectSectionID"] ?? a["assignmentID"] ?? a["_id"]) else { continue }
-                                    assignments.append(SourceAssignment(source: Provenance(.infiniteCampus, "\(namespace):\(aID)", fields: raw(a, ["objectSectionID", "scorePoints", "totalPoints", "multiplier", "score", "excluded", "dropped", "missing", "late"])), title: text(a["assignmentName"]) ?? "Assignment", categoryID: catID, due: date(a["dueDate"]), updated: date(a["modifiedDate"] ?? a["scoreDate"]), score: Score(earned: number(a["scorePoints"]), possible: number(a["totalPoints"]), letter: text(a["score"]).flatMap { Double($0) == nil ? $0 : nil }, excused: flag(a["exempt"] ?? a["excused"])), multiplier: number(a["multiplier"]) ?? 1, excluded: flag(a["excluded"]) || flag(a["dropped"])))
+                                    assignments.append(SourceAssignment(source: Provenance(.infiniteCampus, "\(namespace):\(aID)", fields: raw(a, ["objectSectionID", "scorePoints", "totalPoints", "multiplier", "score", "excluded", "dropped", "missing", "late"])), title: text(a["assignmentName"]) ?? "Assignment", categoryID: catID, due: date(a["dueDate"]), updated: date(a["scoreModifiedDate"]) ?? date(a["modifiedDate"]) ?? date(a["scoreDate"]), score: Score(earned: number(a["scorePoints"]), possible: number(a["totalPoints"]), letter: text(a["score"]).flatMap { Double($0) == nil ? $0 : nil }, excused: flag(a["exempt"] ?? a["excused"])), multiplier: number(a["multiplier"]) ?? 1, excluded: flag(a["excluded"]) || flag(a["dropped"])))
                                 }
                             }
                         }

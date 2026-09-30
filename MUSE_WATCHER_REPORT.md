@@ -1,350 +1,226 @@
-# Muse grade watcher report
+# Muse: student grade watcher handoff
 
-Prepared September 29, 2026. GradeViewer has no dependency on this watcher. No watcher was implemented or deployed.
+Prepared September 29, 2026. Repository: https://github.com/fiukewhfkje/GradeViewer (private). GradeViewer works independently. **No Muse watcher has been implemented or deployed.** This report directly covers the four requested subjects: working student endpoints, login/session behavior, redacted request/response examples, and observed rate limits.
 
-## Read this first: evidence and release gate
+Evidence: **V** = this student's authenticated request and relevant parse succeeded; **D** = official documentation; **P** = public client evidence; **L** = local fixture tests; **R** = proposed implementation. V is scoped to the requests described, not a guarantee of every district, every account permission, or an indefinite session.
 
-**Both complete authenticated GradeViewer fetch pipelines succeeded on the student's iPhone.** Campus summary and six corrected sectionID detail reads returned HTTP 200 JSON with the expected task/category/assignment structure. Schoology user, sections, grades, accessible enrolled-section metadata/items/categories completed successfully. Verification used structural/status reports only; no secrets or student values were exported. Incremental cursors, event feeds, session TTL and sustained polling remain unverified. This report is an implementation handoff, not a deployed watcher.
+## 1. Endpoints that actually work with this student login
 
-Evidence labels used below:
+### Infinite Campus — V
 
-- **D**: official published documentation; does not by itself establish student permissions.
-- **P**: publicly visible source implementation; may be obsolete or district-specific.
-- **L**: GradeViewer fixture/unit/simulator tests; not server validation.
-- **V**: this user's authenticated request and relevant parse succeeded; limited to the paths explicitly marked below.
-- **R**: proposed engineering choice/inference; not provider behavior.
+District application base:
 
-Muse can implement the deterministic state machine and fixture tests now. Before enabling sustained checking, retain the successful authenticated baselines and complete a genuine subsequent score-edit/grade-change observation on both providers. Do not manufacture a grade, hammer a school, or infer endpoint success from HTTP 200 alone.
+`https://dublincityoh.infinitecampus.org/campus/`
 
-## Recommended architecture (R)
+The student's authenticated home is `/campus/nav-wrapper/student/portal/student/home?appName=dublincity`. Derive the base from the actual Student portal; do not use the nested `/portal/` as the root.
 
-One systemd service on the existing Linux VM; ordinary Python or another maintained language with HTTP sessions, OAuth 1 support, SQLite, and a secret store. Prefer a maintained OAuth signing library rather than reimplementing OAuth on Linux. Zero model calls while idle. No new cloud database or account service. A successful meaningful state diff creates one outbox event; only the outbox consumer wakes Muse. Authentication errors and unchanged state must never wake Muse repeatedly.
+| Read | Actual result | Use |
+| --- | --- | --- |
+| `GET resources/portal/grades` | HTTP 200 JSON array; complete parse succeeded | Whole-student schools, terms, courses, tasks and reported overall grades |
+| `GET resources/portal/grades/detail/{sectionID}` | All six distinct detail requests HTTP 200 JSON objects; complete parse succeeded | Task/term categories, assignments and scores |
 
-Schoology priority: administrator-authorized grades webhooks if available; otherwise the documented student changed-since grade endpoint per section. Campus priority: validate a read-only notification/event feed in the district's current authenticated client; use it to fetch only affected details. If unavailable, poll one whole-student overall-grade summary moderately, and periodically reconcile detail scores to catch changes that leave the overall unchanged. The latter limitation is unavoidable without a trustworthy event feed.
+**Critical correction:** use the summary course's `sectionID`, not its `_id`, for the detail route. GradeViewer initially used `_id` and got authenticated HTTP 200 empty arrays. Correcting the route returned the expected detail objects. Five details had categories; one legitimately had none. This was reproduced in a regression test before correction.
 
-## Exact endpoint inventory
+Observed nesting is `schools[] → terms[] → courses[] → gradingTasks[]` in summary, and `details[] → task + categories[] → assignments[]` in detail. Match detail task/term to the summary task/term. Keep those identities separate. Do not combine grading tasks or future quarters into an annual average.
 
-### Schoology (base `https://api.schoology.com/v1/`)
+Assignments expose `scoreModifiedDate` (string or null), `dueDate`, `assignedDate`, `objectSectionID`, `scorePoints`, `totalPoints`, `multiplier`, `assignmentName`, and `score`. Task objects also expose `modifiedDate`. The initial timestamp parser missed `scoreModifiedDate`; it is now the first score-update timestamp. This fixed all five displayed courses' update labels and progression availability. A null score-update date must remain absent, not become fetch time.
 
-All below require a newly signed OAuth 1.0 Authorization header over HTTPS. User ID and enrollment IDs are distinct.
+The endpoint choice originally came from [Grades++ public worker](https://github.com/jonathanjma/Infinite-Campus/blob/main/extension/service_worker.js), [detail parsing](https://github.com/jonathanjma/Infinite-Campus/blob/main/extension/pages/class.js), and [the home-page sectionID reference](https://github.com/jonathanjma/Infinite-Campus/blob/main/extension/pages/main.js). These supplied P evidence; the successful reads above supply V evidence. No third-party implementation was copied.
 
-| Method and path | Purpose/queries | Status | Suitable for checking? |
-| --- | --- | --- | --- |
-| `GET users/me` | Resolve the authorized user; may redirect | D/L/V | Once at login; re-sign redirects |
-| `GET users/{USER_ID}/sections` | Course discovery; follow `links.next`; `limit` paging | D/V | Baseline and occasional roster changes |
-| `GET sections/{SECTION_ID}` | Course settings/title | D/V enrolled ID | Metadata cache; periodic reconciliation |
-| `GET users/{USER_ID}/grades?section_id={SECTION_ID}&timestamp={CURSOR}` | Student grade updates; section_id required; timestamp is server changed-since | D/L; V without timestamp | Preferred student detection candidate |
-| `GET sections/{SECTION_ID}/grades?enrollment_id={ENROLLMENT_ID}&timestamp={CURSOR}` | Enrollment-scoped grade updates | D | Alternative only if student permissions allow; never query all students |
-| `GET sections/{SECTION_ID}/grade_items` | Assignment/discussion/assessment metadata; paginated | D/L/V enrolled ID | Initial load, missing IDs, occasional metadata refresh |
-| `GET sections/{SECTION_ID}/grading_categories` | Category weights/method/drop rules | D/L/V enrolled ID | Cache; refresh after configuration changes |
-| `GET triggers/targets` / `GET triggers/subscriptions` | Existing school webhook configuration | D | Admin-only authority gate; no periodic student probe |
-| `POST triggers/targets` / `PUT triggers/subscriptions` | Configure a webhook target and subscriptions | D | Requires admin authorization; Muse must not configure with student authority |
-| `GET reminders/{type}` or `{realm}/{realm_id}/reminders/{type}` | Reminder collections | D | Not a documented complete score-change journal |
+### Schoology — V
 
-Sources supporting the paths: [User](https://developers.schoology.com/api-documentation/rest-api-v1/user/), [Course Section](https://developers.schoology.com/api-documentation/rest-api-v1/course-section/), [Grade](https://developers.schoology.com/api-documentation/rest-api-v1/grade/), [Assignment](https://developers.schoology.com/api-documentation/rest-api-v1/assignment/), [Categories](https://developer.schoology.com/api-documentation/rest-api-v1/grading-categories/), [Triggers](https://developers.schoology.com/api-documentation/rest-api-triggers-v1/), and [Reminders](https://developers.schoology.com/api-documentation/rest-api-v1/reminders/).
+Base: `https://api.schoology.com/v1/`. Each GET receives a freshly signed OAuth 1.0 header.
 
-### Infinite Campus (district application base, commonly `https://<DISTRICT_HOST>/campus/`)
+| Read | Actual result | Use |
+| --- | --- | --- |
+| `GET users/me` | Same-host HTTPS 303 followed by a freshly signed HTTP 200 user read | Resolve the authorized user |
+| `GET users/{userID}/sections` | HTTP 200; enrolled-section discovery succeeded | Discover authorized sections; follow pagination |
+| `GET users/{userID}/grades?section_id={enrolledSectionID}` | HTTP 200; full grade snapshot parse succeeded | Student period assignments and final grades |
+| `GET sections/{enrolledSectionID}` | HTTP 200 for processed graded sections | Course metadata/options |
+| `GET sections/{enrolledSectionID}/grade_items` | HTTP 200 for processed graded sections | Assignment titles, dates, points, factors and category metadata |
+| `GET sections/{enrolledSectionID}/grading_categories` | HTTP 200 for processed graded sections | Categories, weights and methods |
 
-The application's path can vary. Derive it from the actual Campus Student URL; do not assume the hostname or guess the district. Normal authentication cookies must be restricted to their original host/path and HTTPS.
+**Observed alias case:** the user grades response can return a `section_id` different from the requested enrolled-section ID. Direct `grade_items` through that returned owner was HTTP **403**. Metadata/items/categories through the enrolled-section ID succeeded. Use the enrolled ID for accessible metadata requests; retain the returned grade-owner ID for grade identity. Do not rewrite every URL to the returned owner.
 
-| Method and relative path | Purpose/queries | Status | Suitable for checking? |
-| --- | --- | --- | --- |
-| `GET portal/students/{DISTRICT}.jsp` | Open district login; subsequent form/SSO flow varies | D concept/P path | Interactive initial login only |
-| `GET resources/portal/grades` | Student schools/terms/courses/grading tasks, overall percentages | P/L/V | Moderate summary polling candidate; cadence unverified |
-| `GET resources/portal/grades/detail/{SECTION_ID}` | Tasks/categories/assignments/scores | P/L/V | Fetch on event/summary change, plus occasional reconciliation |
-| `GET resources/portal/roster?_expand=%7BsectionPlacements-%7Bterm%7D%7D` | Schedule/section discovery | P | Baseline only if needed |
-| `GET prism?x=notifications.Notification-retrieve&limitCount=200` | Historical public client's notification collection | P, historical | Best event-feed candidate to validate; no current guarantee |
-| `GET prism?x=notifications.NotificationUser-countUnviewed` | Historical unseen count | P, historical | Poor primary detector: a count can be reset independently |
+GradeViewer accepts the requested owner if present, otherwise only a single unambiguous grade-section row; multiple unmatched rows are a schema failure. Metadata must still match the enrolled ID. Both IDs are retained in provenance. Grade owners are deduplicated to avoid processing aliases twice. Empty valid grade-section arrays are allowed for nongraded enrollments. No official linking mechanism was established; this is V response behavior plus L regression coverage.
 
-[Grades++ source](https://github.com/jonathanjma/Infinite-Campus/blob/main/extension/service_worker.js) reads grades and detail; [its parsing](https://github.com/jonathanjma/Infinite-Campus/blob/main/extension/pages/class.js) shows category/assignment structure. The [Node client](https://github.com/tonyzimbinski/infinite-campus/blob/master/index.js) shows roster and notification paths. These repositories were last pushed in 2024; they are research candidates rather than current supported contracts. Its notification read parses `data.NotificationList.Notification`, including notificationID, creationTimestamp, notificationTypeID, linkUrl, and linkContext. Types 3 and 4 were described there as course-grade and assignment updates. Validate those classifications against the actual district before using them.
+Actual grade shape includes `section[]`, `period[]`, `period[].assignment[]` (a direct array in the observed response), `final_grade[]`, `grading_category[]`, `assignment_id`, `type`, `exception`, `grade`, `max_points`, `scale_id`, `scale_type`, and `timestamp`. Do not assume every period uses an `assignment.grade` wrapper; GradeViewer accepts both shapes.
 
-**Do not use** the old query-string-password `verify.jsp?nonBrowser=true...` login. Do not use endpoints that mark notifications read/viewed, toggleRead, updateLastViewed, or markAllRead. A watcher must not change the user's notification state.
+**Not V:** `timestamp` changed-since semantics, enrollment-scoped section grades, webhook subscriptions, and reminders as a complete change journal. Schoology documents [changed-since grades](https://developers.schoology.com/api-documentation/rest-api-v1/grade/), but this session tested full grades without that filter. [Event triggers](https://developers.schoology.com/api-documentation/rest-api-triggers-v1/) require administrator authority; student API keys do not establish it.
 
-The official [Campus Student guide](https://kb.infinitecampus.com/help/campus-student-portal) describes recent grade/assignment updates, supporting investigation of a current feed; it does not publish the JSON endpoint behind them. [OneRoster](https://kb.infinitecampus.com/help/oneroster-api) is a district integration route and is not a student's personal login API. No student webhook subscription or supported changed-since Campus grade endpoint was found in the official material reviewed.
+### Campus event feeds — P only, untested
 
-## Observed integration corrections (V/L)
+The historical [Node client](https://github.com/tonyzimbinski/infinite-campus/blob/master/index.js) references `prism?x=notifications.Notification-retrieve&limitCount=200` and `notifications.NotificationUser-countUnviewed`. Neither was tried with this district. Roster is also unnecessary for GradeViewer's initial fetch. Do not present these as working 2026 student endpoints. Do not mark notifications read or update viewed state. A count is not a complete event journal.
 
-Dublin City application base is `https://dublincityoh.infinitecampus.org/campus/`, discovered through the normal Student login, including the modern nav-wrapper homepage. Campus details must use the summary course's `sectionID`, not its `_id`. The wrong identifier returned authenticated empty arrays; corrected detail responses were objects with details/tasks/categories/assignments. Summary response was 58,368 bytes; corrected six detail responses ranged from 970 to 41,062 bytes. One detail legitimately had no categories. These are observed payload sizes, not latency or rate-limit measurements.
-
-Schoology returned a grade-owner ID different from the requested enrolled section. Direct grade-items access through that owner was HTTP 403; metadata/items/categories through the enrolled section succeeded. GradeViewer validates metadata against the requested enrolled ID, accepts an alternate grade owner only when the grades response is unambiguous, retains both IDs in provenance, and namespaces/deduplicates grades by their actual owner. Do not blindly rewrite all section URLs to the returned owner. This is observed response behavior, not proof of a documented linking mechanism.
-
-Both active Keychain connections survived app reinstalls and relaunch. Cookies/keys were not exported to a VM. No expiry TTL or cross-host cookie behavior was measured.
-
-## Login and session behavior
+## 2. Login/session: what it returns, lifetime, refresh and recovery
 
 ### Schoology
 
-**D:** Personal consumer key and secret use two-legged OAuth 1.0 with empty oauth_token. Token and token-secret fields apply when using an authorized three-legged grant. The API does not exchange personal key/secret credentials for a cookie session; they sign each request. Persist the relevant secrets, the resolved user/enrollment mapping, and cursors separately. Signing needs a unique nonce and current timestamp every time, including after redirects. [Authentication](https://developers.schoology.com/api-documentation/authentication/)
+**D/V:** personal consumer key + consumer secret sign two-legged OAuth 1.0 requests, with empty `oauth_token`. The app also supports optional token/token-secret credentials, but this student's personal-key flow is the one observed. Login does not exchange those keys for an OAuth 2 bearer/refresh token. A successful identity read returns a user object; the same signing credentials authorize subsequent reads. [Authentication documentation](https://developers.schoology.com/api-documentation/authentication/).
 
-**Unknown:** No measured expiry time or actual token-renewal behavior for this student's credentials. Do not assume a standard OAuth 2 refresh token. Personal keys can be revoked or permissions removed. A token-based integration must use the application's supported OAuth 1 authorization flow when reauthorization is needed. Do not invent a silent renewal endpoint.
+Use HMAC-SHA1 per OAuth 1.0, a fresh nonce and current Unix timestamp, correct encoded parameter sorting, and a fresh signature on each redirect. Only follow the approved HTTPS API origin/path. GradeViewer uses Apple's HMAC primitive and an RFC 5849 signature regression; Muse should use a maintained OAuth 1 library.
 
-**R:** Treat 401 as dead/revoked authentication; stop normal checks and request one reconnect. Treat 403 as permission failure requiring diagnosis, not automatically as expiry. A replay/nonce error can indicate bad signing or clocks; correct that deterministically rather than asking the student for new keys. TLS/network/5xx failures do not invalidate stored credentials.
+**Observed persistence:** the keys were entered locally, saved in iOS Keychain, and successfully reused across app reinstalls and relaunches. Failed setup also keeps a pending Keychain item, so a parsing error does not force re-entry. Successful verification promotes it to active credentials.
+
+**Lifetime: unknown.** No expiration/revocation interval was measured. There is no verified silent renewal endpoint. Re-signing a new request refreshes its nonce/signature, not the underlying authorization. If keys are revoked or rejected, reconnect with the supported credential flow. Treat 401 as authentication rejection; diagnose 403 as access denial rather than automatically assuming expiry. The observed owner-ID 403 was a permission/routing issue and was fixed without new keys.
 
 ### Infinite Campus
 
-**D:** User visits the district's Campus Student page and completes normal student login or district SSO. The official mobile app offers Stay Logged In. These documented behaviors do not establish the TTL of a third-party browser session. [Student login help](https://www.infinitecampus.com/support/parents-and-students)
+**V user flow:** normal district Campus Student login inside the same nonpersistent WKWebView used for Find your district. User completes the district page and any SSO normally. On authenticated home, Connect obtains Campus-origin cookies, verifies summary plus all details, and saves the session cookie jar to Keychain. Passwords and SSO-provider cookies are not saved or exported. An unrelated Safari login has a separate cookie session.
 
-**GradeViewer implementation:** Nonpersistent WKWebView, in-app district lookup or a supplied student URL, user-entered password/SSO, Campus-origin cookie extraction after login, read-only verification, and Keychain cookie persistence. Safari login sessions are separate and are not imported. Raw passwords and identity-provider cookies are not saved by GradeViewer. No password appears in URLs or logs. Failed setup saves a separate pending Keychain session for manual retry/forget; a provider is marked Connected only after complete read verification. The observed Dublin City Student home uses `/campus/nav-wrapper/student/portal/student/home?appName=dublincity`, with `/campus/` as the application base. Login navigation was observed by the user; grade resource success still awaits V validation.
+**What it returns:** the browser login establishes a server cookie session and reaches Student home. Those cookies authorize the grade JSON resources above. This is a browser session, not a verified public student OAuth/token contract. A universal programmatic login POST body was not established.
 
-**Muse implication:** iOS Keychain cannot simply be read from Linux. Muse needs a separately authorized local browser login/session on its VM, or an explicitly authorized encrypted session transfer mechanism developed later. GradeViewer has no session-export feature. Linux initial login must be interactive if SSO/MFA requires it; a headless browser is not grounds to bypass those controls. Do not maintain the student's raw password just for automatic relogin.
+GradeViewer stores cookie name/value/domain/path/Secure/expiry, retains origin scope, uses an ephemeral URLSession cookie jar for reads, and persists its current cookie jar after a successful fetch. A failed connection keeps a separate pending session for manual retry/forget. The saved session survived reinstall/relaunch and fetched successfully again.
 
-**Cookie persistence:** Preserve name/value/domain/path/Secure/HttpOnly/expiry/SameSite attributes in the Linux cookie jar; never flatten all cookies into one cross-host header. Store secrets encrypted or through systemd LoadCredential/OS secret storage with restricted permissions. Cookie expiry is metadata, not a guarantee the server still accepts it. A cookie with no Expires is a session cookie, not permanent authorization.
+**Lifetime: unknown.** Actual server TTL, keepalive policy, expiry, SSO restrictions on a VM, and cross-IP portability were not measured. Successful repeated reads do not prove permanent login. A session cookie without Expires does not define server-side lifetime; even an Expires value would only describe cookie metadata. The official mobile app's Stay Logged In option is not a lifetime guarantee for this independent session. [Student support](https://www.infinitecampus.com/support/parents-and-students).
 
-**Unknown:** Actual cookie names, TTL, keepalive policy, SSO restrictions, refresh/renewal endpoint, and whether cookies work from a second host/IP. None was measured. Persist Set-Cookie rotations after successful responses. This preserves a server-issued renewal if one occurs; it does not guarantee indefinite access. Full user relogin may eventually be necessary.
+**Refresh:** use the existing origin-scoped cookie jar for ordinary read requests; apply Set-Cookie updates through the HTTP cookie jar and save after success. This preserves any server-issued rotation but does not prove a renewal protocol. No separate Campus refresh-token or keepalive endpoint was verified. If reads return login HTML, a login redirect, or 401, preserve the last successful baseline and ask for a normal browser reconnect. Diagnose 403 once. Do not loop login attempts or store the raw password for silent relogin.
 
-**R:** 401, a login redirect, or HTML where grade JSON is expected means reconnect. 403 may be permission denial or session policy and needs one diagnosis. A 200 JSON payload with missing required grade structure is a schema error; quarantine it and retain the last baseline. After one dead-session determination, suspend that provider until reconnect. Never loop login attempts. Verify a fresh grade-summary request before replacing a usable session.
+**VM setup:** iOS Keychain credentials were not transferred. Muse needs separately authorized local credential entry and a normal browser login on its VM, or a future explicitly authorized secure transfer. Store secrets outside source/Git/logs with restricted permissions; preserve cookie domain/path/Secure/expiry and browser attributes supported by the chosen jar. Interactive SSO/MFA remains interactive. Never use the historical password-in-query-string `verify.jsp?nonBrowser=true...` route.
 
-## Redacted request/response examples
+## 3. Redacted example requests and responses
 
-These are **synthetic structural examples**, not captures from the student. Do not treat placeholder field availability as V evidence.
+The following are **trimmed reconstructions of observed response shapes** with every identifier, title, score, date, credential and signature replaced. They are not raw response dumps. `<NUMBER>` means an actual JSON number in the observed data; placeholder strings are for redaction, not literal field types. Optional fields and additional keys are omitted. Event/delta endpoints are deliberately excluded from V examples.
 
-### 1. Resolve Schoology user (D)
+### A. Schoology full student grades — V
 
 ```http
-GET /v1/users/me HTTP/1.1
+GET /v1/users/<REDACTED_USER_ID>/grades?section_id=<REDACTED_ENROLLED_SECTION_ID> HTTP/1.1
 Host: api.schoology.com
 Accept: application/json
-Authorization: OAuth realm="Schoology API", oauth_consumer_key="<REDACTED_KEY>", oauth_nonce="<NEW_NONCE>", oauth_signature_method="HMAC-SHA1", oauth_timestamp="<UNIX_SECONDS>", oauth_token="", oauth_version="1.0", oauth_signature="<REDACTED_SIGNATURE>"
-```
-
-If a 303 points to `/v1/users/<STUDENT_ID>`, follow only the approved API origin and generate an entirely fresh OAuth header. Trimmed illustrative response:
-
-```json
-{"uid":"<STUDENT_ID>"}
-```
-
-### 2. Schoology changed-since grades (D)
-
-```http
-GET /v1/users/<STUDENT_ID>/grades?section_id=<SECTION_ID>&timestamp=<CURSOR_MINUS_OVERLAP> HTTP/1.1
-Host: api.schoology.com
-Accept: application/json
-Authorization: OAuth <FRESH_REDACTED_PARAMETERS>
-```
-
-Illustrative trimmed structure:
-
-```json
-{"section":[{"section_id":"<SECTION_ID>","period":[{"period_id":"<TERM_ID>","assignment":{"grade":[{"assignment_id":"<ASSIGNMENT_ID>","grade":"<SCORE>","max_points":"<POSSIBLE>","timestamp":"<SERVER_UPDATE_SECONDS>","type":"assignment","exception":0}]}}],"final_grade":[{"period_id":"<TERM_ID>","grade":"<OVERALL>","scale_id":0}]}]}
-```
-
-Validate whether unchanged period/overall data is still returned with timestamp filtering. A changed-since response is a **delta**, never a complete replacement snapshot. Follow all pagination before advancing a cursor. Fetch grade-item metadata when a new ID appears. Zero scores are real; null/ungraded, incomplete, and excused are distinct states.
-
-### 3. Campus session establishment (D concept, exact flow unknown)
-
-```http
-GET /campus/portal/students/<DISTRICT>.jsp HTTP/1.1
-Host: <DISTRICT_HOST>
-```
-
-The student completes the real rendered form/SSO/MFA. Do not invent one universal POST body. A normal authenticated session may produce cookies resembling this shape; the name is deliberately a placeholder:
-
-```http
-Set-Cookie: <SESSION_COOKIE_NAME>=<REDACTED_COOKIE>; Path=/campus; Secure; HttpOnly
-```
-
-### 4. Campus notification candidate (P)
-
-```http
-GET /campus/prism?x=notifications.Notification-retrieve&limitCount=200 HTTP/1.1
-Host: <DISTRICT_HOST>
-Accept: application/json
-Cookie: <SESSION_COOKIE_NAME>=<REDACTED_COOKIE>
-```
-
-Historical public-client structural example:
-
-```json
-{"data":{"NotificationList":{"Notification":[{"notificationID":"<EVENT_ID>","notificationTypeID":"4","creationTimestamp":"<TIME>","linkUrl":"<RELATIVE_COURSE_PATH>","linkContext":"<CONTEXT>"}]}}}
-```
-
-Never log the raw notification text, which may contain student data. Never blindly visit a returned absolute link; map a validated grade event to a known same-origin read endpoint. A finite notification window may be truncated; reconcile after downtime or possible overflow. Count changes alone cannot prove which score changed.
-
-### 5. Campus summary and affected detail (P)
-
-```http
-GET /campus/resources/portal/grades HTTP/1.1
-Host: <DISTRICT_HOST>
-Accept: application/json
-Cookie: <SESSION_COOKIE_NAME>=<REDACTED_COOKIE>
-```
-
-```json
-[{"schoolID":"<SCHOOL_ID>","terms":[{"termID":"<TERM_ID>","termName":"<TERM>","courses":[{"sectionID":"<SECTION_ID>","_id":"<OPAQUE_DETAIL_ID>","courseName":"<COURSE>","gradingTasks":[{"taskID":"<TASK_ID>","progressPercent":"<OVERALL>","progressScore":"<LETTER>"}]}]}]}]
+Authorization: OAuth realm="Schoology API", oauth_consumer_key="<REDACTED>", oauth_nonce="<NEW_NONCE>", oauth_signature_method="HMAC-SHA1", oauth_timestamp="<CURRENT_UNIX_SECONDS>", oauth_token="", oauth_version="1.0", oauth_signature="<REDACTED>"
 ```
 
 ```http
-GET /campus/resources/portal/grades/detail/<OPAQUE_DETAIL_ID> HTTP/1.1
-Host: <DISTRICT_HOST>
-Accept: application/json
-Cookie: <SESSION_COOKIE_NAME>=<REDACTED_COOKIE>
+HTTP/1.1 200 OK
+Content-Type: application/json
 ```
-
-```json
-{"details":[{"task":{"termID":"<TERM_ID>","taskID":"<TASK_ID>"},"categories":[{"name":"<CATEGORY>","weight":"<WEIGHT>","isWeighted":true,"assignments":[{"objectSectionID":"<ASSIGNMENT_ID>","assignmentName":"<ASSIGNMENT>","scorePoints":"<SCORE>","totalPoints":"<POSSIBLE>","multiplier":1,"dueDate":"<DUE>"}]}]}]}
-```
-
-Use `sectionID` for the detail reference. The public home page passes that ID to its detail page and then the worker. GradeViewer initially misread this relationship and used `_id`; real attempts returned empty arrays. A focused regression reproduced it and the route was corrected. Current district detail success remains pending the corrected build. Preserve task and term boundaries. Missing progressPercent must not erase a valid posted percent; numeric zero must not fall through to another value.
-
-## Rates, latency, size, and caching
-
-**Schoology D:** Current [PowerSchool system requirements](https://uc.powerschool-docs.com/en/schoology/latest/system-requirements) publishes 50 default public API credits refilled every five seconds; read requests generally cost one, writes three. API/web buckets are separate. Exhaustion returns 429 with Retry-After. This is not permission to continuously consume the maximum bucket, and not proof the user's district has that exact configuration. No account-specific daily quota was observed.
-
-**Campus:** No official student-portal polling rate limit was found in the reviewed material. No throttling status/error body, sustained cadence, response size, latency, ETag, Last-Modified, or cache behavior has been measured. Do not report invented limits or pretend every-five-second polling is approved.
-
-**R cadence assessment:**
-
-| Cadence | Expected role |
-| --- | --- |
-| 5 seconds | Not the default; no current Campus evidence supports it. Prefer events/webhooks. |
-| 15 seconds | Possible short active window for a validated lightweight feed; measure and respect district policy first. |
-| 30 seconds | Consider for a validated lightweight notification feed during school hours, not full detail gradebooks. |
-| 60 seconds | Conservative initial active-hours read cadence, pending actual district validation; still not an official guarantee. |
-| 300 seconds | Suggested overnight/off-hours fallback. |
-
-Start Schoology at 60 seconds during configured school hours and 300 outside; Campus at 60 seconds for one validated feed or summary, with details on change and a detail reconciliation every 10–15 minutes. Randomize phases, serialize requests per provider, back off on transient failures, and honor Retry-After (both seconds and HTTP-date formats). 403/auth/schema errors require suspension/diagnosis, not backoff forever.
-
-After V validation, use conditional requests **only when** the server actually supplies and respects validators. Do not add random cache-busting parameters by habit. A 304 preserves the state and cursor. Test whether normal cache-control is sufficient to see genuine score updates.
-
-For 8 Schoology sections: all-day per-section polling is 138,240 reads/day at 5s, 46,080 at 15s, 23,040 at 30s, or 11,520 at 60s. A proposed 8-hour school window at 60s plus 16 hours at 300s is 5,376 reads/day before metadata/change details. One Campus summary/feed at that same schedule adds 672 reads/day. Eight Campus detail reads every 15 minutes all day add 768; limiting reconciliation to active hours reduces it. These are calculated estimates, not observed traffic. Effective webhook detection avoids idle grade reads entirely, apart from periodic recovery reconciliation.
-
-Polling detection delay is typically between zero and one polling interval **plus provider publication delay**; average interval/2 assumes uniformly timed updates. “Near-instant” cannot be promised for a polling-only Campus fallback. A teacher's SIS/LMS sync delay is outside Muse's control.
-
-## Minimal durable state and SQLite proposal (R)
-
-Persist only provider cursors, subject/section mappings, normalized latest records and hashes, seen feed IDs, last successful complete snapshot, backoff deadlines, explicit cross-provider matches, and an event outbox. Secrets belong outside this SQLite data file. Keep sensitive grade records encrypted at rest if the host/storage threat model requires it.
-
-```sql
-CREATE TABLE provider_state (
-  provider TEXT PRIMARY KEY,
-  subject_ref TEXT NOT NULL,
-  cursor_seconds INTEGER,
-  last_success TEXT,
-  blocked_reason TEXT,
-  retry_after TEXT
-);
-CREATE TABLE grade_state (
-  provider TEXT NOT NULL,
-  source_key TEXT NOT NULL,
-  course_key TEXT NOT NULL,
-  term_key TEXT NOT NULL,
-  task_key TEXT NOT NULL,
-  item_kind TEXT NOT NULL,
-  semantic_json TEXT NOT NULL,
-  semantic_hash TEXT NOT NULL,
-  source_updated TEXT,
-  seen_generation INTEGER,
-  PRIMARY KEY(provider, source_key)
-);
-CREATE TABLE course_match (
-  canonical_key TEXT NOT NULL,
-  provider TEXT NOT NULL,
-  source_course_key TEXT NOT NULL,
-  PRIMARY KEY(provider, source_course_key)
-);
-CREATE TABLE seen_feed_event (
-  provider TEXT NOT NULL,
-  event_id TEXT NOT NULL,
-  first_seen TEXT NOT NULL,
-  PRIMARY KEY(provider, event_id)
-);
-CREATE TABLE outbox (
-  event_key TEXT PRIMARY KEY,
-  event_json TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  delivered_at TEXT
-);
-```
-
-Identifiers are local references, not names in log output. The initial baseline does not emit changes. Canonical semantic hashes include score, points possible, exception/status, relevant overall values, category/multiplier changes, and term/task identity; exclude fetched_at, JSON ordering, cosmetic text formatting, and provider-specific update timestamps from the semantic fingerprint.
-
-## Reliable detection and deduplication (R)
-
-Schoology maintains a cursor **per section**. Query with a small timestamp overlap (e.g. 120 seconds, an engineering setting to validate), deduplicate by source identity and semantic content, and advance to the greatest successfully processed server grade timestamp only after all pages are committed. Never advance to the VM wall clock merely because a response is empty. Clock skew and timestamp inclusion semantics need a real edit test. Run occasional complete reconciliation for deletion, missed metadata, and cursor recovery.
-
-Campus feed processing tracks stable event IDs, not notification count/read state. If an ID is new, coalesce affected courses briefly and fetch their detail once. A summary detector hashes all relevant term/task overalls. A changed overall fetches affected details; periodic detail reconciliation catches score edits whose overall remains unchanged. Never infer removed assignments from an incremental feed's silence.
-
-Cross-provider course matching should use explicit mappings first, then unique normalized names, term, and teacher. Missing/ambiguous metadata requires a mapping instead of fuzzy guesses. Assignment matching uses unique title + due-calendar date + possible points within a matched course, with original provider IDs retained. Calibrate provider date/timezones. Do not match recurring “Quiz” titles without reliable dates or IDs.
-
-If Schoology publishes a score first, emit once from the known source. When Campus later reflects the same logical score, add its provenance and suppress a duplicate assignment-score notification. However, an independently changed Campus overall is meaningful and may warrant an event; do not suppress it merely because the assignment matched. If values disagree, retain both; do not present a reconciliation policy as proof one was entered incorrectly. Keep a canonical emitted score fingerprint and a separate canonical emitted overall fingerprint. Time windows alone are inadequate deduplication keys.
-
-A later teacher score edit emits a new transition even when the assignment ID is unchanged. A deletion/removal is recognized only after a successfully fetched **complete** source snapshot, preferably confirmed once or backed by a trusted deletion event. Session expiry, 403, truncated pages, HTML, schema changes, and failed requests must never generate mass deletions. Missing from a delta is not removed.
-
-## Sanitized event format (R)
-
-Outbox examples contain fake labels and no session material. In the live event delivered privately to Muse, include only information needed for the intended wakeup. Log the event ID/type and counts, not raw grades.
 
 ```json
 {
-  "type":"grade_changed",
-  "event_id":"<STABLE_TRANSITION_HASH>",
-  "course":"<COURSE_LABEL>",
-  "assignment":"<ASSIGNMENT_LABEL_OR_NULL>",
-  "term":"<TERM_LABEL>",
-  "old_score":{"earned":"<VALUE_OR_NULL>","possible":"<VALUE_OR_NULL>","status":"graded"},
-  "new_score":{"earned":"<VALUE_OR_NULL>","possible":"<VALUE_OR_NULL>","status":"graded"},
-  "old_overall":"<VALUE_OR_NULL>",
-  "new_overall":"<VALUE_OR_NULL>",
-  "provider":"schoology",
-  "timestamp":"<UTC_OBSERVED_TIME>",
-  "source_updated_at":"<PROVIDER_TIME_OR_NULL>",
-  "source_ids":[{"provider":"schoology","course":"<LOCAL_COURSE_REF>","assignment":"<LOCAL_ASSIGNMENT_REF>"}]
+  "section": [{
+    "section_id": "<REDACTED_GRADE_OWNER_ID>",
+    "period": [{
+      "period_id": "<REDACTED_PERIOD_ID>",
+      "period_title": "<REDACTED_TERM>",
+      "assignment": [{
+        "assignment_id": "<NUMBER>", "type": "<REDACTED_KIND>",
+        "grade": "<NUMBER>", "max_points": "<NUMBER>",
+        "exception": "<NUMBER>", "scale_id": "<NUMBER>",
+        "scale_type": "<NUMBER>", "timestamp": "<NUMBER>"
+      }]
+    }],
+    "final_grade": [{"period_id": "<REDACTED_PERIOD_ID>", "grade": "<NUMBER>", "scale_id": "<NUMBER>"}],
+    "grading_category": [{"id": "<NUMBER>", "title": "<REDACTED_CATEGORY>", "weight": "<NUMBER>"}]
+  }],
+  "links": {}
 }
 ```
 
-Use numeric values/null in real events; the placeholders above deliberately redact values. Distinguish observed_at from provider_updated_at; some Campus records may have no reliable source update timestamp. Include added/edited/removed distinctions if Muse needs them. Avoid student names/IDs, cookies, tokens, passwords, and full raw provider JSON in wakeup payloads.
+Fetch metadata with the **enrolled** ID, even if the returned grade owner differs:
 
-## Implementation pseudocode (R)
-
-```text
-on startup:
-  load configuration, credentials, SQLite state
-  validate an authenticated baseline for each provider
-  if first connection: commit baseline without notifications
-
-loop using monotonic deadlines, with no model calls:
-  for each due, unblocked provider:
-    fetch allowed feed/delta/summary using bounded pagination
-    validate status, content type, required schema, subject scope
-    if authentication rejected:
-      mark provider blocked; request reconnect once; keep last state
-    else if throttled or temporary failure:
-      schedule Retry-After/backoff with jitter; keep last state
-    else if schema changed:
-      quarantine sanitized diagnostic; suspend destructive diffs
-    else:
-      resolve affected course detail and missing metadata
-      begin transaction
-        normalize and compare semantic states
-        reconcile explicitly mapped cross-provider identities
-        create only new meaningful transitions in outbox
-        update rows, seen IDs, complete-snapshot generations
-        advance applicable cursors after all pages succeeded
-      commit
-      schedule next check without overlapping work
-
-outbox worker:
-  deliver a coalesced meaningful GradeChanged event to Muse
-  mark delivered only after acknowledged
-  use event_id as an idempotency key
+```http
+GET /v1/sections/<REDACTED_ENROLLED_SECTION_ID>/grade_items HTTP/1.1
+Host: api.schoology.com
+Authorization: OAuth <FRESH_REDACTED_PARAMETERS>
+Accept: application/json
 ```
 
-Checkpoint score state, cursors, and outbox in the same transaction. If interrupted before commit, replay safely; if after commit but before delivery acknowledgement, the stable event key prevents duplicate wakeups. Bound task coalescing and pagination so outage recovery cannot accumulate unbounded work.
+HTTP 200; grade-item collection contains titles, IDs, due dates, maximum points and grading metadata. Follow `links.next` before treating it as complete. A saved-grade exception is not automatically a numeric zero; honor scale/exception meaning and retain the reported overall when calculation rules are insufficient.
 
-## VM deployment and security (R)
+### B. Campus summary — V
 
-A dedicated unprivileged systemd service, Restart=on-failure with a sensible restart delay, persistent SQLite under a restricted StateDirectory, LoadCredential or an equivalent encrypted secret mechanism, and sanitized journald logs are sufficient. Use systemd hardening appropriate to the selected HTTP/browser workflow. Do not expose a new listener for polling. If a district-authorized webhook becomes available, add only the required HTTPS receiver on the existing VM, validate origin/authenticity according to the actual provider contract, and fetch authorized state to confirm events. Do not invent an undocumented webhook signature header.
+```http
+GET /campus/resources/portal/grades HTTP/1.1
+Host: dublincityoh.infinitecampus.org
+Accept: application/json
+Cookie: <REDACTED_ORIGIN_SCOPED_COOKIE_JAR>
+```
 
-Idle checking uses deterministic code. Model wakeups should be limited to a genuine relevant grade transition, completion/failure needing user action, or a single reconnect request. No model-driven heartbeat chatter or per-poll LLM interpretation. Keep source credentials out of Git, shell command arguments, exception traces, exported HAR files, backup bundles, and this report.
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
 
-## Required V validation before sustained operation
+```json
+[{
+  "schoolID": "<NUMBER>",
+  "terms": [{
+    "termID": "<NUMBER>", "termName": "<REDACTED_TERM>",
+    "courses": [{
+      "sectionID": "<NUMBER>", "_id": "<REDACTED_OTHER_ID>",
+      "courseName": "<REDACTED_COURSE>",
+      "gradingTasks": [{"taskID": "<NUMBER>", "progressPercent": "<NUMBER>", "progressScore": "<REDACTED_LETTER>"}]
+    }]
+  }]
+}]
+```
 
-1. Completed locally: Schoology identity, enrolled sections and full grades/metadata/items/categories pipeline. Still measure paging/latency and retain safe structural evidence; never export secrets or personal scores.
-2. Make one genuine naturally occurring new/edited grade observation with timestamp filtering; verify overlap, inclusive/exclusive semantics, returned period overalls, and cursor safety.
-3. Completed locally: normal Dublin City Student sign-in, summary and six section-ID detail requests, complete parse. Still calibrate timezone, exception flags and advanced rules against actual portal values.
-4. Validate the current Campus recent-score/notification feed using the actual client or authorized requests; compare stable event IDs, edit behavior, overflow, and whether reads are nonmutating. Retire the historical prism candidate if the district no longer uses it.
-5. Observe session rotation and eventual expiry, including HTML/login redirects. Demonstrate one reconnect and recovery without fake deletions. Do not infer a TTL from one successful hour.
-6. Measure a low-frequency trial first, including normal response size/latency and cache validators. Record any actual throttling. Change cadence only with evidence.
-7. Observe the same assignment in both systems and a later score edit; verify one score wakeup and correct handling of an independently changed Campus overall.
+### C. Campus section detail — V
 
-Only the explicitly marked full-fetch paths are V. Timestamp/delta behavior, event feeds, webhook authority, renewal and sustained cadence remain D/P/R candidates until separately verified. Update evidence labels for actual observations.
+```http
+GET /campus/resources/portal/grades/detail/<REDACTED_SECTION_ID> HTTP/1.1
+Host: dublincityoh.infinitecampus.org
+Accept: application/json
+Cookie: <REDACTED_ORIGIN_SCOPED_COOKIE_JAR>
+```
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+```
+
+```json
+{
+  "details": [{
+    "task": {"termID": "<NUMBER>", "taskID": "<NUMBER>", "modifiedDate": "<REDACTED_DATE>"},
+    "categories": [{
+      "groupID": "<NUMBER>", "name": "<REDACTED_CATEGORY>",
+      "weight": "<NUMBER>", "isWeighted": "<BOOLEAN_OR_NUMBER>",
+      "assignments": [{
+        "objectSectionID": "<NUMBER>", "assignmentName": "<REDACTED_TITLE>",
+        "scorePoints": "<REDACTED_NUMERIC_STRING>", "totalPoints": "<NUMBER>",
+        "multiplier": "<NUMBER>", "score": "<REDACTED_STRING>",
+        "assignedDate": "<REDACTED_DATE>", "dueDate": "<REDACTED_DATE>",
+        "scoreModifiedDate": "<REDACTED_DATE_OR_NULL>"
+      }]
+    }]
+  }]
+}
+```
+
+A null scoreModifiedDate is legitimate, particularly for ungraded rows. Detail reads are section-scoped and contain multiple terms/tasks; filter locally by both. A structural mismatch is not an empty successful replacement snapshot. Preserve last successful data until a full parse succeeds.
+
+## 4. Rate limits and measurements actually noticed
+
+**V observations:** no HTTP 429 or Retry-After was observed in the successful fetches. One Schoology wrong-owner metadata attempt was 403; wrong Campus detail identifiers returned 200 empty arrays. Neither is evidence of throttling. No load test or sustained polling was performed.
+
+The most recent explicit diagnostic run measured elapsed time around each URLSession request, including device network/server time; these are single-session samples, not percentile benchmarks or rate limits. Connection reports are bounded, so Schoology ranges below describe retained samples, not an exhaustive request trace.
+
+| Read | Payload bytes | Observed elapsed time |
+| --- | --- | --- |
+| Campus summary | 58,368 | about 637 ms |
+| Campus six section details | 970–41,062 each | about 107–210 ms each |
+| Schoology retained student-grade reads | 112–13,109 | about 155–919 ms |
+| Schoology retained section metadata | 988–1,096 | about 114–131 ms |
+| Schoology retained grade-item collections | 16,257–22,426 | about 151–200 ms |
+| Schoology retained category collections | 117–332 | about 95–202 ms |
+
+Campus's seven summary/detail responses totaled **176,025 bytes** in this sample. Frequent full-detail polling multiplies that work and needs evidence, not guesswork. No ETag/Last-Modified/cache-validator behavior or session TTL was measured.
+
+**Schoology D:** [PowerSchool system requirements](https://uc.powerschool-docs.com/en/schoology/latest/system-requirements) publishes a default 50 public API-credit bucket refilled every five seconds, GET generally costing one credit, with 429/Retry-After on exhaustion. This is a documented default, not a measured account-specific quota or permission to consume the entire bucket continuously. No daily quota was observed.
+
+**Campus:** no supported student-portal quota was found in the official sources reviewed. The successful sample establishes access, not an approved polling frequency. Respect 429/Retry-After if encountered and retain cached state.
+
+## Watcher implementation guidance — R, independent of the app
+
+1. Use deterministic code, a maintained OAuth 1 client, an origin-scoped cookie jar, SQLite, and a secret store on the existing VM. Zero model calls while idle. Do not scrape screenshots or ask a model to interpret every response.
+2. First fetch a complete successful baseline without notifying. Store provider + user + section + term + task/kind + assignment identity and source values. Do not sum two providers' copies of the same score.
+3. Validate Schoology timestamp filtering with a genuine naturally occurring grade change before using a cursor. Use a small overlap, deduplicate by stable identity + semantic fingerprint, and commit cursor advancement only after all pages succeed. A delta must not delete assignments absent from that delta.
+4. Validate any Campus event feed before adopting it. Otherwise use a modest summary check and periodic full-detail reconciliation: a score edit can leave the rounded overall unchanged. No fixed aggressive cadence is endorsed by the current evidence; begin a low-frequency trial and measure.
+5. Compare semantic score/possible/exception/overall/category-rule state, excluding fetched-at, JSON ordering, and cosmetic formatting. Preserve zero, null/ungraded, excused, extra credit and task/term distinctions.
+6. Commit state, cursors and an outbox event atomically. Use stable event IDs, coalescing and acknowledged delivery so restarts do not wake Muse twice for one change. Independent Campus overall changes remain real events even if a Schoology assignment also changed.
+7. On network/5xx/schema failure retain the baseline and back off with jitter. On 429 honor Retry-After. On dead authentication pause that provider and request one reconnect; do not wake Muse on every unchanged/error poll.
+8. Before sustained operation verify naturally occurring changes, cursor semantics, session expiry/reconnect, response-size/latency at the trial cadence, actual account identity, and cross-provider matches. Do not manufacture school data or configure admin webhooks with student authority.
+
+GradeViewer's normalization/calculation code and regression fixtures are available in the private repository. Its chart prefixes are presentation calculations, not a provider audit log; a watcher must compare real source snapshots. No credentials, cookies, raw student payloads, HAR files, device databases or personal grades are included in this handoff or Git history.

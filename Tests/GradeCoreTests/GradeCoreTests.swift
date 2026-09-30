@@ -168,3 +168,133 @@ extension GradeCoreTests {
         XCTAssertTrue(GradeProgression.calculated(course, before: course.fetched).isEmpty)
     }
 }
+
+
+extension GradeCoreTests {
+    func testCampusScoreModifiedDateWinsOverFutureDueDate() throws {
+        let detail = Data("""
+        {"details":[{"task":{"termID":1,"taskID":1},"categories":[{"groupID":1,"name":"Points","isWeighted":false,"assignments":[{"objectSectionID":1,"assignmentName":"Quiz","scorePoints":"100","totalPoints":100,"dueDate":"2026-10-01","scoreModifiedDate":"2026-09-14T12:00:00Z"},{"objectSectionID":2,"assignmentName":"Lab","scorePoints":"100","totalPoints":100,"dueDate":"2026-09-15","scoreModifiedDate":"2026-09-15T12:00:00Z"}]}]}]}
+        """.utf8)
+        let summary = Data("""
+        [{"schoolID":1,"terms":[{"termID":1,"termName":"Fall","courses":[{"sectionID":100,"courseName":"Science","gradingTasks":[{"taskID":1,"progressPercent":100}]}]}]}]
+        """.utf8)
+        let fetched = Date(timeIntervalSince1970: 1_790_000_000)
+        let course = try XCTUnwrap(ProviderParsing.campus(grades: summary, details: ["100":detail], fetched: fetched).first)
+        XCTAssertNotNil(course.assignments[0].updated)
+        XCTAssertEqual(course.assignments[0].updated, ProviderParsing.date("2026-09-14T12:00:00Z"))
+        XCTAssertEqual(GradeProgression.calculated(course, before: fetched).count, 2)
+    }
+    func testGradeCurveSamplesContinuouslyWithoutOvershootingAndKeepsFlatGradesFlat() throws {
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        func point(_ seconds: Double, _ value: Double) -> GradeProgressionPoint {
+            GradeProgressionPoint(GradeHistorySnapshot(date: start.addingTimeInterval(seconds), grade: OverallGrade(percent: value), provider: .infiniteCampus))
+        }
+        let curve = GradeCurve(points: [point(0,90),point(100,95),point(300,100),point(400,92)])
+        let a = try XCTUnwrap(curve.value(at: start.addingTimeInterval(50)))
+        let b = try XCTUnwrap(curve.value(at: start.addingTimeInterval(51)))
+        XCTAssertGreaterThan(b, a); XCTAssertLessThan(b - a, 0.2)
+        for segment in curve.segments { for i in 0...100 {
+            let value = segment.value(at: Double(i)/100)
+            XCTAssertGreaterThanOrEqual(value, min(segment.start.value, segment.end.value) - 0.00001)
+            XCTAssertLessThanOrEqual(value, max(segment.start.value, segment.end.value) + 0.00001)
+        } }
+        let flat = GradeCurve(points: [point(0,100),point(100,100),point(200,100)])
+        XCTAssertEqual(flat.value(at: start.addingTimeInterval(75)), 100)
+        let single = GradeCurve(points: [point(0,100)])
+        XCTAssertEqual(single.value(at: start.addingTimeInterval(1)), 100)
+    }
+}
+
+extension GradeCoreTests {
+    func testSchoologyCategoryGroupingHidesUngradedAndDoesNotMergeAmbiguousCourses() {
+        let campus = source(.infiniteCampus)
+        let course = Reconciler.reconcile([campus])[0]
+        var schoology = source(); schoology.teacher = ""
+        schoology.categories[0].name = "Schoology quizzes"; schoology.categories[1].name = "Schoology homework"
+        schoology.assignments.append(assignment(id: "ungraded", earned: nil))
+        let selected = AssignmentGrouping.schoologySource(for: course, among: [schoology])
+        XCTAssertNotNil(selected)
+        let groups = AssignmentGrouping.groups(for: course, schoology: selected)
+        XCTAssertEqual(groups.map(\.title), ["Schoology quizzes", "Schoology homework"])
+        XCTAssertEqual(groups.flatMap(\.assignments).count, 2)
+        XCTAssertTrue(groups.flatMap(\.assignments).allSatisfy { $0.display.score.isGraded })
+        XCTAssertEqual(Reconciler.reconcile([campus,schoology]).count, 2, "Category association must not weaken canonical course matching")
+        var duplicate = schoology; duplicate.source.id = "second-section"
+        XCTAssertNil(AssignmentGrouping.schoologySource(for: course, among: [schoology,duplicate]))
+    }
+    func testNoOpHypothesesAndReportedRoundingCannotProduceFakeCourseDelta() throws {
+        var course = source(); course.method = .points; course.categories = []
+        course.assignments = [assignment(earned: 99.04),assignment(id: "2", earned: 99.05)]
+        course.grade.percent = 99.04
+        var h = Hypothesis(); h.scores[course.assignments[0].id] = 99.04; h.scores["stale-id"] = 90; h.ignored.insert("stale-id")
+        let normalized = h.normalized(for: course)
+        XCTAssertTrue(normalized.scores.isEmpty); XCTAssertTrue(normalized.ignored.isEmpty)
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: course, hypothesis: h), 99.04, accuracy: 0.000001)
+        h.scores[course.assignments[0].id] = 100
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: course, hypothesis: h), 99.52, accuracy: 0.000001)
+    }
+}
+
+extension GradeCoreTests {
+    func testOverviewIncludesGradedSchoologyOnlyWorkWithoutChangingCampusCalculation() {
+        let campus = source(.infiniteCampus), course = Reconciler.reconcile([campus])[0]
+        var schoology = source(); schoology.teacher = ""
+        var extra = assignment(id: "extra", earned: 1, possible: 1, category: "practice")
+        extra.updated = Demo.now.addingTimeInterval(-7 * 3600)
+        schoology.assignments.append(extra)
+        let overview = AssignmentGrouping.overview(for: course, schoology: schoology)
+        XCTAssertEqual(overview.count, 3)
+        XCTAssertEqual(overview.first?.display.title, extra.title)
+        XCTAssertEqual(course.calculationSource.assignments.count, 2)
+    }
+    func testSchoologyCatalogDoesNotDuplicateAnUndatedGradeDuringCategoryMatching() {
+        var campus = source(.infiniteCampus); campus.assignments[0].due = nil
+        var schoology = source(); schoology.assignments[0].due = nil
+        schoology.assignments[0].source.fields = ["assignment_id":"one", "type":"assignment"]
+        var metadata = schoology.assignments[0]; metadata.source = Provenance(.schoology,"catalog:one",fields:["id":"one", "type":"assignment"]); metadata.score.earned = nil
+        schoology.assignmentCatalog = [metadata]
+        let course = Reconciler.reconcile([campus])[0]
+        XCTAssertEqual(AssignmentGrouping.overview(for:course,schoology:schoology).count,2)
+        XCTAssertTrue(AssignmentGrouping.overview(for:course,schoology:schoology).allSatisfy { $0.sources.contains { $0.source.provider == .infiniteCampus } })
+    }
+    func testRecentOrderingUsesScoreDatesBeforeDueDatesWithStableTies() {
+        var old = assignment(id: "old"); old.updated = Demo.now.addingTimeInterval(-100)
+        var newer = assignment(id: "newer"); newer.updated = Demo.now
+        var undated = assignment(id: "undated"); undated.due = Demo.now.addingTimeInterval(3600)
+        var tie = newer; tie.source.id = "tie"; tie.title = "A tie"
+        let rows = [undated,old,newer,tie].map { Assignment(id:$0.id,sources:[$0]) }
+        let expected = [tie.id,newer.id,old.id,undated.id]
+        XCTAssertEqual(AssignmentOrdering.graded(rows).map(\.id), expected)
+        XCTAssertEqual(AssignmentOrdering.graded(rows.reversed()).map(\.id), expected)
+    }
+    func testRelativeUpdateLabelRoundsUnitsInsteadOfAlwaysTruncating() {
+        let now = Demo.now
+        XCTAssertEqual(GradeUpdateAge(date: now.addingTimeInterval(-5.6 * 3600), now:now).text, "updated 6 hours ago")
+        XCTAssertEqual(GradeUpdateAge(date: now.addingTimeInterval(-23.8 * 3600), now:now).text, "updated 1 day ago")
+        XCTAssertEqual(GradeUpdateAge(date: now.addingTimeInterval(-4.4 * 86400), now:now).text, "updated 4 days ago")
+    }
+    func testPastQuarterWorkUsesSchoologyCatalogWithoutDuplicateScoresOrUngradedRows() {
+        var current = source(.infiniteCampus)
+        current.source.fields = ["section_id":"section", "task_id":"task"]
+        current.assignments[0].source.fields["objectSectionID"] = "one"
+        current.assignments[1].source.fields["objectSectionID"] = "two"
+        var past = current; past.source.id = "past"; past.term = Term(id:"past",name:"Past quarter")
+        var duplicate = past.assignments[0]; duplicate.source.id = "past:one"
+        var historical = assignment(.infiniteCampus, id:"old",earned:75,category:"practice")
+        historical.title = "Past quarter lab"; historical.source.fields["objectSectionID"] = "old"
+        past.assignments = [duplicate,historical,assignment(.infiniteCampus,id:"future",earned:nil)]
+        let courses = Reconciler.reconcile([current,past])
+        let course = courses.first { $0.display.source.id == current.source.id }!
+        let full = AssignmentGrouping.fullCourse(for: course, among: courses)
+        XCTAssertEqual(full.assignments.count,3)
+        XCTAssertEqual(full.calculationSource.assignments.count,2)
+        var schoology = source(); schoology.categories[1].name = "Labs"
+        var metadata = historical; metadata.source = Provenance(.schoology,"catalog:old"); metadata.score.earned = nil
+        schoology.assignmentCatalog = [metadata]
+        XCTAssertNotNil(AssignmentGrouping.schoologySource(for: course, among: [schoology]))
+        let groups = AssignmentGrouping.groups(for: full, schoology: schoology)
+        XCTAssertTrue(groups.first { $0.title == "Labs" }!.assignments.contains { $0.display.title == "Past quarter lab" })
+        XCTAssertEqual(groups.flatMap(\.assignments).count,3)
+        XCTAssertTrue(groups.flatMap(\.assignments).allSatisfy { $0.display.score.isGraded })
+    }
+}

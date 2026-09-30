@@ -42,6 +42,12 @@ public enum GradeCalculator {
         guard let reported = course.grade.percent, let calculated = try? percent(course: course) else { return false }
         return abs(reported - calculated) <= 0.15
     }
+    /// Apply only the scenario's change to the reported grade, excluding baseline rounding drift.
+    public static func hypotheticalPercent(course: SourceCourse, hypothesis: Hypothesis) throws -> Double {
+        let baseline = try percent(course: course)
+        guard let reported = course.grade.percent, abs(reported - baseline) <= 0.15 else { throw CalculationError.incompleteData }
+        return reported + (try percent(course: course, hypothesis: hypothesis.normalized(for: course))) - baseline
+    }
     public static func requiredFinal(current: Double, target: Double, weight: Double) throws -> Double {
         guard current.isFinite, target.isFinite, weight.isFinite, current >= 0, target >= 0, weight > 0, weight <= 1 else { throw CalculationError.invalidInput }
         return (target - current * (1 - weight)) / weight

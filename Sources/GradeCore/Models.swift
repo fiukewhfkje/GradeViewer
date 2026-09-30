@@ -17,6 +17,7 @@ public struct Term: Codable, Hashable, Sendable {
 public struct Score: Codable, Hashable, Sendable {
     public var earned: Double?; public var possible: Double?; public var letter: String?; public var excused: Bool
     public init(earned: Double? = nil, possible: Double? = nil, letter: String? = nil, excused: Bool = false) { self.earned = earned; self.possible = possible; self.letter = letter; self.excused = excused }
+    public var isGraded: Bool { earned != nil || letter?.isEmpty == false }
     public var percent: Double? { guard !excused, let e = earned, let p = possible, p > 0, e.isFinite, p.isFinite else { return nil }; return e / p * 100 }
 }
 public struct OverallGrade: Codable, Hashable, Sendable {
@@ -35,9 +36,9 @@ public struct SourceAssignment: Codable, Hashable, Identifiable, Sendable {
     public init(source: Provenance, title: String, categoryID: String? = nil, due: Date? = nil, updated: Date? = nil, score: Score = Score(), multiplier: Double = 1, excluded: Bool = false) { self.source = source; self.title = title; self.categoryID = categoryID; self.due = due; self.updated = updated; self.score = score; self.multiplier = multiplier; self.excluded = excluded }
 }
 public struct SourceCourse: Codable, Hashable, Identifiable, Sendable {
-    public var source: Provenance; public var title: String; public var teacher: String; public var term: Term; public var grade: OverallGrade; public var categories: [GradingCategory]; public var assignments: [SourceAssignment]; public var method: CourseMethod; public var fetched: Date
+    public var source: Provenance; public var title: String; public var teacher: String; public var term: Term; public var grade: OverallGrade; public var categories: [GradingCategory]; public var assignments: [SourceAssignment]; public var method: CourseMethod; public var fetched: Date; public var assignmentCatalog: [SourceAssignment]?
     public var id: String { source.key }
-    public init(source: Provenance, title: String, teacher: String = "", term: Term, grade: OverallGrade = OverallGrade(), categories: [GradingCategory] = [], assignments: [SourceAssignment] = [], method: CourseMethod = .unknown, fetched: Date = Date()) { self.source = source; self.title = title; self.teacher = teacher; self.term = term; self.grade = grade; self.categories = categories; self.assignments = assignments; self.method = method; self.fetched = fetched }
+    public init(source: Provenance, title: String, teacher: String = "", term: Term, grade: OverallGrade = OverallGrade(), categories: [GradingCategory] = [], assignments: [SourceAssignment] = [], method: CourseMethod = .unknown, fetched: Date = Date(), assignmentCatalog: [SourceAssignment]? = nil) { self.source = source; self.title = title; self.teacher = teacher; self.term = term; self.grade = grade; self.categories = categories; self.assignments = assignments; self.method = method; self.fetched = fetched; self.assignmentCatalog = assignmentCatalog }
 }
 public struct Assignment: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceAssignment]
@@ -60,4 +61,14 @@ public struct Course: Codable, Identifiable, Sendable {
 public struct Hypothesis: Codable, Sendable {
     public var scores: [String: Double] = [:]; public var ignored: Set<String> = []; public var added: [SourceAssignment] = []
     public init() {}
+    public func normalized(for source: SourceCourse) -> Hypothesis {
+        let originals = Dictionary((source.assignments + added).map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a })
+        var copy = self
+        copy.scores = scores.filter { id, value in
+            guard let item = originals[id], value.isFinite else { return false }
+            return item.score.earned.map { abs($0 - value) > 0.000000001 } ?? true
+        }
+        copy.ignored = ignored.intersection(originals.keys)
+        return copy
+    }
 }

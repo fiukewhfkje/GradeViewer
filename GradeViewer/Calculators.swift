@@ -8,7 +8,7 @@ struct WhatIfView: View {
     @State private var adding = false
     @State private var error: String?
     var reliable: Bool { GradeCalculator.isReliable(course.calculationSource) }
-    var result: Double? { reliable ? try? GradeCalculator.percent(course: course.calculationSource, hypothesis: hypothesis) : nil }
+    var result: Double? { reliable ? try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: hypothesis) : nil }
     var body: some View {
         Form {
             Section {
@@ -19,7 +19,7 @@ struct WhatIfView: View {
             }
             if let error { Text(error).font(.footnote).foregroundStyle(.red) }
             Section("Assignments") {
-                ForEach(course.calculationSource.assignments + hypothesis.added) { a in
+                ForEach(course.calculationSource.assignments.filter { $0.score.isGraded } + hypothesis.added) { a in
                     ScenarioRow(assignment: a, score: Binding(get: { hypothesis.scores[a.id] ?? a.score.earned }, set: { value in
                         if let value { hypothesis.scores[a.id] = value } else { hypothesis.scores[a.id] = nil }
                     }), ignored: Binding(get: { hypothesis.ignored.contains(a.id) }, set: { ignored in if ignored { hypothesis.ignored.insert(a.id) } else { hypothesis.ignored.remove(a.id) } }))
@@ -171,8 +171,9 @@ struct CourseGradeSummary: View {
     var body: some View {
         let h = store.scenario(course)
         let changed = !h.scores.isEmpty || !h.ignored.isEmpty || !h.added.isEmpty
-        let showScenario = changed && GradeCalculator.isReliable(course.calculationSource)
-        let simulated = showScenario ? try? GradeCalculator.percent(course: course.calculationSource, hypothesis: h) : nil
+        let reliable = GradeCalculator.isReliable(course.calculationSource)
+        let simulated = changed && reliable ? try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: h) : nil
+        let showScenario = changed && reliable && (simulated == nil || abs((simulated ?? 0) - (course.display.grade.percent ?? 0)) >= 0.005)
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 7) { Text("Course Grade").font(.title3.bold()); UpdatedLabel(date: course.updated) }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .center, spacing: 5) {
