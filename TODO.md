@@ -16,9 +16,9 @@
 - [x] Foreground loading/failure gate that retains saved data internally without flashing old grades; Profile and dismissal remain available.
 - [x] Existing native UI, appearance, local edit/drop/reset, final calculator, original icon, and widget tap routing.
 
-## Final delivery in progress
+## Final delivery
 
-- [ ] Finish hosted/UI loading-gate validation, final signed iPhone install/launch, merge/push, and clean Git checkout.
+- [x] Hosted/UI loading-gate and final assignment-pill validation, signed iPhone install/launch, both-provider fresh-data verification, merge/push to main, and merged-branch cleanup. Only the primary Git checkout remains.
 
 ## Evidence-driven follow-up
 
