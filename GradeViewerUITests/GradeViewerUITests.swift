@@ -201,7 +201,7 @@ extension GradeViewerUITests {
 
 extension GradeViewerUITests {
     @MainActor func testAssignmentPeriodPillsKeepSemesterGradeAndScopeAssignments() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--period-fixture", "--screen=detail"]; app.launch()
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--period-fixture", "--exam-fixture", "--screen=detail"]; app.launch()
         XCTAssertTrue(app.staticTexts["S1 overall"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["course-period-picker"].exists)
         XCTAssertFalse(app.buttons["period-Q1-quarter"].exists)
@@ -209,23 +209,29 @@ extension GradeViewerUITests {
         if !all.isHittable { app.swipeUp() }
         all.tap()
         XCTAssertTrue(app.buttons["period-Q1-quarter"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.buttons["period-Q2-semester"].exists)
+        XCTAssertFalse(app.buttons["period-Q4-semester"].exists)
+        XCTAssertFalse(app.buttons["period-Q2-exam"].exists)
         XCTAssertTrue(app.staticTexts["S1 overall"].exists)
         XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
         app.buttons["Total Points"].tap()
         XCTAssertTrue(app.staticTexts["First quarter lab"].exists)
         XCTAssertFalse(app.staticTexts["Second quarter lab"].exists)
+        XCTAssertFalse(app.staticTexts["Semester exam"].exists)
         let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "assignment-period-pills-light"; attachment.lifetime = .keepAlways; add(attachment)
         app.buttons["period-Q2-quarter"].tap()
         XCTAssertTrue(app.staticTexts["Second quarter lab"].waitForExistence(timeout:5))
         XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
         XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
-        app.buttons["period-Q2-semester"].tap()
-        XCTAssertTrue(app.staticTexts["First quarter lab"].waitForExistence(timeout:5))
-        XCTAssertTrue(app.staticTexts["Second quarter lab"].exists)
-        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
+        XCTAssertTrue(app.staticTexts["Semester exam"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["quarter-exam-section"].frame.minY > app.staticTexts["Second quarter lab"].frame.minY)
+        app.swipeUp()
+        let exam = XCTAttachment(screenshot:app.screenshot()); exam.name = "q2-exam-at-bottom"; exam.lifetime = .keepAlways; add(exam)
+        if !app.buttons["period-Q4-quarter"].isHittable { app.swipeDown() }
         app.buttons["period-Q4-quarter"].tap()
         XCTAssertTrue(app.staticTexts["No graded assignments in this period."].waitForExistence(timeout:5))
         XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
+        XCTAssertFalse(app.staticTexts["Semester exam"].exists)
         XCTAssertTrue(app.staticTexts["S2 overall"].exists)
         let empty = XCTAttachment(screenshot:app.screenshot()); empty.name = "empty-future-quarter"; empty.lifetime = .keepAlways; add(empty)
     }

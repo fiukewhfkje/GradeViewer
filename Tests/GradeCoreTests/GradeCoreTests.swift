@@ -574,6 +574,32 @@ extension GradeCoreTests {
 }
 
 extension GradeCoreTests {
+    func testExamPresentationBelongsOnlyToItsUniqueClosingQuarter() {
+        let courses = Reconciler.reconcile(Demo.periodSources())
+        func quarter(_ label: String) -> Course { courses.first { GradingPeriods.descriptor($0).label == label }! }
+        XCTAssertTrue(GradingPeriods.exams(for:quarter("Q1"), among:courses).isEmpty)
+        XCTAssertTrue(GradingPeriods.exams(for:quarter("Q3"), among:courses).isEmpty)
+        let q2 = quarter("Q2"), q4 = quarter("Q4")
+        let exam1 = GradingPeriods.exams(for:q2, among:courses), exam2 = GradingPeriods.exams(for:q4, among:courses)
+        XCTAssertEqual(exam1.count, 1); XCTAssertEqual(exam2.count, 1)
+        XCTAssertNotEqual(exam1[0].id, exam2[0].id)
+        XCTAssertEqual(GradingPeriods.semester(for:exam1[0], among:courses)?.id, GradingPeriods.semester(for:q2, among:courses)?.id)
+        XCTAssertEqual(q2.calculationSource.assignments.count, 2)
+        var duplicate = q2; duplicate.id += ":duplicate"
+        XCTAssertTrue(GradingPeriods.exams(for:q2, among:courses + [duplicate]).isEmpty)
+    }
+    func testExamTermFallbackDoesNotOverrideConflictingKnownDates() {
+        var courses = Reconciler.reconcile(Demo.periodSources())
+        let q2 = courses.first { GradingPeriods.descriptor($0).label == "Q2" }!
+        let index = courses.firstIndex { GradingPeriods.exams(for:q2, among:courses).first?.id == $0.id }!
+        for i in courses[index].sources.indices {
+            courses[index].sources[i].term.start = ProviderParsing.date("2026-01-01")
+            courses[index].sources[i].term.end = ProviderParsing.date("2026-01-05")
+        }
+        XCTAssertTrue(GradingPeriods.exams(for:q2, among:courses).isEmpty)
+        for i in courses[index].sources.indices { courses[index].sources[i].term.start = nil; courses[index].sources[i].term.end = nil }
+        XCTAssertEqual(GradingPeriods.exams(for:q2, among:courses).map(\.id), [courses[index].id])
+    }
     func testUpdateLabelsKeep24HourCheckAndUseMonthsAfter30Days() {
         let now = Demo.now
         XCTAssertTrue(GradeUpdateAge(date:now.addingTimeInterval(-23.999 * 3600),now:now).fresh)

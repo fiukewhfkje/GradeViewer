@@ -2,7 +2,7 @@ import Foundation
 public enum Demo {
     public static let now = Date(timeIntervalSince1970: 1_790_719_200)
     /// Synthetic two-provider period hierarchy for regression/UI verification.
-    public static func periodSources() -> [SourceCourse] {
+    public static func periodSources(includeExam: Bool = false) -> [SourceCourse] {
         func date(_ value: String) -> Date { ProviderParsing.date(value)! }
         func course(_ provider: ProviderID, period: String, start: String, end: String, task: String = "Quarter", grade: Double? = nil, titles: [String] = []) -> SourceCourse {
             let identity = period + ":" + task
@@ -33,6 +33,12 @@ public enum Demo {
             course(.schoology,period:"S2",start:"2027-01-05",end:"2027-05-28"),
             course(.schoology,period:"Exam S2",start:"2027-05-20",end:"2027-05-24")
         ]
+        if includeExam {
+            for i in sources.indices where GradingPeriods.descriptor(sources[i]).kind == .exam && GradingPeriods.descriptor(sources[i]).end! < date("2027-01-05") {
+                sources[i].assignments = [SourceAssignment(source:Provenance(sources[i].source.provider,"fixture-semester-exam"),title:"Semester exam",due:date("2026-12-16"),updated:date("2026-12-16"),score:Score(earned:80,possible:100))]
+                sources[i].grade = OverallGrade(percent:80); sources[i].method = .points
+            }
+        }
         return sources
     }
     public static func courses(longList: Bool = false) -> [Course] {

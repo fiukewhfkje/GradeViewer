@@ -8,7 +8,7 @@
 - [x] Latest linked scored timestamps on home/detail, Schoology-only recent work, deterministic ordering and presentation deduplication.
 - [x] Preserve cookie rotation/deletions in Keychain after failed and successful Campus attempts; one saved-portal recovery attempt and normal reconnect.
 - [x] Fix numeric assignment titles through graded-node/wrapper identities and scoped metadata reads; six Biology rows verified repaired.
-- [x] Explicit period matching and physical section relationships, one home card per class, semester/quarter/exam pills only in View All Assignments, and scoped assignment lists. Separate period menu removed at the user's request.
+- [x] Explicit period matching and physical section relationships, one home card per class, quarter-only pills in View All Assignments, and scoped assignment lists. Semester/exam views removed; exam grades/assignments appear at the bottom of their associated closing quarter (Q2 for S1).
 - [x] Semester overall above quarter assignments; semester scenario weights require a reproduced reported total; presentation unions never become calculator input.
 - [x] Combined Schoology user-grade reads for repeat refreshes, alias fallback, period metadata cache expiry/new-period renewal, and Retry-After handling.
 - [x] Reported-grade anchor for calculated graph points; no-op scenario rounding fix; observed history and discrete grade/date tooltip preserved.

@@ -86,7 +86,7 @@ import GradeCore
             if arguments.contains("--empty") { courses = [] }
             if arguments.contains("--error") { errors[.infiniteCampus] = "Infinite Campus could not refresh." }
             if demo && arguments.contains("--period-fixture") {
-                courses = Reconciler.reconcile(Demo.periodSources())
+                courses = Reconciler.reconcile(Demo.periodSources(includeExam:arguments.contains("--exam-fixture")))
                 for i in courses.indices { courses[i].order = GradingPeriods.descriptor(courses[i]).label == "Q1" ? 0 : i + 1 }
                 courses.sort { $0.order < $1.order }
             }

@@ -108,6 +108,33 @@ public enum GradingPeriods {
             return a.id < b.id
         }
     }
+    /// Exam records stay separate from the quarter's calculator. Associate them
+    /// for presentation only through a unique containing quarter or a provider's
+    /// explicit shared term ID (Campus Quarter/Exam tasks).
+    public static func exams(for quarter: Course, among available: [Course]) -> [Course] {
+        guard descriptor(quarter).kind == .quarter else { return [] }
+        let related = related(to:quarter, among:available)
+        let quarters = related.filter { descriptor($0).kind == .quarter }
+        return ordered(related.filter { exam in
+            let period = descriptor(exam)
+            guard period.kind == .exam else { return false }
+            if let start = period.start, let end = period.end {
+                let dated = quarters.filter { descriptor($0).start != nil && descriptor($0).end != nil }
+                let containers = dated.filter { candidate in
+                    let q = descriptor(candidate)
+                    guard let s = q.start, let e = q.end else { return false }
+                    return day(s) <= day(start) && day(e) >= day(end)
+                }
+                if !dated.isEmpty { return containers.count == 1 && containers[0].id == quarter.id }
+            }
+            let containers = quarters.filter { candidate in
+                candidate.sources.contains { q in exam.sources.contains { e in
+                    q.source.provider == e.source.provider && q.term.id == e.term.id && physicalKey(q) != nil && physicalKey(q) == physicalKey(e)
+                } }
+            }
+            return containers.count == 1 && containers[0].id == quarter.id
+        })
+    }
     /// A semester presentation contains its explicitly associated components.
     /// Sources remain untouched: an aggregate list is never a calculator input.
     public static func presentation(for course: Course, among available: [Course]) -> Course {

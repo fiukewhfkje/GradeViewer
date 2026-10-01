@@ -194,30 +194,22 @@ struct AssignmentPeriodPills: View {
     let selectedID: String
     let select: (String) -> Void
     var body: some View {
-        let ordered = [PeriodKind.quarter, .semester, .exam].flatMap { kind in periods.filter { GradingPeriods.descriptor($0).kind == kind } }
-        ScrollView(.horizontal) {
-            HStack(spacing: 4) {
-                ForEach(ordered) { course in
+        HStack(spacing: 4) {
+                ForEach(periods) { course in
                     let selected = course.id == selectedID
                     Button { select(course.id) } label: {
-                        Text(label(course)).font(.subheadline.weight(.semibold))
+                        Text(GradingPeriods.descriptor(course).label).font(.subheadline.weight(.semibold))
                             .foregroundStyle(selected ? Palette.background : Color.secondary)
-                            .padding(.horizontal, 16).frame(minHeight: 36)
+                            .frame(maxWidth:.infinity, minHeight:36)
                             .background(selected ? Color.primary : .clear, in: Capsule())
                     }.buttonStyle(.plain)
-                        .accessibilityLabel(label(course) + " assignments")
+                        .accessibilityLabel(GradingPeriods.descriptor(course).label + " assignments")
                         .accessibilityAddTraits(selected ? .isSelected : [])
                         .accessibilityIdentifier("period-" + course.display.term.id + "-" + GradingPeriods.descriptor(course).kind.rawValue)
                 }
-            }.padding(4)
-        }.scrollIndicators(.hidden).background(Palette.row, in: Capsule()).clipShape(Capsule())
+        }.padding(4).background(Palette.row, in: Capsule())
             .accessibilityElement(children:.contain)
             .accessibilityIdentifier("assignment-period-pills")
-    }
-    private func label(_ course: Course) -> String {
-        let period = GradingPeriods.descriptor(course)
-        if period.kind == .exam, let semester = GradingPeriods.semester(for:course, among:periods) { return GradingPeriods.descriptor(semester).label + " Exam" }
-        return period.label
     }
 }
 struct GradeProgressionView: View {
@@ -348,13 +340,14 @@ struct AssignmentsView: View {
     var scoped = false
     var body: some View {
         let original = store.courses.first { $0.id == self.course.id } ?? self.course
-        let periods = GradingPeriods.ordered(GradingPeriods.related(to: original, among: store.courses)).filter { [.quarter, .semester, .exam].contains(GradingPeriods.descriptor($0).kind) }
+        let periods = GradingPeriods.ordered(GradingPeriods.related(to: original, among: store.courses)).filter { GradingPeriods.descriptor($0).kind == .quarter }
         let selected = periods.first { $0.id == store.selectedPeriods[original.id] } ?? original
         let scoped = self.scoped || !periods.isEmpty
         let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected
         let source = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
         let full = scoped ? course : AssignmentGrouping.fullCourse(for: course, among: store.courses)
         let groups = AssignmentGrouping.groups(for: full, schoology: source)
+        let exams = GradingPeriods.exams(for:selected, among:store.courses)
         ScrollView {
             VStack(spacing: 20) {
                 if periods.count > 1 {
@@ -363,6 +356,20 @@ struct AssignmentsView: View {
                 CourseGradeSummary(course: course, overall: scoped ? GradingPeriods.semester(for: selected, among: store.courses) : nil)
                 if groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
                 ForEach(groups.filter { !$0.assignments.isEmpty }) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
+                ForEach(exams) { exam in
+                    VStack(alignment:.leading, spacing:10) {
+                        HStack {
+                            Text("Exam").font(.title3.bold()).accessibilityIdentifier("quarter-exam-section")
+                            Spacer()
+                            if exam.display.grade.percent != nil || exam.display.grade.letter != nil { GradeLabel(grade:exam.display.grade) }
+                        }
+                        let rows = AssignmentGrouping.overview(for:exam, schoology:AssignmentGrouping.schoologySource(for:exam, among:store.courses.flatMap(\.sources)))
+                        if rows.isEmpty { Text("No graded exam assignments.").foregroundStyle(.secondary).padding(.vertical, 12) }
+                        ForEach(rows) { assignment in
+                            AssignmentRow(assignment:assignment).background(Palette.row, in:RoundedRectangle(cornerRadius:16))
+                        }
+                    }.frame(maxWidth:.infinity, alignment:.leading)
+                }
             }.padding(16)
         }.background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
             .refreshable { await store.refresh() }
