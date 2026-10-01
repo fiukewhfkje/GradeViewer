@@ -3,6 +3,9 @@ import CryptoKit
 
 public struct SchoologyCredentials: Codable, Sendable {
     public var key: String; public var secret: String; public var token: String; public var tokenSecret: String
+    /// Populated only after users/me succeeds, and saved with this credential set
+    /// in Keychain. Editing/replacing credentials starts with no cached identity.
+    public var userID: String? = nil
     public init(key: String, secret: String, token: String = "", tokenSecret: String = "") { self.key = key; self.secret = secret; self.token = token; self.tokenSecret = tokenSecret }
 }
 public enum OAuth1 {
@@ -42,7 +45,7 @@ public struct HTTPDiagnostic: Codable, Sendable {
     public var retryAfterSeconds: Double? = nil
     static func structure(_ data: Data) -> [String: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return ["root": "non-JSON"] }
-        let allowed: Set<String> = ["data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
+        let allowed: Set<String> = ["folder-item", "self", "available", "data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
         var result: [String: String] = [:]
         func visit(_ value: Any, _ path: String, _ depth: Int) {
             guard depth <= 9 else { return }
@@ -101,6 +104,8 @@ public actor ReadOnlyHTTP {
                 else if current.path.hasSuffix("/sections") { route = "enrolled sections" }
                 else if current.path.hasSuffix("/grades") { route = "student grades" }
                 else if current.path.hasSuffix("/grade_items") { route = "assignments" }
+                else if current.path.hasSuffix("/assignments") { route = "assignment title list" }
+                else if current.path.contains("/folder/") { route = "course folder metadata" }
                 else if current.path.hasSuffix("/grading_categories") { route = "categories" }
                 else if current.path.hasSuffix("/grading_periods") { route = "grading periods" }
                 else if current.path.contains("/assignments/") { route = "assignment metadata" }
@@ -115,7 +120,7 @@ public actor ReadOnlyHTTP {
                 record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
                 record.retryAfterSeconds = response.value(forHTTPHeaderField: "Retry-After").map(Self.retryAfter)
                 records.append(record)
-                if records.count > 20 { records.remove(at: 1) }
+                if records.count > 200 { records.remove(at: 1) }
             }
             switch response.statusCode {
             case 401: throw ProviderError.reconnect
@@ -143,6 +148,13 @@ public actor ReadOnlyHTTP {
         }
     }
     public func diagnostics() -> [HTTPDiagnostic] { records }
+    func recordTiming(_ stage: String, started: Date, counts: [String: Int] = [:]) {
+        guard diagnosticsEnabled else { return }
+        var record = HTTPDiagnostic(route: stage, status: 0, contentType: "local timing", responseBytes: 0, structure: counts.mapValues(String.init), redirect: nil)
+        record.elapsedMilliseconds = Date().timeIntervalSince(started) * 1000
+        records.append(record)
+        if records.count > 200 { records.remove(at: 1) }
+    }
     func recordSchoologyChecks(section: Data, grades: Data, requestedID: String) {
         guard diagnosticsEnabled, let metadata = try? ProviderParsing.object(section), let payload = try? ProviderParsing.object(grades) else { return }
         let rows = ProviderParsing.rows(payload["section"])
@@ -165,13 +177,23 @@ public actor ReadOnlyHTTP {
 private struct SchoologyPeriodMetadata: Sendable { let data: Data; let fetched: Date }
 public struct SchoologyProvider: Sendable {
     let http: ReadOnlyHTTP
-    init(http: ReadOnlyHTTP) { self.http = http }
-    public init(credentials: SchoologyCredentials, diagnosticsEnabled: Bool = false) throws { http = try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: credentials, diagnosticsEnabled: diagnosticsEnabled) }
+    private let userID: String?
+    init(http: ReadOnlyHTTP, userID: String? = nil) { self.http = http; self.userID = userID }
+    public init(credentials: SchoologyCredentials, diagnosticsEnabled: Bool = false) throws { http = try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: credentials, diagnosticsEnabled: diagnosticsEnabled); userID = credentials.userID }
     public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
     public func fetch(previous: [SourceCourse] = []) async throws -> [SourceCourse] {
-        let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
-        guard let userID = ProviderParsing.text(me["uid"] ?? me["id"]) else { throw ProviderError.malformed }
-        let sections = try await paged(path: "users/\(OAuth1.encode(userID))/sections", key: "section")
+        let userID: String
+        if let saved = self.userID, !saved.isEmpty { userID = saved }
+        else {
+            let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
+            guard let id = ProviderParsing.nonempty(me["uid"] ?? me["id"]) else { throw ProviderError.malformed }
+            userID = id
+        }
+        // Enrollment discovery and the fresh user-grade snapshot are independent
+        // once identity is established. Owner aliases are validated after both.
+        async let sectionRows = paged(path: "users/\(OAuth1.encode(userID))/sections", key: "section")
+        async let bulkRows = bulkGradeRows(userID: userID, previous: previous)
+        let (sections, combined) = try await (sectionRows, bulkRows)
         let ids = try sections.map { row in
             guard let id = ProviderParsing.nonempty(row["id"]) else { throw ProviderError.malformed }
             return id
@@ -179,7 +201,7 @@ public struct SchoologyProvider: Sendable {
         var seen = Set<String>()
         // Resolve grade-owner aliases before requesting metadata from enrollment IDs.
         let gradeRows: [SchoologySectionGrades]
-        if let bulk = try await bulkGrades(userID:userID, enrollmentIDs:ids, previous:previous) {
+        if let bulk = try resolveBulkGrades(combined, enrollmentIDs:ids, previous:previous) {
             gradeRows = bulk
         } else {
         let attempts = try await concurrentMap(ids.filter { seen.insert($0).inserted }, limit: 3) { id in
@@ -214,26 +236,33 @@ public struct SchoologyProvider: Sendable {
             let (section, items, categories, periods) = try await (sectionData, itemData, categoryData, periodData)
             guard ProviderParsing.text(try ProviderParsing.object(section)["id"]) == row.id else { throw ProviderError.malformed }
             do {
+                let started = Date()
                 let courses = try ProviderParsing.schoology(section: section, grades: row.data, items: items, categories: categories, periods: periods.data, periodsFetched: periods.fetched, gradeSectionID: row.owner)
+                await http.recordTiming("grade parsing", started: started, counts: ["periods": courses.count, "rows": courses.reduce(0) { $0 + $1.assignments.count }])
                 return try await enrichTitles(courses, enrollment: row.id, previous: previous)
             } catch {
                 await http.recordSchoologyChecks(section: section, grades: row.data, requestedID: row.id)
                 throw error
             }
         }
-        return batches.flatMap { $0 }
+        return batches.flatMap { $0 }.map { original in
+            var source = original; source.source.fields["user_id"] = userID; return source
+        }
     }
     /// On subsequent refreshes, the documented user-grade list plus saved,
     /// verified owner/enrollment aliases avoids one grade request per enrollment.
     /// First connections and newly unresolved owners use the original section
     /// reads to establish aliases without matching numeric IDs heuristically.
-    private func bulkGrades(userID: String, enrollmentIDs: [String], previous: [SourceCourse]) async throws -> [SchoologySectionGrades]? {
-        let old = previous.filter { $0.source.provider == .schoology }
-        guard !old.isEmpty else { return nil }
-        let rows: [[String:Any]]
-        do { rows = try await paged(path:"users/\(OAuth1.encode(userID))/grades",key:"section") }
+    private func bulkGradeRows(userID: String, previous: [SourceCourse]) async throws -> Data? {
+        guard previous.contains(where: { $0.source.provider == .schoology }) else { return nil }
+        do { return try await pagedData(path:"users/\(OAuth1.encode(userID))/grades",key:"section") }
         catch ProviderError.forbidden { return nil }
         catch ProviderError.malformed { return nil }
+    }
+    private func resolveBulkGrades(_ data: Data?, enrollmentIDs: [String], previous: [SourceCourse]) throws -> [SchoologySectionGrades]? {
+        let old = previous.filter { $0.source.provider == .schoology }
+        guard !old.isEmpty, let data else { return nil }
+        let rows = try ProviderParsing.collection(ProviderParsing.object(data)["section"])
         let enrolled = Set(enrollmentIDs)
         var owners = Set<String>(), result: [SchoologySectionGrades] = []
         for row in rows {
@@ -275,24 +304,23 @@ public struct SchoologyProvider: Sendable {
         }
     }
     private func enrichTitles(_ courses: [SourceCourse], enrollment: String, previous: [SourceCourse]) async throws -> [SourceCourse] {
+        let started = Date()
         let cached = Dictionary(previous.flatMap(\.assignments).map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a })
         let unresolved = Dictionary(courses.flatMap(\.assignments).filter { !$0.hasTitle && $0.score.isGraded }.map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a }).values.sorted { $0.id < $1.id }
-        let metadata = try await concurrentMap(unresolved, limit: 3) { row -> SourceAssignment in
+        let periods = Dictionary(courses.flatMap { course in course.assignments.map { ($0.id, course.term.id) } }, uniquingKeysWith: { a,_ in a })
+        var metadata = try await concurrentMap(unresolved, limit: 3) { row -> SourceAssignment in
             if let old = cached[row.id], old.hasTitle { return old }
+            if let old = cached[row.id], old.score == row.score,
+               old.source.fields["timestamp"] == row.source.fields["timestamp"],
+               old.source.fields["category_id"] == row.source.fields["category_id"],
+               let until = old.source.fields["title_lookup_retry_after"].flatMap(Double.init), until > Date().timeIntervalSince1970 {
+                var result = row; result.source.fields["title_lookup_retry_after"] = String(until); return result
+            }
             guard let id = row.source.fields["assignment_id"], (row.source.fields["type"] ?? "assignment") == "assignment" else { return row }
             let url = URL(string:"https://api.schoology.com/v1/sections/\(OAuth1.encode(enrollment))/assignments/\(OAuth1.encode(id))")!
             do {
                 let item = try ProviderParsing.object(await http.get(url))
-                // The requested resource can be the wrapper ID while the response
-                // also names a different graded node. Validate either explicit ID;
-                // preserve the grade row's original identity and score.
-                guard ProviderParsing.itemID(item) == id || ProviderParsing.nonempty(item["id"]) == id,
-                      let title = ProviderParsing.nonempty(item["title"]) else { return row }
-                if let kind = ProviderParsing.nonempty(item["type"]), ["assignment", "discussion", "assessment"].contains(kind), kind != (row.source.fields["type"] ?? "assignment") { return row }
-                var result = row; result.title = title
-                result.due = ProviderParsing.date(item["due"]) ?? row.due
-                result.score.possible = row.score.possible ?? ProviderParsing.number(item["max_points"])
-                return result
+                return ProviderParsing.assignmentMetadata(item, for: row, period: periods[row.id]) ?? row
             } catch {
                 // Optional inaccessible/deleted metadata must not discard valid scores.
                 if error is CancellationError { throw error }
@@ -302,6 +330,59 @@ public struct SchoologyProvider: Sendable {
                 return row
             }
         }
+        let missing = metadata.indices.filter { !metadata[$0].hasTitle && metadata[$0].source.fields["title_lookup_retry_after"] == nil && (metadata[$0].source.fields["type"] ?? "assignment") == "assignment" }
+        var recoveredFromList = 0
+        var primaryMatches = 0, wrapperMatches = 0
+        if !missing.isEmpty {
+            // A student may read the scoped list even when an individual resource
+            // refuses its detail read. Recover only a unique, compatible explicit
+            // node/wrapper identity; never match titles using scores or positions.
+            do {
+                let items = try await paged(path: "sections/\(OAuth1.encode(enrollment))/assignments", key: "assignment")
+                for index in missing {
+                    let row = metadata[index]
+                    guard let id = row.source.fields["assignment_id"] else { continue }
+                    let primary = items.filter { ProviderParsing.itemID($0) == id }
+                    let candidates = primary.isEmpty ? items.filter { ProviderParsing.nonempty($0["id"]) == id } : primary
+                    primaryMatches += primary.count
+                    wrapperMatches += candidates.count
+                    guard candidates.count == 1, let item = candidates.first,
+                          let recovered = ProviderParsing.assignmentMetadata(item, for: row, period: periods[row.id]) else { continue }
+                    metadata[index] = recovered; recoveredFromList += 1
+                }
+            } catch {
+                if error is CancellationError { throw error }
+                if let failure = error as? ProviderError {
+                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                }
+            }
+        }
+        var recoveredFromFolders = 0
+        if metadata.contains(where: { !$0.hasTitle && $0.source.fields["title_lookup_retry_after"] == nil }) {
+            do {
+                let items = try await folderItems(enrollment: enrollment, wanted: Set(metadata.filter { !$0.hasTitle && $0.source.fields["title_lookup_retry_after"] == nil }.compactMap { $0.source.fields["assignment_id"] }))
+                for index in metadata.indices where !metadata[index].hasTitle && metadata[index].source.fields["title_lookup_retry_after"] == nil {
+                    let row = metadata[index]
+                    let candidates = items.filter { ProviderParsing.itemID($0) == row.source.fields["assignment_id"] }
+                    guard candidates.count == 1, let item = candidates.first,
+                          let recovered = ProviderParsing.assignmentMetadata(item, for: row, period: periods[row.id]) else { continue }
+                    metadata[index] = recovered; recoveredFromFolders += 1
+                }
+            } catch {
+                if error is CancellationError { throw error }
+                if let failure = error as? ProviderError {
+                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                }
+            }
+        }
+        // Only unsuccessful optional title lookups back off. Grades, catalog,
+        // categories, and enrollment are still fetched fresh every refresh. A
+        // changed score/timestamp or a newly titled catalog entry bypasses this.
+        for index in metadata.indices where !metadata[index].hasTitle && metadata[index].source.fields["title_lookup_retry_after"] == nil {
+            metadata[index].source.fields["title_lookup_retry_after"] = String(Date().addingTimeInterval(900).timeIntervalSince1970)
+        }
+        let owners = Set(courses.compactMap { $0.source.fields["grade_section_id"] })
+        await http.recordTiming("title recovery", started: started, counts: ["missing before": unresolved.count, "list recovered": recoveredFromList, "folder recovered": recoveredFromFolders, "missing after": metadata.filter { !$0.hasTitle }.count, "list primary matches": primaryMatches, "list identity matches": wrapperMatches, "distinct grade owner": owners.contains(enrollment) ? 0 : 1])
         let byID = Dictionary(uniqueKeysWithValues: metadata.map { ($0.id, $0) })
         return courses.map { original in
             var source = original
@@ -309,10 +390,34 @@ public struct SchoologyProvider: Sendable {
                 guard let item = byID[row.id] else { return row }
                 var result = row; result.title = item.title
                 result.due = row.due ?? item.due; result.score.possible = row.score.possible ?? item.score.possible
+                result.source.fields["title_lookup_retry_after"] = item.hasTitle ? nil : item.source.fields["title_lookup_retry_after"]
                 return result
             }
             return source
         }
+    }
+    /// Only explicit contents of this enrolled course are read. Never follow a
+    /// response location URL, cross courses, infer IDs, or request student writes.
+    private func folderItems(enrollment: String, wanted: Set<String>) async throws -> [[String: Any]] {
+        var pending = ["0"], visited = Set<String>(), matches: [[String: Any]] = []
+        while !pending.isEmpty && visited.count < 32 {
+            let batch = Array(pending.prefix(min(3, 32 - visited.count))); pending.removeFirst(batch.count)
+            visited.formUnion(batch)
+            // Data crosses task boundaries; untyped JSON remains local to each task.
+            let pages = try await concurrentMap(batch, limit: 3) { id in
+                try await http.get(URL(string: "https://api.schoology.com/v1/courses/\(OAuth1.encode(enrollment))/folder/\(OAuth1.encode(id))")!)
+            }
+            for data in pages {
+                let rows = try ProviderParsing.collection(ProviderParsing.object(data)["folder-item"])
+                for row in rows {
+                    if let itemID = ProviderParsing.itemID(row), wanted.contains(itemID) { matches.append(row) }
+                    if ProviderParsing.nonempty(row["type"]) == "folder", let folder = ProviderParsing.nonempty(row["id"]),
+                       !visited.contains(folder), !pending.contains(folder) { pending.append(folder) }
+                }
+            }
+            if wanted.isSubset(of: Set(matches.compactMap(ProviderParsing.itemID))) { break }
+        }
+        return matches
     }
     private func pagedData(path: String, key: String) async throws -> Data {
         try await JSONSerialization.data(withJSONObject: [key: paged(path: path, key: key)])

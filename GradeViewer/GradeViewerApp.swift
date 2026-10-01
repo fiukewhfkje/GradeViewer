@@ -8,12 +8,10 @@ import SwiftUI
         WindowGroup {
             RootView().environment(store)
                 .preferredColorScheme(appearance == "dark" ? .dark : appearance == "light" ? .light : nil)
-                .onChange(of: scenePhase) { _, phase in
-                    if phase != .active { store.requireFreshData() }
-                }
+                .onChange(of: scenePhase) { _, phase in store.sceneChanged(phase) }
                 .task(id: scenePhase) {
                     guard scenePhase == .active else { return }
-                    await store.becameActive()
+                    await store.activateScene()
                     await store.refreshWhileActive()
                 }
         }

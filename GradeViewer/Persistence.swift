@@ -39,16 +39,24 @@ import WidgetKit
         try container.mainContext.fetch(FetchDescriptor<CourseRecord>()).map { try JSONDecoder().decode(Course.self, from: $0.payload) }.sorted { $0.order < $1.order }
     }
     func save(_ courses: [Course]) throws {
+        try save(payloads: Self.encode(courses))
+    }
+    nonisolated static func encode(_ courses: [Course]) throws -> [String: Data] {
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        return try Dictionary(uniqueKeysWithValues: courses.map { ($0.id, try encoder.encode($0)) })
+    }
+    /// Serialization may happen off the UI thread; SwiftData mutations remain
+    /// on their owning context and apply only changed rows in one transaction.
+    func save(payloads: [String: Data]) throws {
         let context = container.mainContext
         do {
             let records = try context.fetch(FetchDescriptor<CourseRecord>())
-            let map = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) }), ids = Set(courses.map(\.id))
-            for course in courses {
-                let data = try encoder.encode(course)
-                if let old = map[course.id] { if old.payload != data { old.payload = data } }
-                else { context.insert(CourseRecord(id: course.id, payload: data)) }
+            let map = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
+            for (id, data) in payloads {
+                if let old = map[id] { if old.payload != data { old.payload = data } }
+                else { context.insert(CourseRecord(id: id, payload: data)) }
             }
-            for record in records where !ids.contains(record.id) { context.delete(record) }
+            for record in records where payloads[record.id] == nil { context.delete(record) }
             try context.save()
         } catch { context.rollback(); throw error }
     }

@@ -181,6 +181,46 @@ extension HTTPTests {
         let inaccessible = try await provider.fetch()
         XCTAssertEqual(inaccessible[0].assignments[0].title, "Untitled assignment")
         XCTAssertEqual(inaccessible[0].assignments[0].score.earned, 0)
+        StubURLProtocol.requests = []
+        _ = try await provider.fetch(previous: inaccessible)
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("/assignments") || $0.contains("/folder/") }, "Unchanged inaccessible metadata must not slow every refresh")
+        var expired = inaccessible
+        expired[0].assignments[0].source.fields["title_lookup_retry_after"] = "1"
+        StubURLProtocol.requests = []
+        _ = try await provider.fetch(previous: expired)
+        XCTAssertTrue(StubURLProtocol.requests.contains("/v1/sections/100/assignments/10"))
+        StubURLProtocol.bodies["/v1/sections/100/assignments?limit=200"] = "{\"assignment\":[{\"id\":10,\"title\":\"List recovered title\",\"type\":\"assignment\"}]}"
+        let listed = try await provider.fetch()
+        XCTAssertEqual(listed[0].assignments[0].title, "List recovered title")
+        XCTAssertEqual(listed[0].assignments[0].id, inaccessible[0].assignments[0].id)
+        XCTAssertEqual(listed[0].assignments[0].score, inaccessible[0].assignments[0].score)
+        StubURLProtocol.requests = []
+        _ = try await provider.fetch(previous: listed)
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("/assignments") }, "Recovered title survives subsequent refreshes")
+        for content in [
+            "{\"id\":11,\"title\":\"Wrong identity\"}",
+            "{\"id\":10,\"title\":\"Wrong kind\",\"type\":\"discussion\"}",
+            "{\"id\":10,\"title\":\"Ungraded folder\",\"type\":\"folder\"}",
+            "{\"id\":10,\"title\":\"Wrong points\",\"max_points\":200}",
+            "{\"id\":10,\"title\":\"Wrong category\",\"grading_category\":999}",
+            "{\"id\":10,\"title\":\"Wrong period\",\"grading_period\":999}",
+            "{\"id\":10,\"title\":\"Duplicate one\"},{\"id\":10,\"title\":\"Duplicate two\"}"
+        ] {
+            StubURLProtocol.bodies["/v1/sections/100/assignments?limit=200"] = "{\"assignment\":[\(content)]}"
+            let rejected = try await provider.fetch()
+            XCTAssertEqual(rejected[0].assignments[0].title, "Untitled assignment")
+            XCTAssertEqual(rejected[0].assignments[0].score, inaccessible[0].assignments[0].score)
+        }
+        StubURLProtocol.statuses["/v1/sections/100/assignments?limit=200"] = 429
+        do { _ = try await provider.fetch(); XCTFail("List recovery must honor rate limits") }
+        catch { XCTAssertEqual(error as? ProviderError, .throttled(30)) }
+        StubURLProtocol.statuses["/v1/sections/100/assignments?limit=200"] = 200
+        StubURLProtocol.bodies["/v1/sections/100/assignments?limit=200"] = "{\"assignment\":[]}"
+        StubURLProtocol.bodies["/v1/courses/100/folder/0"] = "{\"folder-item\":[{\"id\":20,\"type\":\"folder\"}]}"
+        StubURLProtocol.bodies["/v1/courses/100/folder/20"] = "{\"folder-item\":[{\"id\":0,\"type\":\"folder\"},{\"id\":10,\"type\":\"assignment\",\"title\":\"Folder recovered title\"}]}"
+        let folder = try await provider.fetch()
+        XCTAssertEqual(folder[0].assignments[0].title, "Folder recovered title")
+        XCTAssertEqual(folder[0].assignments[0].score, inaccessible[0].assignments[0].score)
     }
 }
 
@@ -235,6 +275,15 @@ extension HTTPTests {
         XCTAssertEqual(result[0].assignments[0].score.earned,20)
         XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("grades?section_id=") })
         XCTAssertFalse(StubURLProtocol.requests.contains { $0.hasPrefix("/v1/sections/100/") })
+        StubURLProtocol.requests = []
+        let cachedIdentity = SchoologyProvider(http: try ReadOnlyHTTP(origin:URL(string:"https://api.schoology.com/v1/")!,configuration:config), userID:"fixture-user")
+        let freshAgain = try await cachedIdentity.fetch(previous: result)
+        XCTAssertEqual(freshAgain[0].assignments[0].score.earned, 20)
+        XCTAssertFalse(StubURLProtocol.requests.contains("/v1/users/me"))
+        XCTAssertTrue(StubURLProtocol.requests.contains("/v1/users/fixture-user/grades?limit=200"))
+        StubURLProtocol.statuses["/v1/users/fixture-user/grades?limit=200"] = 401
+        do { _ = try await cachedIdentity.fetch(previous: result); XCTFail("Cached identity must not bypass authentication") }
+        catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
         StubURLProtocol.statuses["/v1/users/fixture-user/grades?limit=200"] = 429
         do { _ = try await provider.fetch(previous:previous); XCTFail("Must respect bulk throttling") }
         catch { XCTAssertEqual(error as? ProviderError,.throttled(30)) }

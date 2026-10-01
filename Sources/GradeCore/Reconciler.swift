@@ -3,36 +3,49 @@ public enum Reconciler {
     public static func normalize(_ text: String) -> String {
         text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX")).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
-    private static func courseMatch(_ a: SourceCourse, _ b: SourceCourse, mappings: [String: String], physicalLinks: [String: String] = [:]) -> Bool {
-        if a.source.provider == b.source.provider { return false }
-        if mappings[a.id] != nil || mappings[b.id] != nil { return mappings[a.id] == b.id || mappings[b.id] == a.id }
-        guard compatibleMetadata(a, b), GradingPeriods.compatible(a,b) else { return false }
-        if let keyA = GradingPeriods.physicalKey(a), let keyB = GradingPeriods.physicalKey(b),
-           physicalLinks[keyA] == keyB || physicalLinks[keyB] == keyA {
-            return GradingPeriods.matches(a,b)
+    /// All match evidence is normalized once per snapshot, outside pairwise
+    /// matching. This is a local index; it never survives a provider refresh.
+    private struct MatchEvidence {
+        let source: SourceCourse
+        let teacher: String
+        let title: String
+        let term: String
+        let names: [Substring]
+        let period: PeriodDescriptor
+        let campusFinal: Bool
+        let assignments: Set<AssignmentLabelKey>
+        init(_ source: SourceCourse) {
+            self.source = source
+            teacher = normalize(source.teacher); title = normalize(source.title)
+            term = normalize(source.term.name)
+            names = normalize(source.source.fields["course_name"] ?? source.title).split(separator: " ").sorted()
+            period = GradingPeriods.descriptor(source)
+            campusFinal = normalize(source.source.fields["task_name"] ?? "") == "final"
+            assignments = Set(source.assignments.compactMap(assignmentLabelKey))
         }
-        let teacherA = normalize(a.teacher), teacherB = normalize(b.teacher)
-        if !normalize(a.title).isEmpty && normalize(a.title) == normalize(b.title)
-            && !normalize(a.term.name).isEmpty && normalize(a.term.name) == normalize(b.term.name)
-            && !teacherA.isEmpty && teacherA == teacherB { return true }
-        // Names may reorder words and omit teacher/term metadata. Require two
-        // distinct shared assignment identities, then a mutual unique course pair.
-        let nameA = normalize(a.source.fields["course_name"] ?? a.title).split(separator: " ").sorted()
-        let nameB = normalize(b.source.fields["course_name"] ?? b.title).split(separator: " ").sorted()
-        guard !nameA.isEmpty, nameA == nameB else { return false }
-        // Explicit matching period boundaries and kind also establish identity
-        // before a course has grades. Mutual uniqueness is still required by
-        // reconcile, so duplicate sections cannot be resolved by names alone.
-        let x = GradingPeriods.descriptor(a), y = GradingPeriods.descriptor(b)
+    }
+    private static func courseMatch(_ a: MatchEvidence, _ b: MatchEvidence, mappings: [String: String], physicalLinks: [String: String]) -> Bool {
+        let first = a.source, second = b.source
+        if first.source.provider == second.source.provider { return false }
+        if mappings[first.id] != nil || mappings[second.id] != nil { return mappings[first.id] == second.id || mappings[second.id] == first.id }
+        guard compatibleMetadata(a.teacher, b.teacher, first.term, second.term) else { return false }
+        let x = a.period, y = b.period
+        let periodMatch = GradingPeriods.matches(x, y, campusFinal: first.source.provider == .infiniteCampus ? a.campusFinal : b.campusFinal, sameName: a.term == b.term)
+        guard x.kind == .other || y.kind == .other || periodMatch else { return false }
+        if let keyA = GradingPeriods.physicalKey(first), let keyB = GradingPeriods.physicalKey(second),
+           physicalLinks[keyA] == keyB || physicalLinks[keyB] == keyA { return periodMatch }
+        if !a.title.isEmpty && a.title == b.title && !a.term.isEmpty && a.term == b.term && !a.teacher.isEmpty && a.teacher == b.teacher { return true }
+        guard !a.names.isEmpty, a.names == b.names else { return false }
         if x.kind == y.kind, let xs = x.start, let xe = x.end, let ys = y.start, let ye = y.end,
-           GradingPeriods.day(xs) == GradingPeriods.day(ys), GradingPeriods.day(xe) == GradingPeriods.day(ye),
-           GradingPeriods.matches(a,b) { return true }
-        return sharedAssignmentCount(a, b) >= 2
+           GradingPeriods.day(xs) == GradingPeriods.day(ys), GradingPeriods.day(xe) == GradingPeriods.day(ye), periodMatch { return true }
+        return a.assignments.intersection(b.assignments).count >= 2
     }
     static func compatibleMetadata(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
-        let teacherA = normalize(a.teacher), teacherB = normalize(b.teacher)
+        compatibleMetadata(normalize(a.teacher), normalize(b.teacher), a.term, b.term)
+    }
+    private static func compatibleMetadata(_ teacherA: String, _ teacherB: String, _ a: Term, _ b: Term) -> Bool {
         if !teacherA.isEmpty && !teacherB.isEmpty && teacherA != teacherB { return false }
-        if let startA = a.term.start, let endA = a.term.end, let startB = b.term.start, let endB = b.term.end,
+        if let startA = a.start, let endA = a.end, let startB = b.start, let endB = b.end,
            startA > endB || startB > endA { return false }
         return true
     }
@@ -57,13 +70,17 @@ public enum Reconciler {
     public static func reconcile(_ input: [SourceCourse], previous: [Course] = [], mappings: [String: String] = [:], now: Date = Date()) -> [Course] {
         // Repeated provider IDs: latest fetched wins. Never pair multiple same-provider sections.
         let unique = Dictionary(input.map { ($0.id, $0) }, uniquingKeysWith: { $0.fetched > $1.fetched ? $0 : $1 }).values.sorted { $0.id < $1.id }
+        let evidence = Dictionary(uniqueKeysWithValues: unique.map { ($0.id, MatchEvidence($0)) })
+        func matches(_ a: SourceCourse, _ b: SourceCourse, links: [String: String] = [:]) -> Bool {
+            courseMatch(evidence[a.id]!, evidence[b.id]!, mappings: mappings, physicalLinks: links)
+        }
         // Establish physical section pairs from mutual unique, evidenced period
         // pairs first. Then map empty quarters/exams by kind and explicit ranges.
         var candidates: [String: Set<String>] = [:]
         for source in unique {
-            let matches = unique.filter { courseMatch(source,$0,mappings:mappings) }
-            if matches.count == 1, unique.filter({ courseMatch(matches[0],$0,mappings:mappings) }).count == 1,
-               let a = GradingPeriods.physicalKey(source), let b = GradingPeriods.physicalKey(matches[0]) { candidates[a,default:[]].insert(b) }
+            let peers = unique.filter { matches(source,$0) }
+            if peers.count == 1, unique.filter({ matches(peers[0],$0) }).count == 1,
+               let a = GradingPeriods.physicalKey(source), let b = GradingPeriods.physicalKey(peers[0]) { candidates[a,default:[]].insert(b) }
         }
         var physicalLinks: [String: String] = [:]
         for (key, matches) in candidates where matches.count == 1 {
@@ -72,10 +89,10 @@ public enum Reconciler {
         var groups: [[SourceCourse]] = []
         var used = Set<String>()
         for item in unique where !used.contains(item.id) {
-            let matches = unique.filter { !used.contains($0.id) && courseMatch(item, $0, mappings: mappings, physicalLinks: physicalLinks) }
+            let peers = unique.filter { !used.contains($0.id) && matches(item, $0, links: physicalLinks) }
             // Ambiguous same-title sections remain separate.
-            let mutual = matches.count == 1 && unique.filter { courseMatch(matches[0], $0, mappings: mappings, physicalLinks: physicalLinks) }.count == 1
-            let group = mutual ? [item, matches[0]] : [item]
+            let mutual = peers.count == 1 && unique.filter { matches(peers[0], $0, links: physicalLinks) }.count == 1
+            let group = mutual ? [item, peers[0]] : [item]
             used.formUnion(group.map(\.id)); groups.append(group)
         }
         // A previous merged course can split after metadata changes. Only one group

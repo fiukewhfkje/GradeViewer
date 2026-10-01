@@ -2,6 +2,33 @@ import Foundation
 
 private extension String { var nilIfEmpty: String? { isEmpty ? nil : self } }
 
+/// Reuse configured Foundation parsers. The lock also protects the non-Sendable
+/// ISO formatter when parallel provider reads normalize dates.
+private final class ProviderDateParser: @unchecked Sendable {
+    static let shared = ProviderDateParser()
+    private let lock = NSLock()
+    private let iso = ISO8601DateFormatter()
+    private let fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter
+    }()
+    private let formats: [DateFormatter] = ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"].map { format in
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = format
+        return formatter
+    }
+    func parse(_ value: String) -> Date? {
+        lock.withLock {
+            if let date = iso.date(from: value) ?? fractional.date(from: value) { return date }
+            for formatter in formats { if let date = formatter.date(from: value) { return date } }
+            return nil
+        }
+    }
+}
+
 public enum ProviderError: Error, Equatable, Sendable { case reconnect, forbidden, throttled(TimeInterval), malformed, unavailable, unsafeURL, tooManyPages }
 public enum ProviderParsing {
     static func object(_ data: Data) throws -> [String: Any] { guard let x = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ProviderError.malformed }; return x }
@@ -15,6 +42,24 @@ public enum ProviderParsing {
     // grade_item_id identifies the graded node; a gradebook wrapper can have another id.
     static func itemID(_ row: [String: Any]) -> String? { nonempty(row["grade_item_id"]) ?? nonempty(row["id"]) }
     static func itemKey(_ row: [String: Any]) -> String? { itemID(row).map { "\(nonempty(row["type"]) ?? "assignment"):\($0)" } }
+    /// Title metadata cannot change a grade's identity, score, or exclusion rules.
+    static func assignmentMetadata(_ item: [String: Any], for row: SourceAssignment, period: String?) -> SourceAssignment? {
+        guard let id = row.source.fields["assignment_id"], itemID(item) == id || nonempty(item["id"]) == id,
+              let title = nonempty(item["title"]) else { return nil }
+        let kind = nonempty(item["type"]) ?? "assignment", expectedKind = row.source.fields["type"] ?? "assignment"
+        guard kind != "folder" else { return nil }
+        if ["assignment", "discussion", "assessment"].contains(kind) && kind != expectedKind { return nil }
+        if !["assignment", "discussion", "assessment"].contains(kind) && itemID(item) != id { return nil }
+        if let expected = row.score.possible, let actual = number(item["max_points"]), expected != actual { return nil }
+        if let expected = row.source.fields["category_id"], let actual = nonempty(item["grading_category"]), expected != actual { return nil }
+        if let expected = period, let actual = nonempty(item["grading_period"]),
+           (expected.hasPrefix("p") ? String(expected.dropFirst()) : expected) != actual { return nil }
+        var result = row; result.title = title
+        guard result.hasTitle else { return nil }
+        result.due = row.due ?? date(item["due"])
+        result.score.possible = row.score.possible ?? number(item["max_points"])
+        return result
+    }
     static func text(_ x: Any?) -> String? { if x is NSNull || x == nil { return nil }; if let s = x as? String { return s }; if let n = x as? NSNumber { return n.stringValue }; return nil }
     static func number(_ x: Any?) -> Double? { guard let s = text(x), let n = Double(s), n.isFinite else { return nil }; return n }
     static func flag(_ x: Any?) -> Bool { text(x) == "1" || text(x)?.lowercased() == "true" }
@@ -22,11 +67,7 @@ public enum ProviderParsing {
     static func date(_ x: Any?) -> Date? {
         guard let s = text(x), !s.isEmpty else { return nil }
         if let n = Double(s), n > 1_000_000 { return Date(timeIntervalSince1970: n > 100_000_000_000 ? n / 1000 : n) }
-        let iso = ISO8601DateFormatter(); if let d = iso.date(from: s) { return d }
-        iso.formatOptions.insert(.withFractionalSeconds); if let d = iso.date(from: s) { return d }
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd"] { formatter.dateFormat = format; if let d = formatter.date(from: s) { return d } }
-        return nil
+        return ProviderDateParser.shared.parse(s)
     }
     public static func schoology(section: Data, grades: Data, items: Data, categories: Data, periods: Data? = nil, periodsFetched: Date? = nil, fetched: Date = Date(), gradeSectionID: String? = nil) throws -> [SourceCourse] {
         let section = try object(section), payload = try object(grades), itemPayload = try object(items), categoryPayload = try object(categories)

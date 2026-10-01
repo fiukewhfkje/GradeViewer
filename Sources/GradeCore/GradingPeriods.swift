@@ -9,9 +9,11 @@ public struct PeriodDescriptor: Sendable {
     public let end: Date?
 }
 public enum GradingPeriods {
+    private static let datePattern = try! NSRegularExpression(pattern: "[0-9]{4}-[0-9]{2}-[0-9]{2}")
+    private static let quarterPattern = try! NSRegularExpression(pattern: "^(?:q|quarter)\\s*([1-9][0-9]*)\\b")
+    private static let semesterPattern = try! NSRegularExpression(pattern: "^(?:s|semester)\\s*([1-9][0-9]*)\\b")
     static func titleDates(_ title: String) -> (Date?, Date?) {
-        guard let regex = try? NSRegularExpression(pattern:"[0-9]{4}-[0-9]{2}-[0-9]{2}") else { return (nil,nil) }
-        let dates = regex.matches(in:title, range:NSRange(title.startIndex..., in:title)).compactMap { match in
+        let dates = datePattern.matches(in:title, range:NSRange(title.startIndex..., in:title)).compactMap { match in
             Range(match.range, in:title).flatMap { ProviderParsing.date(String(title[$0])) }
         }
         guard dates.count == 2, dates[0] <= dates[1] else { return (nil,nil) }
@@ -20,12 +22,12 @@ public enum GradingPeriods {
     public static func descriptor(_ source: SourceCourse) -> PeriodDescriptor {
         let name = Reconciler.normalize(source.term.name)
         let task = Set(Reconciler.normalize(source.source.fields["task_name"] ?? "").split(separator:" "))
-        func index(_ pattern: String) -> Int? {
-            guard let regex = try? NSRegularExpression(pattern:pattern), let match = regex.firstMatch(in:name, range:NSRange(name.startIndex..., in:name)), let range = Range(match.range(at:1), in:name) else { return nil }
+        func index(_ regex: NSRegularExpression) -> Int? {
+            guard let match = regex.firstMatch(in:name, range:NSRange(name.startIndex..., in:name)), let range = Range(match.range(at:1), in:name) else { return nil }
             return Int(name[range])
         }
-        let quarter = index("^(?:q|quarter)\\s*([1-9][0-9]*)\\b")
-        let semester = index("^(?:s|semester)\\s*([1-9][0-9]*)\\b")
+        let quarter = index(quarterPattern)
+        let semester = index(semesterPattern)
         let kind: PeriodKind
         let ordinal: Int?
         if !task.isDisjoint(with:["exam", "exams", "midterm"]) || name.hasPrefix("exam") || name.hasPrefix("midterm") { kind = .exam; ordinal = nil }
@@ -42,7 +44,7 @@ public enum GradingPeriods {
         case .year: label = "Overall"
         case .other: label = source.term.name
         }
-        let dates = titleDates(source.term.name)
+        let dates = source.term.start != nil && source.term.end != nil ? (nil, nil) : titleDates(source.term.name)
         return PeriodDescriptor(kind:kind, ordinal:ordinal, label:label, start:source.term.start ?? dates.0, end:source.term.end ?? dates.1)
     }
     public static func descriptor(_ course: Course) -> PeriodDescriptor {
@@ -55,7 +57,10 @@ public enum GradingPeriods {
     }
     static func day(_ date: Date) -> Int { Int(floor(date.timeIntervalSince1970 / 86400)) }
     static func matches(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
-        let x = descriptor(a), y = descriptor(b)
+        let campus = a.source.provider == .infiniteCampus ? a : b
+        return matches(descriptor(a), descriptor(b), campusFinal: Reconciler.normalize(campus.source.fields["task_name"] ?? "") == "final", sameName: Reconciler.normalize(a.term.name) == Reconciler.normalize(b.term.name))
+    }
+    static func matches(_ x: PeriodDescriptor, _ y: PeriodDescriptor, campusFinal: Bool, sameName: Bool) -> Bool {
         guard x.kind == y.kind else { return false }
         if let i = x.ordinal, let j = y.ordinal, i != j { return false }
         if let xs = x.start, let xe = x.end, let ys = y.start, let ye = y.end {
@@ -64,14 +69,13 @@ public enum GradingPeriods {
                 // A Campus Final task may inherit the closing quarter's dates.
                 // Require that shorter range to be contained in the explicit
                 // other-provider semester and share its closing day.
-                let campus = a.source.provider == .infiniteCampus ? a : b
-                guard Reconciler.normalize(campus.source.fields["task_name"] ?? "") == "final" else { return false }
+                guard campusFinal else { return false }
                 return day(xe) == day(ye) && day(xs) <= day(xe) && day(ys) <= day(ye)
             }
             if x.kind == .exam { return day(xs) <= day(ye) && day(ys) <= day(xe) }
             return day(xs) == day(ys) && day(xe) == day(ye)
         }
-        return (x.ordinal != nil && x.ordinal == y.ordinal) || Reconciler.normalize(a.term.name) == Reconciler.normalize(b.term.name)
+        return (x.ordinal != nil && x.ordinal == y.ordinal) || sameName
     }
     static func compatible(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
         let x = descriptor(a), y = descriptor(b)

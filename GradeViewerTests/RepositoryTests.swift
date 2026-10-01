@@ -93,6 +93,18 @@ extension RepositoryTests {
         let loaded = try SecureStore.load(SchoologyCredentials.self, account: account); XCTAssertEqual(loaded?.key, "fixture")
         try SecureStore.delete(account: account); XCTAssertNil(try SecureStore.load(SchoologyCredentials.self, account: account))
     }
+    func testSchoologyVerifiedIdentityPersistsWithOnlyItsCredentialSet() throws {
+        let legacy = Data("{\"key\":\"fixture\",\"secret\":\"fixture-secret\",\"token\":\"\",\"tokenSecret\":\"\"}".utf8)
+        XCTAssertNil(try JSONDecoder().decode(SchoologyCredentials.self, from: legacy).userID)
+        let account = "test-identity-" + UUID().uuidString
+        defer { try? SecureStore.delete(account: account) }
+        var credentials = SchoologyCredentials(key: "fixture", secret: "fixture-secret")
+        credentials.userID = "fixture-verified-user"
+        try SecureStore.save(credentials, account: account)
+        XCTAssertEqual(try SecureStore.load(SchoologyCredentials.self, account: account)?.userID, "fixture-verified-user")
+        try SecureStore.save(SchoologyCredentials(key: "replacement", secret: "replacement-secret"), account: account)
+        XCTAssertNil(try SecureStore.load(SchoologyCredentials.self, account: account)?.userID)
+    }
 }
 
 private actor RefreshProbe {
@@ -127,21 +139,40 @@ extension RepositoryTests {
         XCTAssertEqual(store.courses.flatMap(\.sources).filter { $0.source.provider == .infiniteCampus }.count, old.count)
         XCTAssertEqual(try repository.load().count, store.courses.count)
     }
-    func testEveryForegroundAndActiveCadenceRefreshesAndCancellationStopsTimer() async throws {
+    func testAutomaticRefreshOnLaunchAndReturnIgnoresTemporaryInactivity() async throws {
         let probe = RefreshProbe()
         let store = AppStore(repository:try GradeRepository(memory:true), demo:false, readCredentials:false, fetch: { try await probe.fetch($0) })
         store.connected = [.schoology]
-        await store.becameActive(); await store.becameActive()
-        let foregroundCalls = await probe.calls; XCTAssertEqual(foregroundCalls[.schoology], 2)
-        let timer = Task { await store.refreshWhileActive(interval:.milliseconds(10)) }
+        await store.activateScene()
+        let initial = await probe.calls; XCTAssertEqual(initial[.schoology], 1)
+        XCTAssertFalse(store.needsFreshData)
+        store.sceneChanged(.inactive)
+        await store.activateScene()
+        let switcher = await probe.calls; XCTAssertEqual(switcher[.schoology], 1)
+        XCTAssertFalse(store.needsFreshData)
+        store.sceneChanged(.background)
+        XCTAssertTrue(store.needsFreshData)
+        let leaving = await probe.calls; XCTAssertEqual(leaving[.schoology], 1, "Leaving cannot start requests")
+        await store.activateScene()
+        let returned = await probe.calls; XCTAssertEqual(returned[.schoology], 2)
+        XCTAssertFalse(store.needsFreshData)
+        await store.refresh()
+        let manual = await probe.calls; XCTAssertEqual(manual[.schoology], 3)
+    }
+    func testActiveRefreshCadenceRemainsAndCancellationStopsRequests() async throws {
+        let probe = RefreshProbe()
+        let store = AppStore(repository: try GradeRepository(memory: true), demo: false, readCredentials: false, fetch: { try await probe.fetch($0) })
+        store.connected = [.schoology]
+        let timer = Task { await store.refreshWhileActive(interval: .milliseconds(10)) }
         for _ in 0..<100 {
-            if await probe.calls[.schoology, default:0] >= 3 { break }
-            try await Task.sleep(for:.milliseconds(2))
+            if await probe.calls[.schoology, default: 0] >= 2 { break }
+            try await Task.sleep(for: .milliseconds(2))
         }
         timer.cancel(); await timer.value
         let stopped = await probe.calls[.schoology]
-        try await Task.sleep(for:.milliseconds(30))
-        let after = await probe.calls[.schoology]; XCTAssertEqual(stopped, after); XCTAssertGreaterThanOrEqual(stopped ?? 0, 3)
+        try await Task.sleep(for: .milliseconds(30))
+        let after = await probe.calls[.schoology]
+        XCTAssertGreaterThanOrEqual(stopped ?? 0, 2); XCTAssertEqual(stopped, after)
     }
     func testSavedCampusCookiesReplaceRotatedAndExcludeExpiredOrSSO() throws {
         let valid = HTTPCookie(properties:[.name:"session", .value:"fixture-new", .domain:"district.example.org", .path:"/campus", .secure:"TRUE"])!
@@ -172,6 +203,45 @@ extension RepositoryTests {
 }
 
 extension RepositoryTests {
+    func testSnapshotEncodingFailureCannotUncoverCachedGrades() async throws {
+        let repository = try GradeRepository(memory: true); let old = Demo.courses(); try repository.save(old)
+        var invalid = old[0].display; invalid.grade.percent = .nan
+        let fetched = [invalid]
+        let store = AppStore(repository: repository, demo: false, readCredentials: false, fetch: { _ in fetched })
+        store.connected = [.infiniteCampus]
+        await store.refresh()
+        XCTAssertTrue(store.needsFreshData); XCTAssertTrue(store.foregroundRefreshFailed)
+        XCTAssertNotNil(store.localError); XCTAssertNotNil(store.errors[.infiniteCampus])
+        XCTAssertEqual(store.courses[0].display.grade, old[0].display.grade)
+        XCTAssertEqual(try repository.load()[0].display.grade, old[0].display.grade)
+    }
+    func testLargeRefreshKeepsMainActorResponsiveAndPreservesLocalEdits() async throws {
+        let old = Demo.courses(longList: true)
+        let fetched = old.flatMap(\.sources).map { original in
+            var source = original
+            source.fetched = Date(); source.assignments[0].title = "Fresh large fixture"
+            return source
+        }
+        let repository = try GradeRepository(memory: true); try repository.save(old)
+        let store = AppStore(repository: repository, demo: false, readCredentials: false, fetch: { _ in fetched })
+        store.connected = [.infiniteCampus]
+        let refresh = Task { await store.refresh() }
+        // Yield until the worker starts, then change local presentation while its
+        // normalization/encoding is in flight. A revision mismatch must rebase.
+        await Task.yield()
+        store.setHidden(old[0].id, hidden: true)
+        var ticks = 0
+        while store.refreshing {
+            ticks += 1
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        await refresh.value
+        XCTAssertGreaterThan(ticks, 1, "Main actor must continue servicing work during a large snapshot")
+        XCTAssertTrue(try XCTUnwrap(store.courses.first { $0.id == old[0].id }).hidden)
+        XCTAssertEqual(store.courses[0].calculationSource.assignments[0].title, "Fresh large fixture")
+        XCTAssertEqual(try repository.load().map(\.hidden), store.courses.map(\.hidden))
+        XCTAssertFalse(store.refreshing)
+    }
     func testSavedGradesRemainCoveredUntilEveryProviderIsFreshAndFailureRetainsCache() async throws {
         let repository = try GradeRepository(memory:true)
         try repository.save(Demo.courses())
@@ -179,7 +249,7 @@ extension RepositoryTests {
         let store = AppStore(repository:repository,demo:false,readCredentials:false,fetch:{ provider in try await probe.fetch(provider) })
         store.connected = [.infiniteCampus,.schoology]
         XCTAssertTrue(store.needsFreshData, "Gate must exist before any startup task runs")
-        let task = Task { await store.becameActive() }
+        let task = Task { await store.startup() }
         try await Task.sleep(for:.milliseconds(100))
         XCTAssertTrue(store.needsFreshData, "Fast provider cannot uncover stale authority from the slow provider")
         await task.value
@@ -187,9 +257,9 @@ extension RepositoryTests {
         XCTAssertTrue(store.courses.contains { $0.sources.contains { $0.source.provider == .infiniteCampus } })
         let success = AppStore(repository:repository,demo:false,readCredentials:false,fetch:{ _ in Demo.courses().flatMap(\.sources) })
         success.connected = [.infiniteCampus]
-        await success.becameActive()
+        await success.refresh()
         XCTAssertFalse(success.needsFreshData)
         success.requireFreshData(); XCTAssertTrue(success.needsFreshData)
-        await success.becameActive(); XCTAssertFalse(success.needsFreshData)
+        await success.refresh(); XCTAssertFalse(success.needsFreshData)
     }
 }
