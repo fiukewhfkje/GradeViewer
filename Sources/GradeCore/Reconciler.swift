@@ -3,13 +3,15 @@ public enum Reconciler {
     public static func normalize(_ text: String) -> String {
         text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX")).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
     }
-    private static func courseMatch(_ a: SourceCourse, _ b: SourceCourse, mappings: [String: String]) -> Bool {
+    private static func courseMatch(_ a: SourceCourse, _ b: SourceCourse, mappings: [String: String], physicalLinks: [String: String] = [:]) -> Bool {
         if a.source.provider == b.source.provider { return false }
         if mappings[a.id] != nil || mappings[b.id] != nil { return mappings[a.id] == b.id || mappings[b.id] == a.id }
+        guard compatibleMetadata(a, b), GradingPeriods.compatible(a,b) else { return false }
+        if let keyA = GradingPeriods.physicalKey(a), let keyB = GradingPeriods.physicalKey(b),
+           physicalLinks[keyA] == keyB || physicalLinks[keyB] == keyA {
+            return GradingPeriods.matches(a,b)
+        }
         let teacherA = normalize(a.teacher), teacherB = normalize(b.teacher)
-        if !teacherA.isEmpty && !teacherB.isEmpty && teacherA != teacherB { return false }
-        if let startA = a.term.start, let endA = a.term.end, let startB = b.term.start, let endB = b.term.end,
-           startA > endB || startB > endA { return false }
         if !normalize(a.title).isEmpty && normalize(a.title) == normalize(b.title)
             && !normalize(a.term.name).isEmpty && normalize(a.term.name) == normalize(b.term.name)
             && !teacherA.isEmpty && teacherA == teacherB { return true }
@@ -18,7 +20,21 @@ public enum Reconciler {
         let nameA = normalize(a.source.fields["course_name"] ?? a.title).split(separator: " ").sorted()
         let nameB = normalize(b.source.fields["course_name"] ?? b.title).split(separator: " ").sorted()
         guard !nameA.isEmpty, nameA == nameB else { return false }
+        // Explicit matching period boundaries and kind also establish identity
+        // before a course has grades. Mutual uniqueness is still required by
+        // reconcile, so duplicate sections cannot be resolved by names alone.
+        let x = GradingPeriods.descriptor(a), y = GradingPeriods.descriptor(b)
+        if x.kind == y.kind, let xs = x.start, let xe = x.end, let ys = y.start, let ye = y.end,
+           GradingPeriods.day(xs) == GradingPeriods.day(ys), GradingPeriods.day(xe) == GradingPeriods.day(ye),
+           GradingPeriods.matches(a,b) { return true }
         return sharedAssignmentCount(a, b) >= 2
+    }
+    static func compatibleMetadata(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
+        let teacherA = normalize(a.teacher), teacherB = normalize(b.teacher)
+        if !teacherA.isEmpty && !teacherB.isEmpty && teacherA != teacherB { return false }
+        if let startA = a.term.start, let endA = a.term.end, let startB = b.term.start, let endB = b.term.end,
+           startA > endB || startB > endA { return false }
+        return true
     }
     struct AssignmentLabelKey: Hashable { let title: String; let possible: Double }
     static func assignmentLabelKey(_ row: SourceAssignment) -> AssignmentLabelKey? {
@@ -41,12 +57,24 @@ public enum Reconciler {
     public static func reconcile(_ input: [SourceCourse], previous: [Course] = [], mappings: [String: String] = [:], now: Date = Date()) -> [Course] {
         // Repeated provider IDs: latest fetched wins. Never pair multiple same-provider sections.
         let unique = Dictionary(input.map { ($0.id, $0) }, uniquingKeysWith: { $0.fetched > $1.fetched ? $0 : $1 }).values.sorted { $0.id < $1.id }
+        // Establish physical section pairs from mutual unique, evidenced period
+        // pairs first. Then map empty quarters/exams by kind and explicit ranges.
+        var candidates: [String: Set<String>] = [:]
+        for source in unique {
+            let matches = unique.filter { courseMatch(source,$0,mappings:mappings) }
+            if matches.count == 1, unique.filter({ courseMatch(matches[0],$0,mappings:mappings) }).count == 1,
+               let a = GradingPeriods.physicalKey(source), let b = GradingPeriods.physicalKey(matches[0]) { candidates[a,default:[]].insert(b) }
+        }
+        var physicalLinks: [String: String] = [:]
+        for (key, matches) in candidates where matches.count == 1 {
+            if let match = matches.first, candidates[match]?.count == 1 { physicalLinks[key] = match }
+        }
         var groups: [[SourceCourse]] = []
         var used = Set<String>()
         for item in unique where !used.contains(item.id) {
-            let matches = unique.filter { !used.contains($0.id) && courseMatch(item, $0, mappings: mappings) }
+            let matches = unique.filter { !used.contains($0.id) && courseMatch(item, $0, mappings: mappings, physicalLinks: physicalLinks) }
             // Ambiguous same-title sections remain separate.
-            let mutual = matches.count == 1 && unique.filter { courseMatch(matches[0], $0, mappings: mappings) }.count == 1
+            let mutual = matches.count == 1 && unique.filter { courseMatch(matches[0], $0, mappings: mappings, physicalLinks: physicalLinks) }.count == 1
             let group = mutual ? [item, matches[0]] : [item]
             used.formUnion(group.map(\.id)); groups.append(group)
         }
@@ -104,6 +132,14 @@ public enum Reconciler {
     /// Replace only successful provider snapshots; retain failed providers in full.
     public static func refreshing(previous: [Course], successful: [ProviderID: [SourceCourse]], mappings: [String: String] = [:], now: Date = Date()) -> [Course] {
         let retained = previous.flatMap(\.sources).filter { successful[$0.source.provider] == nil }
-        return reconcile(retained + successful.values.flatMap { $0 }, previous: previous, mappings: mappings, now: now)
+        let oldRows = Dictionary(previous.flatMap(\.sources).flatMap(\.assignments).map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a })
+        let refreshed = successful.values.flatMap { $0 }.map { supplied in
+            var source = supplied
+            for index in source.assignments.indices where !source.assignments[index].hasTitle {
+                if let old = oldRows[source.assignments[index].id], old.hasTitle { source.assignments[index].title = old.title }
+            }
+            return source
+        }
+        return reconcile(retained + refreshed, previous: previous, mappings: mappings, now: now)
     }
 }

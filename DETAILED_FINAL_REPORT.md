@@ -1,4 +1,4 @@
-> September 29 follow-up: manual course controls were removed and unique assignment-evidence matching is automatic. Graph marker geometry remains smooth, but tooltip grade/date now selects discrete events at thresholds; timestamp batches retain individual contributions with equal horizontal spacing. Validation: 47 core tests, 11 hosted tests and 4 focused UI tests passed. Updated app/widget installed and launched on iPhone 15. Schoology refresh succeeds; Campus currently returns HTTP 401 and preserves its cached grades. Current behavior and limitations in PROJECT_STATUS.md and ARCHITECTURE.md supersede earlier descriptions below.
+> Historical September 29 report. October 1 behavior and validation in PROJECT_STATUS.md and ARCHITECTURE.md supersede the descriptions below: every foreground entry now waits for fresh data, periods are browsable within a class, and both providers refreshed successfully after the user's normal Campus reconnection.
 
 # GradeViewer detailed final report
 

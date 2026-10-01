@@ -71,29 +71,39 @@ public actor ReadOnlyHTTP {
         guard origin.scheme == "https", origin.host != nil, origin.user == nil, origin.password == nil, origin.port == nil || origin.port == 443 else { throw ProviderError.unsafeURL }
         self.origin = origin; self.credentials = credentials; self.diagnosticsEnabled = diagnosticsEnabled
         let config = configuration ?? URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 25; config.timeoutIntervalForResource = 60
-        config.urlCache = nil; config.httpCookieAcceptPolicy = .always
+        config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpMaximumConnectionsPerHost = 4; config.httpCookieAcceptPolicy = .always
         for cookie in cookies { config.httpCookieStorage?.setCookie(cookie) }
         session = URLSession(configuration: config, delegate: NoRedirect(), delegateQueue: nil)
     }
-    public func get(_ url: URL) async throws -> Data {
+    public func get(_ url: URL) async throws -> Data { try await read(url, json: true) }
+    func visitPortal(_ url: URL) async throws { _ = try await read(url, json: false) }
+    private func read(_ url: URL, json: Bool) async throws -> Data {
         var current = url
         for _ in 0..<5 {
             guard current.scheme == "https", current.host?.lowercased() == origin.host?.lowercased(), current.port == origin.port, current.user == nil, current.password == nil, current.path.hasPrefix(origin.path) else { throw ProviderError.unsafeURL }
-            var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue("application/json", forHTTPHeaderField: "Accept")
+            var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue(json ? "application/json" : "text/html", forHTTPHeaderField: "Accept")
             if let credentials { request.setValue(OAuth1.header(url: current, credentials: credentials), forHTTPHeaderField: "Authorization") }
             let requestStarted = Date()
             let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw ProviderError.unavailable }
+            if let fields = response.allHeaderFields as? [String: String] {
+                let received = HTTPCookie.cookies(withResponseHeaderFields: fields, for: current)
+                session.configuration.httpCookieStorage?.setCookies(received, for: current, mainDocumentURL: origin)
+            }
             if diagnosticsEnabled {
                 let mime = response.mimeType ?? "unknown"
                 let route: String
-                if current.path.contains("/grades/detail/") { route = "grade detail" }
+                if !json { route = "portal session" }
+                else if current.path.contains("/grades/detail/") { route = "grade detail" }
                 else if credentials == nil && current.path.hasSuffix("/grades") { route = "grade summary" }
                 else if current.path.hasSuffix("/users/me") { route = "current user" }
                 else if current.path.hasSuffix("/sections") { route = "enrolled sections" }
                 else if current.path.hasSuffix("/grades") { route = "student grades" }
                 else if current.path.hasSuffix("/grade_items") { route = "assignments" }
                 else if current.path.hasSuffix("/grading_categories") { route = "categories" }
+                else if current.path.hasSuffix("/grading_periods") { route = "grading periods" }
+                else if current.path.contains("/assignments/") { route = "assignment metadata" }
                 else if current.path.contains("/sections/") { route = "section" }
                 else if current.path.contains("/users/") { route = "user" }
                 else { route = "request" }
@@ -112,18 +122,26 @@ public actor ReadOnlyHTTP {
             case 403: throw ProviderError.forbidden
             case 429: throw ProviderError.throttled(Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After")))
             case 301, 302, 303, 307, 308:
-                guard credentials != nil, let location = response.value(forHTTPHeaderField: "Location"), let next = URL(string: location, relativeTo: current)?.absoluteURL else { throw ProviderError.reconnect }
+                guard credentials != nil || !json, let location = response.value(forHTTPHeaderField: "Location"), let next = URL(string: location, relativeTo: current)?.absoluteURL else { throw ProviderError.reconnect }
                 current = next; continue // Generate a fresh signature/nonce for users/me redirects.
             case 200..<300:
                 let type = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
-                guard type.contains("json") else { throw ProviderError.reconnect }
+                if !json { return data }
+                guard type.contains("json") else { throw type.contains("html") ? ProviderError.reconnect : ProviderError.malformed }
                 return data
             default: throw ProviderError.unavailable
             }
         }
         throw ProviderError.unavailable
     }
-    public func cookies() -> [HTTPCookie] { session.configuration.httpCookieStorage?.cookies ?? [] }
+    public func cookies() -> [HTTPCookie] {
+        // Cookie scope is checked again before secrets enter Keychain.
+        (session.configuration.httpCookieStorage?.cookies ?? []).filter { cookie in
+            let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+            let host = origin.host!.lowercased()
+            return (host == domain || host.hasSuffix("." + domain)) && (cookie.expiresDate.map { $0 > Date() } ?? true)
+        }
+    }
     public func diagnostics() -> [HTTPDiagnostic] { records }
     func recordSchoologyChecks(section: Data, grades: Data, requestedID: String) {
         guard diagnosticsEnabled, let metadata = try? ProviderParsing.object(section), let payload = try? ProviderParsing.object(grades) else { return }
@@ -144,57 +162,177 @@ public actor ReadOnlyHTTP {
         return value.flatMap(formatter.date).map { max(0, $0.timeIntervalSinceNow) } ?? 60
     }
 }
+private struct SchoologyPeriodMetadata: Sendable { let data: Data; let fetched: Date }
 public struct SchoologyProvider: Sendable {
     let http: ReadOnlyHTTP
     init(http: ReadOnlyHTTP) { self.http = http }
     public init(credentials: SchoologyCredentials, diagnosticsEnabled: Bool = false) throws { http = try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: credentials, diagnosticsEnabled: diagnosticsEnabled) }
     public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
-    public func fetch() async throws -> [SourceCourse] {
+    public func fetch(previous: [SourceCourse] = []) async throws -> [SourceCourse] {
         let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
         guard let userID = ProviderParsing.text(me["uid"] ?? me["id"]) else { throw ProviderError.malformed }
         let sections = try await paged(path: "users/\(OAuth1.encode(userID))/sections", key: "section")
-        var courses: [SourceCourse] = [], resolvedSections = Set<String>()
-        for summary in sections {
-            guard let id = ProviderParsing.text(summary["id"]) else { throw ProviderError.malformed }
-            if resolvedSections.contains(id) { continue }
-            let grades = try await http.get(URL(string: "https://api.schoology.com/v1/users/\(OAuth1.encode(userID))/grades?section_id=\(OAuth1.encode(id))")!)
-            let payload = try ProviderParsing.object(grades)
-            guard let gradeSections = payload["section"] as? [[String: Any]] else { throw ProviderError.malformed }
-            // The observed API can return a different section owner for these user's grades.
-            // Retain the enrolled section for metadata access, and explicitly retain the grade owner.
-            if gradeSections.isEmpty { continue }
-            let row = gradeSections.first { ProviderParsing.text($0["section_id"]) == id } ?? (gradeSections.count == 1 ? gradeSections[0] : nil)
-            guard let owner = row.flatMap({ ProviderParsing.text($0["section_id"]) }) else { throw ProviderError.malformed }
-            if resolvedSections.contains(owner) { continue }
-            let escaped = OAuth1.encode(id)
-            let section = try await http.get(URL(string: "https://api.schoology.com/v1/sections/\(escaped)")!)
-            guard ProviderParsing.text(try ProviderParsing.object(section)["id"]) == id else { throw ProviderError.malformed }
-            let items = try await paged(path: "sections/\(escaped)/grade_items", key: "assignment")
-            let categories = try await paged(path: "sections/\(escaped)/grading_categories", key: "grading_category")
+        let ids = try sections.map { row in
+            guard let id = ProviderParsing.nonempty(row["id"]) else { throw ProviderError.malformed }
+            return id
+        }
+        var seen = Set<String>()
+        // Resolve grade-owner aliases before requesting metadata from enrollment IDs.
+        let gradeRows: [SchoologySectionGrades]
+        if let bulk = try await bulkGrades(userID:userID, enrollmentIDs:ids, previous:previous) {
+            gradeRows = bulk
+        } else {
+        let attempts = try await concurrentMap(ids.filter { seen.insert($0).inserted }, limit: 3) { id in
             do {
-                courses += try ProviderParsing.schoology(section: section, grades: grades, items: JSONSerialization.data(withJSONObject: ["assignment": items]), categories: JSONSerialization.data(withJSONObject: ["grading_category": categories]), gradeSectionID: owner)
-                resolvedSections.insert(owner)
+            let data = try await http.get(URL(string: "https://api.schoology.com/v1/users/\(OAuth1.encode(userID))/grades?section_id=\(OAuth1.encode(id))")!)
+            let payload = try ProviderParsing.object(data)
+            guard let rows = payload["section"] as? [[String: Any]] else { throw ProviderError.malformed }
+            if rows.isEmpty { return SchoologySectionAttempt(id: id, result: .success(SchoologySectionGrades(id: id, owner: nil, data: data))) }
+            let row = rows.first { ProviderParsing.text($0["section_id"]) == id } ?? (rows.count == 1 ? rows[0] : nil)
+            guard let owner = row.flatMap({ ProviderParsing.nonempty($0["section_id"]) }) else { throw ProviderError.malformed }
+            return SchoologySectionAttempt(id: id, result: .success(SchoologySectionGrades(id: id, owner: owner, data: data)))
+            } catch { return SchoologySectionAttempt(id: id, result: .failure(error)) }
+        }
+        gradeRows = attempts.compactMap { try? $0.result.get() }
+        let resolvedOwners = Set(gradeRows.compactMap(\.owner))
+        for attempt in attempts {
+            if case let .failure(error) = attempt.result {
+                // An inaccessible alias is safe to skip only when another successful
+                // enrolled section explicitly supplied that very same grade owner.
+                guard resolvedOwners.contains(attempt.id), error as? ProviderError == .forbidden else { throw error }
+            }
+        }
+        }
+        var owners = Set<String>()
+        let unique = gradeRows.filter { row in row.owner.map { owners.insert($0).inserted } ?? false }
+        let batches = try await concurrentMap(unique, limit: 3) { row in
+            let escaped = OAuth1.encode(row.id)
+            async let sectionData = http.get(URL(string: "https://api.schoology.com/v1/sections/\(escaped)")!)
+            async let itemData = pagedData(path: "sections/\(escaped)/grade_items", key: "assignment")
+            async let categoryData = pagedData(path: "sections/\(escaped)/grading_categories", key: "grading_category")
+            async let periodData = periodMetadata(enrollment: escaped, owner:row.owner!, grades:row.data, previous:previous)
+            let (section, items, categories, periods) = try await (sectionData, itemData, categoryData, periodData)
+            guard ProviderParsing.text(try ProviderParsing.object(section)["id"]) == row.id else { throw ProviderError.malformed }
+            do {
+                let courses = try ProviderParsing.schoology(section: section, grades: row.data, items: items, categories: categories, periods: periods.data, periodsFetched: periods.fetched, gradeSectionID: row.owner)
+                return try await enrichTitles(courses, enrollment: row.id, previous: previous)
             } catch {
-                await http.recordSchoologyChecks(section: section, grades: grades, requestedID: id)
+                await http.recordSchoologyChecks(section: section, grades: row.data, requestedID: row.id)
                 throw error
             }
         }
-        return courses
+        return batches.flatMap { $0 }
+    }
+    /// On subsequent refreshes, the documented user-grade list plus saved,
+    /// verified owner/enrollment aliases avoids one grade request per enrollment.
+    /// First connections and newly unresolved owners use the original section
+    /// reads to establish aliases without matching numeric IDs heuristically.
+    private func bulkGrades(userID: String, enrollmentIDs: [String], previous: [SourceCourse]) async throws -> [SchoologySectionGrades]? {
+        let old = previous.filter { $0.source.provider == .schoology }
+        guard !old.isEmpty else { return nil }
+        let rows: [[String:Any]]
+        do { rows = try await paged(path:"users/\(OAuth1.encode(userID))/grades",key:"section") }
+        catch ProviderError.forbidden { return nil }
+        catch ProviderError.malformed { return nil }
+        let enrolled = Set(enrollmentIDs)
+        var owners = Set<String>(), result: [SchoologySectionGrades] = []
+        for row in rows {
+            guard let owner = ProviderParsing.nonempty(row["section_id"]), row["period"] != nil, owners.insert(owner).inserted else { throw ProviderError.malformed }
+            let known = Set(old.filter { $0.source.fields["grade_section_id"] == owner }.compactMap { $0.source.fields["section_id"] }).intersection(enrolled)
+            let enrollment: String
+            if known.count == 1 { enrollment = known.first! }
+            else if known.isEmpty, enrolled.contains(owner) { enrollment = owner }
+            else { return nil }
+            result.append(SchoologySectionGrades(id:enrollment,owner:owner,data:try JSONSerialization.data(withJSONObject:["section":[row]])))
+        }
+        return result
+    }
+    private func periodMetadata(enrollment: String, owner: String, grades: Data, previous: [SourceCourse]) async throws -> SchoologyPeriodMetadata {
+        let cached = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == owner && $0.source.fields["period_metadata_id"] != nil }
+        let stamp = cached.compactMap { $0.source.fields["period_metadata_fetched"].flatMap(Double.init) }.min().map(Date.init(timeIntervalSince1970:))
+        let payload = try ProviderParsing.object(grades)
+        let section = ProviderParsing.rows(payload["section"]).first { ProviderParsing.text($0["section_id"]) == owner } ?? [:]
+        let gradeIDs = Set(ProviderParsing.rows(section["period"]).compactMap { ProviderParsing.text($0["period_id"]) })
+        if let stamp, Date().timeIntervalSince(stamp) >= 0, Date().timeIntervalSince(stamp) < 3600,
+           !cached.isEmpty, gradeIDs.isSubset(of:Set(previous.filter { $0.source.fields["grade_section_id"] == owner }.map { $0.term.id })) {
+            let formatter = ISO8601DateFormatter()
+            let rows: [[String:Any]] = cached.map { source in
+                var row: [String:Any] = ["id":source.source.fields["period_metadata_id"]!, "title":source.term.name]
+                if let date = source.term.start { row["start"] = formatter.string(from:date) }
+                if let date = source.term.end { row["end"] = formatter.string(from:date) }
+                if let weight = source.term.weight { row["weight"] = weight }
+                return row
+            }
+            return SchoologyPeriodMetadata(data:try JSONSerialization.data(withJSONObject:["grading_period":rows]),fetched:stamp)
+        }
+        do { return SchoologyPeriodMetadata(data:try await pagedData(path:"sections/\(enrollment)/grading_periods", key:"grading_period"),fetched:Date()) }
+        catch {
+            if let error = error as? ProviderError {
+                switch error { case .reconnect, .throttled: throw error; default: break }
+            }
+            if error is CancellationError { throw error }
+            return SchoologyPeriodMetadata(data:Data("{\"grading_period\":[]}".utf8),fetched:Date())
+        }
+    }
+    private func enrichTitles(_ courses: [SourceCourse], enrollment: String, previous: [SourceCourse]) async throws -> [SourceCourse] {
+        let cached = Dictionary(previous.flatMap(\.assignments).map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a })
+        let unresolved = Dictionary(courses.flatMap(\.assignments).filter { !$0.hasTitle && $0.score.isGraded }.map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a }).values.sorted { $0.id < $1.id }
+        let metadata = try await concurrentMap(unresolved, limit: 3) { row -> SourceAssignment in
+            if let old = cached[row.id], old.hasTitle { return old }
+            guard let id = row.source.fields["assignment_id"], (row.source.fields["type"] ?? "assignment") == "assignment" else { return row }
+            let url = URL(string:"https://api.schoology.com/v1/sections/\(OAuth1.encode(enrollment))/assignments/\(OAuth1.encode(id))")!
+            do {
+                let item = try ProviderParsing.object(await http.get(url))
+                // The requested resource can be the wrapper ID while the response
+                // also names a different graded node. Validate either explicit ID;
+                // preserve the grade row's original identity and score.
+                guard ProviderParsing.itemID(item) == id || ProviderParsing.nonempty(item["id"]) == id,
+                      let title = ProviderParsing.nonempty(item["title"]) else { return row }
+                if let kind = ProviderParsing.nonempty(item["type"]), ["assignment", "discussion", "assessment"].contains(kind), kind != (row.source.fields["type"] ?? "assignment") { return row }
+                var result = row; result.title = title
+                result.due = ProviderParsing.date(item["due"]) ?? row.due
+                result.score.possible = row.score.possible ?? ProviderParsing.number(item["max_points"])
+                return result
+            } catch {
+                // Optional inaccessible/deleted metadata must not discard valid scores.
+                if error is CancellationError { throw error }
+                if let failure = error as? ProviderError {
+                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                }
+                return row
+            }
+        }
+        let byID = Dictionary(uniqueKeysWithValues: metadata.map { ($0.id, $0) })
+        return courses.map { original in
+            var source = original
+            source.assignments = original.assignments.map { row in
+                guard let item = byID[row.id] else { return row }
+                var result = row; result.title = item.title
+                result.due = row.due ?? item.due; result.score.possible = row.score.possible ?? item.score.possible
+                return result
+            }
+            return source
+        }
+    }
+    private func pagedData(path: String, key: String) async throws -> Data {
+        try await JSONSerialization.data(withJSONObject: [key: paged(path: path, key: key)])
     }
     private func paged(path: String, key: String) async throws -> [[String: Any]] {
         var next: URL? = URL(string: "https://api.schoology.com/v1/\(path)?limit=200"), seen = Set<URL>(), all: [[String: Any]] = []
         while let url = next {
             guard seen.insert(url).inserted, seen.count <= 100 else { throw ProviderError.tooManyPages }
             let payload = try ProviderParsing.object(await http.get(url))
-            guard payload[key] != nil else { throw ProviderError.malformed }
-            all += ProviderParsing.rows(payload[key])
+            all += try ProviderParsing.collection(payload[key])
             if let links = payload["links"] as? [String: Any], let s = links["next"] as? String, !s.isEmpty {
                 guard let candidate = URL(string: s, relativeTo: url)?.absoluteURL else { throw ProviderError.malformed }
                 // Some Schoology examples return HTTP links: upgrade only this same provider host.
                 var c = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
                 if c.host == "api.schoology.com" { c.scheme = "https" }
                 next = c.url
-            } else { next = nil }
+            } else {
+                if let total = ProviderParsing.number(payload["total"]), Double(all.count) < total { throw ProviderError.malformed }
+                next = nil
+            }
         }
         return all
     }
@@ -202,15 +340,49 @@ public struct SchoologyProvider: Sendable {
 public struct InfiniteCampusProvider: Sendable {
     let http: ReadOnlyHTTP; let base: URL
     public init(base: URL, cookies: [HTTPCookie], diagnosticsEnabled: Bool = false) throws { self.base = base; http = try ReadOnlyHTTP(origin: base, cookies: cookies, diagnosticsEnabled: diagnosticsEnabled) }
-    public func fetch() async throws -> [SourceCourse] {
+    init(base: URL, http: ReadOnlyHTTP) { self.base = base; self.http = http }
+    public func fetch(resuming portal: URL? = nil) async throws -> [SourceCourse] {
+        do { return try await fetchSnapshot() }
+        catch ProviderError.reconnect {
+            guard let portal else { throw ProviderError.reconnect }
+            // Revisit only the saved district page with the same private cookie jar.
+            // This is ordinary portal navigation, not an assumed refresh-token API.
+            do { try await http.visitPortal(portal) }
+            catch ProviderError.unsafeURL { throw ProviderError.reconnect }
+            return try await fetchSnapshot()
+        }
+    }
+    private func fetchSnapshot() async throws -> [SourceCourse] {
         let grades = try await http.get(base.appendingPathComponent("resources/portal/grades"))
         let summaries = try ProviderParsing.campus(grades: grades)
-        var details: [String: Data] = [:]
-        for id in Set(summaries.compactMap { $0.source.fields["detail_id"] }).sorted() {
-            details[id] = try await http.get(base.appendingPathComponent("resources/portal/grades/detail").appendingPathComponent(id))
+        let ids = Set(summaries.compactMap { $0.source.fields["detail_id"] }).sorted()
+        let responses = try await concurrentMap(ids, limit: 3) { id in
+            let data = try await http.get(base.appendingPathComponent("resources/portal/grades/detail").appendingPathComponent(id))
+            return (id, data)
         }
+        let details = Dictionary(uniqueKeysWithValues: responses)
         return try ProviderParsing.campus(grades: grades, details: details)
     }
     public func sessionCookies() async -> [HTTPCookie] { await http.cookies() }
     public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
+}
+
+private struct SchoologySectionAttempt: Sendable { let id: String; let result: Result<SchoologySectionGrades, Error> }
+private struct SchoologySectionGrades: Sendable { let id: String; let owner: String?; let data: Data }
+
+/// Bounded concurrency, stable input order, and cancellation on a failed snapshot.
+func concurrentMap<Input: Sendable, Output: Sendable>(_ input: [Input], limit: Int, operation: @escaping @Sendable (Input) async throws -> Output) async throws -> [Output] {
+    try await withThrowingTaskGroup(of: (Int, Output).self) { group in
+        var next = 0, completed: [(Int, Output)] = []
+        func submit() {
+            let index = next; next += 1
+            group.addTask { (index, try await operation(input[index])) }
+        }
+        for _ in 0..<min(max(1, limit), input.count) { submit() }
+        while let result = try await group.next() {
+            completed.append(result)
+            if next < input.count { submit() }
+        }
+        return completed.sorted { $0.0 < $1.0 }.map { $0.1 }
+    }
 }

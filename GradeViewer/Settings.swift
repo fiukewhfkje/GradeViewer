@@ -88,7 +88,16 @@ struct CampusSetupView: View {
         webView.allowsBackForwardNavigationGestures = true
         host = portal.host ?? ""
         if (try? CampusSession(portal: portal, cookies: [])) != nil { studentPortal = portal }
-        webView.load(URLRequest(url: portal))
+        // Restore this app's saved Campus cookies to the private login view.
+        // The district can reuse a still-valid session through its normal page.
+        let saved = try? SecureStore.load(CampusSession.self, account: "campus")
+        let cookies = saved?.base.host?.lowercased() == portal.host?.lowercased() ? saved?.cookies.compactMap(\.cookie) ?? [] : []
+        Task { @MainActor [webView] in
+            for cookie in cookies where cookie.expiresDate.map({ $0 > Date() }) ?? true {
+                await webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
+            }
+            webView.load(URLRequest(url: portal))
+        }
     }
 }
 struct CampusLoginView: View {

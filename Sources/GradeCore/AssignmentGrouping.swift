@@ -8,6 +8,11 @@ public struct AssignmentGroupData: Identifiable, Sendable {
 
 /// Presentation grouping never changes course identity or the calculator's source.
 public enum AssignmentGrouping {
+    public static func updated(for course: Course, schoology: SourceCourse?) -> Date? {
+        overview(for: course, schoology: schoology).flatMap(\.sources)
+            .filter { $0.score.isGraded }.compactMap(\.updated).max()
+            ?? (course.history.count > 1 ? course.history.last?.date : nil)
+    }
     public static func overview(for course: Course, schoology: SourceCourse?) -> [Assignment] {
         let rows = groups(for: course, schoology: schoology).flatMap(\.assignments)
         return AssignmentOrdering.graded(Dictionary(rows.map { ($0.id,$0) }, uniquingKeysWith: { a,_ in a }).values)
@@ -19,16 +24,17 @@ public enum AssignmentGrouping {
         let own = Set(course.calculationSource.assignments.compactMap(Reconciler.assignmentLabelKey))
         let unique = Dictionary(available.filter { $0.source.provider == .schoology }.map { ($0.id, $0) }, uniquingKeysWith: { a,b in a.fetched > b.fetched ? a : b }).values
         let candidates = unique.filter { source in
-            guard !source.categories.isEmpty, Reconciler.normalize(source.source.fields["course_name"] ?? source.title) == name else { return false }
+            guard !source.categories.isEmpty, Reconciler.compatibleMetadata(course.calculationSource, source), Reconciler.normalize(source.source.fields["course_name"] ?? source.title) == name else { return false }
             let shared = own.intersection((source.assignments + (source.assignmentCatalog ?? [])).compactMap(Reconciler.assignmentLabelKey))
             // Matching names alone must never borrow another period/section's categories.
             return shared.count >= 2
         }
         let owners = Dictionary(grouping: candidates, by: { $0.source.fields["grade_section_id"] ?? $0.id })
         guard owners.count == 1 else { return nil }
-        return owners.values.first?.max { a,b in
-            own.intersection(a.assignments.compactMap(Reconciler.assignmentLabelKey)).count < own.intersection(b.assignments.compactMap(Reconciler.assignmentLabelKey)).count
-        }
+        let periods = owners.values.first ?? []
+        let counts = periods.map { own.intersection($0.assignments.compactMap(Reconciler.assignmentLabelKey)).count }
+        guard let maximum = counts.max(), counts.filter({ $0 == maximum }).count == 1 else { return nil }
+        return periods[counts.firstIndex(of: maximum)!]
     }
 
     public static func fullCourse(for course: Course, among available: [Course]) -> Course {
@@ -74,12 +80,14 @@ public enum AssignmentGrouping {
         let actualKeys = Set(schoology.assignments.compactMap(Reconciler.assignmentKey))
         let actualIDs = Set(schoology.assignments.compactMap { item in item.source.fields["assignment_id"].map { ($0 + ":" + (item.source.fields["type"] ?? "assignment")) } })
         let sourceRows = schoology.assignments + (schoology.assignmentCatalog ?? []).filter {
-            if let id = $0.source.fields["id"], actualIDs.contains(id + ":" + ($0.source.fields["type"] ?? "assignment")) { return false }
+            if let id = $0.source.fields["grade_item_id"] ?? $0.source.fields["id"], actualIDs.contains(id + ":" + ($0.source.fields["type"] ?? "assignment")) { return false }
             return Reconciler.assignmentKey($0).map { !actualKeys.contains($0) } ?? true
         }
-        let canonicalByKey = Dictionary(grouping: graded.compactMap { row in Reconciler.assignmentKey(row.display).map { ($0,row) } }, by: { $0.0 })
+        let basisProvider = course.calculationSource.source.provider
+        let basisRows = graded.filter { $0.sources.contains { $0.source.provider == basisProvider } }
+        let canonicalByKey = Dictionary(grouping: basisRows.compactMap { row in Reconciler.assignmentKey(row.display).map { ($0,row) } }, by: { $0.0 })
         let schoologyByKey = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentKey(row).map { ($0,row) } }, by: { $0.0 })
-        let canonicalByLabel = Dictionary(grouping: graded.compactMap { row in Reconciler.assignmentLabelKey(row.display).map { ($0,row) } }, by: { $0.0 })
+        let canonicalByLabel = Dictionary(grouping: basisRows.compactMap { row in Reconciler.assignmentLabelKey(row.display).map { ($0,row) } }, by: { $0.0 })
         let schoologyByLabel = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentLabelKey(row).map { ($0,row) } }, by: { $0.0 })
         var rows: [Assignment] = [], used = Set<String>()
         for item in sourceRows {
@@ -92,12 +100,14 @@ public enum AssignmentGrouping {
             let uniqueLabel = labeled?.count == 1 && label.flatMap { schoologyByLabel[$0]?.count } == 1
             // Date differences do not prevent borrowing a category within an evidenced class.
             // This fallback is presentation-only; canonical reconciliation remains strict.
-            let canonical = direct ?? (unambiguous ? candidate?.first?.1 : nil) ?? (uniqueLabel ? labeled?.first?.1 : nil)
+            let directBasis = direct.flatMap { row in row.sources.contains { $0.source.provider == basisProvider } ? row : nil }
+            let canonical = directBasis ?? (unambiguous ? candidate?.first?.1 : nil) ?? (uniqueLabel ? labeled?.first?.1 : nil) ?? direct
             if let canonical {
                 guard !used.contains(canonical.id) else { continue }
                 var row = canonical
                 if !row.sources.contains(where: { $0.id == item.id }) { row.sources.append(item) }
                 rows.append(row); used.insert(row.id)
+                if let direct { used.insert(direct.id) }
             } else if item.score.isGraded { rows.append(Assignment(id: item.id, sources: [item])) }
         }
         rows = AssignmentOrdering.graded(rows)

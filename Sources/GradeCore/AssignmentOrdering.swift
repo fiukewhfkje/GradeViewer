@@ -24,6 +24,9 @@ public struct GradeUpdateAge: Sendable {
         else if hours < 23.5 {
             let count = Int(hours.rounded())
             text = "updated \(count) \(count == 1 ? "hour" : "hours") ago"
+        } else if elapsed > 30 * 86400 {
+            let count = max(1, Int(elapsed / (30 * 86400)))
+            text = "updated \(count) \(count == 1 ? "month" : "months") ago"
         } else {
             let count = max(1, Int((elapsed / 86400).rounded()))
             text = "updated \(count) \(count == 1 ? "day" : "days") ago"

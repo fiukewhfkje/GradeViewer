@@ -32,7 +32,7 @@ struct WhatIfView: View {
             .onChange(of: hypothesis.scores) { _, _ in save() }
             .onChange(of: hypothesis.ignored) { _, _ in save() }
             .onChange(of: hypothesis.added) { _, _ in save() }
-            .sheet(isPresented: $adding) { NavigationStack { AddAssignmentView(course: course) { a in hypothesis.added.append(a); adding = false }.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { adding = false } } } } }
+            .sheet(isPresented: $adding) { NavigationStack { AddAssignmentView(course: course) { a in hypothesis.added.append(a); adding = false }.toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { adding = false } } } }.freshGradeGate(dismissible:true) }
     }
     func save() { store.saveScenario(hypothesis, course: course) }
 }
@@ -120,8 +120,10 @@ struct InteractiveAssignmentRow: View {
     var dropped: Bool { scenario.ignored.contains(source.id) }
     var changed: Bool { scenario.scores[source.id] != nil || dropped }
     var simulated: Assignment {
-        var a = source
-        if let earned = scenario.scores[a.id] { a.score.earned = earned }
+        // Keep the reconciled title and newest timestamp when applying a local
+        // score override. The calculator identity still comes from its own source.
+        var a = assignment.display
+        if let earned = scenario.scores[source.id] { a.score.earned = earned }
         return Assignment(id: assignment.id, sources: [a])
     }
     var body: some View {
@@ -134,11 +136,11 @@ struct InteractiveAssignmentRow: View {
                 }
                 Button("Reset Assignment", systemImage: "arrow.uturn.backward") { var h = scenario; h.scores[source.id] = nil; h.ignored.remove(source.id); store.saveScenario(h, course: course) }.disabled(!changed)
             } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).foregroundStyle(.primary).frame(width: 38, height: 44) }
-                .tint(.primary).accessibilityLabel("Options for \(source.title)")
+                .tint(.primary).accessibilityLabel("Options for \(assignment.display.title)")
                 .disabled(!GradeCalculator.isReliable(course.calculationSource) || !course.calculationSource.assignments.contains(where: { $0.id == source.id }))
         }.background(compact ? Color.clear : Palette.row, in: RoundedRectangle(cornerRadius: compact ? 0 : 16))
             .sheet(isPresented: $editing) {
-                EditScoreView(assignment: source, value: scenario.scores[source.id] ?? source.score.earned) { value in var h = scenario; h.scores[source.id] = value; store.saveScenario(h, course: course); editing = false }
+                EditScoreView(assignment: source, value: scenario.scores[source.id] ?? source.score.earned) { value in var h = scenario; h.scores[source.id] = value; store.saveScenario(h, course: course); editing = false }.freshGradeGate(dismissible:true)
                     .presentationDetents([.height(280)]).presentationDragIndicator(.visible)
             }
     }
@@ -166,22 +168,33 @@ struct EditScoreView: View {
 struct CourseGradeSummary: View {
     @Environment(AppStore.self) private var store
     let course: Course
+    var overall: Course? = nil
     @State private var destination: Destination?
     enum Destination: String, Identifiable { case assignments, whatif, final, sources; var id: String { rawValue } }
     var body: some View {
         let h = store.scenario(course)
         let changed = !h.scores.isEmpty || !h.ignored.isEmpty || !h.added.isEmpty
         let reliable = GradeCalculator.isReliable(course.calculationSource)
-        let simulated = changed && reliable ? try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: h) : nil
-        let showScenario = changed && reliable && (simulated == nil || abs((simulated ?? 0) - (course.display.grade.percent ?? 0)) >= 0.005)
+        let gradeCourse = overall ?? course
+        let original = gradeCourse.display.grade.percent
+        let scale = overall.flatMap { $0.id == course.id ? 1 : GradingPeriods.semesterScale(for: course, semester: $0, among: store.courses) } ?? (overall == nil ? 1 : nil)
+        let quarterResult = changed && reliable ? try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: h) : nil
+        let simulated = quarterResult.flatMap { value in
+            scale.flatMap { weight in original.flatMap { grade in course.display.grade.percent.map { grade + (value - $0) * weight } } }
+        }
+        let showScenario = changed && reliable && scale != nil && (simulated == nil || abs((simulated ?? 0) - (original ?? 0)) >= 0.005)
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 7) { Text("Course Grade").font(.title3.bold()); UpdatedLabel(date: course.updated) }.frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Course Grade").font(.title3.bold())
+                if let overall { Text(GradingPeriods.descriptor(overall).label + " overall").font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
+                UpdatedLabel(date: store.updated(course))
+            }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .center, spacing: 5) {
                 if showScenario {
                     Text(percentText(simulated)).font(.title2.bold()).foregroundStyle(.blue).monospacedDigit()
-                    if let simulated, let original = course.display.grade.percent { Text(String(format: "%+.2f%%", simulated - original)).font(.subheadline.bold()).foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 2).background(Palette.grade, in: RoundedRectangle(cornerRadius: 4)) }
-                } else { GradeLabel(grade: course.display.grade, large: true) }
-            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : "Course grade")
+                    if let simulated, let original { Text(String(format: "%+.2f%%", simulated - original)).font(.subheadline.bold()).foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 2).background(Palette.grade, in: RoundedRectangle(cornerRadius: 4)) }
+                } else { GradeLabel(grade: gradeCourse.display.grade, large: true) }
+            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : "Course grade").accessibilityValue(showScenario ? percentText(simulated) : percentText(gradeCourse.display.grade.percent))
             Menu {
                 Button("View All Assignments", systemImage: "list.bullet") { destination = .assignments }
                 Button("What If? Calculator", systemImage: "pencil") { destination = .whatif }
@@ -192,10 +205,10 @@ struct CourseGradeSummary: View {
         }.padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 24).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
             .navigationDestination(item: $destination) { destination in
                 switch destination {
-                case .assignments: AssignmentsView(course: course)
+                case .assignments: AssignmentsView(course: course, scoped: overall != nil || GradingPeriods.descriptor(course).kind != .other)
                 case .whatif: WhatIfView(course: course)
-                case .final: FinalCalculatorView(course: course)
-                case .sources: SourceGradesView(course: course)
+                case .final: FinalCalculatorView(course: gradeCourse)
+                case .sources: SourceGradesView(course: gradeCourse)
                 }
             }
     }

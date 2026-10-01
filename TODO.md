@@ -2,33 +2,32 @@
 
 ## Completed
 
-- [x] Native local app, Git from the beginning, signed iPhone app/widget installation and launch.
-- [x] Both real provider fetches; correct Campus section detail IDs and Schoology grade-owner aliases.
-- [x] Persist active/pending credentials safely and reuse them across reinstall/relaunch.
-- [x] Supplied-reference layout, dark mode, stronger typography, course/assignment menus, no quarters or polling timer.
-- [x] Smooth graph tracing with discrete grade/date thresholds, dim remaining curve, light tooltip, release clearing and first-point flat line.
-- [x] Remove manual course Settings screens; unique assignment-evidence matching merged five live course pairs.
-- [x] Preserve individual assignment graph points with tied timestamps, equal event spacing, and reconstruction through the latest fetch.
-- [x] Parse real scoreModifiedDate; rounded static update labels for every current class.
-- [x] Hide ungraded rows and retain Schoology-only graded work; fix the observed missing Biology extra-credit row.
-- [x] One deterministic assignment ordering rule across every class; regressions for equal dates and undated scores.
-- [x] Schoology categories in full view, historical quarter grades, catalog metadata and physical-row deduplication without changing current calculation basis.
-- [x] Remove fake blue +0.01% caused by unchanged overrides/provider rounding.
-- [x] Small/medium widget, shared content/App Group validation, add-widget instructions and tap routing.
-- [x] Detailed final report and separate Muse report covering all four requested subjects. No watcher deployed.
-- [x] Create explicitly requested private GitHub repository and preserve existing history.
+- [x] Native local app, canonical GradeCore, protected SwiftData cache, Keychain credentials and App Group widget summary.
+- [x] Both authenticated provider pipelines, Campus section detail IDs, and Schoology enrollment/grade-owner aliases.
+- [x] Every-foreground and manual refresh, active-only one-minute checks, coalescing, parallel provider publication, and bounded section concurrency.
+- [x] Latest linked scored timestamps on home/detail, Schoology-only recent work, deterministic ordering and presentation deduplication.
+- [x] Preserve cookie rotation/deletions in Keychain after failed and successful Campus attempts; one saved-portal recovery attempt and normal reconnect.
+- [x] Fix numeric assignment titles through graded-node/wrapper identities and scoped metadata reads; six Biology rows verified repaired.
+- [x] Explicit period matching and physical section relationships, one home card per class, semester/quarter/exam pills only in View All Assignments, and scoped assignment lists. Separate period menu removed at the user's request.
+- [x] Semester overall above quarter assignments; semester scenario weights require a reproduced reported total; presentation unions never become calculator input.
+- [x] Combined Schoology user-grade reads for repeat refreshes, alias fallback, period metadata cache expiry/new-period renewal, and Retry-After handling.
+- [x] Reported-grade anchor for calculated graph points; no-op scenario rounding fix; observed history and discrete grade/date tooltip preserved.
+- [x] 24-hour checkmark and month labels over 30 days, according to the user’s final preference.
+- [x] Foreground loading/failure gate that retains saved data internally without flashing old grades; Profile and dismissal remain available.
+- [x] Existing native UI, appearance, local edit/drop/reset, final calculator, original icon, and widget tap routing.
 
-## Further evidence-driven validation
+## Final delivery in progress
 
-- [ ] Reconnect Infinite Campus on the phone: latest authenticated check returned HTTP 401. Cached Campus grades are preserved; Schoology succeeds.
+- [ ] Finish hosted/UI loading-gate validation, final signed iPhone install/launch, merge/push, and clean Git checkout.
 
-- [ ] Compare additional Bessy/native-portal screens if the user supplies them; exact private Bessy tie-break rules are not documented.
-- [ ] Observe naturally populated prior-quarter data and new real grade changes. Fixture coverage establishes local behavior, not future district payloads.
-- [ ] Calibrate timezone-less dates, real rubric/rounding/override rules and unusual assignment scales when an actual discrepancy is found.
-- [ ] Observe offline relaunch, cookie rotation and eventual session expiry/reconnect. Bind cache to verified account identity before supporting account switching without explicit disconnect.
-- [ ] Verify actual Home Screen placement, reload and widget taps on the phone.
-- [ ] Measure physical-device cached launch/scrolling if performance issues are observed. Do not treat the earlier debug simulator metric as a device benchmark.
-- [ ] Verify changed-since semantics/rate limits before a separate authorized Muse watcher uses sustained polling.
-- [ ] Renew development provisioning after October 6, 2026 when needed.
+## Evidence-driven follow-up
 
-No notification server, continuous app polling, paid tier, planner, analytics or speculative provider workaround.
+- [ ] One other Schoology assignment detail returns HTTP 403. Preserve its score and neutral title; recover only if the provider supplies accessible metadata.
+- [ ] Observe naturally populated completed previous-quarter/semester grades and genuine new grade changes.
+- [ ] Calibrate actual timezone-less dates, rubric scales, rounding and teacher overrides when a discrepancy is demonstrated.
+- [ ] Verify offline/expiry behavior and automatic account identity binding before account switching without disconnect.
+- [ ] Observe physical Home Screen widget placement, reload, and taps.
+- [ ] Renew development provisioning after October 6, 2026 when needed; wider distribution requires a separate signing/release decision.
+- [ ] Measure further provider latency/rate limits only when a real performance issue justifies it. No sustained Muse watcher was authorized or deployed.
+
+No provider writes, notification server, background polling, paid tier, planner, analytics, or fabricated grades/dates.

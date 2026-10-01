@@ -12,20 +12,15 @@ func pointsText(_ value: Double?) -> String { value.map { $0.formatted(.number.p
 /// A fixed label from a provider's score-change date, never a live refresh counter.
 struct UpdatedLabel: View {
     let date: Date?
+    @Environment(AppStore.self) private var store
     var body: some View {
         if let date {
-            let age = GradeUpdateAge(date: date)
+            let age = GradeUpdateAge(date: date, now: store.presentationDate)
             HStack(spacing: 5) {
                 Text(age.text)
                 Image(systemName: age.fresh ? "checkmark.circle.fill" : "clock").accessibilityHidden(true)
             }.font(.subheadline.weight(.semibold)).foregroundStyle(age.fresh ? Palette.grade : Color.secondary)
         }
-    }
-}
-extension Course {
-    var updated: Date? {
-        let providerDates = display.assignments.filter { $0.score.earned != nil || $0.score.letter != nil }.compactMap(\.updated)
-        return providerDates.max() ?? (history.count > 1 ? history.last?.date : nil)
     }
 }
 struct GradeLabel: View {
@@ -39,6 +34,40 @@ struct GradeLabel: View {
         .accessibilityElement(children: .combine)
     }
 }
+struct FreshGradeGate: ViewModifier {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    var dismissible = false
+    var onClose: (() -> Void)? = nil
+    func body(content: Content) -> some View {
+        Group {
+            if store.needsFreshData {
+                ZStack {
+                    Palette.background.ignoresSafeArea()
+                    VStack(spacing: 18) {
+                        if store.foregroundRefreshFailed && !store.refreshing {
+                            Image(systemName:"arrow.clockwise.circle").font(.largeTitle).foregroundStyle(.secondary)
+                            Text("Fresh grades unavailable").font(.title3.bold())
+                            ForEach(ProviderID.allCases, id: \.self) { provider in
+                                if let error = store.errors[provider] { Text(error).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
+                            }
+                            Text("Your saved data is retained. Retry or check your connection in Profile.").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            Button("Retry") { Task { await store.refresh() } }.buttonStyle(.borderedProminent).tint(.primary).accessibilityIdentifier(dismissible ? "retry-fresh-grades-sheet" : "retry-fresh-grades")
+                        } else {
+                            ProgressView().controlSize(.large)
+                            Text("Refreshing grades…").font(.headline)
+                        }
+                    }.padding(30)
+                }.overlay(alignment:.topTrailing) {
+                    if dismissible { closeButton { onClose?(); dismiss() }.padding(16) }
+                }
+            } else { content }
+        }
+    }
+}
+extension View {
+    func freshGradeGate(dismissible: Bool = false, onClose: (() -> Void)? = nil) -> some View { modifier(FreshGradeGate(dismissible:dismissible, onClose:onClose)) }
+}
 struct RootView: View {
     @Environment(AppStore.self) private var store
     @State private var tab = 0
@@ -46,7 +75,7 @@ struct RootView: View {
     private let screen = ProcessInfo.processInfo.arguments.first { $0.hasPrefix("--screen=") }?.replacingOccurrences(of: "--screen=", with: "")
     var body: some View {
         Group {
-            if tab == 0 { NavigationStack { CourseListView() } }
+            if tab == 0 { NavigationStack { CourseListView() }.freshGradeGate() }
             else { NavigationStack { SettingsView() } }
         }.onOpenURL { url in
             if url.scheme == "gradeviewer", url.host == "grades" { tab = 0; previewCourse = nil }
@@ -70,7 +99,7 @@ struct RootView: View {
                         default: CourseDetailView(courseID: course.id)
                         }
                     }.toolbar { CourseCloseToolbar { previewCourse = nil } }
-                }.presentationDetents([.large])
+                }.freshGradeGate(dismissible:true).presentationDetents([.large])
             }
     }
     private func tabButton(_ name: String, icon: String?, selected: Int) -> some View {
@@ -83,7 +112,7 @@ struct RootView: View {
         }.buttonStyle(.plain).accessibilityLabel(name).accessibilityIdentifier("tab-\(name.lowercased())").accessibilityAddTraits(tab == selected ? .isSelected : [])
     }
 }
-func closeButton(_ close: @escaping () -> Void) -> some View {
+@MainActor func closeButton(_ close: @escaping () -> Void) -> some View {
     Button(action: close) { Image(systemName: "xmark").font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary).frame(width: 32, height: 32).background(Color.primary.opacity(0.08), in: Circle()) }.buttonStyle(.plain).accessibilityLabel("Close course")
 }
 struct CourseCloseToolbar: ToolbarContent {
@@ -95,7 +124,6 @@ struct CourseCloseToolbar: ToolbarContent {
 }
 struct CourseListView: View {
     @Environment(AppStore.self) private var store
-    @State private var selected: Course?
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 8) {
@@ -113,11 +141,11 @@ struct CourseListView: View {
                     Text("No courses available").padding(.vertical, 40)
                 }
                 ForEach(store.visibleCourses) { course in
-                    Button { selected = course } label: {
+                    Button { store.selectedCourseID = course.id } label: {
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 7) {
                                 Text(course.name).font(.title3.bold()).foregroundStyle(.primary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
-                                UpdatedLabel(date: course.updated)
+                                UpdatedLabel(date: store.updated(course))
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             GradeLabel(grade: course.display.grade)
                             Image(systemName: "chevron.right").font(.title3.weight(.medium)).foregroundStyle(.primary)
@@ -127,33 +155,69 @@ struct CourseListView: View {
             }.padding(.horizontal, 16).padding(.vertical, 12)
         }.background(Palette.background).navigationTitle("My grades")
             .refreshable { await store.refresh() }
-            .sheet(item: $selected) { course in NavigationStack { CourseDetailView(courseID: course.id).toolbar { CourseCloseToolbar { selected = nil } } }.presentationDetents([.large]) }
+            .sheet(item: Binding(get: { store.courses.first { $0.id == store.selectedCourseID } }, set: { if $0 != nil || !store.needsFreshData { store.selectedCourseID = $0?.id } })) { course in NavigationStack { CourseDetailView(courseID: course.id).toolbar { CourseCloseToolbar { store.selectedCourseID = nil } } }.freshGradeGate(dismissible:true, onClose:{ store.selectedCourseID = nil }).presentationDetents([.large]) }
     }
 }
 struct CourseDetailView: View {
     @Environment(AppStore.self) private var store
     let courseID: String
     var body: some View {
-        if let course = store.courses.first(where: { $0.id == courseID }) {
+        if let original = store.courses.first(where: { $0.id == courseID }) {
+            let selected = original
+            let course = GradingPeriods.presentation(for: selected, among: store.courses)
+            let semester = GradingPeriods.semester(for: selected, among: store.courses)
             ScrollView {
-                VStack(alignment: .leading, spacing: 34) {
-                    CourseGradeSummary(course: course)
+                VStack(alignment: .leading, spacing: 28) {
+                    CourseGradeSummary(course: course, overall: semester)
                     VStack(alignment: .leading, spacing: 17) {
-                        Text("Grade Progression").font(.title3.bold())
-                        GradeProgressionView(course: course).zIndex(1)
+                        Text(GradingPeriods.descriptor(selected).kind == .quarter ? GradingPeriods.descriptor(selected).label + " Grade Progression" : "Grade Progression").font(.title3.bold())
+                        GradeProgressionView(course: selected).zIndex(1)
                     }.zIndex(1)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Recently Graded Assignments").font(.title3.bold()).padding(.bottom, 7)
                         let schoology = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
                         let recent = AssignmentGrouping.overview(for: course, schoology: schoology).prefix(5)
+                        if recent.isEmpty { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 12) }
                         ForEach(Array(recent)) { assignment in InteractiveAssignmentRow(assignment: assignment, course: course) }
                     }
-                    NavigationLink { AssignmentsView(course: course) } label: {
+                    NavigationLink { AssignmentsView(course: selected, scoped: true) } label: {
                         HStack(spacing: 18) { Text("View All Assignments").font(.headline); Image(systemName: "arrow.right") }.foregroundStyle(Palette.background).frame(maxWidth: .infinity).padding(.vertical, 25).background(Color.primary, in: RoundedRectangle(cornerRadius: 16))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).accessibilityIdentifier("view-all-assignments")
                 }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 24)
             }.background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
+                .refreshable { await store.refresh() }
         } else { ContentUnavailableView("Course unavailable", systemImage: "list.bullet") }
+    }
+}
+struct AssignmentPeriodPills: View {
+    let periods: [Course]
+    let selectedID: String
+    let select: (String) -> Void
+    var body: some View {
+        let ordered = [PeriodKind.quarter, .semester, .exam].flatMap { kind in periods.filter { GradingPeriods.descriptor($0).kind == kind } }
+        ScrollView(.horizontal) {
+            HStack(spacing: 4) {
+                ForEach(ordered) { course in
+                    let selected = course.id == selectedID
+                    Button { select(course.id) } label: {
+                        Text(label(course)).font(.subheadline.weight(.semibold))
+                            .foregroundStyle(selected ? Palette.background : Color.secondary)
+                            .padding(.horizontal, 16).frame(minHeight: 36)
+                            .background(selected ? Color.primary : .clear, in: Capsule())
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel(label(course) + " assignments")
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                        .accessibilityIdentifier("period-" + course.display.term.id + "-" + GradingPeriods.descriptor(course).kind.rawValue)
+                }
+            }.padding(4)
+        }.scrollIndicators(.hidden).background(Palette.row, in: Capsule()).clipShape(Capsule())
+            .accessibilityElement(children:.contain)
+            .accessibilityIdentifier("assignment-period-pills")
+    }
+    private func label(_ course: Course) -> String {
+        let period = GradingPeriods.descriptor(course)
+        if period.kind == .exam, let semester = GradingPeriods.semester(for:course, among:periods) { return GradingPeriods.descriptor(semester).label + " Exam" }
+        return period.label
     }
 }
 struct GradeProgressionView: View {
@@ -281,16 +345,27 @@ struct AssignmentRow: View {
 struct AssignmentsView: View {
     @Environment(AppStore.self) private var store
     let course: Course
+    var scoped = false
     var body: some View {
+        let original = store.courses.first { $0.id == self.course.id } ?? self.course
+        let periods = GradingPeriods.ordered(GradingPeriods.related(to: original, among: store.courses)).filter { [.quarter, .semester, .exam].contains(GradingPeriods.descriptor($0).kind) }
+        let selected = periods.first { $0.id == store.selectedPeriods[original.id] } ?? original
+        let scoped = self.scoped || !periods.isEmpty
+        let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected
         let source = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
-        let full = AssignmentGrouping.fullCourse(for: course, among: store.courses)
+        let full = scoped ? course : AssignmentGrouping.fullCourse(for: course, among: store.courses)
         let groups = AssignmentGrouping.groups(for: full, schoology: source)
         ScrollView {
             VStack(spacing: 20) {
-                CourseGradeSummary(course: course)
-                ForEach(groups) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
+                if periods.count > 1 {
+                    AssignmentPeriodPills(periods:periods, selectedID:selected.id) { store.selectedPeriods[original.id] = $0 }
+                }
+                CourseGradeSummary(course: course, overall: scoped ? GradingPeriods.semester(for: selected, among: store.courses) : nil)
+                if groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
+                ForEach(groups.filter { !$0.assignments.isEmpty }) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
             }.padding(16)
         }.background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
+            .refreshable { await store.refresh() }
     }
 }
 struct AssignmentGroup: View {

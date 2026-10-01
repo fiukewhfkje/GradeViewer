@@ -362,3 +362,225 @@ extension GradeCoreTests {
         XCTAssertTrue(groups.flatMap(\.assignments).allSatisfy { $0.display.score.isGraded })
     }
 }
+
+extension GradeCoreTests {
+    func testSchoologyUsesGradedNodeIDForTitleAndCatalogIdentity() throws {
+        let items = try fixture("schoology-items").asJSONObject()
+        var payload = items
+        var rows = try XCTUnwrap(items["assignment"] as? [[String: Any]])
+        rows[0]["grade_item_id"] = "10"; rows[0]["id"] = "wrapper-500"
+        rows[0]["count_in_grade"] = 0
+        payload["assignment"] = rows
+        let courses = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: JSONSerialization.data(withJSONObject: payload), categories: fixture("schoology-categories"))
+        let row = courses[0].assignments[0]
+        XCTAssertEqual(row.title, "Kinematics Quiz"); XCTAssertTrue(row.excluded)
+        XCTAssertTrue(courses[0].assignmentCatalog![0].id.hasSuffix(":assignment:10"))
+        XCTAssertEqual(courses[0].assignments.count, 2)
+    }
+    func testMalformedNestedCollectionsCannotEraseGrades() throws {
+        for value in ["null", "\"bad\"", "[12]"] {
+            let items = Data("{\"assignment\":\(value)}".utf8)
+            XCTAssertThrowsError(try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: items, categories: fixture("schoology-categories")))
+            let detail = Data("{\"details\":\(value)}".utf8)
+            XCTAssertThrowsError(try ProviderParsing.campus(grades: fixture("campus-grades"), details: ["100": detail]))
+        }
+        XCTAssertThrowsError(try ProviderParsing.campus(grades: fixture("campus-grades"), details: ["100": Data("{}".utf8)]))
+    }
+    func testUntitledFreshScorePreservesPreviouslyKnownTitle() {
+        let old = Reconciler.reconcile([source()])
+        var fresh = source(); fresh.assignments[0].title = "Untitled assignment"; fresh.assignments[0].score.earned = 70
+        let result = Reconciler.refreshing(previous: old, successful: [.schoology: [fresh]])
+        XCTAssertEqual(result[0].assignments.first { $0.id == fresh.assignments[0].id }?.display.title, "Quiz 1")
+        XCTAssertEqual(result[0].assignments.first { $0.id == fresh.assignments[0].id }?.display.score.earned, 70)
+    }
+    func testNewestLinkedProviderDateDrivesRowsAndHomeFreshness() {
+        var campus = source(.infiniteCampus), schoology = source()
+        campus.assignments[0].updated = Demo.now.addingTimeInterval(-3 * 86400)
+        schoology.assignments[0].updated = Demo.now
+        schoology.assignments.append(assignment(id: "new"))
+        schoology.assignments[2].updated = Demo.now.addingTimeInterval(1)
+        let course = Reconciler.reconcile([campus, schoology])[0]
+        let rows = AssignmentGrouping.overview(for: course, schoology: schoology)
+        XCTAssertEqual(rows[0].display.title, "Quiz new")
+        XCTAssertEqual(rows.first { $0.display.title == "Quiz 1" }?.display.updated, Demo.now)
+        XCTAssertEqual(AssignmentGrouping.updated(for: course, schoology: schoology), Demo.now.addingTimeInterval(1))
+        XCTAssertEqual(course.display.grade.percent, campus.grade.percent)
+    }
+    func testCalculatedGraphEndsAtReportedGradeWithoutRoundingTransition() {
+        var course = source(.infiniteCampus, percent: 96.29); course.method = .points
+        course.assignments = [assignment(.infiniteCampus, id:"a", earned:96.299), assignment(.infiniteCampus, id:"b", earned:96.299)]
+        for i in course.assignments.indices { course.assignments[i].updated = Demo.now.addingTimeInterval(Double(i)) }
+        course.fetched = Demo.now.addingTimeInterval(100)
+        let points = GradeProgression.calculated(course, before: course.fetched)
+        XCTAssertEqual(points.count, 2)
+        for point in points { XCTAssertEqual(point.grade.percent!, 96.29, accuracy: 0.0000001) }
+        let observed = GradeHistorySnapshot(date: course.fetched, grade: course.grade, provider: .infiniteCampus)
+        let curve = GradeCurve(points: points + [GradeProgressionPoint(observed)])
+        XCTAssertEqual(Set(curve.nodes.map { ($0.value * 100).rounded() }).count, 1)
+    }
+    func testTypedSchoologyIDsDoNotSuppressAnotherKind() throws {
+        let items = Data("{\"assignment\":[{\"id\":\"wrapper\",\"grade_item_id\":10,\"type\":\"discussion\",\"title\":\"Discussion\",\"grading_period\":1,\"max_points\":5}]}".utf8)
+        let course = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: items, categories: fixture("schoology-categories"))[0]
+        XCTAssertEqual(course.assignments.count, 3)
+        XCTAssertTrue(course.assignments.contains { $0.title == "Discussion" })
+        XCTAssertFalse(course.assignments.contains { $0.title.contains("Assignment 10") })
+    }
+}
+private extension Data {
+    func asJSONObject() throws -> [String: Any] { try XCTUnwrap(JSONSerialization.jsonObject(with: self) as? [String: Any]) }
+}
+
+extension GradeCoreTests {
+    func testSchoologyUniqueTypedWrapperAliasRetainsTitle() throws {
+        let items = Data("{\"assignment\":[{\"id\":10,\"grade_item_id\":500,\"title\":\"Wrapper referenced title\",\"type\":\"assignment\",\"max_points\":100}]}".utf8)
+        let course = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: items, categories: fixture("schoology-categories"))[0]
+        XCTAssertEqual(course.assignments[0].title, "Wrapper referenced title")
+        XCTAssertEqual(course.assignments[0].source.fields["assignment_id"], "10")
+    }
+}
+
+extension GradeCoreTests {
+    func testPresentationDeduplicatesUniqueCrossProviderRowsDespiteDueFormattingDifference() {
+        let schoology = source(); var campus = source(.infiniteCampus)
+        for i in campus.assignments.indices { campus.assignments[i].due = campus.assignments[i].due!.addingTimeInterval(86400) }
+        let course = Reconciler.reconcile([campus, schoology])[0]
+        XCTAssertEqual(course.assignments.count, 4) // canonical source evidence remains intact
+        let rows = AssignmentGrouping.overview(for: course, schoology: schoology)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertTrue(rows.allSatisfy { $0.sources.count == 2 })
+        XCTAssertEqual(course.calculationSource.assignments.count, 2)
+    }
+    func testCategoryAssociationRejectsTeacherTermConflictsAndTiedPeriods() {
+        let course = Reconciler.reconcile([source(.infiniteCampus)])[0]
+        var wrong = source(); wrong.teacher = "Different teacher"
+        XCTAssertNil(AssignmentGrouping.schoologySource(for:course, among:[wrong]))
+        var a = source(id:"a"), b = source(id:"b")
+        a.source.fields["grade_section_id"] = "same-owner"; b.source.fields["grade_section_id"] = "same-owner"
+        XCTAssertNil(AssignmentGrouping.schoologySource(for:course, among:[a,b]))
+        var campus = source(.infiniteCampus); campus.term.start = Demo.now; campus.term.end = Demo.now.addingTimeInterval(86400)
+        a.term.start = Demo.now.addingTimeInterval(-10 * 86400); a.term.end = Demo.now.addingTimeInterval(-9 * 86400)
+        XCTAssertNil(AssignmentGrouping.schoologySource(for: Reconciler.reconcile([campus])[0], among:[a]))
+    }
+    func testCurrentClassSelectionDoesNotTreatExamTaskAsAnotherClass() {
+        var quarter = source(.infiniteCampus, id:"quarter"), exam = source(.infiniteCampus, id:"exam")
+        quarter.source.fields = ["school_id":"fixture-school", "section_id":"fixture-section", "task_name":"Quarter"]
+        exam.source.fields = ["school_id":"fixture-school", "section_id":"fixture-section", "task_name":"Final Exam"]
+        var other = source(.infiniteCampus, id:"other-section")
+        other.source.fields = ["school_id":"fixture-school", "section_id":"other-section", "task_name":"Quarter"]
+        let cached = Reconciler.reconcile([quarter,exam,other])
+        let visible = CourseSelection.visible(cached, term:"Fall 2026")
+        XCTAssertEqual(visible.count, 2)
+        XCTAssertTrue(visible.contains { $0.display.source.id == "quarter" })
+        XCTAssertFalse(visible.contains { $0.display.source.id == "exam" })
+        XCTAssertEqual(cached.count, 3)
+        XCTAssertEqual(CourseSelection.visible(Reconciler.reconcile([exam]), term:"Fall 2026").count, 1)
+        XCTAssertTrue(CourseSelection.visible(cached, term:"Another quarter").isEmpty)
+    }
+}
+
+extension GradeCoreTests {
+    func testExplicitPeriodHierarchyMatchesEmptyQuartersExamsAndSemesterFinals() {
+        let sources = Demo.periodSources()
+        let courses = Reconciler.reconcile(sources)
+        XCTAssertEqual(courses.count, 8)
+        XCTAssertTrue(courses.allSatisfy { $0.sources.count == 2 })
+        let q1 = courses.first { GradingPeriods.descriptor($0).label == "Q1" }!
+        let s1 = GradingPeriods.semester(for:q1, among:courses)!
+        XCTAssertEqual(GradingPeriods.descriptor(s1).label, "S1")
+        XCTAssertEqual(s1.display.grade.percent, 85)
+        XCTAssertEqual(GradingPeriods.descriptor(s1).start, ProviderParsing.date("2026-08-20"))
+        let presentation = GradingPeriods.presentation(for:s1, among:courses)
+        XCTAssertEqual(presentation.assignments.count, 4)
+        XCTAssertTrue(presentation.calculationSource.assignments.isEmpty)
+        XCTAssertEqual(q1.assignments.count, 2)
+        XCTAssertEqual(GradingPeriods.semesterScale(for:q1,semester:s1,among:courses)!, 0.5, accuracy:0.000001)
+        let home = CourseSelection.visible(courses, term:"Q2")
+        XCTAssertEqual(home.count, 1)
+        XCTAssertEqual(GradingPeriods.descriptor(home[0]).kind, .quarter)
+    }
+    func testPhysicalPeriodMappingRejectsAnotherYearConflictingTeacherAndDuplicateSection() {
+        let sources = Demo.periodSources()
+        var duplicate = sources.filter { $0.source.provider == .schoology }
+        for i in duplicate.indices { duplicate[i].source.id += "other"; duplicate[i].source.fields["grade_section_id"] = "other-owner" }
+        let ambiguous = Reconciler.reconcile(sources + duplicate)
+        XCTAssertTrue(ambiguous.allSatisfy { $0.sources.count == 1 })
+        var wrongTeacher = sources
+        for i in wrongTeacher.indices where wrongTeacher[i].source.provider == .schoology { wrongTeacher[i].teacher = "Another teacher" }
+        XCTAssertTrue(Reconciler.reconcile(wrongTeacher).allSatisfy { $0.sources.count == 1 })
+        var q1 = sources.first { $0.source.provider == .schoology && $0.term.name == "Q1" }!
+        let campus = sources.first { $0.source.provider == .infiniteCampus && $0.term.name == "Q1" }!
+        q1.term.start = ProviderParsing.date("2025-08-20"); q1.term.end = ProviderParsing.date("2025-10-15")
+        XCTAssertFalse(GradingPeriods.matches(q1,campus))
+    }
+    func testPeriodMetadataAddsEmptyPeriodsAndExplicitDatesWithoutInventingGrades() throws {
+        let periods = Data("""
+        {"grading_period":[{"id":1,"title":"Q1: 2026-08-20 - 2026-10-15","weight":33.333},{"id":2,"title":"Q2","start":"2026-10-16","end":"2027-01-04","weight":33.333},{"id":3,"title":"Exam","start":"2026-12-14","end":"2026-12-18","weight":33.333}]}
+        """.utf8)
+        var grades = try fixture("schoology-grades").asJSONObject()
+        var sections = grades["section"] as! [[String:Any]]
+        var periodsInGrades = sections[0]["period"] as! [[String:Any]]
+        periodsInGrades[0].removeValue(forKey:"period_title"); sections[0]["period"] = periodsInGrades; grades["section"] = sections
+        let parsed = try ProviderParsing.schoology(section:fixture("schoology-section"), grades:JSONSerialization.data(withJSONObject:grades), items:fixture("schoology-items"), categories:fixture("schoology-categories"), periods:periods)
+        XCTAssertEqual(parsed.count, 3)
+        XCTAssertEqual(parsed[0].term.start, ProviderParsing.date("2026-08-20"))
+        XCTAssertEqual(parsed[0].term.end, ProviderParsing.date("2026-10-15"))
+        XCTAssertEqual(parsed[1].term.weight, 33.333)
+        XCTAssertTrue(parsed[1].assignments.isEmpty); XCTAssertNil(parsed[1].grade.percent)
+        XCTAssertEqual(GradingPeriods.descriptor(parsed[2]).kind, .exam)
+    }
+    func testSemesterWeightsMustReproduceReportedGradeBeforeSimulation() {
+        let sources = Demo.periodSources(); var courses = Reconciler.reconcile(sources)
+        let quarter = courses.first { GradingPeriods.descriptor($0).label == "Q1" }!
+        let index = courses.firstIndex { GradingPeriods.descriptor($0).label == "S1" }!
+        for i in courses[index].sources.indices { courses[index].sources[i].grade.percent = 99 }
+        XCTAssertNil(GradingPeriods.semesterScale(for:quarter,semester:courses[index],among:courses))
+        let undated = source(.infiniteCampus)
+        XCTAssertNil(GradingPeriods.semester(for:Reconciler.reconcile([undated])[0],among:courses))
+    }
+}
+
+extension GradeCoreTests {
+    func testUniqueNamedPhysicalClassMatchesExplicitPeriodsBeforeAnyGradesExist() {
+        var sources = Demo.periodSources()
+        for i in sources.indices { sources[i].assignments = []; sources[i].grade = OverallGrade(); sources[i].teacher = "" }
+        let courses = Reconciler.reconcile(sources)
+        XCTAssertEqual(courses.count, 8)
+        XCTAssertTrue(courses.allSatisfy { $0.sources.count == 2 })
+        var conflicting = sources
+        conflicting[1].term.end = ProviderParsing.date("2026-10-16")
+        XCTAssertFalse(GradingPeriods.matches(conflicting[0], conflicting[1]))
+    }
+}
+
+extension GradeCoreTests {
+    func testExplicitGradedNodeResolvesNewCatalogKindWithoutCrossKindGuessing() throws {
+        func parse(_ items: String) throws -> SourceCourse {
+            try ProviderParsing.schoology(section:fixture("schoology-section"),grades:fixture("schoology-grades"),items:Data(items.utf8),categories:fixture("schoology-categories"))[0]
+        }
+        let node = "\"id\":500,\"grade_item_id\":10,\"type\":\"external_tool\",\"title\":\"Catalog title\",\"grading_period\":1,\"grading_category\":2,\"max_points\":100"
+        let course = try parse("{\"assignment\":[{\(node)}]}")
+        XCTAssertEqual(course.assignments[0].title, "Catalog title")
+        XCTAssertEqual(course.assignments[0].source.fields["type"], "assignment")
+        let direct = node.replacingOccurrences(of:"\"id\":500,\"grade_item_id\":10", with:"\"id\":10")
+        XCTAssertEqual(try parse("{\"assignment\":[{\(direct)}]}").assignments[0].title, "Catalog title")
+        for field in ["\"max_points\":100", "\"grading_category\":2", "\"grading_period\":1"] {
+            let conflicting = node.replacingOccurrences(of:field,with:field.components(separatedBy:":")[0] + ":999")
+            XCTAssertEqual(try parse("{\"assignment\":[{\(conflicting)}]}").assignments[0].title, "Untitled assignment")
+        }
+        let typed = node.replacingOccurrences(of:"external_tool",with:"discussion")
+        XCTAssertEqual(try parse("{\"assignment\":[{\(typed)}]}").assignments[0].title, "Untitled assignment")
+        XCTAssertEqual(try parse("{\"assignment\":[{\(node)},{\(node)}]}").assignments[0].title, "Untitled assignment")
+    }
+}
+
+extension GradeCoreTests {
+    func testUpdateLabelsKeep24HourCheckAndUseMonthsAfter30Days() {
+        let now = Demo.now
+        XCTAssertTrue(GradeUpdateAge(date:now.addingTimeInterval(-23.999 * 3600),now:now).fresh)
+        XCTAssertFalse(GradeUpdateAge(date:now.addingTimeInterval(-24 * 3600),now:now).fresh)
+        XCTAssertEqual(GradeUpdateAge(date:now.addingTimeInterval(-30 * 86400),now:now).text,"updated 30 days ago")
+        XCTAssertEqual(GradeUpdateAge(date:now.addingTimeInterval(-31 * 86400),now:now).text,"updated 1 month ago")
+        XCTAssertEqual(GradeUpdateAge(date:now.addingTimeInterval(-60 * 86400),now:now).text,"updated 2 months ago")
+        XCTAssertEqual(GradeUpdateAge(date:now.addingTimeInterval(-90 * 86400),now:now).text,"updated 3 months ago")
+    }
+}

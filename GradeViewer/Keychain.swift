@@ -26,7 +26,7 @@ enum SecureStore {
         guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainError.status(status) }
     }
 }
-struct StoredCookie: Codable {
+struct StoredCookie: Codable, Sendable {
     var name: String; var value: String; var domain: String; var path: String; var expires: Date?; var secure: Bool
     init(_ cookie: HTTPCookie) { name = cookie.name; value = cookie.value; domain = cookie.domain; path = cookie.path; expires = cookie.expiresDate; secure = cookie.isSecure }
     var cookie: HTTPCookie? {
@@ -35,10 +35,10 @@ struct StoredCookie: Codable {
         return HTTPCookie(properties: properties)
     }
 }
-struct CampusSession: Codable {
+struct CampusSession: Codable, Sendable {
     var portal: URL; var base: URL; var cookies: [StoredCookie]
     init(portal: URL, cookies: [HTTPCookie]) throws {
-        guard portal.scheme == "https", portal.user == nil, portal.password == nil, portal.port == nil || portal.port == 443, let host = portal.host else { throw ProviderError.unsafeURL }
+        guard portal.scheme == "https", portal.user == nil, portal.password == nil, portal.port == nil || portal.port == 443, portal.host != nil else { throw ProviderError.unsafeURL }
         let range: Range<String.Index>
         if portal.path.contains("/portal/students/"), let found = portal.path.range(of: "/portal/") { range = found }
         else if portal.path.contains("/nav-wrapper/student/portal/student/"), let found = portal.path.range(of: "/nav-wrapper/") { range = found }
@@ -47,6 +47,14 @@ struct CampusSession: Codable {
         var components = URLComponents(url: portal, resolvingAgainstBaseURL: false)!; components.path = String(portal.path[..<range.lowerBound]) + "/"; components.query = nil; components.fragment = nil
         guard let base = components.url else { throw ProviderError.unsafeURL }; self.base = base
         // Only Campus-origin cookies are retained; SSO cookies never leave the login view.
-        self.cookies = cookies.filter { let d = $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased(); return host.lowercased() == d || host.lowercased().hasSuffix("." + d) }.map(StoredCookie.init)
+        self.cookies = []
+        replaceCookies(cookies)
+    }
+    mutating func replaceCookies(_ cookies: [HTTPCookie]) {
+        guard let host = base.host?.lowercased() else { self.cookies = []; return }
+        self.cookies = cookies.filter {
+            let domain = $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+            return (host == domain || host.hasSuffix("." + domain)) && ($0.expiresDate.map { $0 > Date() } ?? true)
+        }.map(StoredCookie.init)
     }
 }

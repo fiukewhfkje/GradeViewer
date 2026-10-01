@@ -17,6 +17,7 @@ public struct GradeProgressionPoint: Identifiable, Sendable {
 public enum GradeProgression {
     public static func calculated(_ source: SourceCourse, before cutoff: Date) -> [GradeProgressionPoint] {
         guard GradeCalculator.isReliable(source) else { return [] }
+        guard let reported = source.grade.percent, let baseline = try? GradeCalculator.percent(course: source) else { return [] }
         let scored = source.assignments.filter { $0.score.earned != nil }
         guard scored.count > 1, scored.allSatisfy({ ($0.updated ?? $0.due).map { $0 <= source.fetched } == true }) else { return [] }
         // A batch edit can give several distinct scores the same timestamp. Keep
@@ -33,7 +34,9 @@ public enum GradeProgression {
             guard date <= cutoff else { continue }
             included.append(row); prefix.assignments = included
             guard let value = try? GradeCalculator.percent(course: prefix) else { continue }
-            result.append(GradeProgressionPoint(id: row.id, date: date, percent: value, usesDueDate: row.updated == nil))
+            // Use the same reported baseline as What-If. Rounding alone must not
+            // create a transition when the calculated prefix reaches the current total.
+            result.append(GradeProgressionPoint(id: row.id, date: date, percent: reported + (value - baseline), usesDueDate: row.updated == nil))
         }
         return result
     }

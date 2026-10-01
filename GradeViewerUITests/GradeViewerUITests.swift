@@ -184,3 +184,91 @@ extension GradeViewerUITests {
         }
     }
 }
+
+extension GradeViewerUITests {
+    @MainActor func testHomeAndDetailShowNewestLinkedProviderFreshness() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--freshness-fixture"]
+        app.launch()
+        let home = app.buttons["course-0"]
+        XCTAssertTrue(home.waitForExistence(timeout:10))
+        XCTAssertTrue(home.label.contains("updated recently"))
+        home.tap()
+        XCTAssertTrue(app.staticTexts["updated recently"].firstMatch.waitForExistence(timeout:5))
+        XCTAssertGreaterThanOrEqual(app.staticTexts.matching(identifier:"updated recently").count, 2)
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "fresh-provider-home-detail"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+extension GradeViewerUITests {
+    @MainActor func testAssignmentPeriodPillsKeepSemesterGradeAndScopeAssignments() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--period-fixture", "--screen=detail"]; app.launch()
+        XCTAssertTrue(app.staticTexts["S1 overall"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["course-period-picker"].exists)
+        XCTAssertFalse(app.buttons["period-Q1-quarter"].exists)
+        let all = app.buttons["view-all-assignments"]
+        if !all.isHittable { app.swipeUp() }
+        all.tap()
+        XCTAssertTrue(app.buttons["period-Q1-quarter"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["S1 overall"].exists)
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
+        app.buttons["Total Points"].tap()
+        XCTAssertTrue(app.staticTexts["First quarter lab"].exists)
+        XCTAssertFalse(app.staticTexts["Second quarter lab"].exists)
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "assignment-period-pills-light"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["period-Q2-quarter"].tap()
+        XCTAssertTrue(app.staticTexts["Second quarter lab"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
+        app.buttons["period-Q2-semester"].tap()
+        XCTAssertTrue(app.staticTexts["First quarter lab"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["Second quarter lab"].exists)
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String, "85%")
+        app.buttons["period-Q4-quarter"].tap()
+        XCTAssertTrue(app.staticTexts["No graded assignments in this period."].waitForExistence(timeout:5))
+        XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
+        XCTAssertTrue(app.staticTexts["S2 overall"].exists)
+        let empty = XCTAttachment(screenshot:app.screenshot()); empty.name = "empty-future-quarter"; empty.lifetime = .keepAlways; add(empty)
+    }
+    @MainActor func testAssignmentPillsDarkAppearanceAndSemesterScenario() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--period-fixture", "--screen=detail", "-appearance", "dark"]; app.launch()
+        let options = app.buttons["Options for First quarter lab"]
+        XCTAssertTrue(options.waitForExistence(timeout:10)); options.tap()
+        app.buttons["Edit Grade"].tap()
+        let score = app.textFields["edit-score-field"]
+        XCTAssertTrue(score.waitForExistence(timeout:5)); score.tap()
+        score.press(forDuration:1)
+        if app.menuItems["Select All"].exists { app.menuItems["Select All"].tap() }
+        score.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "100")
+        app.buttons["save-score"].tap()
+        XCTAssertTrue(app.staticTexts["87.5%"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["+2.50%"].exists)
+        let all = app.buttons["view-all-assignments"]
+        if !all.isHittable { app.swipeUp() }
+        all.tap()
+        XCTAssertTrue(app.buttons["period-Q1-quarter"].waitForExistence(timeout:5))
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "assignment-period-pills-dark"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+extension GradeViewerUITests {
+    @MainActor func testFreshLaunchGateHidesCachedGradesAndLeavesProfileUsable() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--loading-fixture"]; app.launch()
+        XCTAssertTrue(app.staticTexts["Refreshing grades…"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.buttons["course-0"].exists)
+        XCTAssertFalse(app.staticTexts["(95.8%)"].exists)
+        app.buttons["tab-profile"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
+        app.terminate()
+        app.launchArguments = ["--demo", "--fresh-failure-fixture", "--screen=detail"]; app.launch()
+        XCTAssertTrue(app.staticTexts["Fresh grades unavailable"].waitForExistence(timeout:10))
+        XCTAssertFalse(app.staticTexts["2-D Kinematics Quiz"].exists)
+        let gate = XCTAttachment(screenshot:app.screenshot()); gate.name = "fresh-grade-failure-gate"; gate.lifetime = .keepAlways; add(gate)
+        XCTAssertTrue(app.buttons["retry-fresh-grades-sheet"].isHittable)
+        app.buttons["retry-fresh-grades-sheet"].tap()
+        app.buttons["Close course"].tap()
+        XCTAssertTrue(app.buttons["retry-fresh-grades"].isHittable)
+        app.buttons["tab-profile"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "fresh-gate-profile-recovery"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}

@@ -11,8 +11,8 @@ public struct Provenance: Codable, Hashable, Sendable {
     public var key: String { "\(provider.rawValue):\(id)" }
 }
 public struct Term: Codable, Hashable, Sendable {
-    public var id: String; public var name: String; public var start: Date?; public var end: Date?
-    public init(id: String, name: String, start: Date? = nil, end: Date? = nil) { self.id = id; self.name = name; self.start = start; self.end = end }
+    public var id: String; public var name: String; public var start: Date?; public var end: Date?; public var weight: Double?
+    public init(id: String, name: String, start: Date? = nil, end: Date? = nil, weight: Double? = nil) { self.id = id; self.name = name; self.start = start; self.end = end; self.weight = weight }
 }
 public struct Score: Codable, Hashable, Sendable {
     public var earned: Double?; public var possible: Double?; public var letter: String?; public var excused: Bool
@@ -33,6 +33,10 @@ public struct GradingCategory: Codable, Hashable, Identifiable, Sendable {
 public struct SourceAssignment: Codable, Hashable, Identifiable, Sendable {
     public var source: Provenance; public var title: String; public var categoryID: String?; public var due: Date?; public var updated: Date?; public var score: Score; public var multiplier: Double; public var excluded: Bool
     public var id: String { source.key }
+    public var hasTitle: Bool {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !name.isEmpty && name != "Untitled assignment" && name != "Assignment" && name.range(of: "^Assignment [0-9]+$", options: .regularExpression) == nil
+    }
     public init(source: Provenance, title: String, categoryID: String? = nil, due: Date? = nil, updated: Date? = nil, score: Score = Score(), multiplier: Double = 1, excluded: Bool = false) { self.source = source; self.title = title; self.categoryID = categoryID; self.due = due; self.updated = updated; self.score = score; self.multiplier = multiplier; self.excluded = excluded }
 }
 public struct SourceCourse: Codable, Hashable, Identifiable, Sendable {
@@ -43,7 +47,12 @@ public struct SourceCourse: Codable, Hashable, Identifiable, Sendable {
 public struct Assignment: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceAssignment]
     public init(id: String, sources: [SourceAssignment]) { self.id = id; self.sources = sources }
-    public var display: SourceAssignment { sources.first(where: { $0.source.provider == .infiniteCampus && ($0.score.earned != nil || $0.score.letter != nil || $0.score.excused) }) ?? sources.first(where: { $0.score.earned != nil || $0.score.letter != nil || $0.score.excused }) ?? sources[0] }
+    public var display: SourceAssignment {
+        var selected = sources.first(where: { $0.source.provider == .infiniteCampus && ($0.score.isGraded || $0.score.excused) }) ?? sources.first(where: { $0.score.isGraded || $0.score.excused }) ?? sources[0]
+        if !selected.hasTitle, let titled = sources.first(where: \.hasTitle) { selected.title = titled.title }
+        selected.updated = sources.filter { $0.score.isGraded }.compactMap(\.updated).max() ?? selected.updated
+        return selected
+    }
     public var disagrees: Bool { Set(sources.map(\.score)).count > 1 }
 }
 public struct GradeHistorySnapshot: Codable, Hashable, Identifiable, Sendable {
