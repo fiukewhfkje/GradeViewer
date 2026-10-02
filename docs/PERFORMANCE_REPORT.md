@@ -106,7 +106,7 @@ This is one measured baseline and three final repeat samples, with intermediate 
 
 ## October 2: history investigation and local regression fix
 
-The user reports approximately one-second launches sometimes, followed by much slower launches/returns after time passes. The phone was unavailable. Git history and synthetic requests establish the following, without asserting which request failed on that phone:
+The user reports approximately one-second launches sometimes, followed by much slower launches/returns after time passes. The initial investigation used Git history and synthetic requests while the phone was unavailable. Those established the following; subsequent USB evidence is recorded separately below:
 
 | Revision | Relevant behavior |
 |---|---|
@@ -133,6 +133,26 @@ The fixture construction has a small local cost increase, not a multi-second CPU
 
 `swift test` passed **109 tests**, hosted XCTest **32**, and a separate neutral-signing local clone **32** hosted tests. Four focused UI cases passed, including freshness gating and launch responsiveness with 2,100 assignments. Exported light/dark assignment and failure-gate screenshots were inspected. The current simulator launch metric was **3.306224, 3.372442, 3.238763 seconds**, average **3.306 seconds**, RSD **1.651%**. It is higher than the original 2.330-second run; these are different sessions and no paired historical simulator comparison establishes its cause. The paired local fixture probe above excludes a return to the original multi-second reconciliation cost.
 
-The signed original-identity device app built successfully and passed strict signature verification with no embedded extension/widget route. It remains prepared locally at `DeviceDerivedData/Build/Products/Debug-iphoneos/GradeViewer.app`. No phone installation, school authentication, remote push or deployment occurred. Ignored local logs, failing-before/passing-after regressions, comparison sources and XCTest results remain under `artifacts/performance/`.
+The signed original-identity device app built successfully and passed strict signature verification with no embedded extension/widget route. It was prepared locally at `DeviceDerivedData/Build/Products/Debug-iphoneos/GradeViewer.app`, then installed in the authorized USB session below. No remote push occurred. Ignored local logs, failing-before/passing-after regressions, comparison sources and XCTest results remain under `artifacts/performance/`.
 
-When USB is available, install over the original app and collect protected `--profile-refresh` timing/count reports for initial warm launch, normal background return, and expired metadata/title recovery. Campus SSO renewal can still require up to its existing 20-second browser bound after rejection, and required reads still honor actual server delays. Those need real device/account evidence before assigning the remaining intermittent latency to a provider or session.
+### October 2 USB verification
+
+The update was installed over the original iPhone app with its existing bundle/team. No app deletion, credential replacement or raw grade/cache export was used. Both saved connections restored, with no pending setup. Reports were copied only from the app's protected diagnostic files; their fields are counts, timings, booleans, schema shapes and fixed route/error labels.
+
+| Device refresh scenario | Complete refresh | Schoology | Campus | Schoology HTTP reads | Maximum sampled main delay |
+|---|---:|---:|---:|---:|---:|
+| Initial launch, previous cache from the prior day; period metadata and optional title recovery ran | 2,403.724 ms | 2,208.105 ms | 1,621.877 ms | 51 | 65.590 ms |
+| Warm process relaunch | 924.129 ms | 716.919 ms | 764.508 ms | 4 | 33.797 ms |
+| Real background return, same process after opening Settings through the CLI | 945.077 ms | 801.913 ms | 785.770 ms | 4 | 20.277 ms |
+| Second warm process relaunch | 873.803 ms | 680.708 ms | 745.157 ms | 4 | 34.810 ms |
+| Background return after natural five-minute metadata expiry | 1,327.099 ms | 1,213.075 ms | 774.942 ms | 25 | 20.791 ms |
+
+All five completed with zero provider errors, 46 canonical records and the freshness gate open. These are individual authenticated refresh samples, not launch-to-first-frame timings or a paired historical speedup benchmark. Reconciliation/encoding remained 46–77 ms per provider in these samples; save/publication was 11–36 ms. Campus fetched one summary and six details with HTTP 200; its saved SSO was available but no renewal was attempted.
+
+The initial run **did encounter two optional folder HTTP 429 responses with Retry-After: 10**, after every required metadata read finished. They were not retried and did not reject fresh scores or keep the presentation gate closed. This observes the fixed path on the student's account, while fixture history establishes how the older code rejected that path. It does not prove that every earlier slow launch had the same cause. Warm Schoology reads were the identity redirect/user, enrollment list and complete fresh user-grade response.
+
+After the five-minute cache expired without changing any production data/deadline, a return to the same process renewed seven catalogs, seven category lists and seven sections. The independent period cache was still valid and optional titles remained deferred. This confirms metadata timestamps did not slide through the earlier warm refreshes. All 25 Schoology reads and seven Campus reads returned successfully. The final app was then launched normally with no profiling/verification arguments.
+
+A separate layout verification showed five home cards, five matched semesters, no storage errors, and sorted/unique assignment overviews with calculated endpoints matching reported grades. Nine overview rows had neutral titles; eight had catalog identities/titles requiring further compatible metadata recovery, and one detail returned HTTP 403. The optional rate limit left these unresolved/deferred without losing scores. Do not label all nine inaccessible or invent a provider-side cause. This heavier verification was separate from the timed samples.
+
+Campus SSO renewal can still require up to its existing 20-second browser bound after authentication rejection, and required reads still honor actual server delays. Natural session expiry, another student's account/district, and longer-term network variability remain unverified. Local USB artifacts are ignored under `artifacts/performance/device-oct2/`.
