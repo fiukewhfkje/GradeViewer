@@ -448,7 +448,7 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                     // Device verification uses only saved IdP cookies, while the
                     // active Campus jar remains intact if the probe cannot renew.
                     if verifyRenewal { browserInput.cookies = []; browserInput.sso?.needsSignIn = nil }
-                    session = try await CampusWebSession.renew(browserInput) { navigation = $0 }
+                    session = try await CampusWebSession.renew(browserInput, retainingCookies: { session = $0 }, diagnostics: { navigation = $0 })
                     let replacement = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: verify)
                     do { result = .success(try await replacement.fetch()) } catch { result = .failure(error) }
                     responses += await replacement.diagnostics()
@@ -507,6 +507,16 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         if case ProviderError.accountChanged = error { return "Disconnect \(provider.name) before switching accounts." }
         if case ProviderError.forbidden = error { return "\(provider.name) did not allow access to grades." }
         if case let ProviderError.throttled(seconds) = error { deadlines[provider] = Date().addingTimeInterval(seconds); return "\(provider.name) asked to wait before refreshing." }
+        if let network = error as? URLError {
+            switch network.code {
+            case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                return "\(provider.name) could not establish a secure connection. Check your network or VPN, then retry. Your saved sign-in is retained."
+            case .timedOut: return "\(provider.name) took too long to respond. Check your connection, then retry."
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost:
+                return "\(provider.name) could not be reached. Check your connection, then retry."
+            default: break
+            }
+        }
         return "\(provider.name) could not refresh."
     }
     func connectSchoology(_ credentials: SchoologyCredentials) async throws {

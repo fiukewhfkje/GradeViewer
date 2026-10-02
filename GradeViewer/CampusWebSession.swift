@@ -8,6 +8,10 @@ import GradeCore
     let webView: WKWebView
     var host = ""
     var studentPortal: URL?
+    private(set) var loading = false
+    private(set) var loadError: String?
+    private(set) var pageLoaded = false
+    var canConnect: Bool { studentPortal != nil && pageLoaded && !loading && loadError == nil }
     private var base: URL?
     private var entry: URL?
     private var idpHosts = Set<String>()
@@ -18,6 +22,11 @@ import GradeCore
     @ObservationIgnored private var completed = false
     @ObservationIgnored private var stages: [String] = []
     private var visitedIdp = false
+    @ObservationIgnored private var started = false
+    @ObservationIgnored private var restoredCookies = false
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
+    @ObservationIgnored private var loadDeadline: Task<Void, Never>?
+    private let initialPortal: URL
 
     init(portal: URL, saved: CampusSession?, automatic: Bool = false) {
         let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent()
@@ -27,7 +36,7 @@ import GradeCore
         let selected = try? CampusSession(portal: portal, cookies: [])
         base = selected?.base; studentPortal = selected?.portal
         self.saved = saved?.base == selected?.base ? saved : nil
-        self.automatic = automatic
+        self.automatic = automatic; initialPortal = portal
         if let selected {
             if let sso = self.saved?.sso, CampusSSO.validEntry(sso.entry, base: selected.base) {
                 entry = sso.entry; idpHosts = sso.hosts
@@ -35,13 +44,51 @@ import GradeCore
         }
         super.init()
         webView.navigationDelegate = self; webView.uiDelegate = self
-        if !automatic { Task { await start(portal: portal) } }
     }
 
-    private func start(portal: URL) async {
-        await restoreCookies()
-        guard !completed, !Task.isCancelled else { return }
-        webView.load(URLRequest(url: entry ?? portal))
+    // Start only when the retained SwiftUI session is presented. View initializers
+    // can run repeatedly; starting there creates invisible SSO browsers on redraw.
+    func start() {
+        guard !started, !completed else { return }
+        started = true
+        load(entry ?? initialPortal)
+    }
+    func retry(usePortal: Bool = false) {
+        guard !automatic, !completed else { return }
+        load(usePortal ? initialPortal : (entry ?? initialPortal))
+    }
+    private func load(_ url: URL) {
+        loadTask?.cancel(); webView.stopLoading()
+        beginLoading()
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            if !restoredCookies { await restoreCookies() }
+            guard !completed, !Task.isCancelled, loadError == nil else { return }
+            #if DEBUG
+            // The UI fixture stays local, including after Retry is tapped.
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--demo"), arguments.contains("--campus-browser-failure") { return }
+            #endif
+            webView.load(URLRequest(url: url))
+        }
+    }
+    private func beginLoading() {
+        loading = true; pageLoaded = false; loadError = nil
+        guard !automatic else { return } // Renewal has one overall deadline.
+        loadDeadline?.cancel()
+        loadDeadline = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(15)) } catch { return }
+            self?.failed(URLError(.timedOut))
+        }
+    }
+    func cancel() {
+        loadTask?.cancel(); loadTask = nil
+        loadDeadline?.cancel(); loadDeadline = nil
+        if automatic { browserCancelled() }
+        else {
+            completed = true; loading = false
+            webView.stopLoading(); webView.navigationDelegate = nil; webView.uiDelegate = nil
+        }
     }
     func restoreCookies() async {
         let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
@@ -49,8 +96,12 @@ import GradeCore
             // Revalidate decoded scopes before putting credentials into WebKit.
             let campus = try? CampusSession(portal: saved.portal, cookies: saved.cookies.compactMap(\.cookie))
             let cookies = (campus?.cookies.compactMap(\.cookie) ?? []) + (saved.sso?.browserCookies(base: saved.base) ?? [])
-            for cookie in cookies { await cookieStore.setCookie(cookie) }
+            for cookie in cookies {
+                guard !Task.isCancelled, !completed else { return }
+                await cookieStore.setCookie(cookie)
+            }
         }
+        restoredCookies = true
     }
 
     func capture() async throws -> CampusSession {
@@ -63,11 +114,17 @@ import GradeCore
         return session
     }
 
-    static func renew(_ session: CampusSession, diagnostics: (([String]) -> Void)? = nil) async throws -> CampusSession {
+    static func renew(_ session: CampusSession, retainingCookies: ((CampusSession) -> Void)? = nil, diagnostics: (([String]) -> Void)? = nil) async throws -> CampusSession {
         guard session.sso?.canRenew(base: session.base) == true else { throw ProviderError.reconnect }
         let browser = CampusWebSession(portal: session.portal, saved: session, automatic: true)
         defer { diagnostics?(browser.stages) }
-        return try await browser.run()
+        do { return try await browser.run() }
+        catch {
+            // An IdP may rotate cookies before a later navigation fails. Keep
+            // that rotation without replacing grades or treating TLS as logout.
+            if browser.restoredCookies, let updated = try? await browser.capture() { retainingCookies?(updated) }
+            throw error
+        }
     }
     private func run() async throws -> CampusSession {
         try await withTaskCancellationHandler {
@@ -78,9 +135,9 @@ import GradeCore
                     do { try await Task.sleep(for: .seconds(20)) } catch { return }
                     guard let self else { return }
                     // A finished login page needs the user; an unfinished load is a network timeout.
-                    finish(.failure(webView.isLoading ? URLError(.timedOut) : ProviderError.reconnect))
+                    finish(.failure(loading ? URLError(.timedOut) : ProviderError.reconnect))
                 }
-                Task { await start(portal: saved!.portal) }
+                start()
             }
         } onCancel: {
             Task { @MainActor in self.browserCancelled() }
@@ -89,7 +146,8 @@ import GradeCore
     private func browserCancelled() { finish(.failure(CancellationError())) }
     private func finish(_ result: Result<CampusSession, Error>) {
         guard !completed else { return }
-        completed = true; deadline?.cancel(); deadline = nil
+        completed = true; loading = false
+        deadline?.cancel(); deadline = nil; loadTask?.cancel(); loadTask = nil
         webView.stopLoading(); webView.navigationDelegate = nil; webView.uiDelegate = nil
         let pending = completion; completion = nil; pending?.resume(with: result)
     }
@@ -129,6 +187,7 @@ import GradeCore
             record("blocked", url: navigationAction.request.url)
             decisionHandler(.cancel)
             if automatic { finish(.failure(ProviderError.reconnect)) }
+            else if navigationAction.targetFrame?.isMainFrame != false { failed(ProviderError.unsafeURL) }
             return
         }
         if navigationAction.targetFrame?.isMainFrame != false { observe(url); record("navigation", url: url) }
@@ -139,17 +198,28 @@ import GradeCore
             record("blocked response", url: navigationResponse.response.url)
             decisionHandler(.cancel)
             if automatic { finish(.failure(ProviderError.reconnect)) }
+            else if navigationResponse.isForMainFrame { failed(ProviderError.unsafeURL) }
             return
         }
-        if navigationResponse.isForMainFrame { observe(url); record("response", url: url) }
+        if navigationResponse.isForMainFrame {
+            observe(url); record("response", url: url)
+            if let response = navigationResponse.response as? HTTPURLResponse, response.statusCode >= 400 {
+                decisionHandler(.cancel)
+                failed(response.statusCode == 429 ? ProviderError.throttled(ReadOnlyHTTP.retryAfter(response.value(forHTTPHeaderField: "Retry-After"))) : ProviderError.unavailable)
+                return
+            }
+        }
         decisionHandler(.allow)
     }
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) { beginLoading() }
     func webView(_ webView: WKWebView, didReceiveServerRedirectForProvisionalNavigation navigation: WKNavigation!) {
         if let url = webView.url, permits(url) { observe(url); record("redirect", url: url) }
     }
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         guard let url = webView.url else { return }
         observe(url)
+        loading = false; pageLoaded = true; loadError = nil
+        loadDeadline?.cancel(); loadDeadline = nil
         record("loaded", url: url)
         // A Campus return is only a candidate. The caller must verify the full grade fetch.
         // District SAML can finish on a shared Campus page rather than the
@@ -161,11 +231,35 @@ import GradeCore
     }
     private func failed(_ error: Error) {
         // A SAML form or popup can cancel the preceding navigation normally.
-        if automatic, (error as NSError).code != NSURLErrorCancelled { finish(.failure(error)) }
+        let underlying = error as NSError
+        guard underlying.domain != NSURLErrorDomain || underlying.code != NSURLErrorCancelled else { return }
+        if automatic { finish(.failure(error)) }
+        else {
+            loading = false; pageLoaded = false
+            loadError = Self.message(error)
+            loadDeadline?.cancel(); loadDeadline = nil; loadTask?.cancel(); loadTask = nil
+            webView.stopLoading()
+        }
     }
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { if automatic { finish(.failure(ProviderError.unavailable)) } }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { failed(ProviderError.unavailable) }
+    static func message(_ error: Error) -> String {
+        if let error = error as? URLError {
+            switch error.code {
+            case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                return "A secure connection to the sign-in page failed. Check your network or VPN, then retry. Your saved sign-in is retained."
+            case .timedOut: return "The sign-in page took too long to load. Check your connection, then retry."
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost:
+                return "The sign-in page could not be reached. Check your connection, then retry."
+            default: break
+            }
+        }
+        if case ProviderError.unsafeURL = error { return "This sign-in link could not be opened securely. Try the student portal."
+        }
+        if case ProviderError.throttled = error { return "The sign-in service asked you to wait. Try again shortly." }
+        return "The sign-in page could not load. Retry or open the student portal."
+    }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url, permits(url) { observe(url); webView.load(navigationAction.request) }
         return nil
