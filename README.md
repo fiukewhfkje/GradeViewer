@@ -27,6 +27,8 @@ Credentials and reusable sessions stay in that installation's device Keychain. C
 
 Grades refresh on launch, return from the background, pull-to-refresh, and once a minute while active. A failed refresh retains the last successful data internally and offers Retry/Profile; foreground grade screens wait for fresh data. Short Schoology rate limits get one bounded retry after the server's delay. Campus can reuse a captured district SSO session, but required credentials/MFA still need normal sign-in.
 
+Automatic checks can reuse Schoology titles/category rules for up to five minutes only when the complete freshly read grade data is unchanged. Changed grades refresh that metadata immediately; pull-to-refresh bypasses this reuse. Optional title lookups stop on a rate limit without rejecting complete fresh grades, and the next refresh still honors the server's cooldown.
+
 Both providers worked on the original student's iPhone. Campus uses authenticated portal resources without a supported public student API contract, so other districts may differ. Matching requires unique compatible evidence; ambiguous courses stay separate. Neither provider compatibility nor automatic matching can honestly be guaranteed for every account. Calculators stay local and require source rules that reproduce the reported grade.
 
 ## Develop or install with CLI / an AI assistant

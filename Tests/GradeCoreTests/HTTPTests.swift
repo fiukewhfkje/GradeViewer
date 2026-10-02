@@ -297,8 +297,12 @@ extension HTTPTests {
             XCTAssertEqual(rejected[0].assignments[0].score, inaccessible[0].assignments[0].score)
         }
         StubURLProtocol.statuses["/v1/sections/100/assignments?limit=200"] = 429
-        do { _ = try await provider.fetch(); XCTFail("List recovery must honor rate limits") }
-        catch { XCTAssertEqual(error as? ProviderError, .throttled(30)) }
+        StubURLProtocol.requests = []
+        let limited = try await provider.fetch()
+        XCTAssertEqual(limited[0].assignments[0].title, "Untitled assignment")
+        XCTAssertEqual(limited[0].assignments[0].score, inaccessible[0].assignments[0].score)
+        XCTAssertNotNil(limited[0].assignments[0].source.fields["title_lookup_retry_after"])
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("/folder/") }, "Optional recovery must stop at the server cooldown without rejecting fresh grades")
         StubURLProtocol.statuses["/v1/sections/100/assignments?limit=200"] = 200
         StubURLProtocol.bodies["/v1/sections/100/assignments?limit=200"] = "{\"assignment\":[]}"
         StubURLProtocol.bodies["/v1/courses/100/folder/0"] = "{\"folder-item\":[{\"id\":20,\"type\":\"folder\"}]}"

@@ -2,6 +2,8 @@ import SwiftUI
 import Observation
 import GradeCore
 
+private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
+
 @Observable @MainActor final class AppStore {
     var courses: [Course] = []
     var errors: [ProviderID: String] = [:]
@@ -107,6 +109,15 @@ import GradeCore
             }
         } catch { localError = "Saved grades could not be opened." }
         for course in courses { scenarios[course.id] = (try? repository?.scenario(course.id)) ?? Hypothesis() }
+        // A complete snapshot can include deferred optional title recovery.
+        // Restore its server cooldown on process relaunch as well as foreground return.
+        if !demo {
+            for source in courses.flatMap(\.sources) {
+                if let seconds = source.source.fields["provider_retry_after"].flatMap(Double.init), seconds.isFinite, seconds > Date().timeIntervalSince1970 {
+                    deadlines[source.source.provider] = max(deadlines[source.source.provider] ?? .distantPast, Date(timeIntervalSince1970: seconds))
+                }
+            }
+        }
         selectedTerm = preferredTerm()
         needsFreshData = !demo && (!connected.isEmpty || !courses.isEmpty)
         if demo && arguments.contains("--loading-fixture") { needsFreshData = true }
@@ -145,7 +156,7 @@ import GradeCore
     }
     func startup() async {
         guard !started else { return }; started = true
-        await refresh()
+        await refresh(refreshMetadata: false)
         #if DEBUG
         verifyLayout(phase: "after startup refresh")
         #endif
@@ -229,14 +240,14 @@ import GradeCore
     }
     #endif
     /// Foreground and manual requests join the same in-flight refresh.
-    func refresh() async {
+    func refresh(refreshMetadata: Bool = true) async {
         presentationDate = Date()
         if let refreshTask { await refreshTask.value; return }
         guard !demo, !refreshing, repository != nil else { return }
         refreshing = true
         if needsFreshData { foregroundRefreshFailed = false }
         let task = Task {
-            await performRefresh()
+            await performRefresh(refreshMetadata: refreshMetadata)
             refreshTask = nil; refreshing = false
         }
         refreshTask = task
@@ -264,22 +275,22 @@ import GradeCore
         guard refreshOnNextActivation else { return }
         refreshOnNextActivation = false; backgrounded = false
         requireFreshData()
-        if started { await refresh() } else { await startup() }
+        if started { await refresh(refreshMetadata: false) } else { await startup() }
         // A return may join a backgrounded operation after one provider already
         // finished. Resolve only providers that have not refreshed this entry.
-        if needsFreshData && connected.contains(where: { !freshProviders.contains($0) && errors[$0] == nil }) { await refresh() }
+        if needsFreshData && connected.contains(where: { !freshProviders.contains($0) && errors[$0] == nil }) { await refresh(refreshMetadata: false) }
     }
     func refreshWhileActive(interval: Duration = .seconds(60)) async {
         while !Task.isCancelled {
             do { try await Task.sleep(for: interval) } catch { return }
-            await refresh()
+            await refresh(refreshMetadata: false)
         }
     }
     func updated(_ course: Course) -> Date? {
         let schoology = AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))
         return AssignmentGrouping.updated(for: course, schoology: schoology)
     }
-    private func performRefresh() async {
+    private func performRefresh(refreshMetadata: Bool) async {
         #if DEBUG
         let profile = ProcessInfo.processInfo.arguments.contains("--profile-refresh")
         let refreshStarted = Date()
@@ -293,10 +304,13 @@ import GradeCore
         } : nil
         #endif
         let providers = ProviderID.allCases.filter { connected.contains($0) && (deadlines[$0] ?? .distantPast) <= Date() }
-        await withTaskGroup(of: (ProviderID, Result<[SourceCourse], Error>).self) { group in
+        for provider in connected where (deadlines[provider] ?? .distantPast) > Date() {
+            errors[provider] = "\(provider.name) asked to wait before refreshing."
+        }
+        await withTaskGroup(of: (ProviderID, Result<ProviderFetch, Error>).self) { group in
             for provider in providers {
                 group.addTask { [self] in
-                    do { return (provider, .success(try await fetchProvider(provider))) }
+                    do { return (provider, .success(try await fetchProvider(provider, refreshMetadata: refreshMetadata))) }
                     catch { return (provider, .failure(error)) }
                 }
             }
@@ -305,8 +319,8 @@ import GradeCore
                 case let .success(fetched):
                     // Publish each complete provider immediately; a slow provider
                     // must not hold up new assignments from the other one.
-                    if await applySnapshot(fetched, provider: provider) {
-                        errors[provider] = nil; deadlines[provider] = nil; freshProviders.insert(provider)
+                    if await applySnapshot(fetched.courses, provider: provider) {
+                        errors[provider] = nil; deadlines[provider] = fetched.retryAfter; freshProviders.insert(provider)
                     } else { errors[provider] = "Fresh grades could not be saved on this device." }
                 case let .failure(error):
                     errors[provider] = message(error, provider: provider)
@@ -333,10 +347,10 @@ import GradeCore
         verifyLayout(phase: "after refresh")
         #endif
     }
-    private func fetchProvider(_ provider: ProviderID) async throws -> [SourceCourse] {
+    private func fetchProvider(_ provider: ProviderID, refreshMetadata: Bool) async throws -> ProviderFetch {
         let startedAt = Date()
         defer { refreshDurations[provider] = Date().timeIntervalSince(startedAt) * 1000 }
-        if let fetchOverride { return try await fetchOverride(provider) }
+        if let fetchOverride { return (try await fetchOverride(provider), nil) }
         switch provider {
         case .schoology:
             guard var credentials = try SecureStore.load(SchoologyCredentials.self, account: "schoology") else { throw ProviderError.reconnect }
@@ -346,12 +360,12 @@ import GradeCore
             #endif
             let schoology = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: verify)
             do {
-                let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources))
+                let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources), refreshMetadata: refreshMetadata)
                 if credentials.userID != result.userID {
                     credentials.userID = result.userID; try SecureStore.save(credentials, account: "schoology")
                 }
                 if verify { ConnectionDiagnostics(provider: .schoology, result: "success", responses: await schoology.diagnostics()).save() }
-                return result.courses
+                return (result.courses, result.retryAfter)
             } catch {
                 if verify { ConnectionDiagnostics(provider: .schoology, result: ConnectionDiagnostics.result(error), responses: await schoology.diagnostics()).save() }
                 throw error
@@ -409,7 +423,7 @@ import GradeCore
             // A response can rotate cookies even when a later detail fails. Save
             // the updated jar before surfacing that failure, preserving expiry/deletions.
             try SecureStore.save(session, account: "campus")
-            return try result.get()
+            return (try result.get(), nil)
         }
     }
     @discardableResult private func applySnapshot(_ fetched: [SourceCourse], provider: ProviderID) async -> Bool {
@@ -460,7 +474,7 @@ import GradeCore
                owner != snapshot.userID { throw ProviderError.accountChanged }
             var verified = credentials; verified.userID = snapshot.userID
             try await activateConnection(verified, account: "schoology", pendingAccount: "schoology-pending", provider: .schoology, fetched: fetched)
-            errors[.schoology] = nil; deadlines[.schoology] = nil; freshProviders.insert(.schoology)
+            errors[.schoology] = nil; deadlines[.schoology] = snapshot.retryAfter; freshProviders.insert(.schoology)
             finishFreshPresentation()
             recordConnection(.schoology, responses: await provider.diagnostics(), error: nil)
         } catch {

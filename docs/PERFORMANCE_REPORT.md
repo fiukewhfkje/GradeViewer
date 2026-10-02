@@ -1,5 +1,7 @@
 # GradeViewer performance report — October 1, 2026
 
+The original phone measurements below document commit `9202b32`. The October 2 investigation at the end records newer local fixes and validation; no new authenticated phone speedup is claimed.
+
 ## Result and scope
 
 A full, authenticated repeat refresh on the connected iPhone 15 improved from **10.401118 seconds** in the measured baseline to a **1.273169-second median** across three final repeat samples: **87.76% less elapsed time**, or **8.17× faster**. The three final samples were **1.044988, 1.325548, and 1.273169 seconds**. Fresh scores were requested from both providers in every sample. No sample used cached grade scores to produce this speedup.
@@ -101,3 +103,36 @@ The phone runs used a signed **Debug** build on the same connected iPhone and th
 `--profile-refresh` writes a protected JSON report with elapsed spans, counts, booleans, and fixed route/error labels. It does not run the heavier `--verify-layout` graph/layout report. A main-actor task sleeps for 16 ms during refresh; the reported maximum is wake-up lateness beyond those 16 ms. Normal application launch does not enable that probe or structural HTTP collection. No raw responses, grades, dates of student work, resource identifiers, URLs, credentials, cookies, or tokens were exported or committed; provider diagnostics report schema types/counts only. Raw timing/count artifacts are ignored by Git under artifacts/performance.
 
 This is one measured baseline and three final repeat samples, with intermediate and recovery samples disclosed. Network/server/device scheduling varied, and no p95/p99 latency, release-vs-debug speed, memory/energy profile, OS hang trace, or exhaustive future-provider guarantee was measured. The remaining normal latency is predominantly fresh provider reads plus small publication work; guaranteeing instant fresh data would require assumptions this pass does not make. Functionality tests and live success/count evidence support preservation of existing behavior, not an absolute promise about every possible future response.
+
+## October 2: history investigation and local regression fix
+
+The user reports approximately one-second launches sometimes, followed by much slower launches/returns after time passes. The phone was unavailable. Git history and synthetic requests establish the following, without asserting which request failed on that phone:
+
+| Revision | Relevant behavior |
+|---|---|
+| `9202b32` | Indexed matching, worker reconciliation/encoding, combined grades, cached credential identity and 15-minute unsuccessful-title backoff. Original measured phone performance above. |
+| `825ed0b` | Explicit Campus cookie transport; no removal of the performance worker/index. |
+| `b0fdea5` | Saved IdP cookies and one bounded browser SSO renewal after authentication rejection. Healthy Campus reads do not start that browser. |
+| `97bdca8` | Credential-owner recheck before Schoology student reads and a shared wait/retry for short Schoology HTTP 429 responses. Optional title reads also inherited that wait and still rejected the entire grade refresh on throttling. Portable signing/widget removal do not cause that request wait. |
+
+The later throttle change combines badly with older expiry paths: optional title recovery becomes due after 15 minutes, period metadata after an hour. An optional title 429 can delay freshness and discard otherwise complete fetched scores. Because title recovery ran inside each section worker, its cooldown could also delay later sections' still-queued required reads. Three new regressions reproduced the rejection, redundant repeat requests and cross-section interference before their fixes.
+
+Required reads now finish for every section before optional title recovery starts. Optional detail/list/folder reads stop immediately on a 429 or active cooldown, preserve fresh scores, and defer their titles for at least 15 minutes or the longer server delay. Authentication rejection and cancellation still propagate. A successful snapshot retains a server cooldown in its protected source payload and AppStore restores it on process relaunch; subsequent fresh reads honor that deadline. Required reads retain their bounded short-throttle retry. No server quota or authentication boundary is bypassed.
+
+Automatic checks reuse parsed section metadata for at most five minutes only when the **complete freshly fetched section-grade row** has the same normalized SHA-256 digest, verified owner/enrollment/user and complete cached period count. Scores, points, exceptions, timestamps, totals, row removals and new periods changing invalidate reuse. Manual refresh bypasses this cache when starting a refresh; concurrent callers still join one operation. Metadata-only edits can take up to five minutes to appear automatically. Original metadata timestamps do not slide, period expiry stays independent, and incomplete cached periods cannot be reused as a complete metadata result. The canonical parser/calculator/matching rules are retained.
+
+### Local evidence
+
+| Synthetic check | Historical/starting result | Final result |
+|---|---:|---:|
+| Seven-section unchanged repeat HTTP requests | 24 at `97bdca8` | 3 (identity, enrollments, complete grades) |
+| 96-source reconciliation on this Mac, debug | 30.066 ms at `9202b32`; 21.360 ms at `97bdca8` | 20.706 ms |
+| Same 2,100-assignment fixture construction, median of five sequential samples | 85.694 ms at `9202b32` | 92.804 ms |
+
+The fixture construction has a small local cost increase, not a multi-second CPU stall. The original worker/index performance pass remains effective. Request counts are asserted against URLProtocol stubs; the owner check has no simulated redirect, so real account counts can differ. These numbers do not claim an 8× phone speedup or prove this student's current slowdown is entirely throttling.
+
+`swift test` passed **109 tests**, hosted XCTest **32**, and a separate neutral-signing local clone **32** hosted tests. Four focused UI cases passed, including freshness gating and launch responsiveness with 2,100 assignments. Exported light/dark assignment and failure-gate screenshots were inspected. The current simulator launch metric was **3.306224, 3.372442, 3.238763 seconds**, average **3.306 seconds**, RSD **1.651%**. It is higher than the original 2.330-second run; these are different sessions and no paired historical simulator comparison establishes its cause. The paired local fixture probe above excludes a return to the original multi-second reconciliation cost.
+
+The signed original-identity device app built successfully and passed strict signature verification with no embedded extension/widget route. It remains prepared locally at `DeviceDerivedData/Build/Products/Debug-iphoneos/GradeViewer.app`. No phone installation, school authentication, remote push or deployment occurred. Ignored local logs, failing-before/passing-after regressions, comparison sources and XCTest results remain under `artifacts/performance/`.
+
+When USB is available, install over the original app and collect protected `--profile-refresh` timing/count reports for initial warm launch, normal background return, and expired metadata/title recovery. Campus SSO renewal can still require up to its existing 20-second browser bound after rejection, and required reads still honor actual server delays. Those need real device/account evidence before assigning the remaining intermittent latency to a provider or session.

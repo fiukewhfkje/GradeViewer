@@ -15,9 +15,13 @@
 - [x] Reproduce short Schoology throttling in a fixture; pause queued reads for server cooldown, bound retries and verify cancellation. Confirm both saved providers refresh on the original phone afterward.
 - [x] Preserve quarter-only UI for existing quarter districts; support equivalent labels and semester-only provider periods.
 - [x] Record 101 core/31 hosted results, all 22 UI cases across full/focused runs, inspected light/dark/small-phone layouts, final clean-copy validation and signed original-device refresh/relaunch.
+- [x] Trace the performance pass and later changes; reproduce optional-title throttles rejecting fresh grades and delaying other sections, then move recovery after required reads and preserve server cooldowns across relaunch.
+- [x] Reduce unchanged seven-section repeat requests from 24 to 3 in fixtures with five-minute account/section-bound metadata reuse; verify changed grades, manual bypass, fixed expiry, incomplete-cache repair and valid empty/malformed responses.
+- [x] Validate 109 core/32 hosted/four focused UI tests, a separate neutral-signing clone's 32 hosted tests, and the prepared signed device build locally.
 
 ## Evidence-driven follow-up
 
+- [ ] When the user reconnects the original phone by USB, install the prepared local revision over the existing app with the same bundle/team, then measure warm launch, background return and expired-metadata/title recovery. Phone verification is intentionally deferred; do not push the local work during this hold.
 - [ ] Observe natural Campus/IdP expiry. Short-term renewal is verified; required credentials/MFA cannot be bypassed. Do not invent a TTL.
 - [ ] Establish a legitimate Campus student identity contract before supporting account switches without disconnect or claiming cross-provider identity verification.
 - [ ] Verify another student's own district/account and physical installation; fixture/clean-clone tests do not establish live district compatibility.
