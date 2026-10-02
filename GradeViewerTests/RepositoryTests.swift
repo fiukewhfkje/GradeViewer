@@ -470,3 +470,74 @@ extension RepositoryTests {
         await success.refresh(); XCTAssertFalse(success.needsFreshData)
     }
 }
+
+
+extension RepositoryTests {
+    func testInteractiveCampusSessionDoesNotStartInViewInitializer() throws {
+        let browser = CampusWebSession(portal: URL(string: "https://district.example.org/campus/portal/students/fixture.jsp")!, saved: nil)
+        XCTAssertFalse(browser.webView.isLoading)
+        XCTAssertNil(browser.webView.url)
+        XCTAssertFalse(browser.loading); XCTAssertFalse(browser.canConnect)
+        browser.cancel()
+    }
+    func testInteractiveCampusTLSFailureIsVisibleAndCannotConnect() {
+        let browser = CampusWebSession(portal: URL(string: "https://district.example.org/campus/portal/students/fixture.jsp")!, saved: nil)
+        let failure = URLError(.secureConnectionFailed, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_URL_AND_COOKIE"])
+        browser.webView(browser.webView, didFailProvisionalNavigation: nil, withError: failure)
+        XCTAssertTrue(browser.loadError?.contains("VPN") == true)
+        XCTAssertFalse(browser.loadError?.contains("PRIVATE_URL_AND_COOKIE") == true)
+        XCTAssertFalse(browser.loading); XCTAssertFalse(browser.canConnect)
+        browser.webView(browser.webView, didFail: nil, withError: URLError(.cancelled))
+        XCTAssertNotNil(browser.loadError, "A cancellation must not erase the useful error")
+        browser.cancel()
+    }
+    func testInteractiveCampusProcessFailureOffersRecoveryAndRetryClearsError() {
+        let browser = CampusWebSession(portal: URL(string: "https://district.example.org/campus/portal/students/fixture.jsp")!, saved: nil)
+        browser.webViewWebContentProcessDidTerminate(browser.webView)
+        XCTAssertNotNil(browser.loadError); XCTAssertFalse(browser.canConnect)
+        browser.retry(usePortal: true)
+        XCTAssertNil(browser.loadError); XCTAssertTrue(browser.loading); XCTAssertFalse(browser.canConnect)
+        browser.cancel() // Cancel before the queued task reaches the network.
+    }
+    func testCampusNetworkFailurePreservesFreshGateAndCanRecoverWithoutReconnect() async throws {
+        let repository = try GradeRepository(memory: true); let courses = Demo.courses(); try repository.save(courses)
+        let fetches = CampusNetworkFixture(courses: courses.map(\.display))
+        let store = AppStore(repository: repository, demo: false, readCredentials: false, fetch: { try await fetches.fetch($0) })
+        store.connected = [.infiniteCampus]
+        await store.activateScene()
+        XCTAssertTrue(store.foregroundRefreshFailed); XCTAssertTrue(store.needsFreshData)
+        XCTAssertTrue(store.errors[.infiniteCampus]?.contains("VPN") == true)
+        XCTAssertEqual(store.courses.count, courses.count); XCTAssertEqual(store.connected, [.infiniteCampus])
+        await store.refresh()
+        XCTAssertNil(store.errors[.infiniteCampus]); XCTAssertFalse(store.needsFreshData)
+        XCTAssertEqual(store.connected, [.infiniteCampus])
+    }
+}
+private actor CampusNetworkFixture {
+    let courses: [SourceCourse]
+    var failed = false
+    init(courses: [SourceCourse]) { self.courses = courses }
+    func fetch(_ provider: ProviderID) throws -> [SourceCourse] {
+        if !failed { failed = true; throw URLError(.secureConnectionFailed) }
+        return courses
+    }
+}
+
+
+extension RepositoryTests {
+    func testFailedCampusRenewalCaptureRetainsRotatedIdPCookies() async throws {
+        let portal = URL(string: "https://district.example.org/campus/portal/students/fixture.jsp")!
+        let entry = URL(string: "https://district.example.org/campus/SSO/fixture/portal/students")!
+        let original = HTTPCookie(properties: [.name: "idp", .value: "fixture-old", .domain: "login.example.net", .path: "/", .secure: "TRUE"])!
+        var saved = try CampusSession(portal: portal, cookies: [])
+        saved.sso = try CampusSSO(base: saved.base, entry: entry, hosts: ["login.example.net"], cookies: [original])
+        let browser = CampusWebSession(portal: portal, saved: saved, automatic: true)
+        await browser.restoreCookies()
+        let rotated = HTTPCookie(properties: [.name: "idp", .value: "fixture-new", .domain: "login.example.net", .path: "/", .secure: "TRUE"])!
+        await browser.webView.configuration.websiteDataStore.httpCookieStore.setCookie(rotated)
+        browser.webView(browser.webView, didFailProvisionalNavigation: nil, withError: URLError(.secureConnectionFailed))
+        let captured = try await browser.capture()
+        XCTAssertEqual(captured.sso?.cookies.map(\.value), ["fixture-new"])
+        XCTAssertEqual(captured.sso?.canRenew(base: saved.base), true, "A failed network load must not discard the renewable login")
+    }
+}

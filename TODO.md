@@ -2,6 +2,8 @@
 
 ## Completed
 
+- [x] Reproduce the October 2 Campus TLS stall, distinguish it from expired authentication, and verify that existing saved cookies still refresh and normal SAML renews without a login prompt. Repair silent browser errors/redraw loads, retain failed-renewal cookie rotations, add direct connection retry and bound Campus network/browser waits. Final validation/delivery is recorded in PROJECT_STATUS.md.
+
 - [x] October 2 repository follow-up: verify all 101 GradeCore tests from a fresh GitHub clone and record the limited review scope without claiming new hosted/UI/device/provider validation.
 
 - [x] Native local app, canonical GradeCore, protected SwiftData grade/history cache and device Keychain credentials.

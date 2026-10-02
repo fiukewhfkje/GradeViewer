@@ -10,10 +10,12 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var statuses: [String: Int] = [:]
     nonisolated(unsafe) static var extraHeaders: [String: String] = [:]
     nonisolated(unsafe) static var cookieHeaders: [String] = []
+    nonisolated(unsafe) static var failure: URLError?
     static let requestLock = NSLock()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
+        if let failure = Self.failure { client?.urlProtocol(self, didFailWithError: failure); return }
         let path = request.url!.path + (request.url!.query.map { "?" + $0 } ?? "")
         let status = Self.requestLock.withLock {
             Self.requests.append(path)
@@ -416,5 +418,32 @@ extension HTTPTests {
             catch { XCTAssertEqual(error as? ProviderError, .unsafeURL) }
         }
         XCTAssertEqual(StubURLProtocol.requests.count, 1)
+    }
+}
+
+
+extension HTTPTests {
+    func testCampusTLSFailurePreservesCookiesAndIsNotRetriedAsAuthentication() async throws {
+        let base = URL(string: "https://example.com/campus/")!
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        let cookie = HTTPCookie(properties: [.name: "session", .value: "private-fixture", .domain: "example.com", .path: "/campus", .secure: "TRUE"])!
+        let http = try ReadOnlyHTTP(origin: base, cookies: [cookie], configuration: config, diagnosticsEnabled: true)
+        let provider = InfiniteCampusProvider(base: base, http: http)
+        StubURLProtocol.failure = URLError(.secureConnectionFailed, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_URL_AND_TOKEN"])
+        defer { StubURLProtocol.failure = nil }
+        do {
+            _ = try await provider.fetch(resuming: base.appendingPathComponent("portal/students/fixture.jsp"))
+            XCTFail("TLS failure must remain a network error")
+        } catch { XCTAssertEqual((error as? URLError)?.code, .secureConnectionFailed) }
+        let cookies = await http.cookies()
+        XCTAssertEqual(cookies.map(\.value), ["private-fixture"])
+        let records = await http.diagnostics()
+        XCTAssertEqual(records.count, 1, "Do not open the portal or retry auth after TLS fails")
+        XCTAssertEqual(records.first?.networkErrorCode, URLError.secureConnectionFailed.rawValue)
+        XCTAssertEqual(records.first?.route, "grade summary")
+        XCTAssertEqual(records.first?.status, 0)
+        let report = String(decoding: try JSONEncoder().encode(records), as: UTF8.self)
+        XCTAssertFalse(report.contains("PRIVATE_URL_AND_TOKEN")); XCTAssertFalse(report.contains("private-fixture"))
+        XCTAssertFalse(report.contains("example.com"))
     }
 }

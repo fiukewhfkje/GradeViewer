@@ -345,3 +345,26 @@ extension GradeViewerUITests {
         let schoology = XCTAttachment(screenshot:app.screenshot()); schoology.name = "schoology-clean-connected"; schoology.lifetime = .keepAlways; add(schoology)
     }
 }
+
+
+extension GradeViewerUITests {
+    @MainActor func testCampusBrowserFailureShowsRetryAndPortalWithConnectDisabled() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings", "--campus-browser-failure"]; app.launch()
+        app.buttons["campus-connection"].tap()
+        XCTAssertTrue(app.staticTexts["Sign-in page unavailable"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["retry-campus-browser"].isHittable)
+        XCTAssertTrue(app.buttons["open-campus-portal"].isHittable)
+        XCTAssertFalse(app.buttons["Connect"].isEnabled)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Campus-browser-TLS-recovery"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["retry-campus-browser"].tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "campus-browser-loading").firstMatch.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Connect"].isEnabled)
+        XCTAssertTrue(app.staticTexts["The sign-in page took too long to load. Check your connection, then retry."].waitForExistence(timeout: 18))
+        XCTAssertTrue(app.buttons["retry-campus-browser"].isHittable)
+        XCTAssertTrue(app.buttons["open-campus-portal"].isHittable)
+        XCTAssertFalse(app.buttons["Connect"].isEnabled)
+        app.buttons["Cancel"].tap()
+        XCTAssertFalse(app.staticTexts["Sign-in page unavailable"].exists)
+        XCTAssertTrue(app.navigationBars["Infinite Campus"].exists)
+    }
+}

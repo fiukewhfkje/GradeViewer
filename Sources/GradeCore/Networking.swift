@@ -53,6 +53,8 @@ public struct HTTPDiagnostic: Codable, Sendable {
     /// Counts only; cookie names, values and attributes never enter diagnostics.
     public var eligibleCookieCount: Int? = nil
     public var sessionCookieCount: Int? = nil
+    /// Numeric URL error only; never include NSError descriptions or userInfo.
+    public var networkErrorCode: Int? = nil
     static func structure(_ data: Data) -> [String: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return ["root": "non-JSON"] }
         let allowed: Set<String> = ["folder-item", "self", "available", "data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
@@ -84,7 +86,12 @@ public actor ReadOnlyHTTP {
     public init(origin: URL, credentials: SchoologyCredentials? = nil, cookies: [HTTPCookie] = [], configuration: URLSessionConfiguration? = nil, diagnosticsEnabled: Bool = false) throws {
         guard origin.scheme == "https", origin.host != nil, origin.user == nil, origin.password == nil, origin.port == nil || origin.port == 443 else { throw ProviderError.unsafeURL }
         self.origin = origin; self.credentials = credentials; self.diagnosticsEnabled = diagnosticsEnabled
-        let config = configuration ?? URLSessionConfiguration.ephemeral; config.timeoutIntervalForRequest = 25; config.timeoutIntervalForResource = 60
+        let config = configuration ?? URLSessionConfiguration.ephemeral
+        // Campus TLS failures were measured blocking launch for 19.5 seconds.
+        // Bound each Campus read, including connection establishment; leave
+        // Schoology's documented cooldown/retry behavior independent.
+        config.timeoutIntervalForRequest = credentials == nil ? 8 : 25
+        config.timeoutIntervalForResource = credentials == nil ? 12 : 60
         config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.httpMaximumConnectionsPerHost = 4; config.httpCookieAcceptPolicy = .always
         for cookie in cookies { config.httpCookieStorage?.setCookie(cookie) }
@@ -126,7 +133,19 @@ public actor ReadOnlyHTTP {
                 }
             }
             let requestStarted = Date()
-            let (data, response) = try await session.data(for: request)
+            let data: Data, rawResponse: URLResponse
+            do { (data, rawResponse) = try await session.data(for: request) }
+            catch {
+                if diagnosticsEnabled {
+                    var record = HTTPDiagnostic(route: diagnosticRoute(current, json: json), status: 0, contentType: "connection failure", responseBytes: 0, structure: [:], redirect: nil)
+                    record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
+                    record.networkErrorCode = (error as? URLError)?.code.rawValue
+                    records.append(record)
+                    if records.count > 200 { records.remove(at: 1) }
+                }
+                throw error // A network failure is not an authentication rejection.
+            }
+            let response = rawResponse
             guard let response = response as? HTTPURLResponse else { throw ProviderError.unavailable }
             if let field = response.value(forHTTPHeaderField: "Set-Cookie") {
                 let received = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": field], for: current)
@@ -134,22 +153,7 @@ public actor ReadOnlyHTTP {
             }
             if diagnosticsEnabled {
                 let mime = response.mimeType ?? "unknown"
-                let route: String
-                if !json { route = "portal session" }
-                else if current.path.contains("/grades/detail/") { route = "grade detail" }
-                else if credentials == nil && current.path.hasSuffix("/grades") { route = "grade summary" }
-                else if current.path.hasSuffix("/users/me") { route = "current user" }
-                else if current.path.hasSuffix("/sections") { route = "enrolled sections" }
-                else if current.path.hasSuffix("/grades") { route = "student grades" }
-                else if current.path.hasSuffix("/grade_items") { route = "assignments" }
-                else if current.path.hasSuffix("/assignments") { route = "assignment title list" }
-                else if current.path.contains("/folder/") { route = "course folder metadata" }
-                else if current.path.hasSuffix("/grading_categories") { route = "categories" }
-                else if current.path.hasSuffix("/grading_periods") { route = "grading periods" }
-                else if current.path.contains("/assignments/") { route = "assignment metadata" }
-                else if current.path.contains("/sections/") { route = "section" }
-                else if current.path.contains("/users/") { route = "user" }
-                else { route = "request" }
+                let route = diagnosticRoute(current, json: json)
                 var redirect: String?
                 if let location = response.value(forHTTPHeaderField: "Location"), let target = URL(string: location, relativeTo: current)?.absoluteURL {
                     redirect = target.host?.lowercased() == origin.host?.lowercased() ? (target.scheme == "https" ? "same host HTTPS" : "same host other scheme") : "other host"
@@ -186,6 +190,23 @@ public actor ReadOnlyHTTP {
             }
         }
         throw ProviderError.unavailable
+    }
+    private func diagnosticRoute(_ url: URL, json: Bool) -> String {
+        if !json { return "portal session" }
+        else if url.path.contains("/grades/detail/") { return "grade detail" }
+        else if credentials == nil && url.path.hasSuffix("/grades") { return "grade summary" }
+        else if url.path.hasSuffix("/users/me") { return "current user" }
+        else if url.path.hasSuffix("/sections") { return "enrolled sections" }
+        else if url.path.hasSuffix("/grades") { return "student grades" }
+        else if url.path.hasSuffix("/grade_items") { return "assignments" }
+        else if url.path.hasSuffix("/assignments") { return "assignment title list" }
+        else if url.path.contains("/folder/") { return "course folder metadata" }
+        else if url.path.hasSuffix("/grading_categories") { return "categories" }
+        else if url.path.hasSuffix("/grading_periods") { return "grading periods" }
+        else if url.path.contains("/assignments/") { return "assignment metadata" }
+        else if url.path.contains("/sections/") { return "section" }
+        else if url.path.contains("/users/") { return "user" }
+        else { return "request" }
     }
     public func cookies() -> [HTTPCookie] {
         // Cookie scope is checked again before secrets enter Keychain.

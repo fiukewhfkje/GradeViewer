@@ -70,6 +70,12 @@ struct CampusSetupView: View {
                 }
                 ConnectionRetryView(provider: .infiniteCampus)
             }
+            if store.connected.contains(.infiniteCampus), store.errors[.infiniteCampus] != nil {
+                ConnectionRetryView(provider: .infiniteCampus)
+                Button("Retry connection") { Task { await store.refresh() } }
+                    .disabled(store.refreshing || store.demo)
+                    .accessibilityIdentifier("retry-campus-connection")
+            }
             Button(store.connected.contains(.infiniteCampus) ? "Sign in again" : "Sign in") { loginURL = validURL }
                 .disabled(validURL == nil || store.refreshing || store.demo)
             if !store.connected.contains(.infiniteCampus) {
@@ -77,7 +83,12 @@ struct CampusSetupView: View {
             }
             DisconnectConnectionView(provider: .infiniteCampus)
         }.navigationTitle("Infinite Campus").navigationBarTitleDisplayMode(.inline)
-            .onAppear { readSavedSession() }
+            .onAppear {
+                readSavedSession()
+                #if DEBUG
+                if store.demo, ProcessInfo.processInfo.arguments.contains("--campus-browser-failure") { loginURL = URL(string: "https://district.example.org/campus/portal/students/district.jsp")! }
+                #endif
+            }
             .onChange(of: loginURL) { _, url in if url == nil { readSavedSession() } }
             .sheet(isPresented: Binding(get: { loginURL != nil }, set: { if !$0 { loginURL = nil } })) { if let url = loginURL { CampusLoginView(portal: url) { loginURL = nil } } }
     }
@@ -126,13 +137,36 @@ struct CampusLoginView: View {
     @State private var session: CampusWebSession
     @State private var saving = false
     @State private var error: String?
-    init(portal: URL, finish: @escaping () -> Void) { self.portal = portal; self.finish = finish; _session = State(initialValue: CampusWebSession(portal: portal, saved: try? SecureStore.load(CampusSession.self, account: "campus"))) }
+    init(portal: URL, finish: @escaping () -> Void) { self.portal = portal; self.finish = finish; _session = State(initialValue: CampusWebSession(portal: portal, saved: ProcessInfo.processInfo.arguments.contains("--demo") ? nil : (try? SecureStore.load(CampusSession.self, account: "campus")))) }
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 Text("Use the same student account. Disconnect before switching accounts.").font(.footnote).foregroundStyle(.secondary).padding(10)
                 if let error { Text(error).font(.footnote).foregroundStyle(.secondary).padding(10) }
-                CampusWebView(session: session)
+                ZStack {
+                    CampusWebView(session: session)
+                    if let loadError = session.loadError {
+                        VStack(spacing: 18) {
+                            Image(systemName: "exclamationmark.triangle").font(.largeTitle)
+                            Text("Sign-in page unavailable").font(.headline)
+                            Text(loadError).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            Button("Retry") { error = nil; session.retry() }.buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Color(uiColor: .systemBackground))
+                                .accessibilityIdentifier("retry-campus-browser")
+                            Button("Open student portal") { error = nil; session.retry(usePortal: true) }
+                                .accessibilityIdentifier("open-campus-portal")
+                        }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(uiColor: .systemBackground))
+                    } else if session.loading {
+                        ProgressView("Loading sign-in page…").padding(20).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                            .accessibilityIdentifier("campus-browser-loading")
+                    }
+                }
+                if session.loadError == nil {
+                    HStack {
+                        Button("Reload") { error = nil; session.retry() }
+                        Spacer()
+                        Button("Student portal") { error = nil; session.retry(usePortal: true) }
+                    }.font(.footnote).padding(12).disabled(saving || session.loading)
+                }
             }.navigationTitle(session.host).navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: finish).disabled(saving) }
@@ -143,9 +177,19 @@ struct CampusLoginView: View {
                             guard !saved.cookies.isEmpty else { throw ProviderError.reconnect }
                             try await store.connectCampus(saved); finish()
                         } catch { self.error = store.message(error, provider: .infiniteCampus) } }
-                    }.disabled(saving || session.studentPortal == nil) }
+                    }.disabled(saving || !session.canConnect) }
                 }
         }.interactiveDismissDisabled(saving)
+            .task {
+                #if DEBUG
+                if store.demo, ProcessInfo.processInfo.arguments.contains("--campus-browser-failure") {
+                    session.webView(session.webView, didFailProvisionalNavigation: nil, withError: URLError(.secureConnectionFailed))
+                    return
+                }
+                #endif
+                session.start()
+            }
+            .onDisappear { session.cancel() }
     }
 }
 struct ConnectionRetryView: View {
