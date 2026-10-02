@@ -23,7 +23,7 @@
 - [x] Install the local performance fix over the original phone app with the same bundle/team; confirm both connections, five home cards/five matched semesters, warm relaunch, real background return and natural five-minute metadata expiry. Observe optional title HTTP 429 without losing fresh scores. The user subsequently authorized GitHub publication.
 - [x] Reproduce and fix the saved-cooldown failure gate; automatically resume short waits, show a countdown for longer waits, and retry at the deadline while active without early requests.
 - [x] Fix current rounding offsets altering earlier perfect graph prefixes and duplicate calculated/observed timestamp events. Preserve real observed missing-grade dips and corrections across reopening; verify 112 core/34 hosted/four focused UI tests and install the updated build on the original phone.
-- [x] Validate the final neutral-signing clone's 34 hosted tests and push the performance/cooldown/graph fixes in PR #1 under the user's publication authorization.
+- [x] Validate the final neutral-signing clone's 34 hosted tests; push and merge the performance/cooldown/graph fixes into `main` in PR #1 (`3893112`) under the user's authorization. The installed runtime matches the validated source.
 
 ## Evidence-driven follow-up
 
