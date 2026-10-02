@@ -2,7 +2,7 @@
 
 ## Completed
 
-- [x] Reproduce the October 2 Campus TLS stall, distinguish it from expired authentication, and verify that existing saved cookies still refresh and normal SAML renews without a login prompt. Repair silent browser errors/redraw loads, retain failed-renewal cookie rotations, add direct connection retry and bound Campus network/browser waits. Final validation/delivery is recorded in PROJECT_STATUS.md.
+- [x] Reproduce the October 2 Campus TLS stall, distinguish it from expired authentication, and verify that existing saved cookies still refresh and normal SAML renews without a login prompt. Repair silent browser errors/redraw loads, retain failed-renewal cookie rotations, add direct connection retry and bound Campus network/browser waits. Validate 113 core/39 hosted/two focused UI cases, install over the original app, verify the final 0.991-second live refresh and merge PR #2 (`920c274`); clean up the feature branch and leave only the original `main` checkout.
 
 - [x] October 2 repository follow-up: verify all 101 GradeCore tests from a fresh GitHub clone and record the limited review scope without claiming new hosted/UI/device/provider validation.
 
