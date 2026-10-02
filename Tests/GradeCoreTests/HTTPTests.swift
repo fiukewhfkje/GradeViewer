@@ -9,6 +9,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var statusSequences: [String: [Int]] = [:]
     nonisolated(unsafe) static var statuses: [String: Int] = [:]
     nonisolated(unsafe) static var extraHeaders: [String: String] = [:]
+    nonisolated(unsafe) static var cookieHeaders: [String] = []
     static let requestLock = NSLock()
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -16,6 +17,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         let path = request.url!.path + (request.url!.query.map { "?" + $0 } ?? "")
         let status = Self.requestLock.withLock {
             Self.requests.append(path)
+            Self.cookieHeaders.append(request.value(forHTTPHeaderField: "Cookie") ?? "")
             if let first = Self.statusSequences[path]?.first { Self.statusSequences[path]?.removeFirst(); return first }
             return Self.statuses[path] ?? Self.status
         }
@@ -26,7 +28,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 }
 final class HTTPTests: XCTestCase {
     func client(diagnostics: Bool = false) throws -> ReadOnlyHTTP { let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubURLProtocol.self]; return try ReadOnlyHTTP(origin: URL(string: "https://example.com/campus/")!, configuration: c, diagnosticsEnabled: diagnostics) }
-    override func setUp() { StubURLProtocol.status = 200; StubURLProtocol.contentType = "application/json"; StubURLProtocol.body = "[]"; StubURLProtocol.bodies = [:]; StubURLProtocol.requests = []; StubURLProtocol.extraHeaders = [:]; StubURLProtocol.statuses = [:]; StubURLProtocol.statusSequences = [:] }
+    override func setUp() { StubURLProtocol.status = 200; StubURLProtocol.contentType = "application/json"; StubURLProtocol.body = "[]"; StubURLProtocol.bodies = [:]; StubURLProtocol.requests = []; StubURLProtocol.extraHeaders = [:]; StubURLProtocol.cookieHeaders = []; StubURLProtocol.statuses = [:]; StubURLProtocol.statusSequences = [:] }
     func testExpiredSessionAndHTMLLoginResponse() async throws {
         let http = try client(); let url = URL(string: "https://example.com/campus/resources/portal/grades")!
         StubURLProtocol.status = 401
@@ -105,6 +107,50 @@ private actor ConcurrencyProbe {
     }
 }
 extension HTTPTests {
+    func testRestoredSessionCookieIsSentAndRotationSurvivesNewClient() async throws {
+        let base = URL(string: "https://example.com/campus/")!
+        let url = base.appendingPathComponent("resources/portal/grades")
+        let cookie = HTTPCookie(properties: [.name: "session", .value: "fixture-old", .domain: "example.com", .path: "/campus", .secure: "TRUE", .discard: "TRUE"])!
+        func client(cookies: [HTTPCookie]) throws -> ReadOnlyHTTP {
+            let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [StubURLProtocol.self]
+            return try ReadOnlyHTTP(origin: base, cookies: cookies, configuration: configuration, diagnosticsEnabled: true)
+        }
+        let original = try client(cookies: [cookie])
+        StubURLProtocol.extraHeaders = ["Set-Cookie": "session=fixture-rotated; Path=/campus; Secure; HttpOnly, route=fixture-node; Path=/campus; Expires=Tue, 01 Jan 2030 00:00:00 GMT; Secure"]
+        _ = try await original.get(url)
+        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "session=fixture-old")
+        let saved = await original.cookies()
+        let restored = try client(cookies: saved)
+        StubURLProtocol.extraHeaders = [:]
+        _ = try await restored.get(url)
+        let header = try XCTUnwrap(StubURLProtocol.cookieHeaders.last)
+        XCTAssertTrue(header.contains("session=fixture-rotated")); XCTAssertTrue(header.contains("route=fixture-node"))
+        XCTAssertFalse(header.contains("fixture-old"))
+        let report = await restored.diagnostics()
+        XCTAssertEqual(report.first?.eligibleCookieCount, 2)
+        XCTAssertEqual(report.first?.sessionCookieCount, 1)
+        let encoded = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("fixture-rotated")); XCTAssertFalse(encoded.contains("example.com"))
+    }
+    func testCampusCookieScopeAndServerDeletionControlOutgoingHeader() async throws {
+        let base = URL(string: "https://example.com/campus/")!
+        let valid = HTTPCookie(properties: [.name: "session", .value: "fixture", .domain: "example.com", .path: "/campus", .secure: "TRUE"])!
+        let wrongPath = HTTPCookie(properties: [.name: "other-path", .value: "fixture", .domain: "example.com", .path: "/private", .secure: "TRUE"])!
+        let foreign = HTTPCookie(properties: [.name: "sso", .value: "fixture", .domain: "sso.example.net", .path: "/", .secure: "TRUE"])!
+        let expired = HTTPCookie(properties: [.name: "expired", .value: "fixture", .domain: "example.com", .path: "/campus", .expires: Date().addingTimeInterval(-86400)])!
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        let http = try ReadOnlyHTTP(origin: base, cookies: [valid, wrongPath, foreign, expired], configuration: config)
+        StubURLProtocol.status = 401
+        StubURLProtocol.extraHeaders = ["Set-Cookie": "session=; Path=/campus; Max-Age=0; Secure; HttpOnly"]
+        do { _ = try await http.get(base.appendingPathComponent("resources/portal/grades")); XCTFail() }
+        catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
+        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "session=fixture")
+        let cookies = await http.cookies()
+        XCTAssertFalse(cookies.contains { $0.name == "session" || $0.name == "expired" || $0.name == "sso" })
+        StubURLProtocol.status = 200; StubURLProtocol.extraHeaders = [:]
+        _ = try await http.get(base.appendingPathComponent("resources/portal/grades"))
+        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "")
+    }
     func testBoundedFetchConcurrencyPreservesOrder() async throws {
         let probe = ConcurrencyProbe()
         let values = try await concurrentMap(Array(0..<9), limit: 3) { try await probe.run($0) }

@@ -356,9 +356,18 @@ import GradeCore
             }
         case .infiniteCampus:
             guard var session = try SecureStore.load(CampusSession.self, account: "campus") else { throw ProviderError.reconnect }
-            let campus = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie))
+            var verify = false
+            #if DEBUG
+            verify = ProcessInfo.processInfo.arguments.contains("--verify-layout") || ProcessInfo.processInfo.arguments.contains("--profile-refresh")
+            #endif
+            let campus = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: verify)
             let result: Result<[SourceCourse], Error>
             do { result = .success(try await campus.fetch(resuming: session.portal)) } catch { result = .failure(error) }
+            if verify {
+                let error: Error?
+                switch result { case .success: error = nil; case .failure(let failure): error = failure }
+                ConnectionDiagnostics(provider: .infiniteCampus, result: ConnectionDiagnostics.result(error), responses: await campus.diagnostics()).save()
+            }
             // A response can rotate cookies even when a later detail fails. Save
             // the updated jar before surfacing that failure, preserving expiry/deletions.
             session.replaceCookies(await campus.sessionCookies())

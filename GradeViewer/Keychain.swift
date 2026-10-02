@@ -28,10 +28,12 @@ enum SecureStore {
 }
 struct StoredCookie: Codable, Sendable {
     var name: String; var value: String; var domain: String; var path: String; var expires: Date?; var secure: Bool
-    init(_ cookie: HTTPCookie) { name = cookie.name; value = cookie.value; domain = cookie.domain; path = cookie.path; expires = cookie.expiresDate; secure = cookie.isSecure }
+    var httpOnly: Bool? = nil // Optional for existing Keychain payloads.
+    init(_ cookie: HTTPCookie) { name = cookie.name; value = cookie.value; domain = cookie.domain; path = cookie.path; expires = cookie.expiresDate; secure = cookie.isSecure; httpOnly = cookie.isHTTPOnly }
     var cookie: HTTPCookie? {
         var properties: [HTTPCookiePropertyKey: Any] = [.name: name, .value: value, .domain: domain, .path: path, .secure: secure ? "TRUE" : "FALSE"]
         if let expires { properties[.expires] = expires }
+        if httpOnly == true { properties[HTTPCookiePropertyKey(rawValue: "HttpOnly")] = "TRUE" }
         return HTTPCookie(properties: properties)
     }
 }

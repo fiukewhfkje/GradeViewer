@@ -11,7 +11,7 @@ struct SettingsView: View {
         Form {
             Section("Connections") {
                 NavigationLink { SchoologySetupView() } label: { LabeledContent("Schoology", value: store.connected.contains(.schoology) ? "Connected" : "Connect") }
-                NavigationLink { CampusSetupView() } label: { LabeledContent("Infinite Campus", value: store.connected.contains(.infiniteCampus) ? "Connected" : "Connect") }
+                NavigationLink { CampusSetupView() } label: { LabeledContent("Infinite Campus", value: store.errors[.infiniteCampus] != nil ? "Check connection" : (store.connected.contains(.infiniteCampus) ? "Connected" : "Connect")) }.accessibilityIdentifier("campus-connection")
                 ForEach(ProviderID.allCases.filter { store.connected.contains($0) }, id: \.self) { provider in Button("Disconnect \(provider.name)", role: .destructive) { disconnecting = provider }.disabled(store.refreshing) }
             }
             Section {
@@ -73,9 +73,45 @@ struct CampusSetupView: View {
             ConnectionRetryView(provider: .infiniteCampus)
             Button("Sign in to Infinite Campus") { loginURL = validURL }.disabled(validURL == nil || store.refreshing || store.demo)
             Button("Find your district") { loginURL = URL(string: "https://www.infinitecampus.com/login")! }.disabled(store.refreshing || store.demo)
+            CampusCookieImportView(portal: validURL)
         }.navigationTitle("Infinite Campus").navigationBarTitleDisplayMode(.inline)
             .onAppear { if let session = try? SecureStore.load(CampusSession.self, account: "campus") { portalURL = session.portal.absoluteString } }
             .sheet(isPresented: Binding(get: { loginURL != nil }, set: { if !$0 { loginURL = nil } })) { if let url = loginURL { CampusLoginView(portal: url) { loginURL = nil } } }
+    }
+}
+struct CampusCookieImportView: View {
+    @Environment(AppStore.self) private var store
+    let portal: URL?
+    @State private var header = ""
+    @State private var error: String?
+    var body: some View {
+        Section {
+            DisclosureGroup("Use browser cookies") {
+                SecureField("Cookie request header", text: $header)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive()
+                    .accessibilityIdentifier("campus-cookie-header")
+                Button("Connect with cookies") {
+                    connect()
+                }.disabled(portal == nil || header.trimmingCharacters(in: .whitespaces).isEmpty || store.refreshing || store.demo)
+                if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
+                Text("Use your own signed-in Campus Student session. Cookies are stored only in Keychain and can still expire. Disconnect before switching accounts.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }.onDisappear { header = "" }
+    }
+    private func connect() {
+        guard let portal else { return }
+        let supplied = header; header = ""; error = nil
+        var session: CampusSession
+        do {
+            session = try CampusSession(portal: portal, cookies: [])
+            session.replaceCookies(try CampusCookieHeader.parse(supplied, origin: session.base))
+        } catch { self.error = "Paste only the Cookie request header from your Campus Student browser session."; return }
+        let saved = session
+        Task {
+            do { try await store.connectCampus(saved) }
+            catch { self.error = store.message(error, provider: .infiniteCampus) }
+        }
     }
 }
 @Observable @MainActor final class CampusWebSession {
@@ -145,7 +181,7 @@ struct ConnectionRetryView: View {
                 }.disabled(store.refreshing || store.demo)
                 Button("Forget saved connection", role: .destructive) { store.forgetPending(provider) }.disabled(store.refreshing)
             } footer: { Text("Stored in Keychain for retry. Grades load after the connection succeeds.") }
-        } else if store.connected.contains(provider) { Text("Connected").foregroundStyle(.secondary) }
+        } else if store.connected.contains(provider) { Text(store.errors[provider] ?? "Connected").foregroundStyle(.secondary) }
     }
 }
 struct CampusWebView: UIViewRepresentable {

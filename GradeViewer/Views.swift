@@ -52,7 +52,7 @@ struct FreshGradeGate: ViewModifier {
                                 if let error = store.errors[provider] { Text(error).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center) }
                             }
                             Text("Your saved data is retained. Retry or check your connection in Profile.").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                            Button("Retry") { Task { await store.refresh() } }.buttonStyle(.borderedProminent).tint(.primary).accessibilityIdentifier(dismissible ? "retry-fresh-grades-sheet" : "retry-fresh-grades")
+                            Button("Retry") { Task { await store.refresh() } }.buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Palette.background).accessibilityIdentifier(dismissible ? "retry-fresh-grades-sheet" : "retry-fresh-grades")
                         } else {
                             ProgressView().controlSize(.large)
                             Text("Refreshing grades…").font(.headline)

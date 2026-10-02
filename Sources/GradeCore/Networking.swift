@@ -43,6 +43,9 @@ public struct HTTPDiagnostic: Codable, Sendable {
     public let redirect: String?
     public var elapsedMilliseconds: Double? = nil
     public var retryAfterSeconds: Double? = nil
+    /// Counts only; cookie names, values and attributes never enter diagnostics.
+    public var eligibleCookieCount: Int? = nil
+    public var sessionCookieCount: Int? = nil
     static func structure(_ data: Data) -> [String: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return ["root": "non-JSON"] }
         let allowed: Set<String> = ["folder-item", "self", "available", "data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
@@ -87,11 +90,21 @@ public actor ReadOnlyHTTP {
             guard current.scheme == "https", current.host?.lowercased() == origin.host?.lowercased(), current.port == origin.port, current.user == nil, current.password == nil, current.path.hasPrefix(origin.path) else { throw ProviderError.unsafeURL }
             var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue(json ? "application/json" : "text/html", forHTTPHeaderField: "Accept")
             if let credentials { request.setValue(OAuth1.header(url: current, credentials: credentials), forHTTPHeaderField: "Authorization") }
+            let eligibleCookies = session.configuration.httpCookieStorage?.cookies(for: current) ?? []
+            if credentials == nil {
+                // Make the WebKit/Keychain handoff explicit. Foundation still
+                // selects cookies by domain, path, expiry and HTTPS; responses
+                // update the same private jar below, including failed reads.
+                request.httpShouldHandleCookies = false
+                for (name, value) in HTTPCookie.requestHeaderFields(with: eligibleCookies) {
+                    request.setValue(value, forHTTPHeaderField: name)
+                }
+            }
             let requestStarted = Date()
             let (data, response) = try await session.data(for: request)
             guard let response = response as? HTTPURLResponse else { throw ProviderError.unavailable }
-            if let fields = response.allHeaderFields as? [String: String] {
-                let received = HTTPCookie.cookies(withResponseHeaderFields: fields, for: current)
+            if let field = response.value(forHTTPHeaderField: "Set-Cookie") {
+                let received = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": field], for: current)
                 session.configuration.httpCookieStorage?.setCookies(received, for: current, mainDocumentURL: origin)
             }
             if diagnosticsEnabled {
@@ -119,6 +132,10 @@ public actor ReadOnlyHTTP {
                 var record = HTTPDiagnostic(route: route, status: response.statusCode, contentType: mime, responseBytes: data.count, structure: HTTPDiagnostic.structure(data), redirect: redirect)
                 record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
                 record.retryAfterSeconds = response.value(forHTTPHeaderField: "Retry-After").map(Self.retryAfter)
+                if credentials == nil {
+                    record.eligibleCookieCount = eligibleCookies.count
+                    record.sessionCookieCount = eligibleCookies.filter { $0.expiresDate == nil }.count
+                }
                 records.append(record)
                 if records.count > 200 { records.remove(at: 1) }
             }

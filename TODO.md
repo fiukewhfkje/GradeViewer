@@ -22,6 +22,10 @@
 
 ## Evidence-driven follow-up
 
+- [x] Diagnose retained data versus Campus authentication: 46 cached records survive, restored cookies accompany repeated HTTP 401, and portal HTML 200 does not restore grades. Add explicit cookie transmission, preserved HttpOnly metadata, masked local Cookie-header import, safe count/status diagnostics, Profile failure status and readable dark Retry. Validate 81 core, 22 hosted and 2 focused UI tests; install signed build.
+- [x] Complete fresh SSO and check repeated immediate process relaunches: user confirmed grades, then two relaunches, signed reinstall, and the next automatic active check refreshed both providers successfully. The prior session's rejection is verified; the reason it became invalid is not established.
+- [ ] Observe longer SSO lifetime and, if needed, the optional browser-cookie import. It is not a proven long-lived SSO fix. Do not infer a session TTL or fabricate a renewal endpoint.
+
 - [x] Trace the narrow title 403 through scoped detail, assignment catalog, and all 16 accessible folders. Add conservative list/folder recovery and 15-minute unsuccessful-lookup backoff, preserving fresh scores.
 - [ ] The remaining title is still denied/absent from provider metadata. Recover only if the provider makes it accessible; do not infer deletion/settings or fabricate a name.
 - [ ] Observe naturally populated completed previous-quarter/semester grades and genuine new grade changes.

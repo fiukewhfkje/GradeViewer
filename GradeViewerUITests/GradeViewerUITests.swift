@@ -265,7 +265,7 @@ extension GradeViewerUITests {
         app.buttons["tab-profile"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
         app.terminate()
-        app.launchArguments = ["--demo", "--fresh-failure-fixture", "--screen=detail"]; app.launch()
+        app.launchArguments = ["--demo", "--fresh-failure-fixture", "--screen=detail", "-appearance", "dark"]; app.launch()
         XCTAssertTrue(app.staticTexts["Fresh grades unavailable"].waitForExistence(timeout:10))
         XCTAssertFalse(app.staticTexts["2-D Kinematics Quiz"].exists)
         let gate = XCTAttachment(screenshot:app.screenshot()); gate.name = "fresh-grade-failure-gate"; gate.lifetime = .keepAlways; add(gate)
@@ -273,8 +273,20 @@ extension GradeViewerUITests {
         app.buttons["retry-fresh-grades-sheet"].tap()
         app.buttons["Close course"].tap()
         XCTAssertTrue(app.buttons["retry-fresh-grades"].isHittable)
+        XCTAssertEqual(app.buttons["retry-fresh-grades"].label, "Retry")
+        let retry = XCTAttachment(screenshot:app.screenshot()); retry.name = "fresh-grade-retry-dark"; retry.lifetime = .keepAlways; add(retry)
         app.buttons["tab-profile"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
         let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "fresh-gate-profile-recovery"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    @MainActor func testCampusCookieImportIsLocalOptionalAndMasked() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
+        let campus = app.buttons["campus-connection"]
+        XCTAssertTrue(campus.waitForExistence(timeout:10)); campus.tap()
+        let cookies = app.buttons["Use browser cookies"]
+        XCTAssertTrue(cookies.waitForExistence(timeout:5)); cookies.tap()
+        XCTAssertTrue(app.secureTextFields["campus-cookie-header"].exists)
+        XCTAssertFalse(app.buttons["Connect with cookies"].isEnabled)
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "campus-local-cookie-import"; attachment.lifetime = .keepAlways; add(attachment)
     }
 }

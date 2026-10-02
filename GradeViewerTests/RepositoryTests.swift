@@ -185,6 +185,29 @@ extension RepositoryTests {
         XCTAssertEqual(restored.cookies.first?.cookie?.value, "fixture-new")
         session.replaceCookies([]); XCTAssertTrue(session.cookies.isEmpty)
     }
+    func testImportedCampusSessionSurvivesKeychainRoundTripWithAllRequestCookies() throws {
+        let portal = URL(string: "https://district.example.org/campus/portal/students/district.jsp")!
+        var session = try CampusSession(portal: portal, cookies: [])
+        session.replaceCookies(try CampusCookieHeader.parse("session=fixture==; route=fixture-node", origin: session.base))
+        let account = "test-campus-session-" + UUID().uuidString
+        defer { try? SecureStore.delete(account: account) }
+        try SecureStore.save(session, account: account)
+        let restored = try XCTUnwrap(SecureStore.load(CampusSession.self, account: account))
+        XCTAssertEqual(restored.base, session.base); XCTAssertEqual(restored.portal, portal)
+        XCTAssertEqual(restored.cookies.compactMap(\.cookie).map(\.value), ["fixture==", "fixture-node"])
+        XCTAssertTrue(restored.cookies.compactMap(\.cookie).allSatisfy { $0.isSecure && $0.expiresDate == nil })
+    }
+    func testCampusCookieSerializationPreservesBrowserSecurityFlagsAndLegacyData() throws {
+        let expires = Date(timeIntervalSince1970: 1_800_000_000)
+        let cookie = HTTPCookie(properties: [.name: "session", .value: "fixture", .domain: "district.example.org", .path: "/campus", .secure: "TRUE", .expires: expires, HTTPCookiePropertyKey(rawValue: "HttpOnly"): "TRUE"])!
+        let restored = try JSONDecoder().decode(StoredCookie.self, from: JSONEncoder().encode(StoredCookie(cookie)))
+        XCTAssertTrue(try XCTUnwrap(restored.cookie).isHTTPOnly)
+        XCTAssertTrue(try XCTUnwrap(restored.cookie).isSecure)
+        XCTAssertEqual(restored.cookie?.expiresDate, expires)
+        let legacy = Data("{\"name\":\"session\",\"value\":\"fixture\",\"domain\":\"district.example.org\",\"path\":\"/campus\",\"secure\":true}".utf8)
+        let old = try JSONDecoder().decode(StoredCookie.self, from: legacy)
+        XCTAssertNil(old.httpOnly); XCTAssertEqual(old.cookie?.value, "fixture")
+    }
 }
 
 extension RepositoryTests {
