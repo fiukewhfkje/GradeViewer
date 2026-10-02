@@ -1,4 +1,4 @@
-# Project status — October 1, 2026
+# Project status — October 2, 2026
 
 GradeViewer is a native local iPhone app. The GitHub remote is private; friends need repository access and their own Apple/school accounts. No server, Muse watcher, App Store release, or TestFlight deployment exists. Use `git log -1` for the delivered revision.
 
@@ -17,6 +17,18 @@ GradeViewer is a native local iPhone app. The GitHub remote is private; friends 
 - Existing clean course list/detail, discrete grade/date chart tooltip, separate observed/calculated history, timestamp ordering, system/light/dark appearance, local edit/drop/reset/add and final calculator remain. Presentation variants never become duplicate calculator contributions.
 
 ## Audit validation
+
+### Repository follow-up — October 2, 2026
+
+A fresh clone of the GitHub default branch passed all **101 GradeCore XCTest
+cases** with `swift test`. Selected parsing, calculation, assignment ordering,
+cookie, and grade-curve paths were reviewed for small, low risk improvements;
+no additional runtime fix was established in this pass. Only this status record
+and TODO were updated. Hosted/UI tests, device installation, and authenticated
+provider requests were not repeated. The detailed October 1 results below are
+historical evidence, not new October 2 validation.
+
+### October 1 implementation audit
 
 - `swift test`: **101 GradeCore tests passed**, covering the matching regressions, identity/empty-snapshot checks, malformed pagination, URL scope/default ports, parser bounds, shared metadata conflicts and bounded throttle recovery, plus the previous provider/calculation/history tests.
 - Hosted XCTest: **31 tests passed**, including disposable Keychain round trips, legacy Campus/SSO restoration, failed connection activation rollback, refresh failure retention and local persistence.
