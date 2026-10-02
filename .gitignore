@@ -17,3 +17,6 @@ DeviceDerivedData/
 *.sqlite-wal
 *.har
 __pycache__/
+
+# Personal device signing; never shared with other clones.
+Signing.local.xcconfig

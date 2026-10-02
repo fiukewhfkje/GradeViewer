@@ -77,8 +77,6 @@ struct RootView: View {
         Group {
             if tab == 0 { NavigationStack { CourseListView() }.freshGradeGate() }
             else { NavigationStack { SettingsView() } }
-        }.onOpenURL { url in
-            if url.scheme == "gradeviewer", url.host == "grades" { tab = 0; previewCourse = nil }
         }.safeAreaInset(edge: .bottom, spacing: 0) {
             HStack {
                 tabButton("Grades", icon: nil, selected: 0)
@@ -95,7 +93,6 @@ struct RootView: View {
                         case "categories": CategoriesView(course: course)
                         case "whatif": WhatIfView(course: course)
                         case "final": FinalCalculatorView(course: course)
-                        case "widget": WidgetPreviewView(courses: store.courses)
                         default: CourseDetailView(courseID: course.id)
                         }
                     }.toolbar { CourseCloseToolbar { previewCourse = nil } }
@@ -202,7 +199,7 @@ struct AssignmentPeriodPills: View {
                             .foregroundStyle(selected ? Palette.background : Color.secondary)
                             .frame(maxWidth:.infinity, minHeight:36)
                             .background(selected ? Color.primary : .clear, in: Capsule())
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(.plain).frame(maxWidth: .infinity)
                         .accessibilityLabel(GradingPeriods.descriptor(course).label + " assignments")
                         .accessibilityAddTraits(selected ? .isSelected : [])
                         .accessibilityIdentifier("period-" + course.display.term.id + "-" + GradingPeriods.descriptor(course).kind.rawValue)
@@ -340,7 +337,7 @@ struct AssignmentsView: View {
     var scoped = false
     var body: some View {
         let original = store.courses.first { $0.id == self.course.id } ?? self.course
-        let periods = GradingPeriods.ordered(GradingPeriods.related(to: original, among: store.courses)).filter { GradingPeriods.descriptor($0).kind == .quarter }
+        let periods = GradingPeriods.assignmentPeriods(for: original, among: store.courses)
         let selected = periods.first { $0.id == store.selectedPeriods[original.id] } ?? original
         let scoped = self.scoped || !periods.isEmpty
         let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected

@@ -3,8 +3,22 @@ import Foundation
 /// Select one current card per physical Campus section. Grading tasks and terms
 /// stay separate in the cache/calculator; exam totals never become another class.
 public enum CourseSelection {
-    public static func visible(_ courses: [Course], term: String) -> [Course] {
-        let eligible = courses.filter { !$0.hidden && (term.isEmpty || $0.display.term.name == term) }
+    public static func visible(_ courses: [Course], term: String, at now: Date = Date()) -> [Course] {
+        let anchors = courses.filter { $0.display.term.name == term }.sorted { rank($0) > rank($1) }
+        let anchor = anchors.first { $0.display.term.start.map { $0 <= now } == true && $0.display.term.end.map { $0 >= now } == true }
+            ?? anchors.filter { $0.display.term.start.map { $0 <= now } ?? true }.max { ($0.display.term.start ?? .distantPast) < ($1.display.term.start ?? .distantPast) }
+            ?? anchors.first
+        let selected = anchor.map(GradingPeriods.descriptor)
+        let eligible = courses.filter { course in
+            guard !course.hidden else { return false }
+            if term.isEmpty { return true }
+            let period = GradingPeriods.descriptor(course)
+            if let selected, let a = selected.start, let b = selected.end, let c = period.start, let d = period.end, a > d || c > b { return false }
+            if course.display.term.name == term { return true }
+            // An unmatched Schoology class can use a dated title for the same
+            // quarter. Different provider labels must not hide that whole class.
+            return period.kind != .other && selected.map { GradingPeriods.matches(period, $0, campusFinal: false, sameName: false) } == true
+        }
         let groups = Dictionary(grouping: eligible) { course in
             if let campus = course.sources.first(where: { $0.source.provider == .infiniteCampus }), let section = campus.source.fields["section_id"] {
                 return "campus:\(campus.source.fields["school_id"] ?? "school"):\(section)"

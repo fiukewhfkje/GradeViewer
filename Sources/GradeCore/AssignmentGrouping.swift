@@ -18,13 +18,13 @@ public enum AssignmentGrouping {
         return AssignmentOrdering.graded(Dictionary(rows.map { ($0.id,$0) }, uniquingKeysWith: { a,_ in a }).values)
     }
     public static func schoologySource(for course: Course, among available: [SourceCourse]) -> SourceCourse? {
-        if let linked = course.sources.first(where: { $0.source.provider == .schoology && !$0.categories.isEmpty }) { return linked }
+        if let linked = course.sources.first(where: { $0.source.provider == .schoology }) { return linked.categories.isEmpty ? nil : linked }
         let name = Reconciler.normalize(course.name)
         guard !name.isEmpty else { return nil }
         let own = Set(course.calculationSource.assignments.compactMap(Reconciler.assignmentLabelKey))
         let unique = Dictionary(available.filter { $0.source.provider == .schoology }.map { ($0.id, $0) }, uniquingKeysWith: { a,b in a.fetched > b.fetched ? a : b }).values
         let candidates = unique.filter { source in
-            guard !source.categories.isEmpty, Reconciler.compatibleMetadata(course.calculationSource, source), Reconciler.normalize(source.source.fields["course_name"] ?? source.title) == name else { return false }
+            guard !source.categories.isEmpty, Reconciler.compatibleMetadata(course.calculationSource, source), GradingPeriods.compatible(course.calculationSource, source), Reconciler.normalize(source.source.fields["course_name"] ?? source.title) == name else { return false }
             let shared = own.intersection((source.assignments + (source.assignmentCatalog ?? [])).compactMap(Reconciler.assignmentLabelKey))
             // Matching names alone must never borrow another period/section's categories.
             return shared.count >= 2

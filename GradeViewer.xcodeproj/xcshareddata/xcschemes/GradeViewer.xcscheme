@@ -21,20 +21,6 @@
                ReferencedContainer = "container:GradeViewer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0B1CDFCBF4614324DF98A489"
-               BuildableName = "GradeViewerWidget.appex"
-               BlueprintName = "GradeViewerWidget"
-               ReferencedContainer = "container:GradeViewer.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction

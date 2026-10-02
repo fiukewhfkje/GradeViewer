@@ -4,7 +4,8 @@ import GradeCore
 
 enum KeychainError: Error { case status(OSStatus) }
 enum SecureStore {
-    private static let service = "com.ashtonchang.GradeViewer"
+    // Preserve the existing service for an unchanged bundle ID, while isolating clones.
+    private static let service = Bundle.main.bundleIdentifier ?? "org.gradeviewer.GradeViewer"
     static func save<T: Encodable>(_ value: T, account: String) throws {
         let data = try JSONEncoder().encode(value)
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
@@ -99,7 +100,7 @@ struct CampusSSO: Codable, Sendable {
     static func returnedToCampus(_ url: URL, base: URL, visitedIdp: Bool) -> Bool {
         visitedIdp && url.scheme == "https" && url.user == nil && url.password == nil &&
         (url.port == nil || url.port == 443) && url.host?.lowercased() == base.host?.lowercased() &&
-        (url.path == base.path || url.path.hasPrefix(base.path + "/"))
+        (url.path == base.path || url.path.hasPrefix(base.path.hasSuffix("/") ? base.path : base.path + "/"))
     }
     static func matches(_ cookie: HTTPCookie, hosts: Set<String>) -> Bool {
         let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
@@ -116,10 +117,5 @@ struct CampusSSO: Codable, Sendable {
               suffix[1] == "portal", suffix[2] == "students" else { return false }
         let query = URLComponents(url: entry, resolvingAgainstBaseURL: false)?.queryItems ?? []
         return query.isEmpty || (query.count == 1 && query[0].name == "configID" && query[0].value?.isEmpty == false && query[0].value!.allSatisfy { $0.isASCII && $0.isNumber })
-    }
-    static func knownEntry(base: URL) -> URL? {
-        // Verified public Student SSO link, not a guessed API or saved SAML request.
-        guard base.absoluteString == "https://dublincityoh.infinitecampus.org/campus/" else { return nil }
-        return URL(string: "https://dublincityoh.infinitecampus.org/campus/SSO/dublincity/portal/students?configID=1")
     }
 }

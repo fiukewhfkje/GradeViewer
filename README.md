@@ -1,88 +1,62 @@
 # GradeViewer
 
-A native, local-first iPhone grade viewer built with SwiftUI, a smooth native graph, SwiftData, URLSession, Keychain, and WidgetKit. No required backend or third-party runtime dependencies. iOS 17 or later; one original app icon.
+A simple native iPhone app for Schoology and Infinite Campus grades, assignments, grade progression, and local What-If/final calculators. iOS 17+, Apple frameworks, and the local GradeCore package. No server, subscription, analytics, or widget.
 
-The working project is `/Users/ashtonchang/Documents/GradeViewer`. Open `GradeViewer.xcodeproj` for development. Git started on `main` before implementation. The private GitHub repository is https://github.com/fiukewhfkje/GradeViewer; the full history is preserved.
+## Install on your iPhone
 
-## Current build
+You need a Mac with **Xcode 26 or later** (tested with Xcode 27), an Apple Account, and your own school sign-in. A free Personal Team works for development installs, but Apple requires rebuilding/reinstalling after **7 days**. [Apple account limits](https://developer.apple.com/help/account/basics/about-your-developer-account).
 
-Course grades, assignments, collapsible assignment groups, stored grade history, graph point selection, shared local What-If edits/drop/restore/reset, added hypothetical assignments, final calculator, automatic course matching, pull-to-refresh, system/light/dark mode, and small/medium widgets are implemented. Saved grades load internally, but an opaque loading screen covers grade views on launch and every foreground return until each connected provider has supplied fresh data. Failures show a retry/reconnect screen while retaining the saved data. Profile remains accessible. Automatic checks happen on launch and a real background-to-foreground return. Temporary inactivity (app switcher, Control Center, system prompts) neither hides the current screen nor triggers another fetch. The existing one-minute check is retained only while actively using the app; its timer cancels on inactivity/background. Pull-to-refresh remains available. Pull down on Grades, course detail, or full assignments for an immediate refresh. Overlapping requests join the same operation, both providers run concurrently, and a completed provider publishes without waiting for the other. Section requests use bounded concurrency. The home list has one current card per physical class. View All Assignments contains one Q1–Q4 pill toggle. Exam grades and assignments appear at the bottom of their associated closing quarter, including Q2 for the first-semester exam. Course Grade shows the associated semester overall; the class overview keeps the current quarter, and the full list follows its selected pill. The course sheet shows Course Grade, Grade Progression, five recent assignments, and View All Assignments. Calculators and resets are inside the course three-dot menu. A failed provider keeps its last successful data.
+1. Obtain GitHub access from the owner if this repository is private, then clone it:
+   ```sh
+   git clone https://github.com/fiukewhfkje/GradeViewer.git
+   cd GradeViewer
+   open GradeViewer.xcodeproj
+   ```
+2. In Xcode → Settings → Apple Accounts, sign in. Select the **GradeViewer app target → Signing & Capabilities**, enable automatic signing, choose **your team**, and set a unique bundle identifier, such as `com.yourname.GradeViewer`. There is only one app to sign; no App Group is needed.
+3. Connect and unlock your iPhone, trust the Mac, select the **GradeViewer** scheme and your phone, and press Run. If prompted, enable **Settings → Privacy & Security → Developer Mode**, restart, and confirm. If iOS asks for developer trust, follow **Settings → General → VPN & Device Management**. [Apple's device setup](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices), [Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device).
+4. Open GradeViewer → **Profile**, and connect either or both providers below.
 
-The graph combines actual locally observed changes with presentation-only calculated prefixes when the complete source data reproduces the reported grade. Calculated points are presentation-only, prefer actual score-update dates, and never become observed history. The hold tooltip shows only grade/date per the user’s preference; the reconstruction basis is described in ARCHITECTURE.md. Incomplete dates retain an actual selectable point instead of inventing a curve. Update labels use available score-change timestamps, not a refresh countdown. A checkmark lasts less than 24 hours; ages over 30 days use completed 30-day months. Campus scoreModifiedDate is parsed first; all five current courses were verified on the phone with update dates and progression curves. The marker traces the smooth curve continuously, while the tooltip selects the nearest event grade/date and jumps only at midpoint thresholds. Distinct assignment contributions retain separate points even when timestamps tie; events have equal horizontal spacing. Interpolated geometry never supplies a displayed percentage. Even one recorded grade renders a flat line. Releasing your finger clears the selection. Assignment titles and update labels use stronger font weights.
+Keep the **same team and bundle identifier** when updating an existing installation, and install over it instead of deleting the app. Changing its identity creates a separate app/Keychain scope. This repository does not provide App Store or TestFlight distribution.
 
-Ungraded assignments are omitted from visible lists. The overview retains graded Schoology-only work; the full view uses Schoology categories and the selected quarter, followed by its separate exam section. One stable score-date ordering rule serves every class. Past work and category metadata never change the current grade calculation.
+## Connect your school accounts
 
-Provider adapters have fixture and transport tests. **Both providers completed successful authenticated grade fetches on this student's iPhone.** Campus detail requests now use sectionID; Schoology handles a returned grade-owner ID that differs from the enrolled section used for accessible metadata. Saved Keychain connections survived reinstall and relaunch. Campus initially returned HTTP 401 on October 1. The user completed normal district sign-in; subsequent installed builds refreshed both providers and retained both Keychain connections. Six Biology wrapper/node title mismatches were repaired. One other detail still returns HTTP 403 and is absent from its accessible catalogs/folders; its score and neutral title are retained. Scoped assignment/folder fallback can recover accessible titles, and unchanged unsuccessful title lookups back off for 15 minutes while grades/catalogs continue to refresh normally. Campus saves cookie rotation after failed detail fetches and can renew a rejected session through normal browser SSO using the saved identity-provider session. Older Campus-only connections retain the same-origin portal retry. This cannot guarantee an indefinitely valid district session. Campus uses normal district login and keeps Campus and identity-provider cookies separately in Keychain; the grade resources are based on public client evidence rather than a supported student API contract. Read RESEARCH.md before claiming live compatibility.
+- **Schoology:** sign in to [your API credentials page](https://app.schoology.com/api), generate/retrieve your personal API key and secret if your school permits it, then enter them in Profile → Schoology → Connect. These are API credentials, not your password. If your student account cannot generate keys, your district must permit API access; Campus can still be used by itself. [Schoology authentication](https://developers.schoology.com/api-documentation/authentication/), [API key management](https://uc.powerschool-docs.com/en/schoology/latest/api-key-management).
+- **Infinite Campus:** Profile → Infinite Campus → **Find your district**, choose Campus Student, complete the district's normal login/SSO, then tap **Connect** in GradeViewer's toolbar. Alternatively paste your exact HTTPS Campus Student login URL. Parent portals are not supported. GradeViewer stores session cookies, never your Campus password.
 
-## Connect locally
+Credentials and reusable sessions stay in that installation's device Keychain. Cloning the repository does not copy anyone's sign-in or grades. Never put keys, cookies, passwords, or exported student data in source files, chat, or issues. **Disconnect before switching students/accounts.** Schoology checks its credential owner; Campus's current grade resources do not provide a verified account-binding contract.
 
-1. On the iPhone, open GradeViewer → Settings → Schoology. Enter your personal API key and secret. Tap Connect. Keys are saved to Keychain for a manual retry; the provider becomes Connected only after a successful fetch.
-2. Settings → Infinite Campus: tap Find your district to search and sign in inside GradeViewer, or paste your exact HTTPS **Campus Student** login URL, typically `https://<DISTRICT_HOST>/campus/portal/students/<DISTRICT>.jsp`. Modern `/campus/nav-wrapper/student/portal/student/home` addresses are also supported. Sign in on the district page, including SSO if applicable. After login, tap Connect in GradeViewer's toolbar. The app tests grade access and saves Campus-domain cookies plus the SSO session from visited identity-provider hosts to Keychain. It never reads or saves your password. Existing connections need one normal sign-in to capture the SSO session discarded by earlier builds. This student has completed that step; session persistence and automatic renewal run behind the scenes.
-3. Courses match automatically using compatible metadata, explicit matching period boundaries/kind, or a unique pair with matching title words and at least two shared assignment title/points identities. Proven physical section pairs then connect compatible empty periods and semester Finals. Schoology section grading-period metadata reconciles its semester hierarchy with Campus task records. Conflicting teachers, disjoint known terms, and ambiguous sections remain separate. Campus's available reported grade is the display authority; both source variants are retained. Settings has no course-editing or course-matching screens.
+Grades refresh on launch, return from the background, pull-to-refresh, and once a minute while active. A failed refresh retains the last successful data internally and offers Retry/Profile; foreground grade screens wait for fresh data. Short Schoology rate limits get one bounded retry after the server's delay. Campus can reuse a captured district SSO session, but required credentials/MFA still need normal sign-in.
 
-Failed setup keeps pending credentials/session cookies in Keychain and offers Retry sign-in or Clear saved sign-in when setup needs attention. A short diagnostic reports request stage/status/type, with no student values. Structural reports in Library/Caches contain only fixed route labels, field types, counts, and safe error labels; normal refresh does not collect these diagnostics.
+Both providers worked on the original student's iPhone. Campus uses authenticated portal resources without a supported public student API contract, so other districts may differ. Matching requires unique compatible evidence; ambiguous courses stay separate. Neither provider compatibility nor automatic matching can honestly be guaranteed for every account. Calculators stay local and require source rules that reproduce the reported grade.
 
-Settings shows only Schoology, Infinite Campus and Appearance. Connected provider pages hide setup fields and expose basic sign-in/update and Disconnect actions. Only initial setup or an explicit update needs credentials. Cookie controls, SSO-readiness text, HTTP diagnostics, optional token fields, version boilerplate and manual widget reload are absent. Persistence, renewal and widget updates are automatic.
+## Develop or install with CLI / an AI assistant
 
-Campus first tries one normal browser SSO renewal when its grade session is rejected. If the identity provider requires credentials or MFA, use the reconnect flow. The Campus page restores this app’s unexpired Campus and SSO cookies into a memory-only browser; no manual cookie copying is needed for this flow. **Disconnect before switching students/accounts.** Disconnect removes that provider's grades and resets local history, mappings, and What-If scenarios. Do not paste credentials into chat, source files, command arguments, or issue reports.
-
-## Build and test from CLI
-
-Xcode 27.0 and Swift 6.4 were used for this session. `project.yml` is the XcodeGen source; the generated Xcode project is committed, so XcodeGen is needed only after project configuration edits. The only Swift package is local GradeCore.
+Read [AGENTS.md](AGENTS.md) first. Personal signing can be kept out of the generated project:
 
 ```sh
-cd /Users/ashtonchang/Documents/GradeViewer
+cp Signing.local.xcconfig.example Signing.local.xcconfig
+```
+
+Set `DEVELOPMENT_TEAM` to your Apple team ID and `GRADEVIEWER_BUNDLE_ID` to your unique identifier in that ignored file. The committed project automatically includes it; no regeneration is needed. Do not copy another person's local file. The original checkout retains its existing installation identity there.
+
+```sh
 swift test
-# Only after changing project.yml:
-xcodegen generate
 xcrun simctl list devices available
+# Replace the simulator name with one installed on your Mac.
 xcodebuild test -project GradeViewer.xcodeproj -scheme GradeViewer \
   -destination 'platform=iOS Simulator,name=iPhone 17e' \
   -derivedDataPath DerivedData -collect-test-diagnostics never CODE_SIGN_IDENTITY=-
-```
 
-Keep simulator signing enabled for the Keychain/App Group tests. `CODE_SIGNING_ALLOWED=NO` builds the UI but removes the entitlements those tests need. `-collect-test-diagnostics never` avoids a simulator diagnostic collection hang observed after a failed UI test; normal `.xcresult` results and screenshot attachments still work.
-
-The UI suite includes a three-iteration launch metric and a 20-screen screenshot matrix. For a short focused run, use `-only-testing:GradeViewerTests` or select the relevant UI test. Export screenshot attachments with:
-
-```sh
-xcrun xcresulttool export attachments --path <RESULT_BUNDLE>.xcresult --output-path <OUTPUT_FOLDER>
-python3 Scripts/export-screenshots.py <OUTPUT_FOLDER> <NAMED_SCREENSHOT_FOLDER>
-```
-
-All UI driving uses XCTest/simctl/devicectl. No computer-use or GUI automation is needed.
-
-## Deterministic visual fixtures
-
-Simulator launch arguments use an in-memory store and do not fetch providers:
-
-```sh
-xcrun simctl install <SIMULATOR_ID> DerivedData/Build/Products/Debug-iphonesimulator/GradeViewer.app
-xcrun simctl launch <SIMULATOR_ID> com.ashtonchang.GradeViewer --demo -appearance dark --screen=detail
-xcrun simctl io <SIMULATOR_ID> screenshot <SCREENSHOT_PATH>.png
-```
-
-Wait until presentation animations finish before an immediate simctl screenshot; XCTest's screenshot test waits for the visible navigation screen. Routes: `detail`, `assignments`, `categories`, `whatif`, `final`, `settings`, `widget`; default is grades. `--empty`, `--error`, and `--long-list` exercise empty, retained-cache error, and 2,100-assignment fixtures. `-appearance light|dark|system` overrides the stored appearance for QA. Real app launch uses no fixture arguments. The widget QA route renders the same shared content as the extension, not an actual Home Screen placement.
-
-## Add the widget
-
-The installed build includes a Home Screen widget with small (first course) and medium (first three courses) sizes. Open GradeViewer once so its saved summary is available. Touch and hold an empty Home Screen area → Edit → Add Widget → search GradeViewer → choose a size → Add Widget → Done. [Apple's current steps](https://support.apple.com/en-gb/118610).
-
-Widgets follow the automatically selected current courses and retained ordering. Tap the widget to open Grades. A successful app refresh updates the summary and requests a widget reload; the widget does not poll providers while the app is closed. Physical Home Screen placement remains a user action, while the extension, shared rendering, App Group transport, and signed installation are validated.
-
-## Connected iPhone
-
-The configured development team is `S5MUKGHJR2`. CLI signing/build and installation succeeded on the connected iPhone 15. The user completed developer trust and confirmed launch; devicectl launch also succeeded. If installing on another device, developer trust must be performed on the phone under Settings → General → VPN & Device Management, selecting the developer profile. Follow Trust/Allow & Restart if offered. See [Apple's developer trust instructions](https://help.apple.com/xcode/mac/current/en.lproj/dev96a12fb84.html).
-
-```sh
+xcrun devicectl list devices
 xcodebuild build -project GradeViewer.xcodeproj -scheme GradeViewer \
   -destination 'id=<DEVICE_ID>' -derivedDataPath DeviceDerivedData -allowProvisioningUpdates
-xcrun devicectl device install app --device <DEVICE_ID> DeviceDerivedData/Build/Products/Debug-iphoneos/GradeViewer.app
-xcrun devicectl device process launch --device <DEVICE_ID> com.ashtonchang.GradeViewer
+xcrun devicectl device install app --device <DEVICE_ID> \
+  DeviceDerivedData/Build/Products/Debug-iphoneos/GradeViewer.app
+xcrun devicectl device process launch --device <DEVICE_ID> "$BUNDLE_ID"
 ```
 
-The current development provisioning profile expires October 6, 2026. Rebuild/reinstall with the signed-in team when renewal is needed. This is a local development installation, not an App Store release.
+Set `BUNDLE_ID` to the same identifier you configured. Apple Account login, Developer Mode, and device trust may require manual action. Keep simulator signing enabled for Keychain tests. The generated Xcode project is committed; **XcodeGen is only needed after editing `project.yml`** (`xcodegen generate`). Do not commit personal signing overrides to the project.
 
-## Continue the project
+For synthetic simulator UI checks, launch with `--demo`; optionally add `-appearance dark` and `--screen=detail` (also `assignments`, `categories`, `whatif`, `final`, `settings`). Demo uses an isolated in-memory store and makes no provider requests. Do not add fixture arguments to a real installation.
 
-Read PROJECT_STATUS.md and TODO.md first, then ARCHITECTURE.md and RESEARCH.md. The original requirements are preserved in docs/PRODUCT_BRIEF.md. [docs/PERFORMANCE_REPORT.md](docs/PERFORMANCE_REPORT.md) contains the October 1 measured refresh baseline, UI-stall diagnosis, improvements, and limits. DETAILED_FINAL_REPORT.md explains UI behavior, normalization, desynchronization, observed bugs, validation and remaining limits. MUSE_WATCHER_REPORT.md is a separate implementation handoff with endpoint evidence labels, recommended cadence, session considerations, redacted examples, deduplication/state design, and a live verification checklist. **No Muse watcher was implemented or deployed.**
+[PROJECT_STATUS.md](PROJECT_STATUS.md) records actual validation and remaining limits. [ARCHITECTURE.md](ARCHITECTURE.md) describes matching, calculation provenance, and session security; [RESEARCH.md](RESEARCH.md) distinguishes provider documentation from public-client and live evidence. [TODO.md](TODO.md) tracks remaining work. No Muse watcher is implemented or required.

@@ -1,3 +1,5 @@
+> Historical report: the October 1 portability audit subsequently removed the widget and App Group and changed signing/connection hardening. Use README.md, PROJECT_STATUS.md and ARCHITECTURE.md for the current build.
+
 > Historical September 29 report. October 1 behavior and validation in PROJECT_STATUS.md and ARCHITECTURE.md supersede the descriptions below: every foreground entry now waits for fresh data, periods are browsable within a class, and both providers refreshed successfully after the user's normal Campus reconnection.
 
 # GradeViewer detailed final report

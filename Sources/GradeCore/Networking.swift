@@ -3,10 +3,14 @@ import CryptoKit
 
 public struct SchoologyCredentials: Codable, Sendable {
     public var key: String; public var secret: String; public var token: String; public var tokenSecret: String
-    /// Populated only after users/me succeeds, and saved with this credential set
-    /// in Keychain. Editing/replacing credentials starts with no cached identity.
+    /// Bound after users/me succeeds and reverified on refresh. Replacing keys
+    /// starts without an identity; an active account change requires disconnect.
     public var userID: String? = nil
     public init(key: String, secret: String, token: String = "", tokenSecret: String = "") { self.key = key; self.secret = secret; self.token = token; self.tokenSecret = tokenSecret }
+}
+public struct SchoologySnapshot: Sendable {
+    public let userID: String
+    public let courses: [SourceCourse]
 }
 public enum OAuth1 {
     public static func encode(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"))! }
@@ -73,6 +77,7 @@ public actor ReadOnlyHTTP {
     private let credentials: SchoologyCredentials?
     private let diagnosticsEnabled: Bool
     private var records: [HTTPDiagnostic] = []
+    private var schoologyThrottleUntil: Date?
     public init(origin: URL, credentials: SchoologyCredentials? = nil, cookies: [HTTPCookie] = [], configuration: URLSessionConfiguration? = nil, diagnosticsEnabled: Bool = false) throws {
         guard origin.scheme == "https", origin.host != nil, origin.user == nil, origin.password == nil, origin.port == nil || origin.port == 443 else { throw ProviderError.unsafeURL }
         self.origin = origin; self.credentials = credentials; self.diagnosticsEnabled = diagnosticsEnabled
@@ -86,8 +91,25 @@ public actor ReadOnlyHTTP {
     func visitPortal(_ url: URL) async throws { _ = try await read(url, json: false) }
     private func read(_ url: URL, json: Bool) async throws -> Data {
         var current = url
-        for _ in 0..<5 {
-            guard current.scheme == "https", current.host?.lowercased() == origin.host?.lowercased(), current.port == origin.port, current.user == nil, current.password == nil, current.path.hasPrefix(origin.path) else { throw ProviderError.unsafeURL }
+        var redirects = 0, throttleRetries = 0
+        while redirects < 5 {
+            let path = current.path
+            let root = origin.path.hasSuffix("/") ? origin.path : origin.path + "/"
+            guard current.scheme == "https", current.host?.lowercased() == origin.host?.lowercased(),
+                  (current.port ?? 443) == (origin.port ?? 443), current.user == nil, current.password == nil,
+                  current.fragment == nil, path == origin.path || path.hasPrefix(root),
+                  !path.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }) else { throw ProviderError.unsafeURL }
+            try Task.checkCancellation()
+            if credentials != nil {
+                // A large first snapshot can hit a short server cooldown. Pause
+                // all queued reads, retain completed work, and retry a GET once.
+                // Longer/repeated throttles return to the app's normal backoff.
+                while let until = schoologyThrottleUntil, until > Date() {
+                    let seconds = until.timeIntervalSinceNow
+                    guard seconds <= 30 else { throw ProviderError.throttled(seconds) }
+                    try await Task.sleep(for: .seconds(max(0, seconds)))
+                }
+            }
             var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue(json ? "application/json" : "text/html", forHTTPHeaderField: "Accept")
             if let credentials { request.setValue(OAuth1.header(url: current, credentials: credentials), forHTTPHeaderField: "Authorization") }
             let eligibleCookies = session.configuration.httpCookieStorage?.cookies(for: current) ?? []
@@ -142,10 +164,16 @@ public actor ReadOnlyHTTP {
             switch response.statusCode {
             case 401: throw ProviderError.reconnect
             case 403: throw ProviderError.forbidden
-            case 429: throw ProviderError.throttled(Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After")))
+            case 429:
+                let seconds = Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After"))
+                if credentials != nil {
+                    schoologyThrottleUntil = max(schoologyThrottleUntil ?? .distantPast, Date().addingTimeInterval(seconds))
+                    if throttleRetries == 0, seconds <= 30 { throttleRetries += 1; continue }
+                }
+                throw ProviderError.throttled(seconds)
             case 301, 302, 303, 307, 308:
                 guard credentials != nil || !json, let location = response.value(forHTTPHeaderField: "Location"), let next = URL(string: location, relativeTo: current)?.absoluteURL else { throw ProviderError.reconnect }
-                current = next; continue // Generate a fresh signature/nonce for users/me redirects.
+                current = next; redirects += 1; continue // Generate a fresh signature/nonce for users/me redirects.
             case 200..<300:
                 let type = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
                 if !json { return data }
@@ -199,13 +227,15 @@ public struct SchoologyProvider: Sendable {
     public init(credentials: SchoologyCredentials, diagnosticsEnabled: Bool = false) throws { http = try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: credentials, diagnosticsEnabled: diagnosticsEnabled); userID = credentials.userID }
     public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
     public func fetch(previous: [SourceCourse] = []) async throws -> [SourceCourse] {
-        let userID: String
-        if let saved = self.userID, !saved.isEmpty { userID = saved }
-        else {
-            let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
-            guard let id = ProviderParsing.nonempty(me["uid"] ?? me["id"]) else { throw ProviderError.malformed }
-            userID = id
-        }
+        try await fetchSnapshot(previous: previous).courses
+    }
+    public func fetchSnapshot(previous: [SourceCourse] = []) async throws -> SchoologySnapshot {
+        // Authentication does not prove that cached student identity is still the
+        // credential owner. Recheck users/me before requesting a student's grades.
+        let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
+        guard let userID = ProviderParsing.nonempty(me["uid"] ?? me["id"]) else { throw ProviderError.malformed }
+        if let saved = self.userID, saved != userID { throw ProviderError.accountChanged }
+        let previous = previous.filter { $0.source.provider == .schoology && ($0.source.fields["user_id"] == nil || $0.source.fields["user_id"] == userID) }
         // Enrollment discovery and the fresh user-grade snapshot are independent
         // once identity is established. Owner aliases are validated after both.
         async let sectionRows = paged(path: "users/\(OAuth1.encode(userID))/sections", key: "section")
@@ -262,9 +292,10 @@ public struct SchoologyProvider: Sendable {
                 throw error
             }
         }
-        return batches.flatMap { $0 }.map { original in
+        let courses = batches.flatMap { $0 }.map { original in
             var source = original; source.source.fields["user_id"] = userID; return source
         }
+        return SchoologySnapshot(userID: userID, courses: courses)
     }
     /// On subsequent refreshes, the documented user-grade list plus saved,
     /// verified owner/enrollment aliases avoids one grade request per enrollment.
@@ -445,11 +476,15 @@ public struct SchoologyProvider: Sendable {
             guard seen.insert(url).inserted, seen.count <= 100 else { throw ProviderError.tooManyPages }
             let payload = try ProviderParsing.object(await http.get(url))
             all += try ProviderParsing.collection(payload[key])
-            if let links = payload["links"] as? [String: Any], let s = links["next"] as? String, !s.isEmpty {
+            if let value = payload["links"], !(value is [String: Any]) { throw ProviderError.malformed }
+            let links = payload["links"] as? [String: Any]
+            if let value = links?["next"], !(value is NSNull), !(value is String) { throw ProviderError.malformed }
+            if let s = links?["next"] as? String, !s.isEmpty {
                 guard let candidate = URL(string: s, relativeTo: url)?.absoluteURL else { throw ProviderError.malformed }
                 // Some Schoology examples return HTTP links: upgrade only this same provider host.
                 var c = URLComponents(url: candidate, resolvingAgainstBaseURL: false)!
                 if c.host == "api.schoology.com" { c.scheme = "https" }
+                guard c.url?.path == url.path else { throw ProviderError.malformed }
                 next = c.url
             } else {
                 if let total = ProviderParsing.number(payload["total"]), Double(all.count) < total { throw ProviderError.malformed }

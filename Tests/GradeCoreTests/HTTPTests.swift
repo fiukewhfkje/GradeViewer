@@ -43,6 +43,45 @@ final class HTTPTests: XCTestCase {
         StubURLProtocol.status = 429
         do { _ = try await http.get(url); XCTFail() } catch { XCTAssertEqual(error as? ProviderError, .throttled(30)) }
     }
+    private func schoologyHTTP() throws -> ReadOnlyHTTP {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        return try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: SchoologyCredentials(key: "fixture-key", secret: "fixture-secret"), configuration: config, diagnosticsEnabled: true)
+    }
+    func testSchoologyShortThrottleRetriesOnlyAfterServerDelay() async throws {
+        StubURLProtocol.extraHeaders = ["Retry-After": "0.1"]
+        StubURLProtocol.statusSequences["/v1/users/me"] = [429, 200]
+        let http = try schoologyHTTP(), started = Date()
+        let data = try await http.get(URL(string: "https://api.schoology.com/v1/users/me")!)
+        XCTAssertEqual(data, Data("[]".utf8))
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(started), 0.1)
+        XCTAssertEqual(StubURLProtocol.requests.count, 2)
+    }
+    func testSchoologyRepeatedOrLongThrottleStopsBoundedRetry() async throws {
+        StubURLProtocol.status = 429; StubURLProtocol.extraHeaders = ["Retry-After": "0"]
+        do { _ = try await schoologyHTTP().get(URL(string: "https://api.schoology.com/v1/users/me")!); XCTFail() }
+        catch { XCTAssertEqual(error as? ProviderError, .throttled(0)) }
+        XCTAssertEqual(StubURLProtocol.requests.count, 2)
+        StubURLProtocol.requests = []; StubURLProtocol.extraHeaders = ["Retry-After": "120"]
+        do { _ = try await schoologyHTTP().get(URL(string: "https://api.schoology.com/v1/users/me")!); XCTFail() }
+        catch { XCTAssertEqual(error as? ProviderError, .throttled(120)) }
+        XCTAssertEqual(StubURLProtocol.requests.count, 1)
+    }
+    func testSchoologyThrottlePausesOtherReadsAndCancellationStopsWaiting() async throws {
+        StubURLProtocol.status = 429; StubURLProtocol.extraHeaders = ["Retry-After": "10"]
+        let http = try schoologyHTTP()
+        let first = Task { try await http.get(URL(string: "https://api.schoology.com/v1/users/me")!) }
+        for _ in 0..<100 {
+            if await !http.diagnostics().isEmpty { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let second = Task { try await http.get(URL(string: "https://api.schoology.com/v1/sections/fixture")!) }
+        try await Task.sleep(for: .milliseconds(50))
+        first.cancel(); second.cancel()
+        for task in [first, second] {
+            do { _ = try await task.value; XCTFail() } catch { XCTAssertTrue(error is CancellationError) }
+        }
+        XCTAssertEqual(StubURLProtocol.requestLock.withLock { StubURLProtocol.requests.count }, 1)
+    }
     func testRejectsCrossOriginAndPathEscape() async throws {
         let http = try client()
         for value in ["https://other.example.com/campus/", "https://example.com/private/", "http://example.com/campus/"] {
@@ -325,7 +364,7 @@ extension HTTPTests {
         let cachedIdentity = SchoologyProvider(http: try ReadOnlyHTTP(origin:URL(string:"https://api.schoology.com/v1/")!,configuration:config), userID:"fixture-user")
         let freshAgain = try await cachedIdentity.fetch(previous: result)
         XCTAssertEqual(freshAgain[0].assignments[0].score.earned, 20)
-        XCTAssertFalse(StubURLProtocol.requests.contains("/v1/users/me"))
+        XCTAssertTrue(StubURLProtocol.requests.contains("/v1/users/me"))
         XCTAssertTrue(StubURLProtocol.requests.contains("/v1/users/fixture-user/grades?limit=200"))
         StubURLProtocol.statuses["/v1/users/fixture-user/grades?limit=200"] = 401
         do { _ = try await cachedIdentity.fetch(previous: result); XCTFail("Cached identity must not bypass authentication") }
@@ -334,5 +373,44 @@ extension HTTPTests {
         do { _ = try await provider.fetch(previous:previous); XCTFail("Must respect bulk throttling") }
         catch { XCTAssertEqual(error as? ProviderError,.throttled(30)) }
         XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("grades?section_id=") })
+    }
+}
+
+extension HTTPTests {
+    func testSchoologyChangedCredentialOwnerStopsBeforeStudentReads() async throws {
+        StubURLProtocol.bodies["/v1/users/me"] = "{\"uid\":\"different-fixture-student\"}"
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        let provider = SchoologyProvider(http: try ReadOnlyHTTP(origin: URL(string:"https://api.schoology.com/v1/")!, configuration:config), userID:"original-fixture-student")
+        do { _ = try await provider.fetch(); XCTFail("Must require explicit disconnect") }
+        catch { XCTAssertEqual(error as? ProviderError, .accountChanged) }
+        XCTAssertEqual(StubURLProtocol.requests, ["/v1/users/me"])
+    }
+    func testSchemaValidEmptySchoologySnapshotStillBindsIdentity() async throws {
+        StubURLProtocol.bodies["/v1/users/me"] = "{\"uid\":\"fixture-student\"}"
+        StubURLProtocol.bodies["/v1/users/fixture-student/sections?limit=200"] = "{\"section\":[]}"
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        let provider = SchoologyProvider(http: try ReadOnlyHTTP(origin: URL(string:"https://api.schoology.com/v1/")!, configuration:config))
+        let snapshot = try await provider.fetchSnapshot()
+        XCTAssertEqual(snapshot.userID, "fixture-student"); XCTAssertTrue(snapshot.courses.isEmpty)
+    }
+    func testMalformedPaginationCannotSilentlyFinishOrChangeCollection() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        StubURLProtocol.bodies["/v1/users/me"] = "{\"uid\":\"fixture-student\"}"
+        for links in ["[]", "{\"next\":[]}", "{\"next\":\"https://api.schoology.com/v1/users/me\"}"] {
+            StubURLProtocol.bodies["/v1/users/fixture-student/sections?limit=200"] = "{\"section\":[],\"links\":\(links)}"
+            let provider = SchoologyProvider(http: try ReadOnlyHTTP(origin: URL(string:"https://api.schoology.com/v1/")!, configuration:config))
+            do { _ = try await provider.fetch(); XCTFail("Incomplete collection must fail") }
+            catch { XCTAssertEqual(error as? ProviderError, .malformed) }
+        }
+    }
+    func testHTTPSDefaultPortAndPathBoundary() async throws {
+        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
+        let http = try ReadOnlyHTTP(origin: URL(string:"https://example.com/campus")!, configuration:config)
+        _ = try await http.get(URL(string:"https://example.com:443/campus/resources/portal/grades")!)
+        for value in ["https://example.com/campus-lookalike/resources", "https://example.com/campus/../private", "https://example.com/campus/%2e%2e/private", "https://example.com/campus/resources#fragment"] {
+            do { _ = try await http.get(URL(string:value)!); XCTFail("Unsafe path") }
+            catch { XCTAssertEqual(error as? ProviderError, .unsafeURL) }
+        }
+        XCTAssertEqual(StubURLProtocol.requests.count, 1)
     }
 }

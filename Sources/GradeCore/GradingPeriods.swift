@@ -112,6 +112,19 @@ public enum GradingPeriods {
             return a.id < b.id
         }
     }
+    /// Keep the requested quarter UI when quarters exist. Districts that expose
+    /// only semesters or named periods still get their actual assignment periods.
+    public static func assignmentPeriods(for course: Course, among available: [Course]) -> [Course] {
+        let related = ordered(related(to: course, among: available))
+        for kind: PeriodKind in [.quarter, .semester, .other, .year] {
+            let periods = related.filter { descriptor($0).kind == kind }
+            // Legacy unnamed/undated records retain their existing full-course
+            // view. Do not create new period boundaries from missing metadata.
+            if kind == .other && periods.contains(where: { descriptor($0).start == nil || descriptor($0).end == nil }) { continue }
+            if !periods.isEmpty { return periods }
+        }
+        return []
+    }
     /// Exam records stay separate from the quarter's calculator. Associate them
     /// for presentation only through a unique containing quarter or a provider's
     /// explicit shared term ID (Campus Quarter/Exam tasks).

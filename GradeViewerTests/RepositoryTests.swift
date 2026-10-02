@@ -57,36 +57,44 @@ import WebKit
 }
 
 extension RepositoryTests {
-    func testWidgetFollowsSelectedTermAndCourseVisibility() throws {
-        let repository = try GradeRepository(memory: true)
-        var courses = Demo.courses()
-        courses[1].sources[0].term.name = "Spring 2026"
-        courses[2].hidden = true
-        try repository.save(courses)
-        let store = AppStore(repository: repository, demo: false, readCredentials: false)
-        store.selectedTerm = "Fall 2026"; store.updateWidget()
-        let root = try XCTUnwrap(FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetCache.group))
-        let url = root.appendingPathComponent("grades.json")
-        defer { try? FileManager.default.removeItem(at: url) }
-        var snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: Data(contentsOf: url))
-        XCTAssertEqual(snapshot.courses.count, 4)
-        store.selectedTerm = "Spring 2026"; store.updateWidget()
-        snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: Data(contentsOf: url))
-        XCTAssertEqual(snapshot.courses.map(\.id), [courses[1].id])
+
+    func testFailedConnectionCommitRetainsActiveCredentialsGradesAndPendingAttempt() async throws {
+        let active = "test-active-" + UUID().uuidString, pending = "test-pending-" + UUID().uuidString
+        defer { try? SecureStore.delete(account: active); try? SecureStore.delete(account: pending) }
+        let old = SchoologyCredentials(key:"old-fixture", secret:"old-fixture-secret")
+        let new = SchoologyCredentials(key:"new-fixture", secret:"new-fixture-secret")
+        try SecureStore.save(old, account:active); try SecureStore.save(new, account:pending)
+        let repository = try GradeRepository(memory:true)
+        let courses = Demo.courses(); try repository.save(courses)
+        let store = AppStore(repository:repository, demo:false, readCredentials:false)
+        store.connected = [.schoology]; store.pending = [.schoology]
+        var invalid = courses[0].display; invalid.source.provider = .schoology; invalid.grade.percent = .nan
+        do { try await store.activateConnection(new, account:active, pendingAccount:pending, provider:.schoology, fetched:[invalid]); XCTFail("Invalid snapshot must not commit") }
+        catch { XCTAssertEqual(error as? ProviderError, .unavailable) }
+        XCTAssertEqual(try SecureStore.load(SchoologyCredentials.self, account:active)?.key, old.key)
+        XCTAssertEqual(try SecureStore.load(SchoologyCredentials.self, account:pending)?.key, new.key)
+        XCTAssertEqual(store.courses.count, courses.count); XCTAssertEqual(try repository.load().count, courses.count)
+        XCTAssertTrue(store.connected.contains(.schoology)); XCTAssertTrue(store.pending.contains(.schoology))
+    }
+    func testFailedInitialConnectionCommitDoesNotLeaveActiveCredential() async throws {
+        let active = "test-active-" + UUID().uuidString, pending = "test-pending-" + UUID().uuidString
+        defer { try? SecureStore.delete(account: active); try? SecureStore.delete(account: pending) }
+        let value = SchoologyCredentials(key:"fixture", secret:"fixture-secret")
+        try SecureStore.save(value, account:pending)
+        let store = AppStore(repository:try GradeRepository(memory:true), demo:false, readCredentials:false)
+        var invalid = Demo.courses()[0].display; invalid.source.provider = .schoology; invalid.grade.percent = .nan
+        do { try await store.activateConnection(value, account:active, pendingAccount:pending, provider:.schoology, fetched:[invalid]); XCTFail("Invalid snapshot must not commit") }
+        catch { XCTAssertEqual(error as? ProviderError, .unavailable) }
+        XCTAssertNil(try SecureStore.load(SchoologyCredentials.self, account:active))
+        XCTAssertFalse(store.connected.contains(.schoology)); XCTAssertTrue(store.courses.isEmpty)
+        XCTAssertNotNil(try SecureStore.load(SchoologyCredentials.self, account:pending))
     }
     func testExplicitMappingsRoundTrip() throws {
         let repository = try GradeRepository(memory: true)
         try repository.saveMappings(["a":"b","b":"a"]); XCTAssertEqual(try repository.mappings()["a"], "b")
         try repository.saveMappings(["a":"c","c":"a"]); XCTAssertEqual(try repository.mappings()["a"], "c"); XCTAssertNil(try repository.mappings()["b"])
     }
-    func testWidgetUsesAppGroupSummaryOnly() throws {
-        guard let root = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: WidgetCache.group) else { XCTFail("App group missing"); return }
-        let url = root.appendingPathComponent("grades.json")
-        defer { try? FileManager.default.removeItem(at: url) }
-        try WidgetCache.write(courses: Demo.courses())
-        let snapshot = try JSONDecoder().decode(WidgetSnapshot.self, from: Data(contentsOf: url))
-        XCTAssertEqual(snapshot.courses.count, 6); XCTAssertEqual(snapshot.courses[0].grade.percent, 95.8)
-    }
+
     func testKeychainRoundTripWithDisposableFixture() throws {
         let account = "test-" + UUID().uuidString
         defer { try? SecureStore.delete(account: account) }
@@ -226,8 +234,6 @@ extension RepositoryTests {
             "https://district.example.org/campus/SSO/district/portal/students?configID=1&configID=2",
             "https://district.example.org/campus/SSO/district/portal/students#fixture"
         ] { XCTAssertFalse(CampusSSO.validEntry(URL(string: invalid)!, base: base), invalid) }
-        XCTAssertNil(CampusSSO.knownEntry(base: base))
-        XCTAssertTrue(CampusSSO.validEntry(try XCTUnwrap(CampusSSO.knownEntry(base: URL(string: "https://dublincityoh.infinitecampus.org/campus/")!)), base: URL(string: "https://dublincityoh.infinitecampus.org/campus/")!))
     }
     func testSavedStudentPortalDropsTransientSAMLQueryAndFragment() throws {
         let portal = URL(string:"https://district.example.org/campus/nav-wrapper/student/portal/student/home?appName=district&SAMLRequest=fixture&SAMLResponse=fixture&RelayState=fixture#fixture")!

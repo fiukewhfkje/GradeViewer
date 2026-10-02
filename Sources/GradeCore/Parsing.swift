@@ -29,7 +29,7 @@ private final class ProviderDateParser: @unchecked Sendable {
     }
 }
 
-public enum ProviderError: Error, Equatable, Sendable { case reconnect, forbidden, throttled(TimeInterval), malformed, unavailable, unsafeURL, tooManyPages }
+public enum ProviderError: Error, Equatable, Sendable { case reconnect, accountChanged, forbidden, throttled(TimeInterval), malformed, unavailable, unsafeURL, tooManyPages }
 public enum ProviderParsing {
     static func object(_ data: Data) throws -> [String: Any] { guard let x = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw ProviderError.malformed }; return x }
     static func rows(_ value: Any?) -> [[String: Any]] { if let x = value as? [[String: Any]] { return x }; if let x = value as? [String: Any] { return [x] }; return [] }
@@ -44,21 +44,26 @@ public enum ProviderParsing {
     static func itemKey(_ row: [String: Any]) -> String? { itemID(row).map { "\(nonempty(row["type"]) ?? "assignment"):\($0)" } }
     /// Title metadata cannot change a grade's identity, score, or exclusion rules.
     static func assignmentMetadata(_ item: [String: Any], for row: SourceAssignment, period: String?) -> SourceAssignment? {
-        guard let id = row.source.fields["assignment_id"], itemID(item) == id || nonempty(item["id"]) == id,
-              let title = nonempty(item["title"]) else { return nil }
-        let kind = nonempty(item["type"]) ?? "assignment", expectedKind = row.source.fields["type"] ?? "assignment"
-        guard kind != "folder" else { return nil }
-        if ["assignment", "discussion", "assessment"].contains(kind) && kind != expectedKind { return nil }
-        if !["assignment", "discussion", "assessment"].contains(kind) && itemID(item) != id { return nil }
-        if let expected = row.score.possible, let actual = number(item["max_points"]), expected != actual { return nil }
-        if let expected = row.source.fields["category_id"], let actual = nonempty(item["grading_category"]), expected != actual { return nil }
-        if let expected = period, let actual = nonempty(item["grading_period"]),
-           (expected.hasPrefix("p") ? String(expected.dropFirst()) : expected) != actual { return nil }
+        guard let id = row.source.fields["assignment_id"], let title = nonempty(item["title"]),
+              compatibleAssignmentMetadata(item, id: id, kind: row.source.fields["type"] ?? "assignment", possible: row.score.possible, category: row.source.fields["category_id"], period: period) else { return nil }
         var result = row; result.title = title
         guard result.hasTitle else { return nil }
         result.due = row.due ?? date(item["due"])
         result.score.possible = row.score.possible ?? number(item["max_points"])
         return result
+    }
+    /// Catalog, wrapper, detail and folder reads share the same conflict rules.
+    private static func compatibleAssignmentMetadata(_ item: [String: Any], id: String, kind expectedKind: String, possible: Double?, category: String?, period: String?) -> Bool {
+        guard itemID(item) == id || nonempty(item["id"]) == id else { return false }
+        let kind = nonempty(item["type"]) ?? "assignment"
+        guard kind != "folder" else { return false }
+        if ["assignment", "discussion", "assessment"].contains(kind) && kind != expectedKind { return false }
+        if !["assignment", "discussion", "assessment"].contains(kind) && itemID(item) != id { return false }
+        if let expected = possible, let actual = number(item["max_points"]), expected != actual { return false }
+        if let expected = category, let actual = nonempty(item["grading_category"]), expected != actual { return false }
+        if let expected = period, let actual = nonempty(item["grading_period"]),
+           (expected.hasPrefix("p") ? String(expected.dropFirst()) : expected) != actual { return false }
+        return true
     }
     static func text(_ x: Any?) -> String? { if x is NSNull || x == nil { return nil }; if let s = x as? String { return s }; if let n = x as? NSNumber { return n.stringValue }; return nil }
     static func number(_ x: Any?) -> Double? { guard let s = text(x), let n = Double(s), n.isFinite else { return nil }; return n }
@@ -66,7 +71,11 @@ public enum ProviderParsing {
     static func raw(_ row: [String: Any], _ keys: [String]) -> [String: String] { Dictionary(uniqueKeysWithValues: keys.compactMap { k in text(row[k]).map { (k, $0) } }) }
     static func date(_ x: Any?) -> Date? {
         guard let s = text(x), !s.isEmpty else { return nil }
-        if let n = Double(s), n > 1_000_000 { return Date(timeIntervalSince1970: n > 100_000_000_000 ? n / 1000 : n) }
+        if let n = Double(s), n > 1_000_000 {
+            let seconds = n > 100_000_000_000 ? n / 1000 : n
+            guard seconds.isFinite, seconds <= 253_402_300_799 else { return nil }
+            return Date(timeIntervalSince1970: seconds)
+        }
         return ProviderDateParser.shared.parse(s)
     }
     public static func schoology(section: Data, grades: Data, items: Data, categories: Data, periods: Data? = nil, periodsFetched: Date? = nil, fetched: Date = Date(), gradeSectionID: String? = nil) throws -> [SourceCourse] {
@@ -80,26 +89,31 @@ public enum ProviderParsing {
         let byID = Dictionary(itemRows.compactMap { r in itemKey(r).map { ($0, r) } }, uniquingKeysWith: { a, b in nonempty(b["title"]) == nil ? a : b })
         let wrappers = Dictionary(grouping: itemRows.filter { nonempty($0["id"]) != itemID($0) }, by: { "\(nonempty($0["type"]) ?? "assignment"):\(nonempty($0["id"]) ?? "")" })
         func itemMetadata(_ key: String, grade: [String: Any], periodID: String) -> [String: Any] {
-            if let primary = byID[key] { return primary }
+            let id = nonempty(grade["assignment_id"])!
+            func compatible(_ item: [String: Any]) -> Bool {
+                compatibleAssignmentMetadata(item, id: id, kind: nonempty(grade["type"]) ?? "assignment", possible: number(grade["max_points"]), category: nonempty(grade["category_id"]), period: periodID)
+            }
+            if let primary = byID[key] { return compatible(primary) ? primary : [:] }
             // Newer catalog kinds can still identify the same graded node. Only
             // accept a unique primary node ID, with no known-kind
             // collision and no conflicting points/category/period metadata.
-            let id = nonempty(grade["assignment_id"])!
             let nodes = itemRows.filter { itemID($0) == id }
             if nodes.count == 1, let node = nodes.first,
-               let kind = nonempty(node["type"]), !["assignment", "discussion", "assessment"].contains(kind),
-               !(number(node["max_points"]) != nil && number(grade["max_points"]) != nil && number(node["max_points"]) != number(grade["max_points"])),
-               !(nonempty(node["grading_category"]) != nil && nonempty(grade["category_id"]) != nil && nonempty(node["grading_category"]) != nonempty(grade["category_id"])),
-               nonempty(node["grading_period"]).map({ $0 == (periodID.hasPrefix("p") ? String(periodID.dropFirst()) : periodID) }) ?? true {
+               let kind = nonempty(node["type"]), !["assignment", "discussion", "assessment"].contains(kind), compatible(node) {
                 return node
             }
             // Some grade rows reference the wrapper. Accept only a unique typed
             // alias; colliding content kinds or physical IDs must never be guessed.
-            guard let aliases = wrappers[key], Set(aliases.compactMap(itemKey)).count == 1 else { return [:] }
+            guard let aliases = wrappers[key], Set(aliases.compactMap(itemKey)).count == 1, aliases.allSatisfy(compatible) else { return [:] }
             return aliases.last ?? [:]
         }
         let categoryRows = try collection(categoryPayload["grading_category"])
         guard categoryRows.allSatisfy({ nonempty($0["id"]) != nil && nonempty($0["title"]) != nil }) else { throw ProviderError.malformed }
+        guard categoryRows.allSatisfy({ row in
+            guard let value = row["drop_lowest"] else { return true }
+            guard let count = number(value), count >= 0, Int(exactly: count) != nil else { return false }
+            return true
+        }) else { throw ProviderError.malformed }
         let parsedCategories = categoryRows.compactMap { r -> GradingCategory? in
             guard let id = text(r["id"]), let title = text(r["title"]) else { return nil }
             return GradingCategory(id: "schoology:\(gradeOwner):category:\(id)", name: title, weight: number(r["weight"]), method: number(r["calculation_type"]) == 1 ? .percent : .points, dropLowest: Int(number(r["drop_lowest"]) ?? 0))

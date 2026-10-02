@@ -13,6 +13,7 @@ struct ConnectionDiagnostics: Codable {
         if let error = error as? ProviderError {
             switch error {
             case .reconnect: return "sign-in required"
+            case .accountChanged: return "account changed"
             case .forbidden: return "access denied"
             case .throttled: return "rate limited"
             case .malformed: return "unexpected JSON structure"

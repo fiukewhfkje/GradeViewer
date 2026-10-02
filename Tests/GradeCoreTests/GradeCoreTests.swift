@@ -1,6 +1,23 @@
 import XCTest
 @testable import GradeCore
 final class GradeCoreTests: XCTestCase {
+    func testOutOfRangeProviderValuesCannotCrashParsing() throws {
+        for value in ["1e300", "inf", "NaN"] { XCTAssertNil(ProviderParsing.date(value)) }
+        for count in ["1e300", "-1", "1.5", "not-a-number"] {
+            let categories = Data("{\"grading_category\":[{\"id\":2,\"title\":\"Quizzes\",\"drop_lowest\":\"\(count)\"}]}".utf8)
+            XCTAssertThrowsError(try ProviderParsing.schoology(section:fixture("schoology-section"), grades:fixture("schoology-grades"), items:fixture("schoology-items"), categories:categories))
+        }
+    }
+    func testSchoologyCatalogAndWrapperConflictsCannotOverrideGradeMetadata() throws {
+        for identity in ["\"id\":10", "\"id\":10,\"grade_item_id\":500"] {
+            for conflict in ["\"max_points\":5", "\"grading_period\":2", "\"grading_category\":99"] {
+                let items = Data("{\"assignment\":[{\(identity),\(conflict),\"title\":\"Conflicting metadata\",\"type\":\"assignment\"}]}".utf8)
+                let row = try ProviderParsing.schoology(section:fixture("schoology-section"), grades:fixture("schoology-grades"), items:items, categories:fixture("schoology-categories"))[0].assignments[0]
+                XCTAssertEqual(row.title,"Untitled assignment")
+                XCTAssertEqual(row.score.earned,0); XCTAssertEqual(row.score.possible,100)
+            }
+        }
+    }
     func fixture(_ name: String) throws -> Data { try Data(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/\(name).json")) }
     func source(_ provider: ProviderID = .schoology, id: String = "course", percent: Double = 90) -> SourceCourse {
         SourceCourse(source: Provenance(provider, id), title: "AP Physics 1", teacher: "Taylor", term: Term(id: "1", name: "Fall 2026"), grade: OverallGrade(percent: percent), categories: [GradingCategory(id: "tests", name: "Tests", weight: 70), GradingCategory(id: "practice", name: "Practice", weight: 30)], assignments: [assignment(provider, id: "1", earned: 80, possible: 100, category: "tests"), assignment(provider, id: "2", earned: 100, possible: 100, category: "practice")], method: .weightedCategories)

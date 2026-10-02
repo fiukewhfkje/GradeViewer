@@ -31,7 +31,7 @@ import GradeCore
         if let selected {
             if let sso = self.saved?.sso, CampusSSO.validEntry(sso.entry, base: selected.base) {
                 entry = sso.entry; idpHosts = sso.hosts
-            } else { entry = CampusSSO.knownEntry(base: selected.base) }
+            }
         }
         super.init()
         webView.navigationDelegate = self; webView.uiDelegate = self

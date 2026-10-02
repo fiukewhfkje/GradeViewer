@@ -21,19 +21,24 @@ public enum Reconciler {
             names = normalize(source.source.fields["course_name"] ?? source.title).split(separator: " ").sorted()
             period = GradingPeriods.descriptor(source)
             campusFinal = normalize(source.source.fields["task_name"] ?? "") == "final"
-            assignments = Set(source.assignments.compactMap(assignmentLabelKey))
+            let labels = Dictionary(grouping: source.assignments.compactMap(assignmentLabelKey), by: { $0 })
+            assignments = Set(labels.filter { $0.value.count == 1 }.keys)
         }
     }
     private static func courseMatch(_ a: MatchEvidence, _ b: MatchEvidence, mappings: [String: String], physicalLinks: [String: String]) -> Bool {
         let first = a.source, second = b.source
         if first.source.provider == second.source.provider { return false }
-        if mappings[first.id] != nil || mappings[second.id] != nil { return mappings[first.id] == second.id || mappings[second.id] == first.id }
         guard compatibleMetadata(a.teacher, b.teacher, first.term, second.term) else { return false }
         let x = a.period, y = b.period
         let periodMatch = GradingPeriods.matches(x, y, campusFinal: first.source.provider == .infiniteCampus ? a.campusFinal : b.campusFinal, sameName: a.term == b.term)
         guard x.kind == .other || y.kind == .other || periodMatch else { return false }
+        if mappings[first.id] != nil || mappings[second.id] != nil {
+            return (mappings[first.id] == nil || mappings[first.id] == second.id) &&
+                (mappings[second.id] == nil || mappings[second.id] == first.id)
+        }
         if let keyA = GradingPeriods.physicalKey(first), let keyB = GradingPeriods.physicalKey(second),
-           physicalLinks[keyA] == keyB || physicalLinks[keyB] == keyA { return periodMatch }
+           physicalLinks[keyA] == keyB || physicalLinks[keyB] == keyA,
+           x.kind != .other && y.kind != .other { return periodMatch }
         if !a.title.isEmpty && a.title == b.title && !a.term.isEmpty && a.term == b.term && !a.teacher.isEmpty && a.teacher == b.teacher { return true }
         guard !a.names.isEmpty, a.names == b.names else { return false }
         if x.kind == y.kind, let xs = x.start, let xe = x.end, let ys = y.start, let ye = y.end,
@@ -52,7 +57,7 @@ public enum Reconciler {
     struct AssignmentLabelKey: Hashable { let title: String; let possible: Double }
     static func assignmentLabelKey(_ row: SourceAssignment) -> AssignmentLabelKey? {
         let title = normalize(row.title)
-        guard !title.isEmpty, let possible = row.score.possible, possible.isFinite else { return nil }
+        guard row.hasTitle, !title.isEmpty, let possible = row.score.possible, possible.isFinite, possible >= 0 else { return nil }
         return AssignmentLabelKey(title: title, possible: possible)
     }
     static func sharedAssignmentCount(_ a: SourceCourse, _ b: SourceCourse) -> Int {
@@ -64,7 +69,8 @@ public enum Reconciler {
     }
     static func assignmentKey(_ a: SourceAssignment) -> AssignmentKey? {
         let title = normalize(a.title)
-        guard !title.isEmpty, let date = a.due else { return nil }
+        guard a.hasTitle, !title.isEmpty, let date = a.due, date.timeIntervalSince1970.isFinite,
+              let possible = a.score.possible, possible.isFinite, possible >= 0 else { return nil }
         return AssignmentKey(title: title, day: Int(floor(date.timeIntervalSince1970 / 86400)), possible: a.score.possible)
     }
     public static func reconcile(_ input: [SourceCourse], previous: [Course] = [], mappings: [String: String] = [:], now: Date = Date()) -> [Course] {
@@ -74,24 +80,31 @@ public enum Reconciler {
         func matches(_ a: SourceCourse, _ b: SourceCourse, links: [String: String] = [:]) -> Bool {
             courseMatch(evidence[a.id]!, evidence[b.id]!, mappings: mappings, physicalLinks: links)
         }
-        // Establish physical section pairs from mutual unique, evidenced period
-        // pairs first. Then map empty quarters/exams by kind and explicit ranges.
+        // All evidenced periods must agree on one physical section pair. Include
+        // ambiguous periods: one unique quarter cannot resolve a conflicting class.
         var candidates: [String: Set<String>] = [:]
         for source in unique {
             let peers = unique.filter { matches(source,$0) }
-            if peers.count == 1, unique.filter({ matches(peers[0],$0) }).count == 1,
-               let a = GradingPeriods.physicalKey(source), let b = GradingPeriods.physicalKey(peers[0]) { candidates[a,default:[]].insert(b) }
+            for peer in peers {
+                if let a = GradingPeriods.physicalKey(source), let b = GradingPeriods.physicalKey(peer) { candidates[a,default:[]].insert(b) }
+            }
         }
         var physicalLinks: [String: String] = [:]
         for (key, matches) in candidates where matches.count == 1 {
-            if let match = matches.first, candidates[match]?.count == 1 { physicalLinks[key] = match }
+            if let match = matches.first, candidates[match] == Set([key]) { physicalLinks[key] = match }
+        }
+        func consistentMatch(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
+            if let keyA = GradingPeriods.physicalKey(a), let keyB = GradingPeriods.physicalKey(b) {
+                guard physicalLinks[keyA] == keyB && physicalLinks[keyB] == keyA else { return false }
+            }
+            return matches(a, b, links: physicalLinks)
         }
         var groups: [[SourceCourse]] = []
         var used = Set<String>()
         for item in unique where !used.contains(item.id) {
-            let peers = unique.filter { !used.contains($0.id) && matches(item, $0, links: physicalLinks) }
+            let peers = unique.filter { !used.contains($0.id) && consistentMatch(item, $0) }
             // Ambiguous same-title sections remain separate.
-            let mutual = peers.count == 1 && unique.filter { matches(peers[0], $0, links: physicalLinks) }.count == 1
+            let mutual = peers.count == 1 && unique.filter { consistentMatch(peers[0], $0) }.count == 1
             let group = mutual ? [item, peers[0]] : [item]
             used.formUnion(group.map(\.id)); groups.append(group)
         }

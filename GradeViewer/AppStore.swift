@@ -346,12 +346,12 @@ import GradeCore
             #endif
             let schoology = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: verify)
             do {
-                let result = try await schoology.fetch(previous: courses.flatMap(\.sources))
-                if let userID = result.first?.source.fields["user_id"], credentials.userID != userID {
-                    credentials.userID = userID; try SecureStore.save(credentials, account: "schoology")
+                let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources))
+                if credentials.userID != result.userID {
+                    credentials.userID = result.userID; try SecureStore.save(credentials, account: "schoology")
                 }
                 if verify { ConnectionDiagnostics(provider: .schoology, result: "success", responses: await schoology.diagnostics()).save() }
-                return result
+                return result.courses
             } catch {
                 if verify { ConnectionDiagnostics(provider: .schoology, result: ConnectionDiagnostics.result(error), responses: await schoology.diagnostics()).save() }
                 throw error
@@ -432,7 +432,6 @@ import GradeCore
                 #endif
                 try repository?.save(payloads: payloads)
                 courses = updated; courseRevision += 1; selectedTerm = preferredTerm()
-                updateWidget()
                 #if DEBUG
                 refreshStages[provider.rawValue + " save and publish"] = Date().timeIntervalSince(started) * 1000
                 #endif
@@ -443,6 +442,7 @@ import GradeCore
     }
     func message(_ error: Error, provider: ProviderID) -> String {
         if case ProviderError.reconnect = error { return "\(provider.name) needs to be reconnected." }
+        if case ProviderError.accountChanged = error { return "Disconnect \(provider.name) before switching accounts." }
         if case ProviderError.forbidden = error { return "\(provider.name) did not allow access to grades." }
         if case let ProviderError.throttled(seconds) = error { deadlines[provider] = Date().addingTimeInterval(seconds); return "\(provider.name) asked to wait before refreshing." }
         return "\(provider.name) could not refresh."
@@ -453,13 +453,14 @@ import GradeCore
         let provider = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: true)
         try SecureStore.save(credentials, account: "schoology-pending"); pending.insert(.schoology)
         do {
-            let fetched = try await provider.fetch()
-            var verified = credentials; verified.userID = fetched.first?.source.fields["user_id"]
-            try SecureStore.save(verified, account: "schoology")
-            try SecureStore.delete(account: "schoology-pending"); pending.remove(.schoology)
-            connected.insert(.schoology)
-            guard await applySnapshot(fetched, provider: .schoology) else { throw ProviderError.unavailable }
-            errors[.schoology] = nil; freshProviders.insert(.schoology)
+            let snapshot = try await provider.fetchSnapshot()
+            let fetched = snapshot.courses
+            if let active = try SecureStore.load(SchoologyCredentials.self, account: "schoology"),
+               let owner = active.userID ?? courses.flatMap(\.sources).first(where: { $0.source.provider == .schoology })?.source.fields["user_id"],
+               owner != snapshot.userID { throw ProviderError.accountChanged }
+            var verified = credentials; verified.userID = snapshot.userID
+            try await activateConnection(verified, account: "schoology", pendingAccount: "schoology-pending", provider: .schoology, fetched: fetched)
+            errors[.schoology] = nil; deadlines[.schoology] = nil; freshProviders.insert(.schoology)
             finishFreshPresentation()
             recordConnection(.schoology, responses: await provider.diagnostics(), error: nil)
         } catch {
@@ -470,16 +471,14 @@ import GradeCore
         guard !refreshing else { throw ProviderError.unavailable }
         refreshing = true; defer { refreshing = false }
         var session = supplied
+        if let active = try SecureStore.load(CampusSession.self, account: "campus"), active.base != session.base { throw ProviderError.accountChanged }
         let provider = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: true)
         try SecureStore.save(session, account: "campus-pending"); pending.insert(.infiniteCampus)
         do {
             let fetched = try await provider.fetch()
             session.replaceCookies(await provider.sessionCookies())
-            try SecureStore.save(session, account: "campus")
-            try SecureStore.delete(account: "campus-pending"); pending.remove(.infiniteCampus)
-            connected.insert(.infiniteCampus)
-            guard await applySnapshot(fetched, provider: .infiniteCampus) else { throw ProviderError.unavailable }
-            errors[.infiniteCampus] = nil; freshProviders.insert(.infiniteCampus)
+            try await activateConnection(session, account: "campus", pendingAccount: "campus-pending", provider: .infiniteCampus, fetched: fetched)
+            errors[.infiniteCampus] = nil; deadlines[.infiniteCampus] = nil; freshProviders.insert(.infiniteCampus)
             finishFreshPresentation()
             recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: nil,
                              campusSSO: CampusSSODiagnostic(available: session.sso?.canRenew(base: session.base) == true, attempted: false))
@@ -489,6 +488,23 @@ import GradeCore
             recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: error,
                              campusSSO: CampusSSODiagnostic(available: session.sso?.canRenew(base: session.base) == true, attempted: false)); throw error
         }
+    }
+    /// A successful network read is insufficient: preserve active credentials
+    /// and cached grades if local snapshot serialization/persistence fails.
+    func activateConnection<T: Codable>(_ value: T, account: String, pendingAccount: String, provider: ProviderID, fetched: [SourceCourse]) async throws {
+        let previous = try SecureStore.load(T.self, account: account)
+        let wasConnected = connected.contains(provider)
+        try SecureStore.save(value, account: account)
+        connected.insert(provider)
+        guard await applySnapshot(fetched, provider: provider) else {
+            if !wasConnected { connected.remove(provider) }
+            if let previous { try SecureStore.save(previous, account: account) }
+            else { try SecureStore.delete(account: account) }
+            throw ProviderError.unavailable
+        }
+        do {
+            try SecureStore.delete(account: pendingAccount); pending.remove(provider)
+        } catch { localError = "The saved setup attempt could not be cleared." }
     }
     private func recordConnection(_ provider: ProviderID, responses: [HTTPDiagnostic], error: Error?, campusSSO: CampusSSODiagnostic? = nil) {
         let report = ConnectionDiagnostics(provider: provider, result: ConnectionDiagnostics.result(error), responses: responses, campusSSO: campusSSO)
@@ -524,12 +540,6 @@ import GradeCore
     func persist(_ updated: [Course]) {
         do { try repository?.save(updated); courses = updated; courseRevision += 1; selectedTerm = preferredTerm() }
         catch { localError = "Grades could not be saved on this device."; return }
-        updateWidget()
-    }
-    func updateWidget() {
-        guard !demo else { return }
-        do { try WidgetCache.write(courses: visibleCourses) }
-        catch { localError = "The widget could not be updated." }
     }
     func match(_ sourceID: String, with targetID: String?) {
         var updated = mappings

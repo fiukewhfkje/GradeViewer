@@ -1,3 +1,7 @@
+# Current scope override — October 1, 2026
+
+The user explicitly removed the widget and all its dependencies. The original widget requirements and screenshot routes below are historical and superseded. Preserve the original student's installed app identity/session while making new clones independently configurable; never distribute credentials or grade caches.
+
 Build a native iOS app called GradeViewer.
 
 Repository name: GradeViewer

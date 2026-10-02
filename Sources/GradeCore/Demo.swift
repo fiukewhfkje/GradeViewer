@@ -66,11 +66,3 @@ public enum Demo {
         return result
     }
 }
-public struct WidgetCourse: Codable, Identifiable, Sendable {
-    public var id: String; public var name: String; public var grade: OverallGrade
-    public init(course: Course) { id = course.id; name = course.name; grade = course.display.grade }
-}
-public struct WidgetSnapshot: Codable, Sendable {
-    public var courses: [WidgetCourse]; public var refreshed: Date?
-    public init(courses: [WidgetCourse] = [], refreshed: Date? = nil) { self.courses = courses; self.refreshed = refreshed }
-}

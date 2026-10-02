@@ -63,13 +63,13 @@ extension GradeViewerUITests {
     @MainActor func testScreenshotMatrix() {
         let app = XCUIApplication()
         for mode in ["light", "dark"] {
-            for screen in ["grades", "detail", "assignments", "categories", "whatif", "final", "settings", "widget", "empty", "error"] {
+            for screen in ["grades", "detail", "assignments", "categories", "whatif", "final", "settings", "empty", "error"] {
                 app.launchArguments = ["--demo", "-appearance", mode]
                 if screen == "empty" || screen == "error" { app.launchArguments.append("--" + screen) }
                 else if screen != "grades" { app.launchArguments.append("--screen=" + screen) }
                 app.launch()
                 let title: String
-                switch screen { case "detail": title = "AP Physics 1"; case "assignments", "categories": title = "AP Physics 1"; case "whatif": title = "What-If"; case "final": title = "Final grade"; case "settings": title = "Settings"; case "widget": title = "Widgets"; default: title = "My grades" }
+                switch screen { case "detail": title = "AP Physics 1"; case "assignments", "categories": title = "AP Physics 1"; case "whatif": title = "What-If"; case "final": title = "Final grade"; case "settings": title = "Settings"; default: title = "My grades" }
                 XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 10))
                 if !["grades", "settings", "empty", "error"].contains(screen) {
                     let close = app.buttons["Close course"]
@@ -91,7 +91,7 @@ extension GradeViewerUITests {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Edit courses"].exists)
         XCTAssertFalse(app.staticTexts["Match courses"].exists)
-        XCTAssertTrue(app.buttons["Reload widgets"].exists)
+        XCTAssertFalse(app.buttons["Reload widgets"].exists)
         let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "automatic-course-settings"; attachment.lifetime = .keepAlways; add(attachment)
     }
     @MainActor func testCleanOverviewKeepsToolsInsideCourseMenu() {

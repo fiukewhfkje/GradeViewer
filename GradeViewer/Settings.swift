@@ -31,6 +31,7 @@ struct SchoologySetupView: View {
                 Section {
                     TextField("API key", text: $key).textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("API secret", text: $secret).textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Link("Get your API key", destination: URL(string: "https://app.schoology.com/api")!)
                 }
                 if let error { Text(error).font(.footnote).foregroundStyle(.secondary) }
                 ConnectionRetryView(provider: .schoology)
@@ -129,6 +130,7 @@ struct CampusLoginView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                Text("Use the same student account. Disconnect before switching accounts.").font(.footnote).foregroundStyle(.secondary).padding(10)
                 if let error { Text(error).font(.footnote).foregroundStyle(.secondary).padding(10) }
                 CampusWebView(session: session)
             }.navigationTitle(session.host).navigationBarTitleDisplayMode(.inline)
@@ -161,16 +163,5 @@ struct ConnectionRetryView: View {
                 Button("Clear saved sign-in", role: .destructive) { store.forgetPending(provider) }.disabled(store.refreshing)
             }
         }
-    }
-}
-struct WidgetPreviewView: View {
-    let courses: [Course]
-    var body: some View {
-        VStack(spacing: 24) {
-            GradeWidgetContent(snapshot: WidgetSnapshot(courses: courses.prefix(3).map(WidgetCourse.init), refreshed: Demo.now), compact: false)
-                .frame(width: 330, height: 150).padding(16).background(.background, in: RoundedRectangle(cornerRadius: 24))
-            GradeWidgetContent(snapshot: WidgetSnapshot(courses: courses.prefix(1).map(WidgetCourse.init), refreshed: Demo.now), compact: true)
-                .frame(width: 130, height: 130).padding(16).background(.background, in: RoundedRectangle(cornerRadius: 24))
-        }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(uiColor: .systemGroupedBackground)).navigationTitle("Widgets").navigationBarTitleDisplayMode(.inline)
     }
 }

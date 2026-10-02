@@ -1,0 +1,4 @@
+// Copy to Signing.local.xcconfig and replace these two values.
+// Use your Apple team ID and a unique reverse-DNS bundle identifier.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+GRADEVIEWER_BUNDLE_ID = com.yourname.GradeViewer

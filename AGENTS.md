@@ -8,6 +8,9 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, and RESEARCH.md bef
 - Store credentials and session cookies only in Keychain. Never log raw responses, cookies, keys, or student grades. Source fixtures must stay synthetic.
 - Preserve last successful data on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
 - Use CLI tooling and XCTest for simulator/device work. The user explicitly prohibits computer use and mouse/keyboard GUI automation.
-- Modify project.yml and regenerate the committed Xcode project for target/build changes. Simulator Keychain/App Group tests require ad-hoc signing, not CODE_SIGNING_ALLOWED=NO. Run swift test for GradeCore changes and relevant hosted/UI tests for app changes.
+- Modify project.yml and regenerate the committed Xcode project for target/build changes. Simulator Keychain tests require ad-hoc signing, not CODE_SIGNING_ALLOWED=NO. Run swift test for GradeCore changes and relevant hosted/UI tests for app changes.
 - Keep calculated graph points separate from observed history, describe their basis in the project docs, and never invent missing dates. The tooltip shows grade/date only, per the user’s explicit preference.
-- Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, device trust, district verification, and Home Screen widget testing.
+- Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, device trust, district verification, and validation limits.
+
+- Widgets are intentionally removed. Do not restore WidgetKit, an extension, App Groups, or widget routes.
+- Personal signing belongs in ignored Signing.local.xcconfig. Never hardcode a team or district in project.yml; preserve an existing installation's team and bundle ID when updating it. New clones use their own Apple and school accounts.

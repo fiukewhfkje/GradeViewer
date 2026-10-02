@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
 import GradeCore
-import WidgetKit
 
 @Model final class CourseRecord {
     @Attribute(.unique) var id: String
@@ -74,15 +73,4 @@ import WidgetKit
         } catch { context.rollback(); throw error }
     }
     func clearScenarios() throws { let context = container.mainContext; for r in try context.fetch(FetchDescriptor<ScenarioRecord>()) { context.delete(r) }; try context.save() }
-}
-enum WidgetCache {
-    static let group = "group.com.ashtonchang.GradeViewer"
-    static func write(courses: [Course]) throws {
-        guard let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?.appendingPathComponent("grades.json") else { return }
-        let visible = courses.filter { !$0.hidden }.sorted { $0.order < $1.order }
-        let snapshot = WidgetSnapshot(courses: visible.map(WidgetCourse.init), refreshed: visible.map { $0.display.fetched }.min())
-        try JSONEncoder().encode(snapshot).write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
-        var values = URLResourceValues(); values.isExcludedFromBackup = true; var mutableURL = url; try mutableURL.setResourceValues(values)
-        WidgetCenter.shared.reloadAllTimelines()
-    }
 }
