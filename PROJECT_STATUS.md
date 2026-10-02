@@ -31,6 +31,18 @@ GradeViewer is a native local iPhone app. The GitHub remote is private; friends 
 
 ## October 1 audit validation (prior revision)
 
+### Repository follow-up — October 2, 2026
+
+A fresh clone of the GitHub default branch passed all **101 GradeCore XCTest
+cases** with `swift test`. Selected parsing, calculation, assignment ordering,
+cookie, and grade-curve paths were reviewed for small, low risk improvements;
+no additional runtime fix was established in this pass. Only this status record
+and TODO were updated. Hosted/UI tests, device installation, and authenticated
+provider requests were not repeated. The detailed October 1 results below are
+historical evidence, not new October 2 validation.
+
+### October 1 implementation audit
+
 - `swift test`: **101 GradeCore tests passed**, covering the matching regressions, identity/empty-snapshot checks, malformed pagination, URL scope/default ports, parser bounds, shared metadata conflicts and bounded throttle recovery, plus the previous provider/calculation/history tests.
 - Hosted XCTest: **31 tests passed**, including disposable Keychain round trips, legacy Campus/SSO restoration, failed connection activation rollback, refresh failure retention and local persistence.
 - UI: **22 distinct cases verified across the full run and focused reruns**. The first full run exposed an undated legacy-period assignment-view regression; it was fixed and the failing case passed on iPhone 13 mini, along with period/settings regressions. The final equal-width period pills also passed their focused UI test. The 18-screen light/dark matrix passed; small-phone and main-screen screenshots were inspected.

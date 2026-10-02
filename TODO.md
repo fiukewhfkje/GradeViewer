@@ -2,6 +2,8 @@
 
 ## Completed
 
+- [x] October 2 repository follow-up: verify all 101 GradeCore tests from a fresh GitHub clone and record the limited review scope without claiming new hosted/UI/device/provider validation.
+
 - [x] Native local app, canonical GradeCore, protected SwiftData grade/history cache and device Keychain credentials.
 - [x] Both provider pipelines, read-only transport, Schoology enrollment/grade-owner alias handling and Campus section detail IDs.
 - [x] Concurrent/coalesced foreground and manual refresh, bounded section reads, failure retention, foreground fresh-data gate and active-only minute checks.
