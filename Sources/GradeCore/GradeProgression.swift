@@ -34,9 +34,12 @@ public enum GradeProgression {
             guard date <= cutoff else { continue }
             included.append(row); prefix.assignments = included
             guard let value = try? GradeCalculator.percent(course: prefix) else { continue }
-            // Use the same reported baseline as What-If. Rounding alone must not
-            // create a transition when the calculated prefix reaches the current total.
-            result.append(GradeProgressionPoint(id: row.id, date: date, percent: reported + (value - baseline), usesDueDate: row.updated == nil))
+            // Earlier prefixes use their own calculation: applying today's
+            // rounding offset to an earlier perfect score invents a 99.99 point.
+            // A prefix equal to the complete baseline uses the reported total,
+            // preserving the endpoint without introducing a rounding-only step.
+            let percent = abs(value - baseline) <= 0.000000001 ? reported : value
+            result.append(GradeProgressionPoint(id: row.id, date: date, percent: percent, usesDueDate: row.updated == nil))
         }
         return result
     }

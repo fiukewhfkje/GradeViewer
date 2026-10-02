@@ -127,6 +127,16 @@ private actor RefreshProbe {
         return [source]
     }
 }
+private actor RateLimitProbe {
+    var requests: [Date] = []
+    func fetch(_ provider: ProviderID) throws -> [SourceCourse] {
+        requests.append(Date())
+        if requests.count == 1 { throw ProviderError.throttled(0) }
+        var source = Demo.courses()[0].display
+        source.source = Provenance(provider, "cooldown-fixture")
+        return [source]
+    }
+}
 extension RepositoryTests {
     func testOverlappingRefreshesJoinAndPublishFastProviderBeforeFailure() async throws {
         let repository = try GradeRepository(memory:true); let old = Demo.courses(); try repository.save(old)
@@ -183,7 +193,7 @@ extension RepositoryTests {
         let after = await probe.calls[.schoology]
         XCTAssertGreaterThanOrEqual(stopped ?? 0, 2); XCTAssertEqual(stopped, after)
     }
-    func testForegroundDuringProviderCooldownExplainsWaitWithoutSendingRequests() async throws {
+    func testForegroundDuringLongProviderCooldownWaitsWithoutFailureOrEarlyRequests() async throws {
         let probe = RefreshProbe()
         let repository = try GradeRepository(memory: true)
         var source = Demo.courses()[0].display; source.source.provider = .schoology
@@ -193,10 +203,53 @@ extension RepositoryTests {
         store.connected = [.schoology]
         await store.activateScene()
         XCTAssertTrue(store.needsFreshData)
-        XCTAssertTrue(store.foregroundRefreshFailed)
-        XCTAssertEqual(store.errors[.schoology], "Schoology asked to wait before refreshing.")
+        XCTAssertFalse(store.foregroundRefreshFailed)
+        XCTAssertNil(store.errors[.schoology])
+        XCTAssertEqual(store.waitingProviders[.schoology], store.deadlines[.schoology])
         let calls = await probe.calls
         XCTAssertEqual(calls[.schoology, default: 0], 0)
+    }
+    func testRestoredShortCooldownResumesTheSameForegroundRefresh() async throws {
+        let probe = RefreshProbe()
+        let repository = try GradeRepository(memory: true)
+        var source = Demo.courses()[0].display; source.source.provider = .schoology
+        let until = Date().addingTimeInterval(0.3)
+        source.source.fields["provider_retry_after"] = String(until.timeIntervalSince1970)
+        try repository.save(Reconciler.reconcile([source]))
+        let store = AppStore(repository: repository, demo: false, readCredentials: false, fetch: { try await probe.fetch($0) })
+        store.connected = [.schoology]
+        let refresh = Task { await store.activateScene() }
+        try await Task.sleep(for: .milliseconds(30))
+        let earlyCalls = await probe.calls
+        XCTAssertEqual(earlyCalls[.schoology, default: 0], 0)
+        XCTAssertTrue(store.refreshing); XCTAssertTrue(store.needsFreshData)
+        XCTAssertFalse(store.foregroundRefreshFailed); XCTAssertNil(store.errors[.schoology])
+        await refresh.value
+        XCTAssertGreaterThanOrEqual(Date(), until)
+        let calls = await probe.calls
+        XCTAssertEqual(calls[.schoology], 1)
+        XCTAssertFalse(store.needsFreshData); XCTAssertFalse(store.foregroundRefreshFailed)
+        XCTAssertNil(store.waitingProviders[.schoology]); XCTAssertNil(store.errors[.schoology])
+    }
+    func testActiveTimerNoticesManualThrottleAndRetriesAtItsDeadline() async throws {
+        let probe = RateLimitProbe()
+        let store = AppStore(repository: try GradeRepository(memory: true), demo: false, readCredentials: false, fetch: { try await probe.fetch($0) })
+        store.connected = [.schoology]; store.requireFreshData()
+        let timer = Task { await store.refreshWhileActive(interval: .seconds(30)) }
+        await Task.yield()
+        await store.refresh()
+        XCTAssertTrue(store.needsFreshData); XCTAssertFalse(store.foregroundRefreshFailed)
+        XCTAssertNil(store.errors[.schoology]); XCTAssertNotNil(store.waitingProviders[.schoology])
+        for _ in 0..<200 {
+            if !store.needsFreshData { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        timer.cancel(); await timer.value
+        let requests = await probe.requests
+        XCTAssertEqual(requests.count, 2, "Retry must resume before the ordinary 30-second timer")
+        if requests.count == 2 { XCTAssertGreaterThanOrEqual(requests[1].timeIntervalSince(requests[0]), 1) }
+        XCTAssertFalse(store.needsFreshData); XCTAssertFalse(store.foregroundRefreshFailed)
+        XCTAssertNil(store.waitingProviders[.schoology]); XCTAssertNil(store.errors[.schoology])
     }
     func testSavedCampusCookiesReplaceRotatedAndExcludeExpiredOrSSO() throws {
         let valid = HTTPCookie(properties:[.name:"session", .value:"fixture-new", .domain:"district.example.org", .path:"/campus", .secure:"TRUE"])!

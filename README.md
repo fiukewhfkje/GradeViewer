@@ -29,6 +29,8 @@ Grades refresh on launch, return from the background, pull-to-refresh, and once 
 
 Automatic checks can reuse Schoology titles/category rules for up to five minutes only when the complete freshly read grade data is unchanged. Changed grades refresh that metadata immediately; pull-to-refresh bypasses this reuse. Optional title lookups stop on a rate limit without rejecting complete fresh grades, and the next refresh still honors the server's cooldown.
 
+If a provider asks to wait, GradeViewer resumes automatically when its cooldown ends while the app is active. Foreground grades show the wait/countdown until fresh data is available; a cooldown does not require reconnecting or repeatedly tapping Retry.
+
 Both providers worked on the original student's iPhone. Campus uses authenticated portal resources without a supported public student API contract, so other districts may differ. Matching requires unique compatible evidence; ambiguous courses stay separate. Neither provider compatibility nor automatic matching can honestly be guaranteed for every account. Calculators stay local and require source rules that reproduce the reported grade.
 
 ## Develop or install with CLI / an AI assistant
