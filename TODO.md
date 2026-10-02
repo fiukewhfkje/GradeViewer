@@ -24,7 +24,9 @@
 
 - [x] Diagnose retained data versus Campus authentication: 46 cached records survive, restored cookies accompany repeated HTTP 401, and portal HTML 200 does not restore grades. Add explicit cookie transmission, preserved HttpOnly metadata, masked local Cookie-header import, safe count/status diagnostics, Profile failure status and readable dark Retry. Validate 81 core, 22 hosted and 2 focused UI tests; install signed build.
 - [x] Complete fresh SSO and check repeated immediate process relaunches: user confirmed grades, then two relaunches, signed reinstall, and the next automatic active check refreshed both providers successfully. The prior session's rejection is verified; the reason it became invalid is not established.
-- [ ] Observe longer SSO lifetime and, if needed, the optional browser-cookie import. It is not a proven long-lived SSO fix. Do not infer a session TTL or fabricate a renewal endpoint.
+- [x] Preserve the visited IdP session in device Keychain and use Campus’s documented normal SAML entry for one bounded automatic renewal. Fix shared Campus-page return detection, keep grade transport Campus-only, preserve cookie security metadata, and suppress sign-in loops. User captured SSO; a fresh IdP-only device browser obtained eight Campus cookies and fetched summary/all six details, then normal relaunch restored them. Validate 81 core and 31 hosted tests; signed app/widget build/install passed.
+- [x] Simplify Settings to connections and Appearance; hide configured fields on connected provider pages, cookie/SSO/HTTP internals, optional token controls, version boilerplate and widget reload. Keep concise account actions and confirmed Disconnect on provider pages. Persistence and renewal remain automatic. Both focused cleanup UI tests pass; overview/setup/connected screenshots were inspected and the signed build installed.
+- [ ] Observe long-term IdP/Campus lifetime and a natural expiration. Short-term automatic SAML renewal is verified on the phone; district-forced credentials/MFA still require the user. Cookie import remains optional recovery, with unverified long-term SSO effectiveness. Do not infer a TTL or fabricate a renewal endpoint.
 
 - [x] Trace the narrow title 403 through scoped detail, assignment catalog, and all 16 accessible folders. Add conservative list/folder recovery and 15-minute unsuccessful-lookup backoff, preserving fresh scores.
 - [ ] The remaining title is still denied/absent from provider metadata. Recover only if the provider makes it accessible; do not infer deletion/settings or fabricate a name.
@@ -36,4 +38,4 @@
 - [x] Measure the slow refresh and UI freeze: index repeated matching evidence, reuse date/regex parsers, move normalization/encoding off the UI thread, parallelize independent enrollment/grade reads, bind verified identity to Keychain credentials, and validate responsiveness/local-edit preservation. See docs/PERFORMANCE_REPORT.md.
 - [ ] Measure further provider latency/rate limits when a new observed issue justifies it. No sustained Muse watcher was authorized or deployed.
 
-No provider writes, notification server, background polling, paid tier, planner, analytics, or fabricated grades/dates.
+No grade writes, notification server, background polling, paid tier, planner, analytics, or fabricated grades/dates.

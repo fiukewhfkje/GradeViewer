@@ -6,6 +6,7 @@ struct ConnectionDiagnostics: Codable {
     let provider: ProviderID
     let result: String
     let responses: [HTTPDiagnostic]
+    var campusSSO: CampusSSODiagnostic? = nil
 
     static func result(_ error: Error?) -> String {
         guard let error else { return "success" }
@@ -39,4 +40,11 @@ struct ConnectionDiagnostics: Codable {
         // A report failure must never replace the original connection result.
         if let data = try? encoder.encode(self) { try? data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]) }
     }
+}
+
+struct CampusSSODiagnostic: Codable {
+    let available: Bool
+    let attempted: Bool
+    var navigation: [String]? = nil
+    var idpCookieCount: Int? = nil
 }

@@ -1,6 +1,7 @@
 import XCTest
 import SwiftData
 import GradeCore
+import WebKit
 @testable import GradeViewer
 @MainActor final class RepositoryTests: XCTestCase {
     func testOfflineStartupReadsCacheBeforeNetwork() throws {
@@ -211,6 +212,115 @@ extension RepositoryTests {
 }
 
 extension RepositoryTests {
+    func testSSOEntryAcceptsOnlyReusableSameOriginStudentLink() throws {
+        let base = URL(string: "https://district.example.org/campus/")!
+        let entry = URL(string: "https://district.example.org/campus/SSO/district/portal/students?configID=1")!
+        XCTAssertTrue(CampusSSO.validEntry(entry, base: base))
+        for invalid in [
+            "http://district.example.org/campus/SSO/district/portal/students",
+            "https://other.example.org/campus/SSO/district/portal/students",
+            "https://district.example.org:8443/campus/SSO/district/portal/students",
+            "https://district.example.org/campus/SSO/district/portal/parents",
+            "https://district.example.org/campus/SSO/district/portal/students?SAMLRequest=fixture",
+            "https://district.example.org/campus/SSO/district/portal/students?configID=1&RelayState=fixture",
+            "https://district.example.org/campus/SSO/district/portal/students?configID=1&configID=2",
+            "https://district.example.org/campus/SSO/district/portal/students#fixture"
+        ] { XCTAssertFalse(CampusSSO.validEntry(URL(string: invalid)!, base: base), invalid) }
+        XCTAssertNil(CampusSSO.knownEntry(base: base))
+        XCTAssertTrue(CampusSSO.validEntry(try XCTUnwrap(CampusSSO.knownEntry(base: URL(string: "https://dublincityoh.infinitecampus.org/campus/")!)), base: URL(string: "https://dublincityoh.infinitecampus.org/campus/")!))
+    }
+    func testSavedStudentPortalDropsTransientSAMLQueryAndFragment() throws {
+        let portal = URL(string:"https://district.example.org/campus/nav-wrapper/student/portal/student/home?appName=district&SAMLRequest=fixture&SAMLResponse=fixture&RelayState=fixture#fixture")!
+        let saved = try CampusSession(portal:portal, cookies:[])
+        XCTAssertEqual(saved.portal.absoluteString, "https://district.example.org/campus/nav-wrapper/student/portal/student/home?appName=district")
+        XCTAssertEqual(saved.base.absoluteString, "https://district.example.org/campus/")
+    }
+    func testSSOCookiesRetainOnlyVisitedHostsAndRemoveExpiredCookies() throws {
+        let portal = URL(string: "https://district.example.org/campus/portal/students/district.jsp")!
+        var session = try CampusSession(portal: portal, cookies: [])
+        let entry = URL(string: "https://district.example.org/campus/SSO/district/portal/students")!
+        let fixture = [
+            HTTPCookie(properties: [.name:"idp", .value:"fixture", .domain:".example.net", .path:"/", .secure:"TRUE"])!,
+            HTTPCookie(properties: [.name:"campus", .value:"fixture", .domain:"district.example.org", .path:"/campus"])!,
+            HTTPCookie(properties: [.name:"foreign", .value:"fixture", .domain:"other.example.com", .path:"/"])!,
+            HTTPCookie(properties: [.name:"lookalike", .value:"fixture", .domain:"evil-example.net", .path:"/"])!,
+            HTTPCookie(properties: [.name:"expired", .value:"fixture", .domain:"login.example.net", .path:"/", .expires:Date().addingTimeInterval(-100)])!
+        ]
+        session.replaceCookies(fixture)
+        session.sso = try CampusSSO(base: session.base, entry: entry, hosts: ["login.example.net"], cookies: fixture)
+        XCTAssertEqual(session.cookies.map(\.name), ["campus"])
+        XCTAssertEqual(session.sso?.cookies.map(\.name), ["idp"])
+        XCTAssertEqual(session.sso?.canRenew(base: session.base), true)
+        session.sso?.needsSignIn = true
+        XCTAssertEqual(session.sso?.canRenew(base: session.base), false)
+        XCTAssertEqual(session.sso?.browserCookies(base: session.base).count, 1, "Interactive login must still reuse its own IdP session")
+    }
+    func testLegacyCampusConnectionAndNewSSOKeychainRoundTrip() throws {
+        let legacy = Data("{\"portal\":\"https://district.example.org/campus/portal/students/district.jsp\",\"base\":\"https://district.example.org/campus/\",\"cookies\":[]}".utf8)
+        var session = try JSONDecoder().decode(CampusSession.self, from: legacy)
+        XCTAssertNil(session.sso)
+        let cookie = HTTPCookie(properties: [.name:"idp", .value:"fixture", .domain:"login.example.net", .path:"/", .secure:"TRUE", .sameSitePolicy:"strict", HTTPCookiePropertyKey(rawValue:"HttpOnly"):"TRUE"])!
+        session.sso = try CampusSSO(base: session.base, entry: URL(string: "https://district.example.org/campus/SSO/district/portal/students?configID=1")!, hosts: ["login.example.net"], cookies: [cookie])
+        let account = "test-sso-" + UUID().uuidString
+        defer { try? SecureStore.delete(account: account) }
+        try SecureStore.save(session, account: account)
+        let restored = try XCTUnwrap(SecureStore.load(CampusSession.self, account: account))
+        let idp = try XCTUnwrap(restored.sso?.browserCookies(base: restored.base).first)
+        XCTAssertTrue(idp.isHTTPOnly); XCTAssertTrue(idp.isSecure)
+        XCTAssertEqual(idp.sameSitePolicy?.rawValue, "strict")
+        XCTAssertTrue(restored.cookies.isEmpty)
+        XCTAssertEqual(restored.sso?.canRenew(base: restored.base), true)
+    }
+    func testPrivateBrowserRestoresCampusAndSSOButRejectsOtherDistrict() async throws {
+        let portal = URL(string: "https://district.example.org/campus/portal/students/district.jsp")!
+        let campus = HTTPCookie(properties: [.name:"campus", .value:"fixture", .domain:"district.example.org", .path:"/campus", .secure:"TRUE"])!
+        let idp = HTTPCookie(properties: [.name:"idp", .value:"fixture", .domain:"login.example.net", .path:"/", .secure:"TRUE", .sameSitePolicy:"strict", HTTPCookiePropertyKey(rawValue:"HttpOnly"):"TRUE"])!
+        var saved = try CampusSession(portal: portal, cookies: [campus])
+        saved.sso = try CampusSSO(base: saved.base, entry: URL(string: "https://district.example.org/campus/SSO/district/portal/students")!, hosts: ["login.example.net"], cookies: [idp])
+        let browser = CampusWebSession(portal: portal, saved: saved, automatic: true)
+        XCTAssertFalse(browser.webView.configuration.websiteDataStore.isPersistent)
+        await browser.restoreCookies()
+        let restored = await browser.webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+        XCTAssertEqual(Set(restored.map(\.name)), ["campus", "idp"])
+        XCTAssertTrue(try XCTUnwrap(restored.first { $0.name == "idp" }).isHTTPOnly)
+        let other = CampusWebSession(portal: URL(string: "https://other.example.org/campus/portal/students/other.jsp")!, saved: saved, automatic: true)
+        await other.restoreCookies()
+        let foreign = await other.webView.configuration.websiteDataStore.httpCookieStore.allCookies()
+        XCTAssertTrue(foreign.isEmpty)
+        XCTAssertTrue(browser.permits(URL(string:"https://login.example.net/saml?transient=fixture")!))
+        XCTAssertFalse(browser.permits(URL(string:"https://unknown.example.com/saml")!))
+        XCTAssertFalse(browser.permits(URL(string:"http://login.example.net/saml")!))
+    }
+    func testRenewalWithoutSavedSSONeverStartsBrowser() async throws {
+        let saved = try CampusSession(portal: URL(string:"https://district.example.org/campus/portal/students/district.jsp")!, cookies:[])
+        do { _ = try await CampusWebSession.renew(saved); XCTFail("A Campus cookie is not an IdP session") }
+        catch ProviderError.reconnect {} catch { XCTFail("Unexpected error") }
+    }
+    func testSSOReturnAcceptsSharedCampusPageOnlyAfterIdpNavigation() throws {
+        let base = URL(string:"https://district.example.org/campus/")!
+        let shared = URL(string:"https://district.example.org/campus/portal/district.jsp")!
+        XCTAssertTrue(CampusSSO.returnedToCampus(shared, base:base, visitedIdp:true))
+        XCTAssertFalse(CampusSSO.returnedToCampus(shared, base:base, visitedIdp:false))
+        XCTAssertTrue(CampusSSO.returnedToCampus(URL(string:"https://district.example.org/campus/SSO/district/portal/students")!, base:base, visitedIdp:true))
+        for candidate in ["https://login.example.net/campus/portal/district.jsp", "http://district.example.org/campus/portal/district.jsp", "https://district.example.org/outside", "https://district.example.org/campus-lookalike/portal/district.jsp"] {
+            XCTAssertFalse(CampusSSO.returnedToCampus(URL(string:candidate)!, base:base, visitedIdp:true))
+        }
+    }
+    func testCancelledSSORenewalExitsBeforeLoadingProvider() async throws {
+        var session = try CampusSession(portal:URL(string:"https://district.example.org/campus/portal/students/district.jsp")!, cookies:[])
+        let idp = HTTPCookie(properties:[.name:"idp",.value:"fixture",.domain:"login.example.net",.path:"/"])!
+        session.sso = try CampusSSO(base:session.base, entry:URL(string:"https://district.example.org/campus/SSO/district/portal/students")!, hosts:["login.example.net"], cookies:[idp])
+        let saved = session
+        let task = Task { try await CampusWebSession.renew(saved) }
+        task.cancel()
+        do { _ = try await task.value; XCTFail("Cancelled renewal must not run") }
+        catch is CancellationError {} catch { XCTFail("Unexpected error") }
+    }
+    func testStoredCookiePreservesInsecureFlagRatherThanChangingIt() throws {
+        let original = HTTPCookie(properties:[.name:"fixture", .value:"fixture", .domain:"login.example.net", .path:"/"])!
+        XCTAssertFalse(original.isSecure)
+        XCTAssertFalse(try XCTUnwrap(StoredCookie(original).cookie).isSecure)
+    }
     func testCurrentQuarterWinsOverContainingSemesterAndExamTasks() throws {
         let repository = try GradeRepository(memory:true)
         try repository.save(Reconciler.reconcile(Demo.periodSources()))

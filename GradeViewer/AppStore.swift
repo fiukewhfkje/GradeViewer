@@ -30,6 +30,7 @@ import GradeCore
     #if DEBUG
     private var refreshStages: [String: Double] = [:]
     private var maximumMainDelay: Double = 0
+    private var didVerifyCampusRenewal = false
     #endif
     private let fetchOverride: (@Sendable (ProviderID) async throws -> [SourceCourse])?
     var presentationDate = Date()
@@ -97,6 +98,7 @@ import GradeCore
                 for i in courses.indices { courses[i].order = GradingPeriods.descriptor(courses[i]).label == "Q1" ? 0 : i + 1 }
                 courses.sort { $0.order < $1.order }
             }
+            if demo && arguments.contains("--connected-settings-fixture") { connected = Set(ProviderID.allCases) }
             if !demo && readCredentials {
                 if try SecureStore.load(SchoologyCredentials.self, account: "schoology") != nil { connected.insert(.schoology) }
                 if try SecureStore.load(CampusSession.self, account: "campus") != nil { connected.insert(.infiniteCampus) }
@@ -361,16 +363,51 @@ import GradeCore
             verify = ProcessInfo.processInfo.arguments.contains("--verify-layout") || ProcessInfo.processInfo.arguments.contains("--profile-refresh")
             #endif
             let campus = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: verify)
-            let result: Result<[SourceCourse], Error>
-            do { result = .success(try await campus.fetch(resuming: session.portal)) } catch { result = .failure(error) }
+            let ssoAvailable = session.sso?.canRenew(base: session.base) == true
+            var result: Result<[SourceCourse], Error>
+            do { result = .success(try await campus.fetch(resuming: ssoAvailable ? nil : session.portal)) } catch { result = .failure(error) }
+            var responses = await campus.diagnostics()
+            session.replaceCookies(await campus.sessionCookies())
+            let initialResult = result
+            let initialSession = session
+            var verifyRenewal = false
+            #if DEBUG
+            verifyRenewal = session.sso?.browserCookies(base: session.base).isEmpty == false && !didVerifyCampusRenewal && ProcessInfo.processInfo.arguments.contains("--verify-campus-renewal")
+            if verifyRenewal { didVerifyCampusRenewal = true; result = .failure(ProviderError.reconnect) }
+            #endif
+            var renewed = false
+            var navigation: [String]?
+            // Campus and the IdP have independent sessions. Renew through the
+            // normal browser SSO entry only after Campus rejects authentication.
+            if case .failure(ProviderError.reconnect) = result, ssoAvailable || verifyRenewal {
+                renewed = true
+                do {
+                    var browserInput = session
+                    // Device verification uses only saved IdP cookies, while the
+                    // active Campus jar remains intact if the probe cannot renew.
+                    if verifyRenewal { browserInput.cookies = []; browserInput.sso?.needsSignIn = nil }
+                    session = try await CampusWebSession.renew(browserInput) { navigation = $0 }
+                    let replacement = try InfiniteCampusProvider(base: session.base, cookies: session.cookies.compactMap(\.cookie), diagnosticsEnabled: verify)
+                    do { result = .success(try await replacement.fetch()) } catch { result = .failure(error) }
+                    responses += await replacement.diagnostics()
+                    session.replaceCookies(await replacement.sessionCookies())
+                } catch { result = .failure(error) }
+                if case .failure(ProviderError.reconnect) = result {
+                    // Reopening the app must not loop on a finished sign-in page.
+                    // A successful interactive connection creates a fresh SSO state.
+                    session.sso?.needsSignIn = true
+                }
+            }
             if verify {
                 let error: Error?
                 switch result { case .success: error = nil; case .failure(let failure): error = failure }
-                ConnectionDiagnostics(provider: .infiniteCampus, result: ConnectionDiagnostics.result(error), responses: await campus.diagnostics()).save()
+                ConnectionDiagnostics(provider: .infiniteCampus, result: ConnectionDiagnostics.result(error), responses: responses,
+                                      campusSSO: CampusSSODiagnostic(available: ssoAvailable, attempted: renewed, navigation: navigation,
+                                                                   idpCookieCount: session.sso?.browserCookies(base: session.base).count)).save()
             }
+            if verifyRenewal, case .failure = result, case .success = initialResult { result = initialResult; session = initialSession }
             // A response can rotate cookies even when a later detail fails. Save
             // the updated jar before surfacing that failure, preserving expiry/deletions.
-            session.replaceCookies(await campus.sessionCookies())
             try SecureStore.save(session, account: "campus")
             return try result.get()
         }
@@ -444,15 +481,17 @@ import GradeCore
             guard await applySnapshot(fetched, provider: .infiniteCampus) else { throw ProviderError.unavailable }
             errors[.infiniteCampus] = nil; freshProviders.insert(.infiniteCampus)
             finishFreshPresentation()
-            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: nil)
+            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: nil,
+                             campusSSO: CampusSSODiagnostic(available: session.sso?.canRenew(base: session.base) == true, attempted: false))
         } catch {
             session.replaceCookies(await provider.sessionCookies())
             try SecureStore.save(session, account: "campus-pending")
-            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: error); throw error
+            recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: error,
+                             campusSSO: CampusSSODiagnostic(available: session.sso?.canRenew(base: session.base) == true, attempted: false)); throw error
         }
     }
-    private func recordConnection(_ provider: ProviderID, responses: [HTTPDiagnostic], error: Error?) {
-        let report = ConnectionDiagnostics(provider: provider, result: ConnectionDiagnostics.result(error), responses: responses)
+    private func recordConnection(_ provider: ProviderID, responses: [HTTPDiagnostic], error: Error?, campusSSO: CampusSSODiagnostic? = nil) {
+        let report = ConnectionDiagnostics(provider: provider, result: ConnectionDiagnostics.result(error), responses: responses, campusSSO: campusSSO)
         report.save(); connectionDetails[provider] = error == nil ? nil : report.summary
     }
     func retryConnection(_ provider: ProviderID) async throws {
@@ -472,6 +511,7 @@ import GradeCore
         } catch { localError = "The saved connection could not be removed." }
     }
     func disconnect(_ provider: ProviderID) {
+        guard !demo else { return } // UI fixtures must never remove real Keychain connections.
         guard !refreshing else { return }
         do { try SecureStore.delete(account: provider == .schoology ? "schoology" : "campus"); try SecureStore.delete(account: provider == .schoology ? "schoology-pending" : "campus-pending"); pending.remove(provider); connectionDetails[provider] = nil; connected.remove(provider); errors[provider] = nil; deadlines[provider] = nil
             // Clear history and scenarios when disconnecting to avoid leaving another account's data.

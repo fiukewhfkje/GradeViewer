@@ -279,14 +279,47 @@ extension GradeViewerUITests {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
         let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "fresh-gate-profile-recovery"; attachment.lifetime = .keepAlways; add(attachment)
     }
-    @MainActor func testCampusCookieImportIsLocalOptionalAndMasked() {
+    @MainActor func testSettingsKeepPersistenceAndRecoveryDetailsHidden() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
-        let campus = app.buttons["campus-connection"]
-        XCTAssertTrue(campus.waitForExistence(timeout:10)); campus.tap()
-        let cookies = app.buttons["Use browser cookies"]
-        XCTAssertTrue(cookies.waitForExistence(timeout:5)); cookies.tap()
-        XCTAssertTrue(app.secureTextFields["campus-cookie-header"].exists)
-        XCTAssertFalse(app.buttons["Connect with cookies"].isEnabled)
-        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "campus-local-cookie-import"; attachment.lifetime = .keepAlways; add(attachment)
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:10))
+        XCTAssertTrue(app.buttons["campus-connection"].exists)
+        XCTAssertTrue(app.buttons["Schoology, Connect"].exists)
+        XCTAssertTrue(app.buttons["Appearance, System"].exists)
+        XCTAssertFalse(app.staticTexts["Version"].exists)
+        XCTAssertFalse(app.buttons["Reload widgets"].exists)
+        XCTAssertFalse(app.buttons["Disconnect Infinite Campus"].exists)
+        let overview = XCTAttachment(screenshot:app.screenshot()); overview.name = "settings-clean-overview"; overview.lifetime = .keepAlways; add(overview)
+        app.buttons["campus-connection"].tap()
+        XCTAssertTrue(app.textFields["Student portal URL"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.buttons["Find your district"].exists)
+        XCTAssertFalse(app.buttons["Use browser cookies"].exists)
+        XCTAssertFalse(app.secureTextFields["campus-cookie-header"].exists)
+        XCTAssertFalse(app.staticTexts["Automatic SSO reconnect ready"].exists)
+        let campus = XCTAttachment(screenshot:app.screenshot()); campus.name = "campus-clean-setup"; campus.lifetime = .keepAlways; add(campus)
+    }
+    @MainActor func testConnectedSettingsHideSetupFieldsAndKeepAccountActions() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--connected-settings-fixture", "--screen=settings"]; app.launch()
+        XCTAssertTrue(app.buttons["campus-connection"].waitForExistence(timeout:10)); app.buttons["campus-connection"].tap()
+        let status = app.descendants(matching:.any)["connection-status"]
+        XCTAssertTrue(status.waitForExistence(timeout:5))
+        XCTAssertEqual(status.value as? String, "Connected")
+        XCTAssertTrue(app.buttons["Sign in again"].exists)
+        XCTAssertTrue(app.buttons["Disconnect"].exists)
+        XCTAssertFalse(app.textFields["Student portal URL"].exists)
+        XCTAssertFalse(app.buttons["Find your district"].exists)
+        XCTAssertFalse(app.staticTexts["Automatic SSO reconnect ready"].exists)
+        let campus = XCTAttachment(screenshot:app.screenshot()); campus.name = "campus-clean-connected"; campus.lifetime = .keepAlways; add(campus)
+        app.buttons["Disconnect"].tap()
+        XCTAssertTrue(app.buttons["Disconnect and remove its saved grades"].waitForExistence(timeout:5))
+        app.buttons["Disconnect and remove its saved grades"].tap()
+        XCTAssertEqual(status.value as? String, "Connected", "Demo disconnect must not delete real Keychain connections")
+        app.navigationBars["Infinite Campus"].buttons.element(boundBy:0).tap()
+        app.buttons["Schoology, Connected"].tap()
+        XCTAssertTrue(app.buttons["Update sign-in"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.buttons["Disconnect"].exists)
+        XCTAssertFalse(app.textFields["API key"].exists)
+        XCTAssertFalse(app.secureTextFields["API secret"].exists)
+        XCTAssertFalse(app.buttons["Access token (if required)"].exists)
+        let schoology = XCTAttachment(screenshot:app.screenshot()); schoology.name = "schoology-clean-connected"; schoology.lifetime = .keepAlways; add(schoology)
     }
 }
