@@ -435,6 +435,50 @@ extension GradeCoreTests {
         let curve = GradeCurve(points: points + [GradeProgressionPoint(observed)])
         XCTAssertEqual(Set(curve.nodes.map { ($0.value * 100).rounded() }).count, 1)
     }
+    func testEarlierPerfectGraphPointsDoNotInheritCurrentRoundingOffset() throws {
+        var course = source(.infiniteCampus, percent: 96.29); course.method = .points
+        course.assignments = [assignment(.infiniteCampus, id:"a", earned:100), assignment(.infiniteCampus, id:"b", earned:92.598)]
+        for i in course.assignments.indices { course.assignments[i].updated = Demo.now.addingTimeInterval(Double(i) * 100) }
+        course.fetched = Demo.now.addingTimeInterval(200)
+        let points = GradeProgression.calculated(course, before: course.fetched)
+        XCTAssertEqual(try XCTUnwrap(points.first?.grade.percent), 100, accuracy: 0.0000001)
+        XCTAssertEqual(try XCTUnwrap(points.last?.grade.percent), 96.29, accuracy: 0.0000001)
+        let earlier = GradeHistorySnapshot(date: Demo.now.addingTimeInterval(50), grade: OverallGrade(percent:100), provider:.infiniteCampus)
+        let current = GradeHistorySnapshot(date:course.fetched, grade:course.grade, provider:.infiniteCampus)
+        let curve = GradeCurve(points:points + [GradeProgressionPoint(earlier), GradeProgressionPoint(current)])
+        XCTAssertEqual(curve.nodes.map(\.value), [100,100,96.29,96.29])
+        XCTAssertTrue(zip(curve.nodes,curve.nodes.dropFirst()).allSatisfy { $0.value >= $1.value }, "Current rounding must not manufacture an upward bump before the real decline")
+    }
+    func testObservedGradeReplacesCalculatedEventsAtTheSameTimestamp() {
+        var course = source(.infiniteCampus, percent:90); course.method = .points
+        course.assignments = [assignment(.infiniteCampus, id:"a", earned:100), assignment(.infiniteCampus, id:"b", earned:80)]
+        for i in course.assignments.indices { course.assignments[i].updated = Demo.now.addingTimeInterval(Double(i) * 100) }
+        course.fetched = Demo.now.addingTimeInterval(200)
+        let earlier = GradeHistorySnapshot(date:Demo.now.addingTimeInterval(100), grade:OverallGrade(percent:92), provider:.infiniteCampus)
+        let current = GradeHistorySnapshot(date:course.fetched, grade:course.grade, provider:.infiniteCampus)
+        let curve = GradeCurve(points:GradeProgression.calculated(course, before:course.fetched) + [GradeProgressionPoint(earlier),GradeProgressionPoint(current)])
+        XCTAssertEqual(curve.nodes.map(\.value), [100,92,90])
+        XCTAssertEqual(curve.nodes.filter { $0.date == earlier.date }.count, 1)
+    }
+    func testCorrectedMissingAssignmentKeepsObservedDipAndRecovery() throws {
+        var course = source(.infiniteCampus, percent:100); course.method = .points; course.categories = []
+        course.assignments = [assignment(.infiniteCampus, id:"a", earned:20, possible:20), assignment(.infiniteCampus, id:"b", earned:20, possible:20)]
+        for i in course.assignments.indices { course.assignments[i].updated = Demo.now.addingTimeInterval(Double(i) * 10 - 100) }
+        course.fetched = Demo.now
+        let first = Reconciler.reconcile([course], now:course.fetched)
+        course.assignments[1].score.earned = 0; course.grade.percent = 50
+        course.assignments[1].updated = Demo.now.addingTimeInterval(100); course.fetched = Demo.now.addingTimeInterval(100)
+        let missing = Reconciler.reconcile([course], previous:first, now:course.fetched)
+        course.assignments[1].score.earned = 20; course.grade.percent = 100
+        course.assignments[1].updated = Demo.now.addingTimeInterval(200); course.fetched = Demo.now.addingTimeInterval(200)
+        let corrected = try XCTUnwrap(Reconciler.reconcile([course], previous:missing, now:course.fetched).first)
+        let restored = try JSONDecoder().decode(Course.self, from:JSONEncoder().encode(corrected))
+        XCTAssertEqual(restored.history.map { $0.grade.percent }, [100,50,100])
+        let curve = GradeCurve(points:GradeProgression.calculated(restored.calculationSource, before:course.fetched) + restored.history.map(GradeProgressionPoint.init))
+        XCTAssertEqual(curve.nodes.first { $0.date == missing[0].history.last!.date }?.value, 50)
+        XCTAssertEqual(curve.nodes.last?.value, 100)
+        XCTAssertEqual(restored.assignments.first { $0.display.source.id == "b" }?.display.score.earned, 20)
+    }
     func testTypedSchoologyIDsDoNotSuppressAnotherKind() throws {
         let items = Data("{\"assignment\":[{\"id\":\"wrapper\",\"grade_item_id\":10,\"type\":\"discussion\",\"title\":\"Discussion\",\"grading_period\":1,\"max_points\":5}]}".utf8)
         let course = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: items, categories: fixture("schoology-categories"))[0]

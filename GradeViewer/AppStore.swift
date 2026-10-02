@@ -2,6 +2,8 @@ import SwiftUI
 import Observation
 import GradeCore
 
+private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
+
 @Observable @MainActor final class AppStore {
     var courses: [Course] = []
     var errors: [ProviderID: String] = [:]
@@ -20,6 +22,7 @@ import GradeCore
     var scenarios: [String: Hypothesis] = [:]
     var mappings: [String: String] = [:]
     var deadlines: [ProviderID: Date] = [:]
+    var waitingProviders: [ProviderID: Date] = [:]
     private var repository: GradeRepository?
     private var started = false
     private var refreshOnNextActivation = true
@@ -50,6 +53,17 @@ import GradeCore
             if demo && arguments.contains("--curve-fixture"), !courses.isEmpty {
                 courses[0].history = [GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_000_000), grade: OverallGrade(percent: 80), provider: .infiniteCampus), GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_172_800), grade: OverallGrade(percent: 100), provider: .infiniteCampus)]
                 courses[0].sources[0].assignments = []
+            }
+            if demo && arguments.contains("--graph-rounding-fixture"), !courses.isEmpty {
+                var source = courses[0].display; source.method = .points; source.categories = []
+                source.assignments = Array(source.assignments.prefix(2))
+                source.assignments[0].score = Score(earned:100, possible:100)
+                source.assignments[1].score = Score(earned:92.598, possible:100)
+                source.assignments[0].updated = Demo.now
+                source.assignments[1].updated = Demo.now.addingTimeInterval(100)
+                source.fetched = Demo.now.addingTimeInterval(200); source.grade.percent = 96.29
+                courses[0].sources = [source]
+                courses[0].history = [GradeHistorySnapshot(date:Demo.now.addingTimeInterval(50), grade:OverallGrade(percent:100), provider:source.source.provider), GradeHistorySnapshot(date:source.fetched, grade:source.grade, provider:source.source.provider)]
             }
             if demo && arguments.contains("--noop-scenario"), let course = courses.first, let assignment = course.calculationSource.assignments.first, let score = assignment.score.earned {
                 var scenario = Hypothesis(); scenario.scores[assignment.id] = score; try repository?.saveScenario(scenario, id: course.id)
@@ -107,10 +121,24 @@ import GradeCore
             }
         } catch { localError = "Saved grades could not be opened." }
         for course in courses { scenarios[course.id] = (try? repository?.scenario(course.id)) ?? Hypothesis() }
+        // A complete snapshot can include deferred optional title recovery.
+        // Restore its server cooldown on process relaunch as well as foreground return.
+        if !demo {
+            for source in courses.flatMap(\.sources) {
+                if let seconds = source.source.fields["provider_retry_after"].flatMap(Double.init), seconds.isFinite, seconds > Date().timeIntervalSince1970 {
+                    deadlines[source.source.provider] = max(deadlines[source.source.provider] ?? .distantPast, Date(timeIntervalSince1970: seconds))
+                }
+            }
+        }
         selectedTerm = preferredTerm()
         needsFreshData = !demo && (!connected.isEmpty || !courses.isEmpty)
         if demo && arguments.contains("--loading-fixture") { needsFreshData = true }
         if demo && arguments.contains("--fresh-failure-fixture") { needsFreshData = true; foregroundRefreshFailed = true }
+        if demo && arguments.contains("--cooldown-fixture") {
+            connected = [.schoology]; needsFreshData = true
+            deadlines[.schoology] = Date().addingTimeInterval(60)
+            waitingProviders[.schoology] = deadlines[.schoology]
+        }
         #if DEBUG
         verifyLayout(phase: "cached startup")
         #endif
@@ -145,7 +173,7 @@ import GradeCore
     }
     func startup() async {
         guard !started else { return }; started = true
-        await refresh()
+        await refresh(refreshMetadata: false)
         #if DEBUG
         verifyLayout(phase: "after startup refresh")
         #endif
@@ -221,7 +249,8 @@ import GradeCore
                                      "campusConnected": connected.contains(.infiniteCampus), "pendingConnections": pending.count,
                                      "freshPresentationBlocked": needsFreshData, "cachedCourses": courses.count, "visibleCourses": rows, "storageError": localError != nil,
                                      "providerErrorCount": errors.count,
-                                     "providerResults": Dictionary(uniqueKeysWithValues: ProviderID.allCases.map { ($0.rawValue, errors[$0] ?? "success") }),
+                                     "waitingProviderCount": waitingProviders.count,
+                                     "providerResults": Dictionary(uniqueKeysWithValues: ProviderID.allCases.map { ($0.rawValue, errors[$0] ?? (waitingProviders[$0] == nil ? "success" : "waiting for retry")) }),
                                      "refreshMilliseconds": Dictionary(uniqueKeysWithValues: refreshDurations.map { ($0.key.rawValue, $0.value) })]
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) {
             try? data.write(to: root.appendingPathComponent("layout-verification.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
@@ -229,14 +258,14 @@ import GradeCore
     }
     #endif
     /// Foreground and manual requests join the same in-flight refresh.
-    func refresh() async {
+    func refresh(refreshMetadata: Bool = true) async {
         presentationDate = Date()
         if let refreshTask { await refreshTask.value; return }
         guard !demo, !refreshing, repository != nil else { return }
         refreshing = true
         if needsFreshData { foregroundRefreshFailed = false }
         let task = Task {
-            await performRefresh()
+            await performRefresh(refreshMetadata: refreshMetadata)
             refreshTask = nil; refreshing = false
         }
         refreshTask = task
@@ -252,7 +281,9 @@ import GradeCore
         guard needsFreshData, !backgrounded else { return }
         if (!connected.isEmpty && connected.isSubset(of:freshProviders)) || (connected.isEmpty && courses.isEmpty) {
             needsFreshData = false; foregroundRefreshFailed = false
-        } else { foregroundRefreshFailed = true }
+        } else {
+            foregroundRefreshFailed = connected.contains { !freshProviders.contains($0) && waitingProviders[$0] == nil }
+        }
     }
     func sceneChanged(_ phase: ScenePhase) {
         // App switcher, Control Center, and system prompts temporarily deactivate
@@ -264,22 +295,33 @@ import GradeCore
         guard refreshOnNextActivation else { return }
         refreshOnNextActivation = false; backgrounded = false
         requireFreshData()
-        if started { await refresh() } else { await startup() }
+        if started { await refresh(refreshMetadata: false) } else { await startup() }
         // A return may join a backgrounded operation after one provider already
         // finished. Resolve only providers that have not refreshed this entry.
-        if needsFreshData && connected.contains(where: { !freshProviders.contains($0) && errors[$0] == nil }) { await refresh() }
+        if needsFreshData && connected.contains(where: { !freshProviders.contains($0) && errors[$0] == nil && (deadlines[$0]?.timeIntervalSinceNow ?? 0) <= 30 }) { await refresh(refreshMetadata: false) }
     }
     func refreshWhileActive(interval: Duration = .seconds(60)) async {
+        guard !demo else { return }
+        let clock = ContinuousClock()
+        var nextCheck = clock.now.advanced(by: interval)
         while !Task.isCancelled {
-            do { try await Task.sleep(for: interval) } catch { return }
-            await refresh()
+            let nextRetry = waitingProviders.filter { connected.contains($0.key) }.values.min()
+            let untilCheck = max(.zero, clock.now.duration(to: nextCheck))
+            let untilRetry = nextRetry.map { Duration.seconds(max(0, $0.timeIntervalSinceNow)) } ?? untilCheck
+            // Notice a cooldown started by a manual refresh within one second,
+            // without sending extra HTTP requests during the ordinary interval.
+            let pause = min(.seconds(1), min(untilCheck, untilRetry))
+            do { try await Task.sleep(for: pause) } catch { return }
+            guard clock.now >= nextCheck || nextRetry.map({ $0 <= Date() }) == true else { continue }
+            await refresh(refreshMetadata: false)
+            nextCheck = clock.now.advanced(by: interval)
         }
     }
     func updated(_ course: Course) -> Date? {
         let schoology = AssignmentGrouping.schoologySource(for: course, among: courses.flatMap(\.sources))
         return AssignmentGrouping.updated(for: course, schoology: schoology)
     }
-    private func performRefresh() async {
+    private func performRefresh(refreshMetadata: Bool) async {
         #if DEBUG
         let profile = ProcessInfo.processInfo.arguments.contains("--profile-refresh")
         let refreshStarted = Date()
@@ -292,24 +334,35 @@ import GradeCore
             }
         } : nil
         #endif
-        let providers = ProviderID.allCases.filter { connected.contains($0) && (deadlines[$0] ?? .distantPast) <= Date() }
-        await withTaskGroup(of: (ProviderID, Result<[SourceCourse], Error>).self) { group in
+        // Short cooldowns stay in this coalesced refresh; longer waits leave
+        // other providers free to refresh and resume from the active timer.
+        let providers = ProviderID.allCases.filter { connected.contains($0) && (deadlines[$0]?.timeIntervalSinceNow ?? 0) <= 30 }
+        for provider in connected where (deadlines[provider]?.timeIntervalSinceNow ?? 0) > 0 {
+            errors[provider] = nil; waitingProviders[provider] = deadlines[provider]
+        }
+        await withTaskGroup(of: (ProviderID, Result<ProviderFetch, Error>).self) { group in
             for provider in providers {
                 group.addTask { [self] in
-                    do { return (provider, .success(try await fetchProvider(provider))) }
+                    do {
+                        return (provider, .success(try await fetchAfterCooldown(provider, refreshMetadata: refreshMetadata)))
+                    }
                     catch { return (provider, .failure(error)) }
                 }
             }
             for await (provider, result) in group {
                 switch result {
                 case let .success(fetched):
+                    waitingProviders[provider] = nil
                     // Publish each complete provider immediately; a slow provider
                     // must not hold up new assignments from the other one.
-                    if await applySnapshot(fetched, provider: provider) {
-                        errors[provider] = nil; deadlines[provider] = nil; freshProviders.insert(provider)
+                    if await applySnapshot(fetched.courses, provider: provider) {
+                        errors[provider] = nil; deadlines[provider] = fetched.retryAfter; freshProviders.insert(provider)
                     } else { errors[provider] = "Fresh grades could not be saved on this device." }
                 case let .failure(error):
-                    errors[provider] = message(error, provider: provider)
+                    if case let ProviderError.throttled(seconds) = error {
+                        deadlines[provider] = Date().addingTimeInterval(max(1, seconds))
+                        waitingProviders[provider] = deadlines[provider]; errors[provider] = nil
+                    } else { waitingProviders[provider] = nil; errors[provider] = message(error, provider: provider) }
                 }
             }
         }
@@ -323,7 +376,7 @@ import GradeCore
             let report: [String: Any] = ["totalMilliseconds": Date().timeIntervalSince(refreshStarted) * 1000,
                 "providerMilliseconds": Dictionary(uniqueKeysWithValues: refreshDurations.map { ($0.key.rawValue, $0.value) }),
                 "stagesMilliseconds": refreshStages, "maximumMainDelayMilliseconds": maximumMainDelay,
-                "providerErrorCount": errors.count, "freshPresentationBlocked": needsFreshData,
+                "providerErrorCount": errors.count, "waitingProviderCount": waitingProviders.count, "freshPresentationBlocked": needsFreshData,
                 "courseCount": courses.count, "untitledRows": courses.flatMap(\.sources).flatMap(\.assignments).filter { $0.score.isGraded && !$0.hasTitle }.count]
             if let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys]),
                let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
@@ -333,10 +386,19 @@ import GradeCore
         verifyLayout(phase: "after refresh")
         #endif
     }
-    private func fetchProvider(_ provider: ProviderID) async throws -> [SourceCourse] {
+    private func fetchAfterCooldown(_ provider: ProviderID, refreshMetadata: Bool) async throws -> ProviderFetch {
+        if let deadline = deadlines[provider], deadline > Date() {
+            try await Task.sleep(for: .seconds(max(0, deadline.timeIntervalSinceNow)))
+        }
+        try Task.checkCancellation()
+        guard connected.contains(provider) else { throw CancellationError() }
+        deadlines[provider] = nil
+        return try await fetchProvider(provider, refreshMetadata: refreshMetadata)
+    }
+    private func fetchProvider(_ provider: ProviderID, refreshMetadata: Bool) async throws -> ProviderFetch {
         let startedAt = Date()
         defer { refreshDurations[provider] = Date().timeIntervalSince(startedAt) * 1000 }
-        if let fetchOverride { return try await fetchOverride(provider) }
+        if let fetchOverride { return (try await fetchOverride(provider), nil) }
         switch provider {
         case .schoology:
             guard var credentials = try SecureStore.load(SchoologyCredentials.self, account: "schoology") else { throw ProviderError.reconnect }
@@ -346,12 +408,12 @@ import GradeCore
             #endif
             let schoology = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: verify)
             do {
-                let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources))
+                let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources), refreshMetadata: refreshMetadata)
                 if credentials.userID != result.userID {
                     credentials.userID = result.userID; try SecureStore.save(credentials, account: "schoology")
                 }
                 if verify { ConnectionDiagnostics(provider: .schoology, result: "success", responses: await schoology.diagnostics()).save() }
-                return result.courses
+                return (result.courses, result.retryAfter)
             } catch {
                 if verify { ConnectionDiagnostics(provider: .schoology, result: ConnectionDiagnostics.result(error), responses: await schoology.diagnostics()).save() }
                 throw error
@@ -409,7 +471,7 @@ import GradeCore
             // A response can rotate cookies even when a later detail fails. Save
             // the updated jar before surfacing that failure, preserving expiry/deletions.
             try SecureStore.save(session, account: "campus")
-            return try result.get()
+            return (try result.get(), nil)
         }
     }
     @discardableResult private func applySnapshot(_ fetched: [SourceCourse], provider: ProviderID) async -> Bool {
@@ -460,7 +522,7 @@ import GradeCore
                owner != snapshot.userID { throw ProviderError.accountChanged }
             var verified = credentials; verified.userID = snapshot.userID
             try await activateConnection(verified, account: "schoology", pendingAccount: "schoology-pending", provider: .schoology, fetched: fetched)
-            errors[.schoology] = nil; deadlines[.schoology] = nil; freshProviders.insert(.schoology)
+            errors[.schoology] = nil; deadlines[.schoology] = snapshot.retryAfter; waitingProviders[.schoology] = nil; freshProviders.insert(.schoology)
             finishFreshPresentation()
             recordConnection(.schoology, responses: await provider.diagnostics(), error: nil)
         } catch {
@@ -478,7 +540,7 @@ import GradeCore
             let fetched = try await provider.fetch()
             session.replaceCookies(await provider.sessionCookies())
             try await activateConnection(session, account: "campus", pendingAccount: "campus-pending", provider: .infiniteCampus, fetched: fetched)
-            errors[.infiniteCampus] = nil; deadlines[.infiniteCampus] = nil; freshProviders.insert(.infiniteCampus)
+            errors[.infiniteCampus] = nil; deadlines[.infiniteCampus] = nil; waitingProviders[.infiniteCampus] = nil; freshProviders.insert(.infiniteCampus)
             finishFreshPresentation()
             recordConnection(.infiniteCampus, responses: await provider.diagnostics(), error: nil,
                              campusSSO: CampusSSODiagnostic(available: session.sso?.canRenew(base: session.base) == true, attempted: false))
@@ -529,7 +591,7 @@ import GradeCore
     func disconnect(_ provider: ProviderID) {
         guard !demo else { return } // UI fixtures must never remove real Keychain connections.
         guard !refreshing else { return }
-        do { try SecureStore.delete(account: provider == .schoology ? "schoology" : "campus"); try SecureStore.delete(account: provider == .schoology ? "schoology-pending" : "campus-pending"); pending.remove(provider); connectionDetails[provider] = nil; connected.remove(provider); errors[provider] = nil; deadlines[provider] = nil
+        do { try SecureStore.delete(account: provider == .schoology ? "schoology" : "campus"); try SecureStore.delete(account: provider == .schoology ? "schoology-pending" : "campus-pending"); pending.remove(provider); connectionDetails[provider] = nil; connected.remove(provider); errors[provider] = nil; deadlines[provider] = nil; waitingProviders[provider] = nil
             // Clear history and scenarios when disconnecting to avoid leaving another account's data.
             let remaining = courses.flatMap(\.sources).filter { $0.source.provider != provider }
             try repository?.clearScenarios(); scenarios = [:]; mappings = [:]; try repository?.saveMappings(mappings); persist(Reconciler.reconcile(remaining))

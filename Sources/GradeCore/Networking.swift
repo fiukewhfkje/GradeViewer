@@ -11,6 +11,9 @@ public struct SchoologyCredentials: Codable, Sendable {
 public struct SchoologySnapshot: Sendable {
     public let userID: String
     public let courses: [SourceCourse]
+    /// An optional metadata throttle can coexist with a complete fresh snapshot.
+    /// The caller must retain the server's cooldown before its next refresh.
+    public let retryAfter: Date?
 }
 public enum OAuth1 {
     public static func encode(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"))! }
@@ -87,9 +90,9 @@ public actor ReadOnlyHTTP {
         for cookie in cookies { config.httpCookieStorage?.setCookie(cookie) }
         session = URLSession(configuration: config, delegate: NoRedirect(), delegateQueue: nil)
     }
-    public func get(_ url: URL) async throws -> Data { try await read(url, json: true) }
+    public func get(_ url: URL, retryThrottles: Bool = true) async throws -> Data { try await read(url, json: true, retryThrottles: retryThrottles) }
     func visitPortal(_ url: URL) async throws { _ = try await read(url, json: false) }
-    private func read(_ url: URL, json: Bool) async throws -> Data {
+    private func read(_ url: URL, json: Bool, retryThrottles: Bool = true) async throws -> Data {
         var current = url
         var redirects = 0, throttleRetries = 0
         while redirects < 5 {
@@ -106,7 +109,7 @@ public actor ReadOnlyHTTP {
                 // Longer/repeated throttles return to the app's normal backoff.
                 while let until = schoologyThrottleUntil, until > Date() {
                     let seconds = until.timeIntervalSinceNow
-                    guard seconds <= 30 else { throw ProviderError.throttled(seconds) }
+                    guard retryThrottles, seconds <= 30 else { throw ProviderError.throttled(seconds) }
                     try await Task.sleep(for: .seconds(max(0, seconds)))
                 }
             }
@@ -168,7 +171,7 @@ public actor ReadOnlyHTTP {
                 let seconds = Self.retryAfter(response.value(forHTTPHeaderField: "Retry-After"))
                 if credentials != nil {
                     schoologyThrottleUntil = max(schoologyThrottleUntil ?? .distantPast, Date().addingTimeInterval(seconds))
-                    if throttleRetries == 0, seconds <= 30 { throttleRetries += 1; continue }
+                    if retryThrottles, throttleRetries == 0, seconds <= 30 { throttleRetries += 1; continue }
                 }
                 throw ProviderError.throttled(seconds)
             case 301, 302, 303, 307, 308:
@@ -193,6 +196,7 @@ public actor ReadOnlyHTTP {
         }
     }
     public func diagnostics() -> [HTTPDiagnostic] { records }
+    func throttleDeadline() -> Date? { schoologyThrottleUntil.flatMap { $0 > Date() ? $0 : nil } }
     func recordTiming(_ stage: String, started: Date, counts: [String: Int] = [:]) {
         guard diagnosticsEnabled else { return }
         var record = HTTPDiagnostic(route: stage, status: 0, contentType: "local timing", responseBytes: 0, structure: counts.mapValues(String.init), redirect: nil)
@@ -220,16 +224,22 @@ public actor ReadOnlyHTTP {
     }
 }
 private struct SchoologyPeriodMetadata: Sendable { let data: Data; let fetched: Date }
+private struct SchoologyMetadataBatch: Sendable {
+    let enrollment: String
+    let courses: [SourceCourse]
+    let fingerprint: String
+    let reused: Bool
+}
 public struct SchoologyProvider: Sendable {
     let http: ReadOnlyHTTP
     private let userID: String?
     init(http: ReadOnlyHTTP, userID: String? = nil) { self.http = http; self.userID = userID }
     public init(credentials: SchoologyCredentials, diagnosticsEnabled: Bool = false) throws { http = try ReadOnlyHTTP(origin: URL(string: "https://api.schoology.com/v1/")!, credentials: credentials, diagnosticsEnabled: diagnosticsEnabled); userID = credentials.userID }
     public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
-    public func fetch(previous: [SourceCourse] = []) async throws -> [SourceCourse] {
-        try await fetchSnapshot(previous: previous).courses
+    public func fetch(previous: [SourceCourse] = [], refreshMetadata: Bool = false) async throws -> [SourceCourse] {
+        try await fetchSnapshot(previous: previous, refreshMetadata: refreshMetadata).courses
     }
-    public func fetchSnapshot(previous: [SourceCourse] = []) async throws -> SchoologySnapshot {
+    public func fetchSnapshot(previous: [SourceCourse] = [], refreshMetadata: Bool = false) async throws -> SchoologySnapshot {
         // Authentication does not prove that cached student identity is still the
         // credential owner. Recheck users/me before requesting a student's grades.
         let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
@@ -275,6 +285,14 @@ public struct SchoologyProvider: Sendable {
         var owners = Set<String>()
         let unique = gradeRows.filter { row in row.owner.map { owners.insert($0).inserted } ?? false }
         let batches = try await concurrentMap(unique, limit: 3) { row in
+            let fingerprint = try gradeFingerprint(row)
+            if !refreshMetadata, let cached = cachedMetadata(row, fingerprint: fingerprint, userID: userID, previous: previous) {
+                // Identity, enrollments and complete grades were just read fresh.
+                // Reuse metadata only for a byte-equivalent normalized grade row.
+                return SchoologyMetadataBatch(enrollment: row.id, courses: cached.map { original in
+                    var source = original; source.fetched = Date(); return source
+                }, fingerprint: fingerprint, reused: true)
+            }
             let escaped = OAuth1.encode(row.id)
             async let sectionData = http.get(URL(string: "https://api.schoology.com/v1/sections/\(escaped)")!)
             async let itemData = pagedData(path: "sections/\(escaped)/grade_items", key: "assignment")
@@ -286,16 +304,56 @@ public struct SchoologyProvider: Sendable {
                 let started = Date()
                 let courses = try ProviderParsing.schoology(section: section, grades: row.data, items: items, categories: categories, periods: periods.data, periodsFetched: periods.fetched, gradeSectionID: row.owner)
                 await http.recordTiming("grade parsing", started: started, counts: ["periods": courses.count, "rows": courses.reduce(0) { $0 + $1.assignments.count }])
-                return try await enrichTitles(courses, enrollment: row.id, previous: previous)
+                return SchoologyMetadataBatch(enrollment: row.id, courses: courses, fingerprint: fingerprint, reused: false)
             } catch {
                 await http.recordSchoologyChecks(section: section, grades: row.data, requestedID: row.id)
                 throw error
             }
         }
-        let courses = batches.flatMap { $0 }.map { original in
-            var source = original; source.source.fields["user_id"] = userID; return source
+        // Finish every required read before optional recovery. Otherwise a title
+        // 429 can put other sections' still-queued grade metadata into cooldown.
+        let enriched = try await concurrentMap(batches, limit: 3) { batch in
+            if batch.reused { return batch.courses }
+            let courses = try await enrichTitles(batch.courses, enrollment: batch.enrollment, previous: previous)
+            let stamp = String(Date().timeIntervalSince1970)
+            return courses.map { original in
+                var source = original
+                source.source.fields["grade_snapshot_hash"] = batch.fingerprint
+                source.source.fields["section_metadata_fetched"] = stamp
+                source.source.fields["section_metadata_course_count"] = String(courses.count)
+                return source
+            }
         }
-        return SchoologySnapshot(userID: userID, courses: courses)
+        let retryAfter = await http.throttleDeadline()
+        let courses = enriched.flatMap { $0 }.map { original in
+            var source = original
+            source.source.fields["user_id"] = userID
+            source.source.fields["provider_retry_after"] = retryAfter.map { String($0.timeIntervalSince1970) }
+            return source
+        }
+        return SchoologySnapshot(userID: userID, courses: courses, retryAfter: retryAfter)
+    }
+    private func gradeFingerprint(_ row: SchoologySectionGrades) throws -> String {
+        let sections = try ProviderParsing.collection(ProviderParsing.object(row.data)["section"])
+        let matches = sections.filter { ProviderParsing.nonempty($0["section_id"]) == row.owner }
+        guard matches.count == 1 else { throw ProviderError.malformed }
+        let normalized = try JSONSerialization.data(withJSONObject: matches[0], options: [.sortedKeys])
+        return SHA256.hash(data: normalized).map { String(format: "%02x", $0) }.joined()
+    }
+    private func cachedMetadata(_ row: SchoologySectionGrades, fingerprint: String, userID: String, previous: [SourceCourse]) -> [SourceCourse]? {
+        let cached = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == row.owner && $0.source.fields["section_id"] == row.id }
+        let now = Date().timeIntervalSince1970
+        guard !cached.isEmpty, cached.allSatisfy({ source in
+            let fields = source.source.fields
+            guard fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
+                  fields["section_metadata_course_count"] == String(cached.count),
+                  let stamp = fields["section_metadata_fetched"].flatMap(Double.init), stamp <= now, now - stamp < 300 else { return false }
+            if let periodStamp = fields["period_metadata_fetched"].flatMap(Double.init), periodStamp > now || now - periodStamp >= 3600 { return false }
+            return !source.assignments.contains { row in
+                !row.hasTitle && row.source.fields["title_lookup_retry_after"].flatMap(Double.init).map { $0 <= now } == true
+            }
+        }) else { return nil }
+        return cached
     }
     /// On subsequent refreshes, the documented user-grade list plus saved,
     /// verified owner/enrollment aliases avoids one grade request per enrollment.
@@ -325,13 +383,17 @@ public struct SchoologyProvider: Sendable {
         return result
     }
     private func periodMetadata(enrollment: String, owner: String, grades: Data, previous: [SourceCourse]) async throws -> SchoologyPeriodMetadata {
-        let cached = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == owner && $0.source.fields["period_metadata_id"] != nil }
+        let ownerSources = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == owner }
+        let cached = ownerSources.filter { $0.source.fields["period_metadata_id"] != nil }
+        let complete = ownerSources.allSatisfy { source in
+            source.source.fields["section_metadata_course_count"].map { $0 == String(ownerSources.count) } ?? true
+        }
         let stamp = cached.compactMap { $0.source.fields["period_metadata_fetched"].flatMap(Double.init) }.min().map(Date.init(timeIntervalSince1970:))
         let payload = try ProviderParsing.object(grades)
         let section = ProviderParsing.rows(payload["section"]).first { ProviderParsing.text($0["section_id"]) == owner } ?? [:]
         let gradeIDs = Set(ProviderParsing.rows(section["period"]).compactMap { ProviderParsing.text($0["period_id"]) })
         if let stamp, Date().timeIntervalSince(stamp) >= 0, Date().timeIntervalSince(stamp) < 3600,
-           !cached.isEmpty, gradeIDs.isSubset(of:Set(previous.filter { $0.source.fields["grade_section_id"] == owner }.map { $0.term.id })) {
+           complete, !cached.isEmpty, gradeIDs.isSubset(of:Set(ownerSources.map { $0.term.id })) {
             let formatter = ISO8601DateFormatter()
             let rows: [[String:Any]] = cached.map { source in
                 var row: [String:Any] = ["id":source.source.fields["period_metadata_id"]!, "title":source.term.name]
@@ -367,13 +429,17 @@ public struct SchoologyProvider: Sendable {
             guard let id = row.source.fields["assignment_id"], (row.source.fields["type"] ?? "assignment") == "assignment" else { return row }
             let url = URL(string:"https://api.schoology.com/v1/sections/\(OAuth1.encode(enrollment))/assignments/\(OAuth1.encode(id))")!
             do {
-                let item = try ProviderParsing.object(await http.get(url))
+                let item = try ProviderParsing.object(await http.get(url, retryThrottles: false))
                 return ProviderParsing.assignmentMetadata(item, for: row, period: periods[row.id]) ?? row
             } catch {
                 // Optional inaccessible/deleted metadata must not discard valid scores.
                 if error is CancellationError { throw error }
                 if let failure = error as? ProviderError {
-                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                    switch failure {
+                    case .reconnect: throw error
+                    case .throttled(let seconds): return deferTitleLookup(row, seconds: seconds)
+                    default: break
+                    }
                 }
                 return row
             }
@@ -386,7 +452,7 @@ public struct SchoologyProvider: Sendable {
             // refuses its detail read. Recover only a unique, compatible explicit
             // node/wrapper identity; never match titles using scores or positions.
             do {
-                let items = try await paged(path: "sections/\(OAuth1.encode(enrollment))/assignments", key: "assignment")
+                let items = try await paged(path: "sections/\(OAuth1.encode(enrollment))/assignments", key: "assignment", retryThrottles: false)
                 for index in missing {
                     let row = metadata[index]
                     guard let id = row.source.fields["assignment_id"] else { continue }
@@ -401,7 +467,12 @@ public struct SchoologyProvider: Sendable {
             } catch {
                 if error is CancellationError { throw error }
                 if let failure = error as? ProviderError {
-                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                    switch failure {
+                    case .reconnect: throw error
+                    case .throttled(let seconds):
+                        for index in missing { metadata[index] = deferTitleLookup(metadata[index], seconds: seconds) }
+                    default: break
+                    }
                 }
             }
         }
@@ -419,7 +490,12 @@ public struct SchoologyProvider: Sendable {
             } catch {
                 if error is CancellationError { throw error }
                 if let failure = error as? ProviderError {
-                    switch failure { case .reconnect, .throttled: throw error; default: break }
+                    switch failure {
+                    case .reconnect: throw error
+                    case .throttled(let seconds):
+                        for index in metadata.indices where !metadata[index].hasTitle { metadata[index] = deferTitleLookup(metadata[index], seconds: seconds) }
+                    default: break
+                    }
                 }
             }
         }
@@ -444,6 +520,11 @@ public struct SchoologyProvider: Sendable {
             return source
         }
     }
+    private func deferTitleLookup(_ row: SourceAssignment, seconds: TimeInterval) -> SourceAssignment {
+        var result = row
+        result.source.fields["title_lookup_retry_after"] = String(Date().addingTimeInterval(max(900, seconds)).timeIntervalSince1970)
+        return result
+    }
     /// Only explicit contents of this enrolled course are read. Never follow a
     /// response location URL, cross courses, infer IDs, or request student writes.
     private func folderItems(enrollment: String, wanted: Set<String>) async throws -> [[String: Any]] {
@@ -453,7 +534,7 @@ public struct SchoologyProvider: Sendable {
             visited.formUnion(batch)
             // Data crosses task boundaries; untyped JSON remains local to each task.
             let pages = try await concurrentMap(batch, limit: 3) { id in
-                try await http.get(URL(string: "https://api.schoology.com/v1/courses/\(OAuth1.encode(enrollment))/folder/\(OAuth1.encode(id))")!)
+                try await http.get(URL(string: "https://api.schoology.com/v1/courses/\(OAuth1.encode(enrollment))/folder/\(OAuth1.encode(id))")!, retryThrottles: false)
             }
             for data in pages {
                 let rows = try ProviderParsing.collection(ProviderParsing.object(data)["folder-item"])
@@ -470,11 +551,11 @@ public struct SchoologyProvider: Sendable {
     private func pagedData(path: String, key: String) async throws -> Data {
         try await JSONSerialization.data(withJSONObject: [key: paged(path: path, key: key)])
     }
-    private func paged(path: String, key: String) async throws -> [[String: Any]] {
+    private func paged(path: String, key: String, retryThrottles: Bool = true) async throws -> [[String: Any]] {
         var next: URL? = URL(string: "https://api.schoology.com/v1/\(path)?limit=200"), seen = Set<URL>(), all: [[String: Any]] = []
         while let url = next {
             guard seen.insert(url).inserted, seen.count <= 100 else { throw ProviderError.tooManyPages }
-            let payload = try ProviderParsing.object(await http.get(url))
+            let payload = try ProviderParsing.object(await http.get(url, retryThrottles: retryThrottles))
             all += try ProviderParsing.collection(payload[key])
             if let value = payload["links"], !(value is [String: Any]) { throw ProviderError.malformed }
             let links = payload["links"] as? [String: Any]

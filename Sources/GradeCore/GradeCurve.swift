@@ -22,14 +22,17 @@ public struct GradeCurve: Sendable {
     public let segments: [Segment]
     public init(points: [GradeProgressionPoint]) {
         // Stable input order preserves distinct contributions with identical dates.
-        // An observed value wins at its timestamp, after any calculated events.
+        // An observed value replaces reconstruction at its exact timestamp.
+        let observedDates = Set(points.filter { !$0.calculated && $0.grade.percent?.isFinite == true }.map(\.date))
         let sorted = points.enumerated().filter { $0.element.grade.percent?.isFinite == true }.sorted {
             if $0.element.date != $1.element.date { return $0.element.date < $1.element.date }
             if $0.element.calculated != $1.element.calculated { return $0.element.calculated }
             return $0.offset < $1.offset
         }
         var seen = Set<String>()
-        let events = sorted.map(\.element).filter { seen.insert($0.id).inserted }
+        let events = sorted.map(\.element).filter {
+            (!$0.calculated || !observedDates.contains($0.date)) && seen.insert($0.id).inserted
+        }
         nodes = events.enumerated().map { index, point in
             Node(date: point.date, value: point.grade.percent!, fraction: events.count > 1 ? Double(index) / Double(events.count - 1) : 0.5)
         }

@@ -55,7 +55,17 @@ struct FreshGradeGate: ViewModifier {
                             Button("Retry") { Task { await store.refresh() } }.buttonStyle(.borderedProminent).tint(.primary).foregroundStyle(Palette.background).accessibilityIdentifier(dismissible ? "retry-fresh-grades-sheet" : "retry-fresh-grades")
                         } else {
                             ProgressView().controlSize(.large)
-                            Text("Refreshing grades…").font(.headline)
+                            Text(store.waitingProviders.isEmpty ? "Refreshing grades…" : "Waiting to refresh…").font(.headline)
+                            ForEach(ProviderID.allCases, id: \.self) { provider in
+                                if let deadline = store.waitingProviders[provider] {
+                                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                                        let seconds = max(0, ceil(deadline.timeIntervalSince(context.date)))
+                                        Text(seconds > 0 ? "\(provider.name) will retry in \(seconds.formatted(.number.precision(.fractionLength(0))))s." : "Retrying \(provider.name)…")
+                                            .font(.subheadline).foregroundStyle(.secondary)
+                                            .accessibilityIdentifier("provider-retry-" + provider.rawValue)
+                                    }
+                                }
+                            }
                         }
                     }.padding(30)
                 }.overlay(alignment:.topTrailing) {

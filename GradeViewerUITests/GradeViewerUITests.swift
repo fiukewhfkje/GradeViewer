@@ -279,6 +279,28 @@ extension GradeViewerUITests {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
         let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "fresh-gate-profile-recovery"; attachment.lifetime = .keepAlways; add(attachment)
     }
+    @MainActor func testGraphKeepsEarlierPerfectGradeBeforeReportedRoundedDecline() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--graph-rounding-fixture", "--screen=detail", "--record-chart-touch"]; app.launch()
+        let chart = app.otherElements["grade-chart"]
+        XCTAssertTrue(chart.waitForExistence(timeout:10))
+        let ready = XCTNSPredicateExpectation(predicate:NSPredicate(format:"value CONTAINS '4 grades'"), object:chart)
+        XCTAssertEqual(XCTWaiter.wait(for:[ready], timeout:5), .completed)
+        chart.coordinate(withNormalizedOffset:CGVector(dx:0.05, dy:0.5)).press(forDuration:0.6)
+        XCTAssertEqual(chart.value as? String, "Released; last touch 100%")
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "perfect-prefix-before-rounded-decline"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+    @MainActor func testProviderCooldownShowsAutomaticRetryAndKeepsProfileUsable() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--cooldown-fixture"]; app.launch()
+        let retry = app.staticTexts["provider-retry-schoology"]
+        XCTAssertTrue(retry.waitForExistence(timeout:10))
+        XCTAssertTrue(retry.label.contains("Schoology will retry in"))
+        XCTAssertFalse(app.staticTexts["Fresh grades unavailable"].exists)
+        XCTAssertFalse(app.buttons["retry-fresh-grades"].exists)
+        XCTAssertFalse(app.buttons["course-0"].exists)
+        let attachment = XCTAttachment(screenshot:app.screenshot()); attachment.name = "automatic-provider-cooldown"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["tab-profile"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
+    }
     @MainActor func testSettingsKeepPersistenceAndRecoveryDetailsHidden() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:10))
