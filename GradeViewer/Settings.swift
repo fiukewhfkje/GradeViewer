@@ -71,6 +71,7 @@ struct CampusSetupView: View {
                 ConnectionRetryView(provider: .infiniteCampus)
             }
             if store.connected.contains(.infiniteCampus), store.errors[.infiniteCampus] != nil {
+                ConnectionRetryView(provider: .infiniteCampus)
                 Button("Retry connection") { Task { await store.refresh() } }
                     .disabled(store.refreshing || store.demo)
                     .accessibilityIdentifier("retry-campus-connection")
