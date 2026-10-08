@@ -12,6 +12,7 @@ import GradeCore
     var payload: Data
     init(id: String, payload: Data) { self.id = id; self.payload = payload }
 }
+// Retained only so SwiftData can open older stores. No runtime mapping API.
 @Model final class MappingRecord {
     @Attribute(.unique) var source: String
     var target: String
@@ -24,18 +25,31 @@ import GradeCore
         container = try ModelContainer(for: CourseRecord.self, ScenarioRecord.self, MappingRecord.self, configurations: ModelConfiguration(isStoredInMemoryOnly: memory, cloudKitDatabase: .none))
         encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
     }
-    func mappings() throws -> [String: String] { Dictionary(uniqueKeysWithValues: try container.mainContext.fetch(FetchDescriptor<MappingRecord>()).map { ($0.source, $0.target) }) }
-    func saveMappings(_ mappings: [String: String]) throws {
+    func load() throws -> [Course] {
+        try upgradeSavedData()
+        return try container.mainContext.fetch(FetchDescriptor<CourseRecord>()).map { try JSONDecoder().decode(Course.self, from: $0.payload) }.sorted { $0.order < $1.order }
+    }
+    private func upgradeSavedData() throws {
         let context = container.mainContext
+        let records = try context.fetch(FetchDescriptor<CourseRecord>())
+        guard try SchoologyUpgrade.needsUpgrade(records.map(\.payload)) else { return }
         do {
-            let records = try context.fetch(FetchDescriptor<MappingRecord>())
-            for record in records where mappings[record.source] != record.target { context.delete(record) }
-            for (source, target) in mappings where !records.contains(where: { $0.source == source && $0.target == target }) { context.insert(MappingRecord(source: source, target: target)) }
+            let scenarios = try context.fetch(FetchDescriptor<ScenarioRecord>())
+            let result = try SchoologyUpgrade.prepare(records.map(\.payload), scenarios: Dictionary(uniqueKeysWithValues: scenarios.map { ($0.id, $0.payload) }))
+            // Serialize everything before mutations, and commit one differential transaction.
+            let payloads = try Self.encode(result.courses)
+            let scenarioPayloads = try result.scenarios.mapValues { try encoder.encode($0) }
+            for record in records {
+                if let payload = payloads[record.id] { record.payload = payload }
+                else { context.delete(record) }
+            }
+            for record in scenarios {
+                if let payload = scenarioPayloads[record.id] { record.payload = payload }
+                else if payloads[record.id] == nil { context.delete(record) }
+            }
+            for record in try context.fetch(FetchDescriptor<MappingRecord>()) { context.delete(record) }
             try context.save()
         } catch { context.rollback(); throw error }
-    }
-    func load() throws -> [Course] {
-        try container.mainContext.fetch(FetchDescriptor<CourseRecord>()).map { try JSONDecoder().decode(Course.self, from: $0.payload) }.sorted { $0.order < $1.order }
     }
     func save(_ courses: [Course]) throws {
         try save(payloads: Self.encode(courses))

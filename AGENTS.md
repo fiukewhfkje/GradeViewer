@@ -2,7 +2,7 @@
 
 Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, and RESEARCH.md before continuing. docs/PRODUCT_BRIEF.md preserves the user's detailed scope.
 
-- Keep the native app fast, simple, local, and independent of Muse. No paid tiers, analytics, ads, backend, alternate icons, planner, or speculative features.
+- Keep the native app fast, simple, local, Schoology-only, and independent of Muse. No paid tiers, analytics, ads, backend, alternate icons, planner, or speculative features.
 - Use Apple frameworks; GradeCore is the canonical implementation for parsing, reconciliation, and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
 - Never invent provider data or assume a hypothetical provider failure occurred in this student's account. Distinguish official docs, public-client evidence, fixture tests, and student-verified behavior.
 - Store credentials and session cookies only in Keychain. Never log raw responses, cookies, keys, or student grades. Source fixtures must stay synthetic.

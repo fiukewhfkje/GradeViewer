@@ -121,7 +121,7 @@ struct CourseGradeSummary: View {
     var overall: Course? = nil
     @State private var destination: Destination?
     @State private var adding = false
-    enum Destination: String, Identifiable { case assignments, final, sources; var id: String { rawValue } }
+    enum Destination: String, Identifiable { case assignments, final; var id: String { rawValue } }
     var body: some View {
         let h = store.scenario(course)
         let changed = !h.scores.isEmpty || !h.ignored.isEmpty || !h.added.isEmpty
@@ -136,7 +136,7 @@ struct CourseGradeSummary: View {
         let showScenario = changed && reliable && scale != nil && (simulated == nil || abs((simulated ?? 0) - (original ?? 0)) >= 0.005)
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 7) {
-                Text("Course Grade").font(.title3.bold())
+                Text(gradeCourse.display.hasCalculatedGrade ? "Calculated Grade" : "Course Grade").font(.title3.bold())
                 if let overall { Text(GradingPeriods.descriptor(overall).label + " overall").font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 UpdatedLabel(date: store.updated(course))
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -145,13 +145,12 @@ struct CourseGradeSummary: View {
                     Text(percentText(simulated)).font(.title2.bold()).foregroundStyle(.blue).monospacedDigit()
                     if let simulated, let original { Text(String(format: "%+.2f%%", simulated - original)).font(.subheadline.bold()).foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 2).background(Palette.grade, in: RoundedRectangle(cornerRadius: 4)) }
                 } else { GradeLabel(grade: gradeCourse.display.grade, large: true) }
-            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : "Course grade").accessibilityValue(showScenario ? percentText(simulated) : percentText(gradeCourse.display.grade.percent))
+            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : (gradeCourse.display.hasCalculatedGrade ? "Calculated grade" : "Course grade")).accessibilityValue(showScenario ? percentText(simulated) : percentText(gradeCourse.display.grade.percent))
             Menu {
                 Button("View All Assignments", systemImage: "list.bullet") { destination = .assignments }
                 Button("Add Grade", systemImage: "plus") { adding = true }.disabled(!reliable)
                 Button("Final Grade Calculator", systemImage: "equal") { destination = .final }
                 Button("Reset All Changes", systemImage: "arrow.uturn.backward") { store.saveScenario(Hypothesis(), course: course) }.disabled(!changed)
-                if course.disagrees { Button("Source Grades", systemImage: "rectangle.on.rectangle") { destination = .sources } }
             } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).frame(width: 32, height: 44).foregroundStyle(.primary) }.tint(.primary).accessibilityLabel("Course options")
         }.padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 24).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
             .sheet(isPresented: $adding) {
@@ -167,7 +166,6 @@ struct CourseGradeSummary: View {
                 switch destination {
                 case .assignments: AssignmentsView(course: course, scoped: overall != nil || GradingPeriods.descriptor(course).kind != .other)
                 case .final: FinalCalculatorView(course: gradeCourse)
-                case .sources: SourceGradesView(course: gradeCourse)
                 }
             }
     }

@@ -4,9 +4,13 @@ public enum GradeCalculator {
     public static func percent(course: SourceCourse, hypothesis: Hypothesis = Hypothesis()) throws -> Double {
         guard course.method != .unknown else { throw CalculationError.unknownRules }
         let all = course.assignments + hypothesis.added
-        let assignments = all.filter { a in !hypothesis.ignored.contains(a.id) && !a.excluded && !a.score.excused && !course.categories.contains(where: { c in c.id == a.categoryID && c.excluded }) }.map { a -> SourceAssignment in
+        let included = all.filter { a in !hypothesis.ignored.contains(a.id) && !a.excluded && !a.score.excused && !course.categories.contains(where: { c in c.id == a.categoryID && c.excluded }) }.map { a -> SourceAssignment in
             var a = a; if let e = hypothesis.scores[a.id] { a.score.earned = e }; return a
-        }.filter { $0.score.earned != nil }
+        }
+        // A letter-only grade is an unsupported contribution, not an ungraded
+        // assignment that can silently disappear from a calculated total.
+        guard included.allSatisfy({ !$0.score.isGraded || $0.score.earned != nil }) else { throw CalculationError.incompleteData }
+        let assignments = included.filter { $0.score.earned != nil }
         guard assignments.allSatisfy({ ($0.score.earned?.isFinite ?? false) && ($0.score.possible?.isFinite ?? false) && ($0.score.possible ?? -1) >= 0 && $0.multiplier.isFinite && $0.multiplier > 0 }) else { throw CalculationError.invalidInput }
         guard !assignments.isEmpty else { throw CalculationError.noGradedAssignments }
         if course.method == .points { return try aggregate(assignments, method: .points) }

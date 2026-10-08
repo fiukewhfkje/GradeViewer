@@ -1,14 +1,12 @@
 import Foundation
 public enum Demo {
     public static let now = Date(timeIntervalSince1970: 1_790_719_200)
-    /// Synthetic two-provider period hierarchy for regression/UI verification.
+    /// Synthetic Schoology period hierarchy for regression/UI verification.
     public static func periodSources(includeExam: Bool = false) -> [SourceCourse] {
         func date(_ value: String) -> Date { ProviderParsing.date(value)! }
-        func course(_ provider: ProviderID, period: String, start: String, end: String, task: String = "Quarter", grade: Double? = nil, titles: [String] = []) -> SourceCourse {
-            let identity = period + ":" + task
-            let fields = provider == .infiniteCampus
-                ? ["school_id":"fixture-school", "section_id":"fixture-campus", "task_name":task, "course_name":"AP Physics 1"]
-                : ["section_id":"fixture-enrollment", "grade_section_id":"fixture-owner", "course_name":"AP Physics 1"]
+        func course(_ provider: ProviderID, period: String, start: String, end: String, grade: Double? = nil, titles: [String] = []) -> SourceCourse {
+            let identity = period
+            let fields = ["section_id":"fixture-enrollment", "grade_section_id":"fixture-owner", "course_name":"AP Physics 1"]
             let assignments = titles.enumerated().map { index, title in
                 SourceAssignment(source: Provenance(provider, identity + ":" + String(index)), title:title, due:date(start).addingTimeInterval(Double(index + 1) * 86400), updated:date(start).addingTimeInterval(Double(index + 1) * 86400), score:Score(earned:grade, possible:100))
             }
@@ -21,13 +19,9 @@ public enum Demo {
             ("Q4","2027-03-13","2027-05-28",nil,[])
         ]
         var sources = definitions.flatMap { period,start,end,grade,titles in
-            [ProviderID.infiniteCampus,.schoology].map { course($0,period:period,start:start,end:end,grade:grade,titles:titles) }
+            [course(.schoology,period:period,start:start,end:end,grade:grade,titles:titles)]
         }
         sources += [
-            course(.infiniteCampus,period:"Q2",start:"2026-10-16",end:"2027-01-04",task:"Final",grade:85),
-            course(.infiniteCampus,period:"Q2",start:"2026-10-16",end:"2027-01-04",task:"Exam"),
-            course(.infiniteCampus,period:"Q4",start:"2027-03-13",end:"2027-05-28",task:"Final"),
-            course(.infiniteCampus,period:"Q4",start:"2027-03-13",end:"2027-05-28",task:"Exam"),
             course(.schoology,period:"S1",start:"2026-08-20",end:"2027-01-04",grade:85),
             course(.schoology,period:"Exam S1",start:"2026-12-14",end:"2026-12-18"),
             course(.schoology,period:"S2",start:"2027-01-05",end:"2027-05-28"),
@@ -56,11 +50,11 @@ public enum Demo {
                 let due = now.addingTimeInterval(Double(-j) * 86400)
                 let updated = due.addingTimeInterval(-10800)
                 let score = Score(earned: values[i] + [-4.0, 2.0, 2.0][j % 3], possible: 100)
-                return SourceAssignment(source: Provenance(.infiniteCampus, id + ":assignment:" + String(j)), title: title, categoryID: categoryID, due: due, updated: updated, score: score)
+                return SourceAssignment(source: Provenance(.schoology, id + ":assignment:" + String(j)), title: title, categoryID: categoryID, due: due, updated: updated, score: score)
             }
-            let source = SourceCourse(source: Provenance(.infiniteCampus, id), title: name, teacher: "Taylor", term: Term(id: "fall", name: "Fall 2026"), grade: OverallGrade(percent: values[i], letter: i == 2 ? "B" : "A"), categories: i == 0 ? [GradingCategory(id: categoryID, name: "Total Points")] : [GradingCategory(id: categoryID, name: "Assessments", weight: 70), GradingCategory(id: id + ":practice", name: "Practice", weight: 30)], assignments: assignments, method: i == 0 ? .points : .weightedCategories, fetched: now)
+            let source = SourceCourse(source: Provenance(.schoology, id), title: name, teacher: "Taylor", term: Term(id: "fall", name: "Fall 2026"), grade: OverallGrade(percent: values[i], letter: i == 2 ? "B" : "A"), categories: i == 0 ? [GradingCategory(id: categoryID, name: "Total Points")] : [GradingCategory(id: categoryID, name: "Assessments", weight: 70), GradingCategory(id: id + ":practice", name: "Practice", weight: 30)], assignments: assignments, method: i == 0 ? .points : .weightedCategories, fetched: now)
             var course = Reconciler.reconcile([source], now: now)[0]; course.order = i
-            course.history = (0..<9).map { j in GradeHistorySnapshot(date: now.addingTimeInterval(Double(j - 8) * 3 * 86400), grade: OverallGrade(percent: values[i] + [1.4, 1, -0.6, 0.8, 0.1, -0.4, -0.2, 0.3, 0][j], letter: i == 2 ? "B" : "A"), provider: .infiniteCampus) }
+            course.history = (0..<9).map { j in GradeHistorySnapshot(date: now.addingTimeInterval(Double(j - 8) * 3 * 86400), grade: OverallGrade(percent: values[i] + [1.4, 1, -0.6, 0.8, 0.1, -0.4, -0.2, 0.3, 0][j], letter: i == 2 ? "B" : "A"), provider: .schoology) }
             result.append(course)
         }
         return result

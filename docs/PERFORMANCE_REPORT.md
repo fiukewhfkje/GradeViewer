@@ -1,3 +1,5 @@
+> Historical dual-provider report. GradeViewer became Schoology-only on October 8, 2026; IC code/login/refresh are removed. See [the current audit](PROVIDER_PARITY_AUDIT.md) and ARCHITECTURE.md. Earlier device/performance observations below are not validation of the new build. No Muse watcher was implemented or deployed.
+
 # GradeViewer performance report — October 1, 2026
 
 The original phone measurements below document commit `9202b32`. The October 2 investigation at the end records newer local fixes and validation; no new authenticated phone speedup is claimed.

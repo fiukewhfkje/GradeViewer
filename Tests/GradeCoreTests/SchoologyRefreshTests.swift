@@ -2,6 +2,14 @@ import XCTest
 @testable import GradeCore
 
 extension HTTPTests {
+    func testPreUpgradeMetadataIsReadAgainBeforeUsingNewCalculationRules() async throws {
+        let provider = try refreshFixture()
+        var first = try await provider.fetch()
+        for i in first.indices { first[i].source.fields["section_metadata_version"] = nil }
+        StubURLProtocol.requests = []
+        _ = try await provider.fetch(previous: first)
+        XCTAssertTrue(StubURLProtocol.requests.contains("/v1/sections/100/grading_categories?limit=200"))
+    }
     private func refreshFixture(sections: Int = 1, missingTitle: Bool = false) throws -> SchoologyProvider {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
         func fixture(_ name: String) throws -> String { try String(contentsOf: root.appendingPathComponent(name + ".json"), encoding: .utf8) }

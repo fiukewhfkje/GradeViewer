@@ -18,8 +18,12 @@ public enum GradeProgression {
     public static func calculated(_ source: SourceCourse, before cutoff: Date) -> [GradeProgressionPoint] {
         guard GradeCalculator.isReliable(source) else { return [] }
         guard let reported = source.grade.percent, let baseline = try? GradeCalculator.percent(course: source) else { return [] }
+        // A calculated current total uses the real snapshot fetch time. It can
+        // follow older imported observations without rewriting those observations.
+        let current = source.hasCalculatedGrade && source.fetched <= cutoff
+            ? [GradeProgressionPoint(id: "snapshot:" + source.id, date: source.fetched, percent: reported, usesDueDate: false)] : []
         let scored = source.assignments.filter { $0.score.earned != nil }
-        guard scored.count > 1, scored.allSatisfy({ ($0.updated ?? $0.due).map { $0 <= source.fetched } == true }) else { return [] }
+        guard scored.count > 1, scored.allSatisfy({ ($0.updated ?? $0.due).map { $0 <= source.fetched } == true }) else { return current }
         // A batch edit can give several distinct scores the same timestamp. Keep
         // every contribution; due date and identity provide stable ties, not new dates.
         let ordered = scored.sorted {
@@ -41,6 +45,6 @@ public enum GradeProgression {
             let percent = abs(value - baseline) <= 0.000000001 ? reported : value
             result.append(GradeProgressionPoint(id: row.id, date: date, percent: percent, usesDueDate: row.updated == nil))
         }
-        return result
+        return result + current
     }
 }

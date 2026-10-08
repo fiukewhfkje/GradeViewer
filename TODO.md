@@ -1,6 +1,15 @@
 # Next work
 
-## Completed
+## Schoology-only delivery
+
+- [x] Audit complete captured source assignments class by class; find all 77 IC rows represented in Schoology and seven additional graded Schoology rows. Record matching evidence, snapshot-age limits and calculated-total agreement without exposing scores/credentials.
+- [x] Remove IC networking, parsing, cookies/SAML/browser login, settings, refresh/freshness and cross-provider matching/UI paths. Retain Schoology owner checks, retries/cache behavior and provider read-only scope.
+- [x] Add supported calculated Schoology totals/semesters with visible basis, reject unknown rules and preserve observed history separately.
+- [x] Add an atomic/idempotent old-cache upgrade preserving compatible identity/history/scenarios; clear retired Keychain connections only on the updated app. Validate captured-payload preservation locally.
+- [x] Pass 85 core/24 hosted tests, nine distinct focused UI cases with the 18-screen appearance matrix, final relevant reruns and the Release simulator build; inspect representative screenshots and verify the captured upgrade and graph endpoints against final sources.
+- [ ] Commit/push/PR/merge the validated Schoology-only change; installation is intentionally deferred to the user.
+
+## Historical completed work
 
 - [x] Replace the What-If calculator button/page with a direct Add Grade popup, remove ± controls and retain normal decimal/extra-credit editing. Keep added grades visible and editable/removable in the normal course views using the same local scenario; pass 123 core/42 hosted/seven focused UI cases and inspect synthetic small-phone screenshots.
 - [x] Reproduce the untitled duplicate, recover only mutually unique score/points/update-day presentation links in compatible courses, reject ambiguous/conflicting evidence and existing scored counterparts, and share actions against the original calculator identity. Preserve source data/history and distinct Schoology-only work; validate eight core regressions and the small-phone edit/drop/reset flow. Protected phone checks confirm the reported duplicate is absent and both providers still refresh with all 46 canonical records.
@@ -34,15 +43,13 @@
 - [x] Validate the final neutral-signing clone's 34 hosted tests; push and merge the performance/cooldown/graph fixes into `main` in PR #1 (`3893112`) under the user's authorization. The installed runtime matches the validated source.
 - [x] Clean up the merged feature branch locally/remotely and its chat attachment; retain the original `main` checkout, validation evidence and prepared device build.
 
-## Evidence-driven follow-up
+## Current evidence-driven follow-up
 
-- [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. Nine rows remained neutral during the October 2 rate-limited recovery run; do not infer that all are inaccessible. Keep honoring provider cooldowns and preserving scores.
-- [ ] Observe natural Campus/IdP expiry. Short-term renewal is verified; required credentials/MFA cannot be bypassed. Do not invent a TTL.
-- [ ] Establish a legitimate Campus student identity contract before supporting account switches without disconnect or claiming cross-provider identity verification.
+- [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. Five captured Schoology graded rows remain neutral after the upgrade; do not infer that all are inaccessible. Keep honoring provider cooldowns and preserving scores.
 - [ ] Verify another student's own district/account and physical installation; fixture/clean-clone tests do not establish live district compatibility.
-- [ ] Recover the remaining neutral assignment title only if the provider makes matching metadata accessible; do not infer a deleted assignment or teacher setting.
+- [ ] Recover unresolved Schoology titles only if the provider makes compatible matching metadata accessible; do not infer a deleted assignment or teacher setting.
 - [ ] Observe naturally populated completed periods and genuine new grades; calibrate timezone-less dates, rubric scales, rounding or teacher overrides only with demonstrated discrepancies.
-- [ ] Rebuild/reinstall when local development provisioning expires. Wider distribution needs a separate App Store/TestFlight signing/release decision.
+- [ ] The user will install build 3 over the existing identity, then verify live Schoology totals/new grades and measure launch latency. Rebuild/reinstall when local development provisioning expires. Wider distribution needs a separate App Store/TestFlight signing/release decision.
 - [ ] Measure further provider latency/rate limits only when a new observed issue justifies it; the measured refresh fixes are documented in docs/PERFORMANCE_REPORT.md.
 
 No widgets, grade-write endpoints, notification server, background polling, paid tier, planner, analytics or invented grades/dates. No Muse watcher was implemented or deployed.
