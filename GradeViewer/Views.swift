@@ -101,7 +101,6 @@ struct RootView: View {
                         switch screen {
                         case "assignments": AssignmentsView(course: course)
                         case "categories": CategoriesView(course: course)
-                        case "whatif": WhatIfView(course: course)
                         case "final": FinalCalculatorView(course: course)
                         default: CourseDetailView(courseID: course.id)
                         }
@@ -183,7 +182,7 @@ struct CourseDetailView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Recently Graded Assignments").font(.title3.bold()).padding(.bottom, 7)
                         let schoology = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
-                        let recent = AssignmentGrouping.overview(for: course, schoology: schoology).prefix(5)
+                        let recent = (store.addedAssignments(course) + AssignmentGrouping.overview(for: course, schoology: schoology)).prefix(5)
                         if recent.isEmpty { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 12) }
                         ForEach(Array(recent)) { assignment in InteractiveAssignmentRow(assignment: assignment, course: course) }
                     }
@@ -353,6 +352,7 @@ struct AssignmentsView: View {
         let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected
         let source = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
         let full = scoped ? course : AssignmentGrouping.fullCourse(for: course, among: store.courses)
+        let added = store.addedAssignments(course)
         let groups = AssignmentGrouping.groups(for: full, schoology: source)
         let exams = GradingPeriods.exams(for:selected, among:store.courses)
         ScrollView {
@@ -361,7 +361,8 @@ struct AssignmentsView: View {
                     AssignmentPeriodPills(periods:periods, selectedID:selected.id) { store.selectedPeriods[original.id] = $0 }
                 }
                 CourseGradeSummary(course: course, overall: scoped ? GradingPeriods.semester(for: selected, among: store.courses) : nil)
-                if groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
+                if !added.isEmpty { AssignmentGroup(course: course, title: "Added Grades", assignments: added) }
+                if added.isEmpty && groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
                 ForEach(groups.filter { !$0.assignments.isEmpty }) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
                 ForEach(exams) { exam in
                     VStack(alignment:.leading, spacing:10) {

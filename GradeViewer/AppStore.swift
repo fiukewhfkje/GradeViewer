@@ -96,6 +96,16 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                 schoology.assignments.append(SourceAssignment(source: Provenance(.schoology, "overview:pending"), title: "Pending future assignment", categoryID: schoology.categories[0].id, due: Demo.now.addingTimeInterval(86400), score: Score(possible:100)))
                 courses += Reconciler.reconcile([schoology])
             }
+            if demo && arguments.contains("--untitled-fixture"), !courses.isEmpty {
+                var campus = courses[0].display; campus.assignments[0].title = "Unit 2 Test"
+                var schoology = campus; schoology.source = Provenance(.schoology, "untitled-fixture")
+                for i in schoology.assignments.indices { schoology.assignments[i].source = Provenance(.schoology, "untitled-fixture:\(i)") }
+                schoology.assignments[0].title = "Untitled assignment"; schoology.assignments[0].due = nil
+                schoology.assignments[0].updated = campus.assignments[0].updated!.addingTimeInterval(60)
+                var catalog = schoology.assignments[0]; catalog.title = "Unit 2 Test"; catalog.score.earned = nil; catalog.source.id += ":catalog"
+                schoology.assignmentCatalog = [catalog]
+                courses[0] = Reconciler.reconcile([campus, schoology], previous: [courses[0]])[0]
+            }
             if demo && arguments.contains("--freshness-fixture"), !courses.isEmpty {
                 for i in courses[0].sources[0].assignments.indices { courses[0].sources[0].assignments[i].updated = Date().addingTimeInterval(-3 * 86400) }
                 courses[0].assignments = courses[0].sources[0].assignments.map { Assignment(id:$0.id, sources:[$0]) }
@@ -202,6 +212,9 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                     "overviewSorted": zip(dates,dates.dropFirst()).allSatisfy { $0 >= $1 },
                     "overviewUnique": Set(overview.map(\.id)).count == overview.count,
                     "untitledOverviewRows": overview.filter { !$0.display.hasTitle }.count,
+                    "recoveredUntitledRows": overview.filter { row in
+                        row.display.hasTitle && row.sources.contains { $0.source.provider == .schoology && !$0.hasTitle } && row.sources.contains { item in source.assignments.contains { $0.id == item.id } }
+                    }.count,
                     "untitledKindCounts": Dictionary(uniqueKeysWithValues: ["assignment", "discussion", "assessment", "other"].map { kind in
                         (kind, overview.filter { row in
                             guard !row.display.hasTitle else { return false }
@@ -628,5 +641,6 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
     func setHidden(_ id: String, hidden: Bool) { var updated = courses; if let i = updated.firstIndex(where: { $0.id == id }) { updated[i].hidden = hidden }; persist(updated) }
     func move(from: IndexSet, to: Int) { var ordered = courses.sorted { $0.order < $1.order }; ordered.move(fromOffsets: from, toOffset: to); for i in ordered.indices { ordered[i].order = i }; persist(ordered) }
     func scenario(_ course: Course) -> Hypothesis { (scenarios[course.id] ?? Hypothesis()).normalized(for: course.calculationSource) }
+    func addedAssignments(_ course: Course) -> [Assignment] { scenario(course).added.reversed().map { Assignment(id: $0.id, sources: [$0]) } }
     func saveScenario(_ supplied: Hypothesis, course: Course) { let scenario = supplied.normalized(for: course.calculationSource); do { try repository?.saveScenario(scenario, id: course.id); scenarios[course.id] = scenario } catch { localError = "What-If could not be saved." } }
 }

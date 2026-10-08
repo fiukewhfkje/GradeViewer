@@ -1,5 +1,11 @@
 # Research notes
 
+## Untitled duplicate presentation — October 8, 2026
+
+The student reports an untitled Biology row duplicating Unit 2 Test with disabled actions. The previous grouping code reproduces this in a synthetic fixture: title matching leaves the Schoology grade separate from the named Campus calculation record. Protected on-device boolean/count checks establish an exact earned/possible match and the same recorded update day for the reported item; its optional title metadata remains unresolved. This is student-device matching evidence, not proof of a provider deletion, teacher setting or new provider identity contract.
+
+Presentation now recovers only mutually unique score/points/update-day pairs inside an already evidenced compatible course/period, rejects known conflicts and additional named scored counterparts, and preserves all original records. Ungraded catalog metadata cannot block that score link or add a calculator contribution. Eight core tests cover recovery, source preservation, ordering, missing/invalid dates, point totals, ambiguity, conflicting titles/rules/periods and existing counterparts. Small-phone UI tests exercise the original assignment's edit/drop/reset actions in Recent and All Assignments. A complete phone refresh afterward retained 46 canonical records with both providers successful; the reported duplicate was absent. Other ambiguous neutral rows remain separate. No raw responses, grades, work dates, resource IDs or credentials were exported.
+
 Researched September 29, 2026. Classifications: **documented** means published by the provider; **public client evidence** means visible source/client behavior; **tested locally** means fixtures or simulator; **student verified** means tested with this user's real authenticated account. Both complete authenticated grade fetches succeeded on the student's iPhone. The observations below are structural/status evidence; exact displayed values, session TTL, and change-feed semantics remain separate validation work.
 
 ## Infinite Campus: chosen path

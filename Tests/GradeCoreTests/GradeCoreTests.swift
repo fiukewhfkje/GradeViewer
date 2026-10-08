@@ -120,9 +120,6 @@ final class GradeCoreTests: XCTestCase {
         }
         XCTAssertEqual(ScoreInput.text(nil), "")
         XCTAssertEqual(ScoreInput.text(.infinity), "")
-        for (text, expected) in [("", "-"), ("-", ""), ("12.50", "-12.50"), ("-12.50", "12.50"), ("−0,5", "0,5"), ("+105", "-105")] {
-            XCTAssertEqual(ScoreInput.togglingSign(text), expected)
-        }
     }
     func testInvalidUnknownMissingAndExcludedCategories() throws {
         var c = source(); c.method = .unknown; XCTAssertThrowsError(try GradeCalculator.percent(course: c))

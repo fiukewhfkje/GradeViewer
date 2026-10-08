@@ -45,6 +45,23 @@ import WebKit
             XCTAssertEqual(restored.courses[0].calculationSource.assignments, course.calculationSource.assignments)
         }
     }
+    func testAddedGradesRestoreEditAndRemoveWithoutChangingProviderData() throws {
+        let repository = try GradeRepository(memory: true)
+        let course = Demo.courses()[0]; try repository.save([course])
+        let store = AppStore(repository: repository, demo: false, readCredentials: false)
+        let added = SourceAssignment(source: Provenance(course.calculationSource.source.provider, "hypothetical:fixture"), title: "Extra quiz", score: Score(earned: 150.5, possible: 100))
+        var h = Hypothesis(); h.added = [added]; h.scores[added.id] = 120.5
+        store.saveScenario(h, course: course)
+        let restored = AppStore(repository: repository, demo: false, readCredentials: false)
+        XCTAssertEqual(restored.addedAssignments(course).map(\.id), [added.id])
+        XCTAssertEqual(restored.scenario(course).scores[added.id], 120.5)
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: restored.scenario(course)), (95.8 * 12 + 120.5) / 13, accuracy: 0.000001)
+        h.added = []; restored.saveScenario(h, course: course)
+        XCTAssertTrue(restored.addedAssignments(course).isEmpty)
+        XCTAssertTrue(try repository.scenario(course.id).scores.isEmpty)
+        XCTAssertEqual(try repository.load()[0].calculationSource.assignments, course.calculationSource.assignments)
+        XCTAssertEqual(try repository.load()[0].history, course.history)
+    }
     func testCampusPortalValidationAndCookieScope() throws {
         let portal = URL(string: "https://district.example.org/campus/portal/students/district.jsp")!
         let valid = HTTPCookie(properties: [.name:"session",.value:"fixture",.domain:"district.example.org",.path:"/campus",.secure:"TRUE"])!
