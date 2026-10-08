@@ -16,10 +16,4 @@ public enum ScoreInput {
         return text.hasSuffix(".0") ? String(text.dropLast(2)) : text
     }
 
-    public static func togglingSign(_ text: String) -> String {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "−", with: "-")
-        if text.hasPrefix("-") { return String(text.dropFirst()) }
-        return "-" + (text.hasPrefix("+") ? String(text.dropFirst()) : text)
-    }
 }

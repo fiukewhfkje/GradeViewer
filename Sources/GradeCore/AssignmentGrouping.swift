@@ -8,6 +8,24 @@ public struct AssignmentGroupData: Identifiable, Sendable {
 
 /// Presentation grouping never changes course identity or the calculator's source.
 public enum AssignmentGrouping {
+    /// A missing title is never course-match evidence. Inside an already
+    /// evidenced course, a unique score/points/update-day pair can recover a
+    /// presentation link without changing either provider's source records.
+    private struct ScoredUpdateKey: Hashable {
+        let earned: Double
+        let possible: Double
+        let day: Int
+        let multiplier: Double
+        let excluded: Bool
+    }
+    private static func scoredUpdateKey(_ item: SourceAssignment) -> ScoredUpdateKey? {
+        guard !item.score.excused, let earned = item.score.earned, earned.isFinite,
+              let possible = item.score.possible, possible.isFinite, possible > 0,
+              let updated = item.updated, updated.timeIntervalSince1970.isFinite,
+              let day = Int(exactly: floor(updated.timeIntervalSince1970 / 86400)),
+              item.multiplier.isFinite, item.multiplier > 0 else { return nil }
+        return ScoredUpdateKey(earned: earned, possible: possible, day: day, multiplier: item.multiplier, excluded: item.excluded)
+    }
     public static func updated(for course: Course, schoology: SourceCourse?) -> Date? {
         overview(for: course, schoology: schoology).flatMap(\.sources)
             .filter { $0.score.isGraded }.compactMap(\.updated).max()
@@ -89,6 +107,28 @@ public enum AssignmentGrouping {
         let schoologyByKey = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentKey(row).map { ($0,row) } }, by: { $0.0 })
         let canonicalByLabel = Dictionary(grouping: basisRows.compactMap { row in Reconciler.assignmentLabelKey(row.display).map { ($0,row) } }, by: { $0.0 })
         let schoologyByLabel = Dictionary(grouping: sourceRows.compactMap { row in Reconciler.assignmentLabelKey(row).map { ($0,row) } }, by: { $0.0 })
+        let canonicalByUpdate = Dictionary(grouping: basisRows.compactMap { row in
+            row.sources.first { $0.source.provider == basisProvider }.flatMap { scoredUpdateKey($0).map { ($0, row) } }
+        }, by: { $0.0 })
+        let schoologyByUpdate = Dictionary(grouping: schoology.assignments.compactMap { item in scoredUpdateKey(item).map { ($0, item) } }, by: { $0.0 })
+        let compatiblePeriod = Reconciler.compatibleMetadata(course.calculationSource, schoology) && GradingPeriods.compatible(course.calculationSource, schoology)
+        func recoveredTitleMatch(_ item: SourceAssignment) -> Assignment? {
+            guard compatiblePeriod, let key = scoredUpdateKey(item),
+                  let candidates = canonicalByUpdate[key], candidates.count == 1,
+                  schoologyByUpdate[key]?.count == 1 else { return nil }
+            let row = candidates[0].1
+            guard let original = row.sources.first(where: { $0.source.provider == basisProvider }),
+                  !item.hasTitle || !original.hasTitle else { return nil }
+            if let a = original.due, let b = item.due {
+                guard let firstDay = Int(exactly: floor(a.timeIntervalSince1970 / 86400)),
+                      let secondDay = Int(exactly: floor(b.timeIntervalSince1970 / 86400)), firstDay == secondDay else { return nil }
+            }
+            // Never attach a second Schoology grade to a row that already has
+            // an identified counterpart, including presentation-only labels.
+            guard !row.sources.contains(where: { $0.source.provider == .schoology && $0.id != item.id }),
+                  Reconciler.assignmentLabelKey(original).flatMap({ schoologyByLabel[$0] })?.contains(where: { $0.1.score.isGraded && $0.1.id != item.id }) != true else { return nil }
+            return row
+        }
         var rows: [Assignment] = [], used = Set<String>()
         for item in sourceRows {
             let direct = graded.first { $0.sources.contains { $0.id == item.id } }
@@ -101,7 +141,7 @@ public enum AssignmentGrouping {
             // Date differences do not prevent borrowing a category within an evidenced class.
             // This fallback is presentation-only; canonical reconciliation remains strict.
             let directBasis = direct.flatMap { row in row.sources.contains { $0.source.provider == basisProvider } ? row : nil }
-            let canonical = directBasis ?? (unambiguous ? candidate?.first?.1 : nil) ?? (uniqueLabel ? labeled?.first?.1 : nil) ?? direct
+            let canonical = directBasis ?? (unambiguous ? candidate?.first?.1 : nil) ?? (uniqueLabel ? labeled?.first?.1 : nil) ?? recoveredTitleMatch(item) ?? direct
             if let canonical {
                 guard !used.contains(canonical.id) else { continue }
                 var row = canonical

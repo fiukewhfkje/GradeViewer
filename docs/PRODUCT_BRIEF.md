@@ -1,4 +1,6 @@
-# Current scope override — October 1, 2026
+# Current scope override — October 8, 2026
+
+The user removed the dedicated What-If calculator button/page and the ± score controls. Course options should instead open an Add Grade popup directly, for name, score, and total points. Existing local edit/drop/reset behavior and extra-credit scores remain; added grades must remain accessible in the normal course views. Use a category choice only when the course's actual weighting requires it. The historical What-If page requirements below are superseded.
 
 The user explicitly removed the widget and all its dependencies. The original widget requirements and screenshot routes below are historical and superseded. Preserve the original student's installed app identity/session while making new clones independently configurable; never distribute credentials or grade caches.
 

@@ -1,6 +1,6 @@
 # GradeViewer
 
-A simple native iPhone app for Schoology and Infinite Campus grades, assignments, grade progression, and local What-If/final calculators. iOS 17+, Apple frameworks, and the local GradeCore package. No server, subscription, analytics, or widget.
+A simple native iPhone app for Schoology and Infinite Campus grades, assignments, grade progression, local grade edits/additions, and a final calculator. iOS 17+, Apple frameworks, and the local GradeCore package. No server, subscription, analytics, or widget.
 
 ## Install on your iPhone
 
@@ -61,6 +61,6 @@ xcrun devicectl device process launch --device <DEVICE_ID> "$BUNDLE_ID"
 
 Set `BUNDLE_ID` to the same identifier you configured. Apple Account login, Developer Mode, and device trust may require manual action. Keep simulator signing enabled for Keychain tests. The generated Xcode project is committed; **XcodeGen is only needed after editing `project.yml`** (`xcodegen generate`). Do not commit personal signing overrides to the project.
 
-For synthetic simulator UI checks, launch with `--demo`; optionally add `-appearance dark` and `--screen=detail` (also `assignments`, `categories`, `whatif`, `final`, `settings`). Demo uses an isolated in-memory store and makes no provider requests. Do not add fixture arguments to a real installation.
+For synthetic simulator UI checks, launch with `--demo`; optionally add `-appearance dark` and `--screen=detail` (also `assignments`, `categories`, `final`, `settings`). Course options → Add Grade opens a popup for name, score, and total points; added grades stay local and can be edited or removed from the normal lists. Demo uses an isolated in-memory store and makes no provider requests. Do not add fixture arguments to a real installation.
 
 [PROJECT_STATUS.md](PROJECT_STATUS.md) records actual validation and remaining limits. [ARCHITECTURE.md](ARCHITECTURE.md) describes matching, calculation provenance, and session security; [RESEARCH.md](RESEARCH.md) distinguishes provider documentation from public-client and live evidence. [TODO.md](TODO.md) tracks remaining work. No Muse watcher is implemented or required.
