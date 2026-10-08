@@ -7,7 +7,7 @@
 - [x] Add supported calculated Schoology totals/semesters with visible basis, reject unknown rules and preserve observed history separately.
 - [x] Add an atomic/idempotent old-cache upgrade preserving compatible identity/history/scenarios; clear retired Keychain connections only on the updated app. Validate captured-payload preservation locally.
 - [x] Pass 85 core/24 hosted tests, nine distinct focused UI cases with the 18-screen appearance matrix, final relevant reruns and the Release simulator build; inspect representative screenshots and verify the captured upgrade and graph endpoints against final sources.
-- [ ] Commit/push/PR/merge the validated Schoology-only change; installation is intentionally deferred to the user.
+- [x] Commit/push the validated Schoology-only change and deliver through [PR #5](https://github.com/fiukewhfkje/GradeViewer/pull/5) under the user's merge authorization; installation is intentionally deferred to the user.
 
 ## Historical completed work
 
