@@ -1,11 +1,38 @@
 import XCTest
 final class GradeViewerUITests: XCTestCase {
+    @MainActor func testSchoologyOnlySettingsAndConnectedAccountActions() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
+        XCTAssertTrue(app.buttons["Schoology, Connect"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label CONTAINS 'Campus'")).count, 0)
+        XCTAssertTrue(app.buttons["Appearance, System"].exists)
+        let overview = XCTAttachment(screenshot: app.screenshot()); overview.name = "schoology-only-settings"; overview.lifetime = .keepAlways; add(overview)
+        app.buttons["Schoology, Connect"].tap()
+        XCTAssertTrue(app.textFields["API key"].waitForExistence(timeout: 5)); XCTAssertTrue(app.secureTextFields["API secret"].exists)
+        app.terminate(); app.launchArguments = ["--demo", "--connected-settings-fixture", "--screen=settings"]; app.launch()
+        app.buttons["Schoology, Connected"].tap()
+        XCTAssertTrue(app.buttons["Update sign-in"].waitForExistence(timeout: 5)); XCTAssertTrue(app.buttons["Disconnect"].exists)
+        XCTAssertFalse(app.textFields["API key"].exists); XCTAssertFalse(app.secureTextFields["API secret"].exists)
+        app.buttons["Disconnect"].tap(); app.buttons["Disconnect and remove its saved grades"].tap()
+        XCTAssertEqual(app.descendants(matching: .any)["connection-status"].value as? String, "Connected", "Demo never deletes a real connection")
+    }
+    @MainActor func testCalculatedSchoologyGradeIsLabeledAndEditable() {
+        let app = XCUIApplication(); app.launchArguments = ["--demo", "--calculated-fixture", "--screen=detail"]; app.launch()
+        XCTAssertTrue(app.staticTexts["Calculated Grade"].waitForExistence(timeout: 10))
+        let grade = app.descendants(matching: .any)["course-grade-value"]
+        XCTAssertEqual(grade.label, "Calculated grade")
+        let options = app.buttons["Options for 2-D Kinematics Quiz"]
+        XCTAssertTrue(options.isEnabled); options.tap(); app.buttons["Edit Grade"].tap()
+        let field = app.textFields["edit-score-field"]; XCTAssertTrue(field.waitForExistence(timeout: 5))
+        replaceScore(field, with: "100"); app.buttons["save-score"].tap()
+        XCTAssertTrue(app.staticTexts["100/100"].waitForExistence(timeout: 5)); XCTAssertEqual(grade.label, "What-If grade")
+        let detail = XCTAttachment(screenshot: app.screenshot()); detail.name = "schoology-calculated-detail"; detail.lifetime = .keepAlways; add(detail)
+    }
     @MainActor private func replaceScore(_ field: XCUIElement, with text: String) {
         field.tap()
         field.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)).tap()
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 20) + text)
     }
-    @MainActor func testUntitledDuplicateHasOneEditableRowInRecentAndAllAssignments() {
+    @MainActor func testRetainedAssignmentHasOneEditableRowInRecentAndAllAssignments() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--untitled-fixture", "--screen=detail"]; app.launch()
         let options = app.buttons["Options for Unit 2 Test"]
         XCTAssertTrue(options.waitForExistence(timeout: 10)); XCTAssertTrue(options.isEnabled)
@@ -124,7 +151,7 @@ final class GradeViewerUITests: XCTestCase {
     }
     @MainActor func testEmptyAndPartialFailureKeepUIUsable() throws {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--empty"]; app.launch(); XCTAssertTrue(app.staticTexts["No grades yet"].waitForExistence(timeout: 10)); app.terminate()
-        app.launchArguments = ["--demo", "--error"]; app.launch(); XCTAssertTrue(app.staticTexts["Infinite Campus could not refresh."].waitForExistence(timeout: 10)); XCTAssertTrue(app.buttons["course-0"].exists)
+        app.launchArguments = ["--demo", "--error"]; app.launch(); XCTAssertTrue(app.staticTexts["Schoology could not refresh."].waitForExistence(timeout: 10)); XCTAssertTrue(app.buttons["course-0"].exists)
     }
 }
 
@@ -188,7 +215,6 @@ extension GradeViewerUITests {
     }
 }
 
-
 extension GradeViewerUITests {
     @MainActor func testSettingsHaveNoManualCourseControls() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--overview-fixture", "--screen=settings"]; app.launch()
@@ -225,7 +251,6 @@ extension GradeViewerUITests {
     }
 }
 
-
 extension GradeViewerUITests {
     @MainActor func testGraphTracingShowsOnlyEventGradesAtThresholds() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--curve-fixture", "--screen=detail", "-appearance", "dark", "--record-chart-touch"]; app.launch()
@@ -247,7 +272,6 @@ extension GradeViewerUITests {
     }
 }
 
-
 extension GradeViewerUITests {
     @MainActor func testUnchangedSavedScoreKeepsRealCourseGrade() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--noop-scenario", "--screen=detail"]; app.launch()
@@ -257,18 +281,9 @@ extension GradeViewerUITests {
     }
 }
 
-
 extension GradeViewerUITests {
-    @MainActor func testFullViewUsesSchoologyCategoriesAndIncludesPastQuarterWork() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--past-quarter-fixture", "--screen=assignments"]; app.launch()
-        XCTAssertTrue(app.buttons["Quizzes"].waitForExistence(timeout: 10)); XCTAssertTrue(app.buttons["Labs"].exists)
-        app.buttons["Labs"].tap()
-        XCTAssertTrue(app.staticTexts["Past quarter lab"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Ungraded"].exists)
-        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "schoology-categories-past-quarter"; attachment.lifetime = .keepAlways; add(attachment)
-    }
-}
 
+}
 
 extension GradeViewerUITests {
     @MainActor func testOverviewKeepsRecentSchoologyOnlyGradeInOrder() {
@@ -293,7 +308,7 @@ extension GradeViewerUITests {
 }
 
 extension GradeViewerUITests {
-    @MainActor func testHomeAndDetailShowNewestLinkedProviderFreshness() {
+    @MainActor func testHomeAndDetailShowSchoologyFreshness() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--freshness-fixture"]
         app.launch()
         let home = app.buttons["course-0"]
@@ -408,70 +423,6 @@ extension GradeViewerUITests {
         app.buttons["tab-profile"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
     }
-    @MainActor func testSettingsKeepPersistenceAndRecoveryDetailsHidden() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:10))
-        XCTAssertTrue(app.buttons["campus-connection"].exists)
-        XCTAssertTrue(app.buttons["Schoology, Connect"].exists)
-        XCTAssertTrue(app.buttons["Appearance, System"].exists)
-        XCTAssertFalse(app.staticTexts["Version"].exists)
-        XCTAssertFalse(app.buttons["Reload widgets"].exists)
-        XCTAssertFalse(app.buttons["Disconnect Infinite Campus"].exists)
-        let overview = XCTAttachment(screenshot:app.screenshot()); overview.name = "settings-clean-overview"; overview.lifetime = .keepAlways; add(overview)
-        app.buttons["campus-connection"].tap()
-        XCTAssertTrue(app.textFields["Student portal URL"].waitForExistence(timeout:5))
-        XCTAssertTrue(app.buttons["Find your district"].exists)
-        XCTAssertFalse(app.buttons["Use browser cookies"].exists)
-        XCTAssertFalse(app.secureTextFields["campus-cookie-header"].exists)
-        XCTAssertFalse(app.staticTexts["Automatic SSO reconnect ready"].exists)
-        let campus = XCTAttachment(screenshot:app.screenshot()); campus.name = "campus-clean-setup"; campus.lifetime = .keepAlways; add(campus)
-    }
-    @MainActor func testConnectedSettingsHideSetupFieldsAndKeepAccountActions() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--connected-settings-fixture", "--screen=settings"]; app.launch()
-        XCTAssertTrue(app.buttons["campus-connection"].waitForExistence(timeout:10)); app.buttons["campus-connection"].tap()
-        let status = app.descendants(matching:.any)["connection-status"]
-        XCTAssertTrue(status.waitForExistence(timeout:5))
-        XCTAssertEqual(status.value as? String, "Connected")
-        XCTAssertTrue(app.buttons["Sign in again"].exists)
-        XCTAssertTrue(app.buttons["Disconnect"].exists)
-        XCTAssertFalse(app.textFields["Student portal URL"].exists)
-        XCTAssertFalse(app.buttons["Find your district"].exists)
-        XCTAssertFalse(app.staticTexts["Automatic SSO reconnect ready"].exists)
-        let campus = XCTAttachment(screenshot:app.screenshot()); campus.name = "campus-clean-connected"; campus.lifetime = .keepAlways; add(campus)
-        app.buttons["Disconnect"].tap()
-        XCTAssertTrue(app.buttons["Disconnect and remove its saved grades"].waitForExistence(timeout:5))
-        app.buttons["Disconnect and remove its saved grades"].tap()
-        XCTAssertEqual(status.value as? String, "Connected", "Demo disconnect must not delete real Keychain connections")
-        app.navigationBars["Infinite Campus"].buttons.element(boundBy:0).tap()
-        app.buttons["Schoology, Connected"].tap()
-        XCTAssertTrue(app.buttons["Update sign-in"].waitForExistence(timeout:5))
-        XCTAssertTrue(app.buttons["Disconnect"].exists)
-        XCTAssertFalse(app.textFields["API key"].exists)
-        XCTAssertFalse(app.secureTextFields["API secret"].exists)
-        XCTAssertFalse(app.buttons["Access token (if required)"].exists)
-        let schoology = XCTAttachment(screenshot:app.screenshot()); schoology.name = "schoology-clean-connected"; schoology.lifetime = .keepAlways; add(schoology)
-    }
-}
 
 
-extension GradeViewerUITests {
-    @MainActor func testCampusBrowserFailureShowsRetryAndPortalWithConnectDisabled() {
-        let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings", "--campus-browser-failure"]; app.launch()
-        app.buttons["campus-connection"].tap()
-        XCTAssertTrue(app.staticTexts["Sign-in page unavailable"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["retry-campus-browser"].isHittable)
-        XCTAssertTrue(app.buttons["open-campus-portal"].isHittable)
-        XCTAssertFalse(app.buttons["Connect"].isEnabled)
-        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "Campus-browser-TLS-recovery"; attachment.lifetime = .keepAlways; add(attachment)
-        app.buttons["retry-campus-browser"].tap()
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "campus-browser-loading").firstMatch.waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["Connect"].isEnabled)
-        XCTAssertTrue(app.staticTexts["The sign-in page took too long to load. Check your connection, then retry."].waitForExistence(timeout: 18))
-        XCTAssertTrue(app.buttons["retry-campus-browser"].isHittable)
-        XCTAssertTrue(app.buttons["open-campus-portal"].isHittable)
-        XCTAssertFalse(app.buttons["Connect"].isEnabled)
-        app.buttons["Cancel"].tap()
-        XCTAssertFalse(app.staticTexts["Sign-in page unavailable"].exists)
-        XCTAssertTrue(app.navigationBars["Infinite Campus"].exists)
-    }
 }

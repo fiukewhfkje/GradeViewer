@@ -151,6 +151,7 @@ struct CourseListView: View {
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 7) {
                                 Text(course.name).font(.title3.bold()).foregroundStyle(.primary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                                if course.display.hasCalculatedGrade { Text("Calculated").font(.caption).foregroundStyle(.secondary) }
                                 UpdatedLabel(date: store.updated(course))
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             GradeLabel(grade: course.display.grade)
@@ -181,8 +182,7 @@ struct CourseDetailView: View {
                     }.zIndex(1)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Recently Graded Assignments").font(.title3.bold()).padding(.bottom, 7)
-                        let schoology = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
-                        let recent = (store.addedAssignments(course) + AssignmentGrouping.overview(for: course, schoology: schoology)).prefix(5)
+                        let recent = (store.addedAssignments(course) + AssignmentGrouping.overview(for: course)).prefix(5)
                         if recent.isEmpty { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 12) }
                         ForEach(Array(recent)) { assignment in InteractiveAssignmentRow(assignment: assignment, course: course) }
                     }
@@ -350,10 +350,8 @@ struct AssignmentsView: View {
         let selected = periods.first { $0.id == store.selectedPeriods[original.id] } ?? original
         let scoped = self.scoped || !periods.isEmpty
         let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected
-        let source = AssignmentGrouping.schoologySource(for: course, among: store.courses.flatMap(\.sources))
-        let full = scoped ? course : AssignmentGrouping.fullCourse(for: course, among: store.courses)
         let added = store.addedAssignments(course)
-        let groups = AssignmentGrouping.groups(for: full, schoology: source)
+        let groups = AssignmentGrouping.groups(for: course)
         let exams = GradingPeriods.exams(for:selected, among:store.courses)
         ScrollView {
             VStack(spacing: 20) {
@@ -371,7 +369,7 @@ struct AssignmentsView: View {
                             Spacer()
                             if exam.display.grade.percent != nil || exam.display.grade.letter != nil { GradeLabel(grade:exam.display.grade) }
                         }
-                        let rows = AssignmentGrouping.overview(for:exam, schoology:AssignmentGrouping.schoologySource(for:exam, among:store.courses.flatMap(\.sources)))
+                        let rows = AssignmentGrouping.overview(for:exam)
                         if rows.isEmpty { Text("No graded exam assignments.").foregroundStyle(.secondary).padding(.vertical, 12) }
                         ForEach(rows) { assignment in
                             AssignmentRow(assignment:assignment).background(Palette.row, in:RoundedRectangle(cornerRadius:16))
@@ -419,11 +417,6 @@ struct AssignmentDetailView: View {
             Section { Text(assignment.display.title).font(.headline); AssignmentRow(assignment: assignment) }
             if let due = assignment.display.due { LabeledContent("Due", value: due.formatted(date: .abbreviated, time: .shortened)) }
             if assignment.display.excluded { Text("Excluded from the course grade.").foregroundStyle(.secondary) }
-            if assignment.disagrees { Section("Source scores") { ForEach(assignment.sources) { source in LabeledContent(source.source.provider.name, value: "\(pointsText(source.score.earned))/\(pointsText(source.score.possible))") } } }
         }.navigationTitle("Assignment").navigationBarTitleDisplayMode(.inline)
     }
-}
-struct SourceGradesView: View {
-    let course: Course
-    var body: some View { List { ForEach(course.sources) { source in HStack { Text(source.source.provider.name); Spacer(); GradeLabel(grade: source.grade) } } }.navigationTitle("Source grades").navigationBarTitleDisplayMode(.inline) }
 }

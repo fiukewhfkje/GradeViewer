@@ -21,7 +21,6 @@ public enum GradingPeriods {
     }
     public static func descriptor(_ source: SourceCourse) -> PeriodDescriptor {
         let name = Reconciler.normalize(source.term.name)
-        let task = Set(Reconciler.normalize(source.source.fields["task_name"] ?? "").split(separator:" "))
         func index(_ regex: NSRegularExpression) -> Int? {
             guard let match = regex.firstMatch(in:name, range:NSRange(name.startIndex..., in:name)), let range = Range(match.range(at:1), in:name) else { return nil }
             return Int(name[range])
@@ -30,8 +29,7 @@ public enum GradingPeriods {
         let semester = index(semesterPattern)
         let kind: PeriodKind
         let ordinal: Int?
-        if !task.isDisjoint(with:["exam", "exams", "midterm"]) || name.hasPrefix("exam") || name.hasPrefix("midterm") { kind = .exam; ordinal = nil }
-        else if task.contains("final") || task.contains("semester") { kind = .semester; ordinal = semester }
+        if name.hasPrefix("exam") || name.hasPrefix("midterm") { kind = .exam; ordinal = nil }
         else if let semester { kind = .semester; ordinal = semester }
         else if let quarter { kind = .quarter; ordinal = quarter }
         else if name == "final" || name.contains("year") { kind = .year; ordinal = nil }
@@ -47,45 +45,18 @@ public enum GradingPeriods {
         let dates = source.term.start != nil && source.term.end != nil ? (nil, nil) : titleDates(source.term.name)
         return PeriodDescriptor(kind:kind, ordinal:ordinal, label:label, start:source.term.start ?? dates.0, end:source.term.end ?? dates.1)
     }
-    public static func descriptor(_ course: Course) -> PeriodDescriptor {
-        let primary = descriptor(course.display)
-        // Campus Final inherits Q2's range; its linked Schoology S1 supplies the
-        // explicit complete semester range, rather than inventing a start date.
-        if primary.kind == .semester || primary.kind == .exam,
-           let schoology = course.sources.first(where: { $0.source.provider == .schoology && descriptor($0).kind == primary.kind }) { return descriptor(schoology) }
-        return primary
-    }
+    public static func descriptor(_ course: Course) -> PeriodDescriptor { descriptor(course.display) }
     static func day(_ date: Date) -> Int { Int(floor(date.timeIntervalSince1970 / 86400)) }
-    static func matches(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
-        let campus = a.source.provider == .infiniteCampus ? a : b
-        return matches(descriptor(a), descriptor(b), campusFinal: Reconciler.normalize(campus.source.fields["task_name"] ?? "") == "final", sameName: Reconciler.normalize(a.term.name) == Reconciler.normalize(b.term.name))
-    }
-    static func matches(_ x: PeriodDescriptor, _ y: PeriodDescriptor, campusFinal: Bool, sameName: Bool) -> Bool {
+    static func matches(_ x: PeriodDescriptor, _ y: PeriodDescriptor, sameName: Bool) -> Bool {
         guard x.kind == y.kind else { return false }
         if let i = x.ordinal, let j = y.ordinal, i != j { return false }
         if let xs = x.start, let xe = x.end, let ys = y.start, let ye = y.end {
-            if x.kind == .semester {
-                if day(xs) == day(ys) && day(xe) == day(ye) { return true }
-                // A Campus Final task may inherit the closing quarter's dates.
-                // Require that shorter range to be contained in the explicit
-                // other-provider semester and share its closing day.
-                guard campusFinal else { return false }
-                return day(xe) == day(ye) && day(xs) <= day(xe) && day(ys) <= day(ye)
-            }
-            if x.kind == .exam { return day(xs) <= day(ye) && day(ys) <= day(xe) }
             return day(xs) == day(ys) && day(xe) == day(ye)
         }
         return (x.ordinal != nil && x.ordinal == y.ordinal) || sameName
     }
-    static func compatible(_ a: SourceCourse, _ b: SourceCourse) -> Bool {
-        let x = descriptor(a), y = descriptor(b)
-        if x.kind == .other || y.kind == .other { return true }
-        return matches(a,b)
-    }
     static func physicalKey(_ source: SourceCourse) -> String? {
-        if source.source.provider == .infiniteCampus, let section = source.source.fields["section_id"] { return "campus:\(source.source.fields["school_id"] ?? "school"):\(section)" }
-        if source.source.provider == .schoology, let owner = source.source.fields["grade_section_id"] ?? source.source.fields["section_id"] { return "schoology:\(owner)" }
-        return nil
+        (source.source.fields["grade_section_id"] ?? source.source.fields["section_id"]).map { "schoology:\($0)" }
     }
     public static func related(to course: Course, among available: [Course]) -> [Course] {
         let keys = Set(course.sources.compactMap(physicalKey))
@@ -126,8 +97,7 @@ public enum GradingPeriods {
         return []
     }
     /// Exam records stay separate from the quarter's calculator. Associate them
-    /// for presentation only through a unique containing quarter or a provider's
-    /// explicit shared term ID (Campus Quarter/Exam tasks).
+    /// for presentation only through a unique explicitly dated containing quarter.
     public static func exams(for quarter: Course, among available: [Course]) -> [Course] {
         guard descriptor(quarter).kind == .quarter else { return [] }
         let related = related(to:quarter, among:available)
@@ -144,12 +114,7 @@ public enum GradingPeriods {
                 }
                 if !dated.isEmpty { return containers.count == 1 && containers[0].id == quarter.id }
             }
-            let containers = quarters.filter { candidate in
-                candidate.sources.contains { q in exam.sources.contains { e in
-                    q.source.provider == e.source.provider && q.term.id == e.term.id && physicalKey(q) != nil && physicalKey(q) == physicalKey(e)
-                } }
-            }
-            return containers.count == 1 && containers[0].id == quarter.id
+            return false
         })
     }
     /// A semester presentation contains its explicitly associated components.
@@ -162,14 +127,14 @@ public enum GradingPeriods {
         }
         var result = course
         let rows = ([course] + ordered(children)).flatMap { child in
-            AssignmentGrouping.overview(for: child, schoology: child.sources.first { $0.source.provider == .schoology })
+            AssignmentGrouping.overview(for: child)
         }
         // Provider assignment IDs survive period changes; repeated IDs may appear
         // in both the semester rollup and a child quarter. Keep one presentation.
         var seen = Set<String>()
         result.assignments = AssignmentOrdering.graded(rows.filter { row in
             let identities = row.sources.map { item in
-                item.source.provider.rawValue + ":" + (item.source.fields["objectSectionID"] ?? item.source.fields["assignment_id"].map { $0 + ":" + (item.source.fields["type"] ?? "assignment") } ?? item.id)
+                item.source.provider.rawValue + ":" + (item.source.fields["assignment_id"].map { $0 + ":" + (item.source.fields["type"] ?? "assignment") } ?? item.id)
             }
             guard identities.allSatisfy({ !seen.contains($0) }) else { return false }
             seen.formUnion(identities); return true
@@ -184,7 +149,7 @@ public enum GradingPeriods {
             return (kind == .quarter || kind == .exam) && self.semester(for:child, among:available)?.id == semester.id && child.display.grade.percent != nil
         }
         let weighted = children.compactMap { child -> (Course,Double)? in
-            let weight = child.sources.first { $0.source.provider == .schoology }?.term.weight
+            let weight = child.display.term.weight
             return weight.map { (child,$0) }
         }
         guard weighted.count == children.count, let reported = semester.display.grade.percent,

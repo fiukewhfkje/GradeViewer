@@ -124,7 +124,8 @@ public enum ProviderParsing {
             return SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):catalog:\(kind):\(id)", fields: raw(item, ["id", "grade_item_id", "type", "grading_period"])), title: nonempty(item["title"]) ?? "Untitled assignment", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"]))
         }
         let options = section["options"] as? [String: Any]
-        let method: CourseMethod = options?["weighted_grading_categories"] == nil ? .unknown : flag(options?["weighted_grading_categories"]) ? .weightedCategories : .equalCategories
+        let knownCategoryRules = categoryRows.allSatisfy { [1.0, 2.0].contains(number($0["calculation_type"]) ?? -1) }
+        let method: CourseMethod = options?["weighted_grading_categories"] == nil || !knownCategoryRules ? .unknown : flag(options?["weighted_grading_categories"]) ? .weightedCategories : .equalCategories
         var periodRows = try collection(g["period"])
         let finals = g["final_grade"].map(rows) ?? []
         let known = Set(periodRows.compactMap { nonempty($0["period_id"]) })
@@ -162,54 +163,12 @@ public enum ProviderParsing {
                 assignments.append(SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(text(item["type"]) ?? "assignment"):\(id)"), title: nonempty(item["title"]) ?? "Untitled assignment", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"])))
             }
             var fields = ["section_id":sectionID, "grade_section_id":gradeOwner, "period_id":periodID, "course_name":text(section["course_title"]) ?? text(section["section_title"]) ?? "Course"]
+            if final?["grade"] != nil, number(final?["scale_id"]) != 0 { fields["unsupported_overall_scale"] = "true" }
             if let metadataID = nonempty(metadata["id"]) {
                 fields["period_metadata_id"] = metadataID
                 fields["period_metadata_fetched"] = String((periodsFetched ?? fetched).timeIntervalSince1970)
             }
             return SourceCourse(source: Provenance(.schoology, "\(gradeOwner):\(periodID)", fields: fields), title: text(section["course_title"]) ?? text(section["section_title"]) ?? "Course", teacher: text(section["teacher_display"] ?? section["teacherDisplay"]) ?? "", term: Term(id: periodID, name: periodName, start: date(metadata["start"] ?? period["start"]) ?? dates.0, end: date(metadata["end"] ?? period["end"]) ?? dates.1, weight: number(final?["weight"] ?? metadata["weight"] ?? period["weight"])), grade: grade, categories: parsedCategories, assignments: assignments, method: method, fetched: fetched, assignmentCatalog: catalog)
         }
-    }
-    public static func campus(grades: Data, details: [String: Data] = [:], fetched: Date = Date()) throws -> [SourceCourse] {
-        guard let schools = try JSONSerialization.jsonObject(with: grades) as? [[String: Any]] else { throw ProviderError.malformed }
-        var result: [SourceCourse] = []
-        for school in schools {
-            guard let terms = school["terms"] as? [[String: Any]] else { throw ProviderError.malformed }
-            for term in terms {
-                guard let termID = text(term["termID"] ?? term["_id"] ?? term["termName"]), let courses = term["courses"] as? [[String: Any]] else { throw ProviderError.malformed }
-                for row in courses {
-                    guard let sectionID = text(row["sectionID"]), let tasks = row["gradingTasks"] as? [[String: Any]] else { throw ProviderError.malformed }
-                    let detailID = sectionID
-                    let detail = try details[detailID].map(object)
-                    if let detail { _ = try collection(detail["details"]) }
-                    for task in tasks {
-                        guard let taskID = nonempty(task["taskID"] ?? task["gradingTaskID"] ?? task["_id"]) else { throw ProviderError.malformed }
-                        let namespace = "\(text(school["schoolID"]) ?? "school"):\(sectionID):\(termID):\(taskID)"
-                        let percent = number(task["progressPercent"]) ?? number(task["percent"])
-                        let letter = text(task["progressScore"]) ?? text(task["score"])
-                        var categories: [GradingCategory] = [], assignments: [SourceAssignment] = [], weighted: [Bool] = []
-                        for entry in rows(detail?["details"]) {
-                            let t = entry["task"] as? [String: Any] ?? [:]
-                            let sameTerm = text(t["termID"]) == termID || (text(t["termName"]) != nil && text(t["termName"]) == text(term["termName"]))
-                            let sameTask = text(t["taskID"] ?? t["gradingTaskID"]) == taskID || (tasks.count == 1 && t["taskID"] == nil && t["gradingTaskID"] == nil)
-                            guard sameTerm && sameTask else { continue }
-                            for c in try collection(entry["categories"]) {
-                                guard let id = nonempty(c["categoryID"] ?? c["groupID"] ?? c["_id"] ?? c["name"]), let name = nonempty(c["name"]) else { throw ProviderError.malformed }
-                                let catID = "infiniteCampus:\(namespace):category:\(id)"
-                                categories.append(GradingCategory(id: catID, name: name, weight: number(c["weight"]), excluded: flag(c["isExcluded"])))
-                                if c["isWeighted"] != nil { weighted.append(flag(c["isWeighted"])) }
-                                for a in try collection(c["assignments"]) {
-                                    guard let aID = nonempty(a["objectSectionID"] ?? a["assignmentID"] ?? a["_id"]) else { throw ProviderError.malformed }
-                                    assignments.append(SourceAssignment(source: Provenance(.infiniteCampus, "\(namespace):\(aID)", fields: raw(a, ["objectSectionID", "scorePoints", "totalPoints", "multiplier", "score", "excluded", "dropped", "missing", "late"])), title: text(a["assignmentName"]) ?? "Assignment", categoryID: catID, due: date(a["dueDate"]), updated: date(a["scoreModifiedDate"]) ?? date(a["modifiedDate"]) ?? date(a["scoreDate"]), score: Score(earned: number(a["scorePoints"]), possible: number(a["totalPoints"]), letter: text(a["score"]).flatMap { Double($0) == nil ? $0 : nil }, excused: flag(a["exempt"] ?? a["excused"])), multiplier: number(a["multiplier"]) ?? 1, excluded: flag(a["excluded"]) || flag(a["dropped"])))
-                                }
-                            }
-                        }
-                        let method: CourseMethod = categories.isEmpty || weighted.count != categories.count || Set(weighted).count != 1 ? .unknown : weighted[0] ? .weightedCategories : .points
-                        let title = (text(row["courseName"]) ?? "Course") + (tasks.count > 1 ? " · \(text(task["taskName"] ?? task["name"]) ?? taskID)" : "")
-                        result.append(SourceCourse(source: Provenance(.infiniteCampus, namespace, fields: ["section_id": sectionID, "term_id": termID, "task_id": taskID, "detail_id": detailID, "school_id": text(school["schoolID"]) ?? "school", "task_name": text(task["taskName"] ?? task["name"]) ?? "", "course_name": text(row["courseName"]) ?? "Course"]), title: title, teacher: text(row["teacherDisplay"]) ?? "", term: Term(id: termID, name: text(term["termName"]) ?? termID, start: date(term["startDate"]), end: date(term["endDate"])), grade: OverallGrade(percent: percent, letter: letter), categories: categories, assignments: assignments, method: method, fetched: fetched))
-                    }
-                }
-            }
-        }
-        return result
     }
 }

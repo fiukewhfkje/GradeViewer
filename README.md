@@ -1,6 +1,6 @@
 # GradeViewer
 
-A simple native iPhone app for Schoology and Infinite Campus grades, assignments, grade progression, local grade edits/additions, and a final calculator. iOS 17+, Apple frameworks, and the local GradeCore package. No server, subscription, analytics, or widget.
+A simple native iPhone app for Schoology grades, assignments, grade progression, local grade edits/additions, and a final calculator. iOS 17+, Apple frameworks, and the local GradeCore package. No server, subscription, analytics, or widget.
 
 ## Install on your iPhone
 
@@ -14,24 +14,23 @@ You need a Mac with **Xcode 26 or later** (tested with Xcode 27), an Apple Accou
    ```
 2. In Xcode → Settings → Apple Accounts, sign in. Select the **GradeViewer app target → Signing & Capabilities**, enable automatic signing, choose **your team**, and set a unique bundle identifier, such as `com.yourname.GradeViewer`. There is only one app to sign; no App Group is needed.
 3. Connect and unlock your iPhone, trust the Mac, select the **GradeViewer** scheme and your phone, and press Run. If prompted, enable **Settings → Privacy & Security → Developer Mode**, restart, and confirm. If iOS asks for developer trust, follow **Settings → General → VPN & Device Management**. [Apple's device setup](https://developer.apple.com/documentation/xcode/running-your-app-on-simulated-or-physical-devices), [Developer Mode](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device).
-4. Open GradeViewer → **Profile**, and connect either or both providers below.
+4. Open GradeViewer → **Profile**, and connect Schoology below.
 
 Keep the **same team and bundle identifier** when updating an existing installation, and install over it instead of deleting the app. Changing its identity creates a separate app/Keychain scope. This repository does not provide App Store or TestFlight distribution.
 
 ## Connect your school accounts
 
-- **Schoology:** sign in to [your API credentials page](https://app.schoology.com/api), generate/retrieve your personal API key and secret if your school permits it, then enter them in Profile → Schoology → Connect. These are API credentials, not your password. If your student account cannot generate keys, your district must permit API access; Campus can still be used by itself. [Schoology authentication](https://developers.schoology.com/api-documentation/authentication/), [API key management](https://uc.powerschool-docs.com/en/schoology/latest/api-key-management).
-- **Infinite Campus:** Profile → Infinite Campus → **Find your district**, choose Campus Student, complete the district's normal login/SSO, then tap **Connect** in GradeViewer's toolbar. Alternatively paste your exact HTTPS Campus Student login URL. Parent portals are not supported. GradeViewer stores session cookies, never your Campus password.
+Sign in to [your API credentials page](https://app.schoology.com/api), retrieve your personal API key and secret if your school permits it, then enter them in Profile → Schoology → Connect. These are API credentials, not your password. District API access is required. [Schoology authentication](https://developers.schoology.com/api-documentation/authentication/), [API key management](https://uc.powerschool-docs.com/en/schoology/latest/api-key-management).
 
-Credentials and reusable sessions stay in that installation's device Keychain. Cloning the repository does not copy anyone's sign-in or grades. Never put keys, cookies, passwords, or exported student data in source files, chat, or issues. **Disconnect before switching students/accounts.** Schoology checks its credential owner; Campus's current grade resources do not provide a verified account-binding contract.
+Credentials stay in that installation's device Keychain. Cloning does not copy sign-in or grades. **Disconnect before switching students/accounts.** Schoology verifies the credential owner before reading student data.
 
-Grades refresh on launch, return from the background, pull-to-refresh, and once a minute while active. A failed refresh retains the last successful data internally and offers Retry/Profile; foreground grade screens wait for fresh data. Short Schoology rate limits get one bounded retry after the server's delay. Campus can reuse a captured district SSO session, but required credentials/MFA still need normal sign-in.
+Grades refresh on launch, real background return, pull-to-refresh, and once a minute while active. A failed refresh preserves saved data; foreground grade screens wait for fresh Schoology data and offer Retry/Profile. Short rate limits receive one bounded retry after the server's delay; longer waits resume automatically while active.
 
-Automatic checks can reuse Schoology titles/category rules for up to five minutes only when the complete freshly read grade data is unchanged. Changed grades refresh that metadata immediately; pull-to-refresh bypasses this reuse. Optional title lookups stop on a rate limit without rejecting complete fresh grades, and the next refresh still honors the server's cooldown.
+Unchanged complete grade reads may reuse title/category metadata for five minutes. Changed grades and manual refresh renew it immediately. Optional title throttles preserve fresh scores and the provider's cooldown. Missing metadata leaves an untitled row; different assignments are never deduplicated by name.
 
-If a provider asks to wait, GradeViewer resumes automatically when its cooldown ends while the app is active. Foreground grades show the wait/countdown until fresh data is available; a cooldown does not require reconnecting or repeatedly tapping Retry.
+Reported Schoology totals take priority. When a complete snapshot omits an overall, supported category rules produce a **Calculated** total and local calculator basis. Unknown rules/scales leave it unavailable. Calculated chart points remain separate from observed history; no dates or grades are invented.
 
-Both providers worked on the original student's iPhone. Campus uses authenticated portal resources without a supported public student API contract, so other districts may differ. Matching requires unique compatible evidence; ambiguous courses stay separate. Neither provider compatibility nor automatic matching can honestly be guaranteed for every account. Calculators stay local and require source rules that reproduce the reported grade.
+[The assignment audit](docs/PROVIDER_PARITY_AUDIT.md) found every IC assignment represented in Schoology for the original student's five current classes. IC is removed from login, settings, networking, refresh and matching. Existing installations migrate compatible history/local edits and clear retired connections on their next update; keep your same team/bundle ID and install over the existing app. This account's snapshot agreement does not guarantee future or district-wide parity.
 
 ## Develop or install with CLI / an AI assistant
 

@@ -11,7 +11,6 @@
 		1F6E76D591434F319354E6F1 /* ConnectionDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F6F9035929F6DCDE712024 /* ConnectionDiagnostics.swift */; };
 		26996047A94C088AA9A1AB26 /* Calculators.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5814EBBBBDCC8A255F033416 /* Calculators.swift */; };
 		2D69ABD2D7A3DEA522A31D5E /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D47EA70C4ABB293423328FE /* Persistence.swift */; };
-		2EEE6A8C6C92CF01A0E53C36 /* CampusWebSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC60BE522E27D5958F956313 /* CampusWebSession.swift */; };
 		42A4CA6C5D269044C8A890F3 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D9BF64DDCFC5F50DB81223D /* Views.swift */; };
 		54BEA4022C4CB07A07700700 /* GradeViewerUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24761D599836481C8D90A3BC /* GradeViewerUITests.swift */; };
 		88E11E4276B9C4D90C703E0C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 28899438404B74189F510FBD /* Assets.xcassets */; };
@@ -54,7 +53,6 @@
 		AD44C2703B2BF10619359510 /* RepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryTests.swift; sourceTree = "<group>"; };
 		B8AB020D47C9E22E3D2A8DBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BB3B9A142E4D075CC1B9F101 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
-		CC60BE522E27D5958F956313 /* CampusWebSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CampusWebSession.swift; sourceTree = "<group>"; };
 		E0F6F9035929F6DCDE712024 /* ConnectionDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionDiagnostics.swift; sourceTree = "<group>"; };
 		E14579149E21567393FA6824 /* GradeViewer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GradeViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2476B7B41A602C42C70D0B1 /* GradeViewer */ = {isa = PBXFileReference; lastKnownFileType = folder; name = GradeViewer; path = .; sourceTree = SOURCE_ROOT; };
@@ -123,7 +121,6 @@
 				80C7E51E98CAF2007D308A7B /* AppStore.swift */,
 				28899438404B74189F510FBD /* Assets.xcassets */,
 				5814EBBBBDCC8A255F033416 /* Calculators.swift */,
-				CC60BE522E27D5958F956313 /* CampusWebSession.swift */,
 				E0F6F9035929F6DCDE712024 /* ConnectionDiagnostics.swift */,
 				A2F5D06051415E9F8A5F6AA2 /* GradeViewerApp.swift */,
 				B8AB020D47C9E22E3D2A8DBF /* Info.plist */,
@@ -296,7 +293,6 @@
 			files = (
 				930658233082B7238D542C51 /* AppStore.swift in Sources */,
 				26996047A94C088AA9A1AB26 /* Calculators.swift in Sources */,
-				2EEE6A8C6C92CF01A0E53C36 /* CampusWebSession.swift in Sources */,
 				1F6E76D591434F319354E6F1 /* ConnectionDiagnostics.swift in Sources */,
 				B0F86ECA710DDF0E2BFB8F2E /* GradeViewerApp.swift in Sources */,
 				0B0E5605A995714C60A1E0EB /* Keychain.swift in Sources */,
@@ -423,7 +419,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -525,7 +521,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

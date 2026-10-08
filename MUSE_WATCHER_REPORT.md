@@ -1,3 +1,5 @@
+> Historical dual-provider report. GradeViewer became Schoology-only on October 8, 2026; IC code/login/refresh are removed. See [the current audit](docs/PROVIDER_PARITY_AUDIT.md) and ARCHITECTURE.md. Earlier device/performance observations below are not validation of the new build. No Muse watcher was implemented or deployed.
+
 # Muse: student grade watcher handoff
 
 Prepared September 29, 2026. Repository: https://github.com/fiukewhfkje/GradeViewer (private). GradeViewer works independently. **No Muse watcher has been implemented or deployed.** This report directly covers the four requested subjects: working student endpoints, login/session behavior, redacted request/response examples, and observed rate limits.

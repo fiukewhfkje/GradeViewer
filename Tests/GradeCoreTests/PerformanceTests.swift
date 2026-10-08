@@ -38,8 +38,8 @@ final class PerformanceTests: XCTestCase {
         }
         let started = Date()
         let courses = Reconciler.reconcile(sources)
-        print("Synthetic 96-source reconciliation milliseconds: \(Date().timeIntervalSince(started) * 1000)")
+        print("Synthetic 48-source reconciliation milliseconds: \(Date().timeIntervalSince(started) * 1000)")
         XCTAssertEqual(courses.count, 48)
-        XCTAssertTrue(courses.allSatisfy { $0.sources.count == 2 })
+        XCTAssertTrue(courses.allSatisfy { $0.sources.count == 1 })
     }
 }

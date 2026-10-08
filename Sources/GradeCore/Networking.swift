@@ -50,14 +50,11 @@ public struct HTTPDiagnostic: Codable, Sendable {
     public let redirect: String?
     public var elapsedMilliseconds: Double? = nil
     public var retryAfterSeconds: Double? = nil
-    /// Counts only; cookie names, values and attributes never enter diagnostics.
-    public var eligibleCookieCount: Int? = nil
-    public var sessionCookieCount: Int? = nil
     /// Numeric URL error only; never include NSError descriptions or userInfo.
     public var networkErrorCode: Int? = nil
     static func structure(_ data: Data) -> [String: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return ["root": "non-JSON"] }
-        let allowed: Set<String> = ["folder-item", "self", "available", "data", "schools", "terms", "courses", "gradingTasks", "details", "task", "categories", "assignments", "_id", "id", "sectionID", "termID", "termName", "schoolID", "taskID", "gradingTaskID", "progressPercent", "percent", "progressScore", "score", "courseName", "grade", "assignmentName", "name", "teacherDisplay", "startDate", "endDate", "categoryID", "groupID", "isWeighted", "weight", "scorePoints", "totalPoints", "assignmentID", "objectSectionID", "dueDate", "multiplier", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "modifiedDate", "scoreDate", "scoredDate", "scoreTimestamp", "scoreModifiedDate", "scoreModifiedTimestamp", "scoreUpdateDate", "scoreUpdateTimestamp", "modifiedTimestamp", "lastModifiedDate", "lastModifiedTimestamp", "dateModified", "dateScored", "createdDate", "createdTimestamp", "assignedDate", "lastUpdated", "lastUpdatedDate", "lastUpdatedTimestamp", "lastScoreDate", "scoreDetail", "scoreDetails"]
+        let allowed: Set<String> = ["folder-item", "self", "available", "data", "id", "weight", "grade", "error", "errors", "message", "uid", "section", "section_id", "period", "period_id", "period_title", "assignment", "final_grade", "grading_category", "links", "next", "total", "title", "options", "weighted_grading_categories", "assignment_id", "grade_item_id", "category_id", "type", "max_points", "scale_id", "scale_type", "exception", "timestamp", "calculation_type", "drop_lowest", "grading_period", "due", "factor", "count_in_grade", "teacher_display", "course_title", "section_title", "start", "end"]
         var result: [String: String] = [:]
         func visit(_ value: Any, _ path: String, _ depth: Int) {
             guard depth <= 9 else { return }
@@ -83,23 +80,19 @@ public actor ReadOnlyHTTP {
     private let diagnosticsEnabled: Bool
     private var records: [HTTPDiagnostic] = []
     private var schoologyThrottleUntil: Date?
-    public init(origin: URL, credentials: SchoologyCredentials? = nil, cookies: [HTTPCookie] = [], configuration: URLSessionConfiguration? = nil, diagnosticsEnabled: Bool = false) throws {
+    public init(origin: URL, credentials: SchoologyCredentials? = nil, configuration: URLSessionConfiguration? = nil, diagnosticsEnabled: Bool = false) throws {
         guard origin.scheme == "https", origin.host != nil, origin.user == nil, origin.password == nil, origin.port == nil || origin.port == 443 else { throw ProviderError.unsafeURL }
         self.origin = origin; self.credentials = credentials; self.diagnosticsEnabled = diagnosticsEnabled
         let config = configuration ?? URLSessionConfiguration.ephemeral
-        // Campus TLS failures were measured blocking launch for 19.5 seconds.
-        // Bound each Campus read, including connection establishment; leave
-        // Schoology's documented cooldown/retry behavior independent.
-        config.timeoutIntervalForRequest = credentials == nil ? 8 : 25
-        config.timeoutIntervalForResource = credentials == nil ? 12 : 60
+        config.timeoutIntervalForRequest = 25
+        config.timeoutIntervalForResource = 60
         config.urlCache = nil; config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        config.httpMaximumConnectionsPerHost = 4; config.httpCookieAcceptPolicy = .always
-        for cookie in cookies { config.httpCookieStorage?.setCookie(cookie) }
+        config.httpMaximumConnectionsPerHost = 4
+        config.httpCookieStorage = nil; config.httpShouldSetCookies = false
         session = URLSession(configuration: config, delegate: NoRedirect(), delegateQueue: nil)
     }
-    public func get(_ url: URL, retryThrottles: Bool = true) async throws -> Data { try await read(url, json: true, retryThrottles: retryThrottles) }
-    func visitPortal(_ url: URL) async throws { _ = try await read(url, json: false) }
-    private func read(_ url: URL, json: Bool, retryThrottles: Bool = true) async throws -> Data {
+    public func get(_ url: URL, retryThrottles: Bool = true) async throws -> Data { try await read(url, retryThrottles: retryThrottles) }
+    private func read(_ url: URL, retryThrottles: Bool = true) async throws -> Data {
         var current = url
         var redirects = 0, throttleRetries = 0
         while redirects < 5 {
@@ -120,24 +113,15 @@ public actor ReadOnlyHTTP {
                     try await Task.sleep(for: .seconds(max(0, seconds)))
                 }
             }
-            var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue(json ? "application/json" : "text/html", forHTTPHeaderField: "Accept")
+            var request = URLRequest(url: current); request.httpMethod = "GET"; request.setValue("application/json", forHTTPHeaderField: "Accept")
             if let credentials { request.setValue(OAuth1.header(url: current, credentials: credentials), forHTTPHeaderField: "Authorization") }
-            let eligibleCookies = session.configuration.httpCookieStorage?.cookies(for: current) ?? []
-            if credentials == nil {
-                // Make the WebKit/Keychain handoff explicit. Foundation still
-                // selects cookies by domain, path, expiry and HTTPS; responses
-                // update the same private jar below, including failed reads.
-                request.httpShouldHandleCookies = false
-                for (name, value) in HTTPCookie.requestHeaderFields(with: eligibleCookies) {
-                    request.setValue(value, forHTTPHeaderField: name)
-                }
-            }
+            request.httpShouldHandleCookies = false
             let requestStarted = Date()
             let data: Data, rawResponse: URLResponse
             do { (data, rawResponse) = try await session.data(for: request) }
             catch {
                 if diagnosticsEnabled {
-                    var record = HTTPDiagnostic(route: diagnosticRoute(current, json: json), status: 0, contentType: "connection failure", responseBytes: 0, structure: [:], redirect: nil)
+                    var record = HTTPDiagnostic(route: diagnosticRoute(current), status: 0, contentType: "connection failure", responseBytes: 0, structure: [:], redirect: nil)
                     record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
                     record.networkErrorCode = (error as? URLError)?.code.rawValue
                     records.append(record)
@@ -147,13 +131,9 @@ public actor ReadOnlyHTTP {
             }
             let response = rawResponse
             guard let response = response as? HTTPURLResponse else { throw ProviderError.unavailable }
-            if let field = response.value(forHTTPHeaderField: "Set-Cookie") {
-                let received = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": field], for: current)
-                session.configuration.httpCookieStorage?.setCookies(received, for: current, mainDocumentURL: origin)
-            }
             if diagnosticsEnabled {
                 let mime = response.mimeType ?? "unknown"
-                let route = diagnosticRoute(current, json: json)
+                let route = diagnosticRoute(current)
                 var redirect: String?
                 if let location = response.value(forHTTPHeaderField: "Location"), let target = URL(string: location, relativeTo: current)?.absoluteURL {
                     redirect = target.host?.lowercased() == origin.host?.lowercased() ? (target.scheme == "https" ? "same host HTTPS" : "same host other scheme") : "other host"
@@ -161,10 +141,6 @@ public actor ReadOnlyHTTP {
                 var record = HTTPDiagnostic(route: route, status: response.statusCode, contentType: mime, responseBytes: data.count, structure: HTTPDiagnostic.structure(data), redirect: redirect)
                 record.elapsedMilliseconds = Date().timeIntervalSince(requestStarted) * 1000
                 record.retryAfterSeconds = response.value(forHTTPHeaderField: "Retry-After").map(Self.retryAfter)
-                if credentials == nil {
-                    record.eligibleCookieCount = eligibleCookies.count
-                    record.sessionCookieCount = eligibleCookies.filter { $0.expiresDate == nil }.count
-                }
                 records.append(record)
                 if records.count > 200 { records.remove(at: 1) }
             }
@@ -179,11 +155,10 @@ public actor ReadOnlyHTTP {
                 }
                 throw ProviderError.throttled(seconds)
             case 301, 302, 303, 307, 308:
-                guard credentials != nil || !json, let location = response.value(forHTTPHeaderField: "Location"), let next = URL(string: location, relativeTo: current)?.absoluteURL else { throw ProviderError.reconnect }
+                guard let location = response.value(forHTTPHeaderField: "Location"), let next = URL(string: location, relativeTo: current)?.absoluteURL else { throw ProviderError.reconnect }
                 current = next; redirects += 1; continue // Generate a fresh signature/nonce for users/me redirects.
             case 200..<300:
                 let type = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
-                if !json { return data }
                 guard type.contains("json") else { throw type.contains("html") ? ProviderError.reconnect : ProviderError.malformed }
                 return data
             default: throw ProviderError.unavailable
@@ -191,11 +166,8 @@ public actor ReadOnlyHTTP {
         }
         throw ProviderError.unavailable
     }
-    private func diagnosticRoute(_ url: URL, json: Bool) -> String {
-        if !json { return "portal session" }
-        else if url.path.contains("/grades/detail/") { return "grade detail" }
-        else if credentials == nil && url.path.hasSuffix("/grades") { return "grade summary" }
-        else if url.path.hasSuffix("/users/me") { return "current user" }
+    private func diagnosticRoute(_ url: URL) -> String {
+        if url.path.hasSuffix("/users/me") { return "current user" }
         else if url.path.hasSuffix("/sections") { return "enrolled sections" }
         else if url.path.hasSuffix("/grades") { return "student grades" }
         else if url.path.hasSuffix("/grade_items") { return "assignments" }
@@ -207,14 +179,6 @@ public actor ReadOnlyHTTP {
         else if url.path.contains("/sections/") { return "section" }
         else if url.path.contains("/users/") { return "user" }
         else { return "request" }
-    }
-    public func cookies() -> [HTTPCookie] {
-        // Cookie scope is checked again before secrets enter Keychain.
-        (session.configuration.httpCookieStorage?.cookies ?? []).filter { cookie in
-            let domain = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
-            let host = origin.host!.lowercased()
-            return (host == domain || host.hasSuffix("." + domain)) && (cookie.expiresDate.map { $0 > Date() } ?? true)
-        }
     }
     public func diagnostics() -> [HTTPDiagnostic] { records }
     func throttleDeadline() -> Date? { schoologyThrottleUntil.flatMap { $0 > Date() ? $0 : nil } }
@@ -342,6 +306,7 @@ public struct SchoologyProvider: Sendable {
                 source.source.fields["grade_snapshot_hash"] = batch.fingerprint
                 source.source.fields["section_metadata_fetched"] = stamp
                 source.source.fields["section_metadata_course_count"] = String(courses.count)
+                source.source.fields["section_metadata_version"] = "3"
                 return source
             }
         }
@@ -366,7 +331,7 @@ public struct SchoologyProvider: Sendable {
         let now = Date().timeIntervalSince1970
         guard !cached.isEmpty, cached.allSatisfy({ source in
             let fields = source.source.fields
-            guard fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
+            guard fields["section_metadata_version"] == "3", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
                   fields["section_metadata_course_count"] == String(cached.count),
                   let stamp = fields["section_metadata_fetched"].flatMap(Double.init), stamp <= now, now - stamp < 300 else { return false }
             if let periodStamp = fields["period_metadata_fetched"].flatMap(Double.init), periodStamp > now || now - periodStamp >= 3600 { return false }
@@ -596,36 +561,6 @@ public struct SchoologyProvider: Sendable {
         return all
     }
 }
-public struct InfiniteCampusProvider: Sendable {
-    let http: ReadOnlyHTTP; let base: URL
-    public init(base: URL, cookies: [HTTPCookie], diagnosticsEnabled: Bool = false) throws { self.base = base; http = try ReadOnlyHTTP(origin: base, cookies: cookies, diagnosticsEnabled: diagnosticsEnabled) }
-    init(base: URL, http: ReadOnlyHTTP) { self.base = base; self.http = http }
-    public func fetch(resuming portal: URL? = nil) async throws -> [SourceCourse] {
-        do { return try await fetchSnapshot() }
-        catch ProviderError.reconnect {
-            guard let portal else { throw ProviderError.reconnect }
-            // Revisit only the saved district page with the same private cookie jar.
-            // This is ordinary portal navigation, not an assumed refresh-token API.
-            do { try await http.visitPortal(portal) }
-            catch ProviderError.unsafeURL { throw ProviderError.reconnect }
-            return try await fetchSnapshot()
-        }
-    }
-    private func fetchSnapshot() async throws -> [SourceCourse] {
-        let grades = try await http.get(base.appendingPathComponent("resources/portal/grades"))
-        let summaries = try ProviderParsing.campus(grades: grades)
-        let ids = Set(summaries.compactMap { $0.source.fields["detail_id"] }).sorted()
-        let responses = try await concurrentMap(ids, limit: 3) { id in
-            let data = try await http.get(base.appendingPathComponent("resources/portal/grades/detail").appendingPathComponent(id))
-            return (id, data)
-        }
-        let details = Dictionary(uniqueKeysWithValues: responses)
-        return try ProviderParsing.campus(grades: grades, details: details)
-    }
-    public func sessionCookies() async -> [HTTPCookie] { await http.cookies() }
-    public func diagnostics() async -> [HTTPDiagnostic] { await http.diagnostics() }
-}
-
 private struct SchoologySectionAttempt: Sendable { let id: String; let result: Result<SchoologySectionGrades, Error> }
 private struct SchoologySectionGrades: Sendable { let id: String; let owner: String?; let data: Data }
 

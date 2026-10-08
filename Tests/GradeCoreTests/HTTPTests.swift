@@ -29,17 +29,17 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 final class HTTPTests: XCTestCase {
-    func client(diagnostics: Bool = false) throws -> ReadOnlyHTTP { let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubURLProtocol.self]; return try ReadOnlyHTTP(origin: URL(string: "https://example.com/campus/")!, configuration: c, diagnosticsEnabled: diagnostics) }
+    func client(diagnostics: Bool = false) throws -> ReadOnlyHTTP { let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubURLProtocol.self]; return try ReadOnlyHTTP(origin: URL(string: "https://example.com/v1/")!, configuration: c, diagnosticsEnabled: diagnostics) }
     override func setUp() { StubURLProtocol.status = 200; StubURLProtocol.contentType = "application/json"; StubURLProtocol.body = "[]"; StubURLProtocol.bodies = [:]; StubURLProtocol.requests = []; StubURLProtocol.extraHeaders = [:]; StubURLProtocol.cookieHeaders = []; StubURLProtocol.statuses = [:]; StubURLProtocol.statusSequences = [:] }
     func testExpiredSessionAndHTMLLoginResponse() async throws {
-        let http = try client(); let url = URL(string: "https://example.com/campus/resources/portal/grades")!
+        let http = try client(); let url = URL(string: "https://example.com/v1/users/me")!
         StubURLProtocol.status = 401
         do { _ = try await http.get(url); XCTFail("Expected reconnect") } catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
         StubURLProtocol.status = 200; StubURLProtocol.contentType = "text/html"
         do { _ = try await http.get(url); XCTFail("Expected reconnect") } catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
     }
     func testForbiddenAndThrottled() async throws {
-        let http = try client(); let url = URL(string: "https://example.com/campus/resources/portal/grades")!
+        let http = try client(); let url = URL(string: "https://example.com/v1/users/me")!
         StubURLProtocol.status = 403
         do { _ = try await http.get(url); XCTFail() } catch { XCTAssertEqual(error as? ProviderError, .forbidden) }
         StubURLProtocol.status = 429
@@ -86,24 +86,24 @@ final class HTTPTests: XCTestCase {
     }
     func testRejectsCrossOriginAndPathEscape() async throws {
         let http = try client()
-        for value in ["https://other.example.com/campus/", "https://example.com/private/", "http://example.com/campus/"] {
+        for value in ["https://other.example.com/v1/", "https://example.com/private/", "http://example.com/v1/"] {
             do { _ = try await http.get(URL(string: value)!); XCTFail() } catch { XCTAssertEqual(error as? ProviderError, .unsafeURL) }
         }
     }
-    func testSuccessfulRead() async throws { let data = try await client().get(URL(string: "https://example.com/campus/resources/portal/grades")!); XCTAssertEqual(data, Data("[]".utf8)) }
+    func testSuccessfulRead() async throws { let data = try await client().get(URL(string: "https://example.com/v1/users/me")!); XCTAssertEqual(data, Data("[]".utf8)) }
     func testDiagnosticsNeverContainResponseValuesOrRequestIdentifiers() async throws {
-        StubURLProtocol.body = "{\"data\":[{\"courses\":[{\"courseName\":\"PRIVATE_NAME\",\"sectionID\":987654321,\"score\":\"PRIVATE_GRADE\",\"unknown-secret-key\":\"PRIVATE_COOKIE\"}]}]}"
+        StubURLProtocol.body = "{\"data\":[{\"section\":[{\"course_title\":\"PRIVATE_NAME\",\"section_id\":987654321,\"score\":\"PRIVATE_GRADE\",\"unknown-secret-key\":\"PRIVATE_COOKIE\"}]}]}"
         let http = try client(diagnostics: true)
-        _ = try await http.get(URL(string: "https://example.com/campus/resources/portal/grades/detail/PRIVATE_ID?token=PRIVATE_TOKEN")!)
+        _ = try await http.get(URL(string: "https://example.com/v1/users/me/detail/PRIVATE_ID?token=PRIVATE_TOKEN")!)
         let records = await http.diagnostics(); let record = try XCTUnwrap(records.first)
-        XCTAssertEqual(record.route, "grade detail"); XCTAssertEqual(record.status, 200)
-        XCTAssertEqual(record.structure["root.data[].courses[].courseName"], "string")
+        XCTAssertEqual(record.route, "user"); XCTAssertEqual(record.status, 200)
+        XCTAssertEqual(record.structure["root.data[].section[].course_title"], "string")
         let encoded = String(decoding: try JSONEncoder().encode(records), as: UTF8.self)
         for secret in ["PRIVATE_NAME", "987654321", "PRIVATE_GRADE", "PRIVATE_COOKIE", "PRIVATE_ID", "PRIVATE_TOKEN", "unknown-secret-key"] { XCTAssertFalse(encoded.contains(secret)) }
     }
     func testNormalRefreshDoesNotCollectDiagnostics() async throws {
         let http = try client()
-        _ = try await http.get(URL(string: "https://example.com/campus/resources/portal/grades")!)
+        _ = try await http.get(URL(string: "https://example.com/v1/users/me")!)
         let records = await http.diagnostics(); XCTAssertTrue(records.isEmpty)
     }
     func testSectionValidationReportsOnlyEqualityFlags() async throws {
@@ -148,50 +148,7 @@ private actor ConcurrencyProbe {
     }
 }
 extension HTTPTests {
-    func testRestoredSessionCookieIsSentAndRotationSurvivesNewClient() async throws {
-        let base = URL(string: "https://example.com/campus/")!
-        let url = base.appendingPathComponent("resources/portal/grades")
-        let cookie = HTTPCookie(properties: [.name: "session", .value: "fixture-old", .domain: "example.com", .path: "/campus", .secure: "TRUE", .discard: "TRUE"])!
-        func client(cookies: [HTTPCookie]) throws -> ReadOnlyHTTP {
-            let configuration = URLSessionConfiguration.ephemeral; configuration.protocolClasses = [StubURLProtocol.self]
-            return try ReadOnlyHTTP(origin: base, cookies: cookies, configuration: configuration, diagnosticsEnabled: true)
-        }
-        let original = try client(cookies: [cookie])
-        StubURLProtocol.extraHeaders = ["Set-Cookie": "session=fixture-rotated; Path=/campus; Secure; HttpOnly, route=fixture-node; Path=/campus; Expires=Tue, 01 Jan 2030 00:00:00 GMT; Secure"]
-        _ = try await original.get(url)
-        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "session=fixture-old")
-        let saved = await original.cookies()
-        let restored = try client(cookies: saved)
-        StubURLProtocol.extraHeaders = [:]
-        _ = try await restored.get(url)
-        let header = try XCTUnwrap(StubURLProtocol.cookieHeaders.last)
-        XCTAssertTrue(header.contains("session=fixture-rotated")); XCTAssertTrue(header.contains("route=fixture-node"))
-        XCTAssertFalse(header.contains("fixture-old"))
-        let report = await restored.diagnostics()
-        XCTAssertEqual(report.first?.eligibleCookieCount, 2)
-        XCTAssertEqual(report.first?.sessionCookieCount, 1)
-        let encoded = String(decoding: try JSONEncoder().encode(report), as: UTF8.self)
-        XCTAssertFalse(encoded.contains("fixture-rotated")); XCTAssertFalse(encoded.contains("example.com"))
-    }
-    func testCampusCookieScopeAndServerDeletionControlOutgoingHeader() async throws {
-        let base = URL(string: "https://example.com/campus/")!
-        let valid = HTTPCookie(properties: [.name: "session", .value: "fixture", .domain: "example.com", .path: "/campus", .secure: "TRUE"])!
-        let wrongPath = HTTPCookie(properties: [.name: "other-path", .value: "fixture", .domain: "example.com", .path: "/private", .secure: "TRUE"])!
-        let foreign = HTTPCookie(properties: [.name: "sso", .value: "fixture", .domain: "sso.example.net", .path: "/", .secure: "TRUE"])!
-        let expired = HTTPCookie(properties: [.name: "expired", .value: "fixture", .domain: "example.com", .path: "/campus", .expires: Date().addingTimeInterval(-86400)])!
-        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
-        let http = try ReadOnlyHTTP(origin: base, cookies: [valid, wrongPath, foreign, expired], configuration: config)
-        StubURLProtocol.status = 401
-        StubURLProtocol.extraHeaders = ["Set-Cookie": "session=; Path=/campus; Max-Age=0; Secure; HttpOnly"]
-        do { _ = try await http.get(base.appendingPathComponent("resources/portal/grades")); XCTFail() }
-        catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
-        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "session=fixture")
-        let cookies = await http.cookies()
-        XCTAssertFalse(cookies.contains { $0.name == "session" || $0.name == "expired" || $0.name == "sso" })
-        StubURLProtocol.status = 200; StubURLProtocol.extraHeaders = [:]
-        _ = try await http.get(base.appendingPathComponent("resources/portal/grades"))
-        XCTAssertEqual(StubURLProtocol.cookieHeaders.last, "")
-    }
+
     func testBoundedFetchConcurrencyPreservesOrder() async throws {
         let probe = ConcurrencyProbe()
         let values = try await concurrentMap(Array(0..<9), limit: 3) { try await probe.run($0) }
@@ -199,20 +156,7 @@ extension HTTPTests {
         let maximum = await probe.maximum
         XCTAssertEqual(maximum, 3)
     }
-    func testPrivateCookieJarsRetainRotationWithoutLeakingToAnotherSession() async throws {
-        let url = URL(string: "https://example.com/campus/resources/portal/grades")!
-        let configuration = URLSessionConfiguration.ephemeral
-        let cookie = HTTPCookie(properties: [.name:"session", .value:"fixture-old", .domain:"example.com", .path:"/campus", .secure:"TRUE"])!
-        let http = try ReadOnlyHTTP(origin: URL(string:"https://example.com/campus/")!, cookies: [cookie], configuration: configuration)
-        let initial = await http.cookies(); XCTAssertEqual(initial.first?.value, "fixture-old")
-        let other = try client(); let otherCookies = await other.cookies(); XCTAssertTrue(otherCookies.isEmpty)
-        // Failed HTTP responses can still carry a renewed cookie.
-        StubURLProtocol.status = 401; StubURLProtocol.extraHeaders = ["Set-Cookie":"session=fixture-new; Path=/campus; Secure; HttpOnly"]
-        let stubConfiguration = URLSessionConfiguration.ephemeral; stubConfiguration.protocolClasses = [StubURLProtocol.self]
-        let stub = try ReadOnlyHTTP(origin:URL(string:"https://example.com/campus/")!, cookies:[cookie], configuration:stubConfiguration)
-        do { _ = try await stub.get(url); XCTFail() } catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
-        let rotated = await stub.cookies(); XCTAssertEqual(rotated.first?.value, "fixture-new")
-    }
+
     func testMalformedPaginationRetainsSnapshotInsteadOfReturningEmptySuccess() async throws {
         StubURLProtocol.bodies = ["/v1/users/me":"{\"uid\":\"fixture\"}", "/v1/users/fixture/sections?limit=200":"{\"section\":[],\"total\":2}"]
         let c = URLSessionConfiguration.ephemeral; c.protocolClasses = [StubURLProtocol.self]
@@ -224,25 +168,13 @@ extension HTTPTests {
 extension HTTPTests {
     func testNonHTMLBadContentDoesNotClaimExpiredAuthentication() async throws {
         StubURLProtocol.contentType = "text/plain"
-        do { _ = try await client().get(URL(string:"https://example.com/campus/resources/portal/grades")!); XCTFail() }
+        do { _ = try await client().get(URL(string:"https://example.com/v1/users/me")!); XCTFail() }
         catch { XCTAssertEqual(error as? ProviderError, .malformed) }
     }
 }
 
 extension HTTPTests {
-    func testCampusRevisitsSavedPortalOnceThenRetriesRejectedSession() async throws {
-        let path = "/campus/resources/portal/grades"
-        StubURLProtocol.statusSequences[path] = [401, 200]
-        let http = try client()
-        let campus = InfiniteCampusProvider(base: URL(string:"https://example.com/campus/")!, http:http)
-        let rows = try await campus.fetch(resuming: URL(string:"https://example.com/campus/portal/students/fixture.jsp")!)
-        XCTAssertTrue(rows.isEmpty)
-        XCTAssertEqual(StubURLProtocol.requests, [path, "/campus/portal/students/fixture.jsp", path])
-        StubURLProtocol.requests = []; StubURLProtocol.status = 401
-        do { _ = try await campus.fetch(resuming:URL(string:"https://example.com/campus/portal/students/fixture.jsp")!); XCTFail() }
-        catch { XCTAssertEqual(error as? ProviderError, .reconnect) }
-        XCTAssertEqual(StubURLProtocol.requests.count, 2)
-    }
+
     func testSchoologyMissingTitlesUseScopedAssignmentMetadata() async throws {
         let fixtures = URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
         func fixture(_ name: String) throws -> String { try String(contentsOf:fixtures.appendingPathComponent(name + ".json"), encoding:.utf8) }
@@ -411,39 +343,12 @@ extension HTTPTests {
     }
     func testHTTPSDefaultPortAndPathBoundary() async throws {
         let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
-        let http = try ReadOnlyHTTP(origin: URL(string:"https://example.com/campus")!, configuration:config)
-        _ = try await http.get(URL(string:"https://example.com:443/campus/resources/portal/grades")!)
-        for value in ["https://example.com/campus-lookalike/resources", "https://example.com/campus/../private", "https://example.com/campus/%2e%2e/private", "https://example.com/campus/resources#fragment"] {
+        let http = try ReadOnlyHTTP(origin: URL(string:"https://example.com/v1")!, configuration:config)
+        _ = try await http.get(URL(string:"https://example.com:443/v1/users/me")!)
+        for value in ["https://example.com/v1-lookalike/resources", "https://example.com/v1/../private", "https://example.com/v1/%2e%2e/private", "https://example.com/v1/resources#fragment"] {
             do { _ = try await http.get(URL(string:value)!); XCTFail("Unsafe path") }
             catch { XCTAssertEqual(error as? ProviderError, .unsafeURL) }
         }
         XCTAssertEqual(StubURLProtocol.requests.count, 1)
-    }
-}
-
-
-extension HTTPTests {
-    func testCampusTLSFailurePreservesCookiesAndIsNotRetriedAsAuthentication() async throws {
-        let base = URL(string: "https://example.com/campus/")!
-        let config = URLSessionConfiguration.ephemeral; config.protocolClasses = [StubURLProtocol.self]
-        let cookie = HTTPCookie(properties: [.name: "session", .value: "private-fixture", .domain: "example.com", .path: "/campus", .secure: "TRUE"])!
-        let http = try ReadOnlyHTTP(origin: base, cookies: [cookie], configuration: config, diagnosticsEnabled: true)
-        let provider = InfiniteCampusProvider(base: base, http: http)
-        StubURLProtocol.failure = URLError(.secureConnectionFailed, userInfo: [NSLocalizedDescriptionKey: "PRIVATE_URL_AND_TOKEN"])
-        defer { StubURLProtocol.failure = nil }
-        do {
-            _ = try await provider.fetch(resuming: base.appendingPathComponent("portal/students/fixture.jsp"))
-            XCTFail("TLS failure must remain a network error")
-        } catch { XCTAssertEqual((error as? URLError)?.code, .secureConnectionFailed) }
-        let cookies = await http.cookies()
-        XCTAssertEqual(cookies.map(\.value), ["private-fixture"])
-        let records = await http.diagnostics()
-        XCTAssertEqual(records.count, 1, "Do not open the portal or retry auth after TLS fails")
-        XCTAssertEqual(records.first?.networkErrorCode, URLError.secureConnectionFailed.rawValue)
-        XCTAssertEqual(records.first?.route, "grade summary")
-        XCTAssertEqual(records.first?.status, 0)
-        let report = String(decoding: try JSONEncoder().encode(records), as: UTF8.self)
-        XCTAssertFalse(report.contains("PRIVATE_URL_AND_TOKEN")); XCTAssertFalse(report.contains("private-fixture"))
-        XCTAssertFalse(report.contains("example.com"))
     }
 }

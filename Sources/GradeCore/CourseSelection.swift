@@ -1,6 +1,6 @@
 import Foundation
 
-/// Select one current card per physical Campus section. Grading tasks and terms
+/// Select one current card per physical Schoology section. Grading periods
 /// stay separate in the cache/calculator; exam totals never become another class.
 public enum CourseSelection {
     public static func visible(_ courses: [Course], term: String, at now: Date = Date()) -> [Course] {
@@ -15,14 +15,11 @@ public enum CourseSelection {
             let period = GradingPeriods.descriptor(course)
             if let selected, let a = selected.start, let b = selected.end, let c = period.start, let d = period.end, a > d || c > b { return false }
             if course.display.term.name == term { return true }
-            // An unmatched Schoology class can use a dated title for the same
-            // quarter. Different provider labels must not hide that whole class.
-            return period.kind != .other && selected.map { GradingPeriods.matches(period, $0, campusFinal: false, sameName: false) } == true
+            // A Schoology class can use a dated title for the same
+            // quarter. Different period labels must not hide that whole class.
+            return period.kind != .other && selected.map { GradingPeriods.matches(period, $0, sameName: false) } == true
         }
         let groups = Dictionary(grouping: eligible) { course in
-            if let campus = course.sources.first(where: { $0.source.provider == .infiniteCampus }), let section = campus.source.fields["section_id"] {
-                return "campus:\(campus.source.fields["school_id"] ?? "school"):\(section)"
-            }
             return course.sources.compactMap(GradingPeriods.physicalKey).first ?? course.id
         }
         return groups.values.compactMap { group in
@@ -35,9 +32,8 @@ public enum CourseSelection {
     }
     private static func rank(_ course: Course) -> Int {
         let source = course.display
-        let task = Reconciler.normalize(source.source.fields["task_name"] ?? "")
-        let words = Set(task.split(separator:" "))
-        let exam = !words.isDisjoint(with: ["exam", "exams", "final", "midterm"])
+        let kind = GradingPeriods.descriptor(course).kind
+        let exam = kind == .exam || kind == .year || kind == .semester
         let graded = source.assignments.contains { $0.score.isGraded }
         let reported = source.grade.percent != nil || source.grade.letter?.isEmpty == false
         // Prefer an available regular grading task over an exam/final in the

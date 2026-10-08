@@ -1,3 +1,5 @@
+> Scope update (October 8, 2026): the user authorized removing all IC integration if the assignment audit established parity. That condition is met in the captured account; GradeViewer is now Schoology-only. Prior widget/Muse/deployment instructions below remain superseded by later explicit preferences and current AGENTS.md.
+
 # Current scope override — October 8, 2026
 
 The user removed the dedicated What-If calculator button/page and the ± score controls. Course options should instead open an Add Grade popup directly, for name, score, and total points. Existing local edit/drop/reset behavior and extra-credit scores remain; added grades must remain accessible in the normal course views. Use a category choice only when the course's actual weighting requires it. The historical What-If page requirements below are superseded.

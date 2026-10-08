@@ -1,3 +1,5 @@
+> Historical dual-provider report. GradeViewer became Schoology-only on October 8, 2026; IC code/login/refresh are removed. See [the current audit](docs/PROVIDER_PARITY_AUDIT.md) and ARCHITECTURE.md. Earlier device/performance observations below are not validation of the new build. No Muse watcher was implemented or deployed.
+
 > Historical report: the October 1 portability audit subsequently removed the widget and App Group and changed signing/connection hardening. Use README.md, PROJECT_STATUS.md and ARCHITECTURE.md for the current build.
 
 > Historical September 29 report. October 1 behavior and validation in PROJECT_STATUS.md and ARCHITECTURE.md supersede the descriptions below: every foreground entry now waits for fresh data, periods are browsable within a class, and both providers refreshed successfully after the user's normal Campus reconnection.

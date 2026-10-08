@@ -1,7 +1,7 @@
 import Foundation
 
-public enum ProviderID: String, Codable, CaseIterable, Sendable { case schoology, infiniteCampus
-    public var name: String { self == .schoology ? "Schoology" : "Infinite Campus" }
+public enum ProviderID: String, Codable, CaseIterable, Sendable { case schoology
+    public var name: String { "Schoology" }
 }
 public struct Provenance: Codable, Hashable, Sendable {
     public var provider: ProviderID
@@ -48,23 +48,19 @@ public struct Assignment: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceAssignment]
     public init(id: String, sources: [SourceAssignment]) { self.id = id; self.sources = sources }
     public var display: SourceAssignment {
-        var selected = sources.first(where: { $0.source.provider == .infiniteCampus && ($0.score.isGraded || $0.score.excused) }) ?? sources.first(where: { $0.score.isGraded || $0.score.excused }) ?? sources[0]
-        if !selected.hasTitle, let titled = sources.first(where: \.hasTitle) { selected.title = titled.title }
-        selected.updated = sources.filter { $0.score.isGraded }.compactMap(\.updated).max() ?? selected.updated
-        return selected
+        sources[0]
     }
-    public var disagrees: Bool { Set(sources.map(\.score)).count > 1 }
 }
 public struct GradeHistorySnapshot: Codable, Hashable, Identifiable, Sendable {
-    public var id: UUID; public var date: Date; public var grade: OverallGrade; public var provider: ProviderID
-    public init(date: Date, grade: OverallGrade, provider: ProviderID) { id = UUID(); self.date = date; self.grade = grade; self.provider = provider }
+    // Historical origins are archive labels, not active connections.
+    public var id: UUID; public var date: Date; public var grade: OverallGrade; public var provider: String
+    public init(date: Date, grade: OverallGrade, provider: ProviderID) { id = UUID(); self.date = date; self.grade = grade; self.provider = provider.rawValue }
 }
 public struct Course: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceCourse]; public var assignments: [Assignment]; public var history: [GradeHistorySnapshot]; public var hidden: Bool; public var order: Int
-    public var display: SourceCourse { sources.first(where: { $0.source.provider == .infiniteCampus && ($0.grade.percent != nil || $0.grade.letter != nil) }) ?? sources.first(where: { $0.grade.percent != nil || $0.grade.letter != nil }) ?? sources[0] }
+    public var display: SourceCourse { sources[0] }
     public var calculationSource: SourceCourse { display }
     public var name: String { display.source.fields["course_name"] ?? display.title }
-    public var disagrees: Bool { Set(sources.map(\.grade)).count > 1 }
     public init(id: String, sources: [SourceCourse], assignments: [Assignment] = [], history: [GradeHistorySnapshot] = [], hidden: Bool = false, order: Int = 0) { self.id = id; self.sources = sources; self.assignments = assignments; self.history = history; self.hidden = hidden; self.order = order }
 }
 public struct Hypothesis: Codable, Sendable {

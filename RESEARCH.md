@@ -1,4 +1,15 @@
-# Research notes
+# Current provider research — October 8, 2026
+
+Schoology is now GradeViewer's only provider. The read-only captured-account audit found all 77 IC assignment rows, including all 61 graded rows, represented in the five current Schoology classes. Schoology has 68 graded rows. Two Biology title truncations and six unique score/points/update-day matches explain naming differences. The snapshots' available Schoology rules calculate all five current IC totals within 0.15 percentage point, despite omitted Schoology reported totals. See [the short audit](docs/PROVIDER_PARITY_AUDIT.md) for scope and evidence limits.
+
+Current official [user grades](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) documents per-assignment scores/timestamps and period/final totals; [grading categories](https://developers.schoology.com/api-documentation/rest-api-v1/grading-categories/) distinguishes percent and total-points methods, category weights and drop counts. GradeViewer prefers reported totals and calculates supported omitted totals separately. Missing category methods/unsupported scales cannot produce a fallback grade. No provider-write endpoint is implemented.
+
+The original authenticated snapshots were already saved on the student's phone; a requested additional fresh launch did not complete before phone access ended. Development audited those captures locally. No new provider data, future equivalence, independent account verification, post-install speedup, or new physical installation is claimed.
+
+## Historical research before the Schoology-only switch
+
+The following notes describe earlier dual-provider versions. Infinite Campus endpoints/login/session behavior are retained as historical evidence, not current GradeViewer dependencies or setup instructions.
+
 
 ## Untitled duplicate presentation — October 8, 2026
 
