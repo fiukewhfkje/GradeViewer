@@ -1,6 +1,17 @@
 import SwiftUI
 import GradeCore
 
+struct ScoreSignButton: View {
+    @Binding var text: String
+    var body: some View {
+        Button { text = ScoreInput.togglingSign(text) } label: {
+            Text("±").font(.title2).frame(width: 44, height: 44)
+        }.buttonStyle(.borderless).foregroundStyle(.primary)
+            .accessibilityLabel("Toggle negative score")
+            .accessibilityValue(text.hasPrefix("-") ? "Negative" : "Positive")
+    }
+}
+
 struct WhatIfView: View {
     @Environment(AppStore.self) private var store
     let course: Course
@@ -46,17 +57,18 @@ struct ScenarioRow: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text(assignment.title).fixedSize(horizontal: false, vertical: true); Spacer(); Text(pointsText(assignment.score.possible) + " pts").font(.caption).foregroundStyle(.secondary) }
             HStack {
+                ScoreSignButton(text: $input)
                 TextField("Ungraded", text: $input).keyboardType(.decimalPad).textFieldStyle(.roundedBorder).frame(maxWidth: 130).accessibilityLabel("Hypothetical score for \(assignment.title)")
                 Spacer()
                 Toggle("Ignore", isOn: $ignored).fixedSize()
             }
-            if invalid { Text("Enter a score of zero or more.").font(.caption).foregroundStyle(.red) }
+            if invalid { Text("Enter a valid score.").font(.caption).foregroundStyle(.red) }
         }.padding(.vertical, 5).opacity(ignored ? 0.55 : 1)
-            .onAppear { input = score.map(pointsText) ?? "" }
-            .onChange(of: score) { _, value in if !invalid { input = value.map(pointsText) ?? "" } }
+            .onAppear { input = ScoreInput.text(score) }
+            .onChange(of: score) { _, value in if !invalid && ScoreInput.number(input) != value { input = ScoreInput.text(value) } }
             .onChange(of: input) { _, value in
                 if value.isEmpty { invalid = false; score = nil }
-                else if let n = Double(value.replacingOccurrences(of: ",", with: ".")), n.isFinite, n >= 0 { invalid = false; score = n }
+                else if let n = ScoreInput.number(value) { invalid = false; score = n }
                 else { invalid = true }
             }
     }
@@ -68,15 +80,15 @@ struct AddAssignmentView: View {
     @State private var earned = ""
     @State private var possible = "100"
     @State private var category = ""
-    var valid: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && Double(earned).map { $0.isFinite && $0 >= 0 } == true && Double(possible).map { $0.isFinite && $0 > 0 } == true && (course.calculationSource.method == .points || !category.isEmpty) }
+    var valid: Bool { !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && ScoreInput.number(earned) != nil && ScoreInput.number(possible).map { $0 > 0 } == true && (course.calculationSource.method == .points || !category.isEmpty) }
     var body: some View {
         Form {
             TextField("Assignment name", text: $title)
-            HStack { Text("Score"); Spacer(); TextField("Score", text: $earned).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
+            HStack { Text("Score"); Spacer(); ScoreSignButton(text: $earned); TextField("Score", text: $earned).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
             HStack { Text("Points possible"); Spacer(); TextField("Points possible", text: $possible).keyboardType(.decimalPad).multilineTextAlignment(.trailing) }
             if !course.calculationSource.categories.isEmpty { Picker("Category", selection: $category) { ForEach(course.calculationSource.categories.filter { !$0.excluded }) { Text($0.name).tag($0.id) } } }
             Button("Add") {
-                guard valid, let e = Double(earned), let p = Double(possible) else { return }
+                guard valid, let e = ScoreInput.number(earned), let p = ScoreInput.number(possible) else { return }
                 add(SourceAssignment(source: Provenance(course.calculationSource.source.provider, "hypothetical:\(UUID().uuidString)"), title: title, categoryID: category.isEmpty ? nil : category, score: Score(earned: e, possible: p)))
             }.disabled(!valid)
         }.navigationTitle("Add assignment").navigationBarTitleDisplayMode(.inline)
@@ -150,17 +162,20 @@ struct EditScoreView: View {
     let assignment: SourceAssignment
     let save: (Double) -> Void
     @State private var text: String
-    init(assignment: SourceAssignment, value: Double?, save: @escaping (Double) -> Void) { self.assignment = assignment; self.save = save; _text = State(initialValue: value.map(pointsText) ?? "") }
-    var number: Double? { guard let n = Double(text.replacingOccurrences(of: ",", with: ".")), n.isFinite, n >= 0 else { return nil }; return n }
+    init(assignment: SourceAssignment, value: Double?, save: @escaping (Double) -> Void) { self.assignment = assignment; self.save = save; _text = State(initialValue: ScoreInput.text(value)) }
+    var number: Double? { ScoreInput.number(text) }
     @FocusState private var focused: Bool
     var body: some View {
         VStack(spacing: 26) {
             Text("Edit Assignment Grade").font(.title2.bold())
             HStack(spacing: 12) {
-                TextField("Score", text: $text).keyboardType(.decimalPad).focused($focused).font(.largeTitle.weight(.semibold)).multilineTextAlignment(.center).frame(width: 90, height: 64).background(Palette.row, in: RoundedRectangle(cornerRadius: 16)).accessibilityIdentifier("edit-score-field")
+                ScoreSignButton(text: $text)
+                TextField("Score", text: $text).keyboardType(.decimalPad).focused($focused).font(.largeTitle.weight(.semibold)).multilineTextAlignment(.center).frame(width: 120, height: 64).background(Palette.row, in: RoundedRectangle(cornerRadius: 16)).accessibilityIdentifier("edit-score-field")
                 Text("/ " + pointsText(assignment.score.possible)).font(.largeTitle.weight(.medium))
             }
-            Button("Save") { if let number { save(number) } }.font(.headline).foregroundStyle(Palette.background).frame(maxWidth: .infinity).padding(.vertical, 18).background(Color.primary, in: RoundedRectangle(cornerRadius: 16)).disabled(number == nil).accessibilityIdentifier("save-score")
+            Button { if let number { save(number) } } label: {
+                Text("Save").font(.headline).foregroundStyle(Palette.background).frame(maxWidth: .infinity).padding(.vertical, 18).background(Color(uiColor: .label), in: RoundedRectangle(cornerRadius: 16))
+            }.buttonStyle(.plain).disabled(number == nil).opacity(number == nil ? 0.35 : 1).accessibilityIdentifier("save-score")
         }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity).background(Palette.background).onAppear { focused = true }
     }
 }

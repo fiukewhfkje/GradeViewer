@@ -88,6 +88,42 @@ final class GradeCoreTests: XCTestCase {
         h.added = [assignment(id: "new", earned: 0, category: "practice")]; XCTAssertEqual(try GradeCalculator.percent(course: c, hypothesis: h), 50)
         XCTAssertEqual(c.assignments[0].score.earned, 80)
     }
+    func testSignedAndExtraCreditScoresCalculateWithoutClamping() throws {
+        var c = source(); c.grade.percent = 86
+        let id = c.assignments[0].id
+        for (earned, expected) in [(-20.0, 16.0), (150.0, 135.0)] {
+            var h = Hypothesis(); h.scores[id] = earned
+            XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: c, hypothesis: h), expected, accuracy: 0.000001)
+            c.categories[0].method = .percent
+            XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: c, hypothesis: h), expected, accuracy: 0.000001)
+            XCTAssertEqual(c.assignments[0].score.earned, 80)
+        }
+        c.method = .points; c.grade.percent = 90
+        var h = Hypothesis(); h.added = [assignment(id: "new", earned: -30)]
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: c, hypothesis: h), 50, accuracy: 0.000001)
+        h.added = []; h.scores[id] = -250
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: c, hypothesis: h), -75, accuracy: 0.000001)
+        h.scores[id] = 150
+        XCTAssertEqual(try GradeCalculator.hypotheticalPercent(course: c, hypothesis: h), 125, accuracy: 0.000001)
+        c.assignments[0].score.possible = -100
+        XCTAssertThrowsError(try GradeCalculator.percent(course: c))
+    }
+    func testScoreInputRoundTripsSignedDecimalsWithoutGroupingOrRounding() {
+        for value in [1234.56789, -12.5, 105.0, 0.0, 0.000123456789] {
+            XCTAssertEqual(ScoreInput.number(ScoreInput.text(value)), value)
+            XCTAssertFalse(ScoreInput.text(value).contains(","))
+        }
+        XCTAssertEqual(ScoreInput.number("  −12,5\n"), -12.5)
+        XCTAssertEqual(ScoreInput.number("150.25"), 150.25)
+        for invalid in ["", "-", ".", "-.", "NaN", "inf", "1e999", "1,234.5", "abc"] {
+            XCTAssertNil(ScoreInput.number(invalid))
+        }
+        XCTAssertEqual(ScoreInput.text(nil), "")
+        XCTAssertEqual(ScoreInput.text(.infinity), "")
+        for (text, expected) in [("", "-"), ("-", ""), ("12.50", "-12.50"), ("-12.50", "12.50"), ("−0,5", "0,5"), ("+105", "-105")] {
+            XCTAssertEqual(ScoreInput.togglingSign(text), expected)
+        }
+    }
     func testInvalidUnknownMissingAndExcludedCategories() throws {
         var c = source(); c.method = .unknown; XCTAssertThrowsError(try GradeCalculator.percent(course: c))
         c.method = .weightedCategories; c.categories[0].weight = nil; XCTAssertThrowsError(try GradeCalculator.percent(course: c))

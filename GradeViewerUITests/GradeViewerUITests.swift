@@ -1,5 +1,10 @@
 import XCTest
 final class GradeViewerUITests: XCTestCase {
+    @MainActor private func replaceScore(_ field: XCUIElement, with text: String, in app: XCUIApplication) {
+        field.tap(); field.press(forDuration: 1)
+        if app.menuItems["Select All"].exists { app.menuItems["Select All"].tap() }
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 20) + text)
+    }
     @MainActor func testCourseNavigationAndAppearance() throws {
         let app = XCUIApplication(); app.launchArguments = ["--demo"]; app.launch()
         XCTAssertTrue(app.buttons["course-0"].waitForExistence(timeout: 10)); app.buttons["course-0"].tap()
@@ -17,6 +22,69 @@ final class GradeViewerUITests: XCTestCase {
         let field = app.textFields["edit-score-field"]; field.tap(); field.press(forDuration: 1); if app.menuItems["Select All"].exists { app.menuItems["Select All"].tap() }
         field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 8) + "100")
         app.buttons["save-score"].tap(); XCTAssertTrue(app.descendants(matching: .any)["course-grade-value"].waitForExistence(timeout: 5) && app.descendants(matching: .any)["course-grade-value"].label == "What-If grade")
+    }
+    @MainActor func testRecentAndAllAssignmentsShareSignedScoreEdits() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--period-fixture", "--screen=detail"]; app.launch()
+        let options = app.buttons["Options for First quarter lab"]
+        XCTAssertTrue(options.waitForExistence(timeout: 10))
+        options.tap(); app.buttons["Edit Grade"].tap()
+        let field = app.textFields["edit-score-field"]
+        let save = app.buttons["save-score"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); XCTAssertTrue(save.isEnabled)
+        replaceScore(field, with: "", in: app)
+        XCTAssertFalse(save.isEnabled)
+        app.buttons["Toggle negative score"].tap()
+        XCTAssertEqual(field.value as? String, "-"); XCTAssertFalse(save.isEnabled)
+        field.typeText("12.5")
+        XCTAssertEqual(field.value as? String, "-12.5"); XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable)
+        let negative = XCTAttachment(screenshot: app.screenshot()); negative.name = "recent-negative-score"; negative.lifetime = .keepAlways; add(negative)
+        save.tap()
+        XCTAssertTrue(app.staticTexts["-12.5/100"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["59.38%"].exists)
+
+        let all = app.buttons["view-all-assignments"]
+        if !all.isHittable { app.swipeUp() }; all.tap()
+        let category = app.buttons["Total Points"]
+        XCTAssertTrue(category.waitForExistence(timeout: 5)); category.tap()
+        XCTAssertTrue(app.staticTexts["-12.5/100"].exists)
+        if !options.isHittable { app.swipeUp() }
+        options.tap(); app.buttons["Edit Grade"].tap()
+        XCTAssertTrue(field.waitForExistence(timeout: 5)); XCTAssertEqual(field.value as? String, "-12.5")
+        app.buttons["Toggle negative score"].tap()
+        XCTAssertEqual(field.value as? String, "12.5")
+        replaceScore(field, with: "150", in: app)
+        XCTAssertTrue(save.isEnabled); XCTAssertTrue(save.isHittable); save.tap()
+        XCTAssertTrue(app.staticTexts["150/100"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["100%"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["150/100"].waitForExistence(timeout: 5))
+    }
+    @MainActor func testWhatIfAndAddedAssignmentUseSignedDecimalScores() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--period-fixture", "--screen=whatif"]; app.launch()
+        let score = app.textFields["Hypothetical score for First quarter lab"]
+        XCTAssertTrue(score.waitForExistence(timeout: 10))
+        replaceScore(score, with: "12.5", in: app)
+        app.cells.containing(.textField, identifier: "Hypothetical score for First quarter lab").firstMatch.buttons["Toggle negative score"].tap()
+        XCTAssertEqual(score.value as? String, "-12.5")
+        app.collectionViews.firstMatch.swipeDown()
+        XCTAssertTrue(app.staticTexts["What-If, 38.75%"].waitForExistence(timeout: 5))
+        let addButton = app.buttons["Add assignment"]
+        if !addButton.isHittable { app.swipeUp() }; addButton.tap()
+        let name = app.textFields["Assignment name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("Penalty")
+        let earned = app.textFields["Score"]
+        earned.tap(); earned.typeText("25.5")
+        app.cells.containing(.textField, identifier: "Score").firstMatch.buttons["Toggle negative score"].tap()
+        XCTAssertEqual(earned.value as? String, "-25.5")
+        XCTAssertTrue(app.buttons["Add"].isEnabled)
+        let attachment = XCTAttachment(screenshot: app.screenshot()); attachment.name = "added-negative-score"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["Add"].tap()
+        let added = app.textFields["Hypothetical score for Penalty"]
+        XCTAssertTrue(added.waitForExistence(timeout: 5)); XCTAssertEqual(added.value as? String, "-25.5")
+        app.collectionViews.firstMatch.swipeDown()
+        XCTAssertTrue(app.staticTexts["What-If, 17.33%"].waitForExistence(timeout: 5))
     }
     @MainActor func testEmptyAndPartialFailureKeepUIUsable() throws {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--empty"]; app.launch(); XCTAssertTrue(app.staticTexts["No grades yet"].waitForExistence(timeout: 10)); app.terminate()

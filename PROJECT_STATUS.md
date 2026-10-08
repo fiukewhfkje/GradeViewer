@@ -1,6 +1,13 @@
-# Project status — October 2, 2026
+# Project status — October 8, 2026
 
 GradeViewer is a native local iPhone app. The GitHub remote is private; friends need repository access and their own Apple/school accounts. No server, Muse watcher, App Store release, or TestFlight deployment exists. Use `git log -1` for the delivered revision.
+
+## October 8 grade editing follow-up
+
+- Reproduced two editor/calculation failures with synthetic regressions: presentation formatting made an editable 1234.56789 score unparsable/rounded, and negative scores were rejected by both the editor and calculator. The previous standard positive-score Recent/All Assignments UI cases passed; no student data was inspected to attribute the reported failure to a particular score.
+- Editable scores now use canonical ungrouped, unrounded ScoreInput values. Recent and All Assignments share saved local edits; What-If and Add Assignment use the same signed-decimal parser. A ± button preserves the decimal keypad, a wider field fits signed decimals, and enabled Save has explicit contrast instead of appearing disabled. Negative scores and scores above points possible calculate without a 0–100 clamp; incomplete/nonfinite input cannot be saved, and points-possible/rule checks remain intact. Real grades/history and provider read-only behavior are preserved.
+- **115 GradeCore tests**, **41 hosted app tests**, and **four focused UI cases across final runs** passed on the small iPhone 13 mini simulator. Regressions verify initial input precision, invalid/valid Save states, ± toggling, Recent/All Assignments shared edits and semester results, signed What-If/added assignments, persistence, and unchanged actual grades/history. Synthetic editor/add-assignment screenshots were inspected. Early new UI checks needed correct text selection and the native combined What-If accessibility label; the final assertions passed.
+- The user requested commit/PR/merge but explicitly deferred deployment. No device installation, signed device build or authenticated provider verification was performed in this session; the phone retains its previous build until the user installs later. Resume physical installation only when requested.
 
 ## October 2 Campus connection/recovery follow-up
 
