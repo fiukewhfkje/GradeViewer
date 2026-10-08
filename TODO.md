@@ -2,6 +2,8 @@
 
 ## Completed
 
+- [x] Fix editable score formatting and signed-score calculation; retain the decimal keypad with a ± control, clarify enabled Save styling and share valid score edits across Recent, All Assignments, What-If and Add Assignment. Validate 115 core/41 hosted/four focused UI cases and inspect small-phone screenshots; physical installation is deferred by the user.
+
 - [x] Reproduce the October 2 Campus TLS stall, distinguish it from expired authentication, and verify that existing saved cookies still refresh and normal SAML renews without a login prompt. Repair silent browser errors/redraw loads, retain failed-renewal cookie rotations, add direct connection retry and bound Campus network/browser waits. Validate 113 core/39 hosted/two focused UI cases, install over the original app, verify the final 0.991-second live refresh and merge PR #2 (`920c274`); clean up the feature branch and leave only the original `main` checkout.
 
 - [x] October 2 repository follow-up: verify all 101 GradeCore tests from a fresh GitHub clone and record the limited review scope without claiming new hosted/UI/device/provider validation.
@@ -29,6 +31,8 @@
 - [x] Clean up the merged feature branch locally/remotely and its chat attachment; retain the original `main` checkout, validation evidence and prepared device build.
 
 ## Evidence-driven follow-up
+
+- [ ] Install the October 8 grade-editing update only when the user requests it. Deployment is intentionally paused; retain the original app/signing identity when updating later.
 
 - [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. Nine rows remained neutral during the October 2 rate-limited recovery run; do not infer that all are inaccessible. Keep honoring provider cooldowns and preserving scores.
 - [ ] Observe natural Campus/IdP expiry. Short-term renewal is verified; required credentials/MFA cannot be bypassed. Do not invent a TTL.

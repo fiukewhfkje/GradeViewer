@@ -22,6 +22,29 @@ import WebKit
         try repository.saveScenario(h, id: courses[0].id); let restored = try repository.scenario(courses[0].id)
         XCTAssertEqual(restored.scores[id], 100); XCTAssertTrue(restored.ignored.contains(id)); XCTAssertEqual(try repository.load()[0].display.grade.percent, 95.8)
     }
+    func testGradeEditorStartsWithValidUnroundedLargeScore() throws {
+        let assignment = Demo.courses()[0].calculationSource.assignments[0]
+        for value in [1234.56789, -12.5, 105.0, 0.0] {
+            let editor = EditScoreView(assignment: assignment, value: value, save: { _ in })
+            XCTAssertEqual(editor.number, value, "Editable scores must round trip without display grouping or rounding.")
+        }
+    }
+    func testSignedScenarioPersistsAndLeavesActualGradesIntact() throws {
+        let repository = try GradeRepository(memory: true)
+        let course = Demo.courses()[0]; try repository.save([course])
+        let store = AppStore(repository: repository, demo: false, readCredentials: false)
+        let id = course.calculationSource.assignments[0].id
+        for earned in [-12.5, 105.0] {
+            var h = Hypothesis(); h.scores[id] = earned
+            store.saveScenario(h, course: course)
+            let restored = AppStore(repository: repository, demo: false, readCredentials: false)
+            XCTAssertEqual(restored.scenario(course).scores[id], earned)
+            XCTAssertNotNil(try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: restored.scenario(course)))
+            XCTAssertEqual(restored.courses[0].display.grade, course.display.grade)
+            XCTAssertEqual(restored.courses[0].history, course.history)
+            XCTAssertEqual(restored.courses[0].calculationSource.assignments, course.calculationSource.assignments)
+        }
+    }
     func testCampusPortalValidationAndCookieScope() throws {
         let portal = URL(string: "https://district.example.org/campus/portal/students/district.jsp")!
         let valid = HTTPCookie(properties: [.name:"session",.value:"fixture",.domain:"district.example.org",.path:"/campus",.secure:"TRUE"])!
