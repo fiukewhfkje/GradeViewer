@@ -6,6 +6,7 @@
 - [x] Restore pre-migration defaults for student-hidden category methods/drops; fix null/blank/custom-scale overall handling without rewriting editing behavior. Remove Calculated labels as requested.
 - [x] Build the graph across available assignment periods and verify earlier-data retrieval through the actual first-connection network path with zero previous sources. Keep reconstruction separate from observed history and document unavailable score revisions.
 - [x] Pass 89 core/24 hosted tests and six focused UI flows, rerun final labels/editing/midyear cases, inspect screenshots, and pass signed device/Release simulator builds. Install build 7 and launch normally.
+- [x] Verify a clean local clone's 89 core tests and neutral-signing Release build; push the validated follow-up through [PR #6](https://github.com/fiukewhfkje/GradeViewer/pull/6) under the existing merge authorization.
 
 ## October 8 initial Schoology-only delivery (historical)
 
