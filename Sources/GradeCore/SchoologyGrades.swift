@@ -4,7 +4,8 @@ public extension SourceCourse {
     var hasCalculatedGrade: Bool { source.fields["grade_basis"] == "calculated" }
 }
 
-/// Reported totals win. Omitted totals use only complete supported rules.
+/// Reported interpretable totals win. Assignment calculations do not require
+/// interpreting an unrelated overall letter/rubric scale.
 /// Provenance/UI distinguish the result from an observed provider grade.
 public enum SchoologyGrades {
     public static func resolved(_ input: [SourceCourse]) -> [SourceCourse] {
@@ -12,14 +13,13 @@ public enum SchoologyGrades {
             var source = supplied
             if source.hasCalculatedGrade { source.grade.percent = nil; source.source.fields["grade_basis"] = nil }
             if source.grade.percent == nil, source.grade.letter == nil,
-               source.source.fields["unsupported_overall_scale"] != "true",
                let value = try? GradeCalculator.percent(course: source), value.isFinite {
                 source.grade.percent = value; source.source.fields["grade_basis"] = "calculated"
             }
             return source
         }
         let courses = sources.map { Course(id: $0.id, sources: [$0]) }
-        for index in sources.indices where sources[index].grade.percent == nil && sources[index].grade.letter == nil && sources[index].source.fields["unsupported_overall_scale"] != "true" {
+        for index in sources.indices where sources[index].grade.percent == nil && sources[index].grade.letter == nil {
             guard GradingPeriods.descriptor(sources[index]).kind == .semester else { continue }
             let children = GradingPeriods.related(to: courses[index], among: courses).filter { child in
                 let kind = GradingPeriods.descriptor(child).kind

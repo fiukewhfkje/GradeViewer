@@ -110,7 +110,7 @@ public enum ProviderParsing {
         let categoryRows = try collection(categoryPayload["grading_category"])
         guard categoryRows.allSatisfy({ nonempty($0["id"]) != nil && nonempty($0["title"]) != nil }) else { throw ProviderError.malformed }
         guard categoryRows.allSatisfy({ row in
-            guard let value = row["drop_lowest"] else { return true }
+            guard let value = row["drop_lowest"], !(value is NSNull) else { return true }
             guard let count = number(value), count >= 0, Int(exactly: count) != nil else { return false }
             return true
         }) else { throw ProviderError.malformed }
@@ -124,7 +124,13 @@ public enum ProviderParsing {
             return SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):catalog:\(kind):\(id)", fields: raw(item, ["id", "grade_item_id", "type", "grading_period"])), title: nonempty(item["title"]) ?? "Untitled assignment", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"]))
         }
         let options = section["options"] as? [String: Any]
-        let knownCategoryRules = categoryRows.allSatisfy { [1.0, 2.0].contains(number($0["calculation_type"]) ?? -1) }
+        // Schoology hides methods/drop counts from student accounts. Preserve
+        // the existing points/no-drops defaults when those fields are omitted.
+        // An explicitly unsupported method still cannot be calculated.
+        let knownCategoryRules = categoryRows.allSatisfy { row in
+            row["calculation_type"] == nil || row["calculation_type"] is NSNull || [1.0, 2.0].contains(number(row["calculation_type"]) ?? -1)
+        }
+        let inferredRules = categoryRows.contains { number($0["calculation_type"]) == nil || number($0["drop_lowest"]) == nil }
         let method: CourseMethod = options?["weighted_grading_categories"] == nil || !knownCategoryRules ? .unknown : flag(options?["weighted_grading_categories"]) ? .weightedCategories : .equalCategories
         var periodRows = try collection(g["period"])
         let finals = g["final_grade"].map(rows) ?? []
@@ -145,7 +151,7 @@ public enum ProviderParsing {
             let metadata = byPeriod[periodID.hasPrefix("p") ? String(periodID.dropFirst()) : periodID] ?? [:]
             let periodName = nonempty(period["period_title"]) ?? nonempty(metadata["title"]) ?? periodID
             let dates = GradingPeriods.titleDates(periodName)
-            let gradeText = text(final?["grade"])
+            let gradeText = nonempty(final?["grade"])
             let grade = OverallGrade(percent: number(final?["scale_id"]) == 0 ? number(final?["grade"]) : nil, letter: gradeText.flatMap { Double($0) == nil ? $0 : nil })
             let rawGrades = try collection((period["assignment"] as? [String: Any])?["grade"] ?? period["assignment"])
             guard rawGrades.allSatisfy({ nonempty($0["assignment_id"]) != nil }) else { throw ProviderError.malformed }
@@ -163,7 +169,8 @@ public enum ProviderParsing {
                 assignments.append(SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(text(item["type"]) ?? "assignment"):\(id)"), title: nonempty(item["title"]) ?? "Untitled assignment", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"])))
             }
             var fields = ["section_id":sectionID, "grade_section_id":gradeOwner, "period_id":periodID, "course_name":text(section["course_title"]) ?? text(section["section_title"]) ?? "Course"]
-            if final?["grade"] != nil, number(final?["scale_id"]) != 0 { fields["unsupported_overall_scale"] = "true" }
+            if nonempty(final?["grade"]) != nil, number(final?["scale_id"]) != 0 { fields["unsupported_overall_scale"] = "true" }
+            if inferredRules { fields["grade_rules_inferred"] = "true" }
             if let metadataID = nonempty(metadata["id"]) {
                 fields["period_metadata_id"] = metadataID
                 fields["period_metadata_fetched"] = String((periodsFetched ?? fetched).timeIntervalSince1970)

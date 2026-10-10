@@ -136,7 +136,7 @@ struct CourseGradeSummary: View {
         let showScenario = changed && reliable && scale != nil && (simulated == nil || abs((simulated ?? 0) - (original ?? 0)) >= 0.005)
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 7) {
-                Text(gradeCourse.display.hasCalculatedGrade ? "Calculated Grade" : "Course Grade").font(.title3.bold())
+                Text("Course Grade").font(.title3.bold())
                 if let overall { Text(GradingPeriods.descriptor(overall).label + " overall").font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 UpdatedLabel(date: store.updated(course))
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -145,7 +145,7 @@ struct CourseGradeSummary: View {
                     Text(percentText(simulated)).font(.title2.bold()).foregroundStyle(.blue).monospacedDigit()
                     if let simulated, let original { Text(String(format: "%+.2f%%", simulated - original)).font(.subheadline.bold()).foregroundStyle(.white).padding(.horizontal, 5).padding(.vertical, 2).background(Palette.grade, in: RoundedRectangle(cornerRadius: 4)) }
                 } else { GradeLabel(grade: gradeCourse.display.grade, large: true) }
-            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : (gradeCourse.display.hasCalculatedGrade ? "Calculated grade" : "Course grade")).accessibilityValue(showScenario ? percentText(simulated) : percentText(gradeCourse.display.grade.percent))
+            }.accessibilityElement(children: .combine).accessibilityIdentifier("course-grade-value").accessibilityLabel(showScenario ? "What-If grade" : "Course grade").accessibilityValue(showScenario ? percentText(simulated) : percentText(gradeCourse.display.grade.percent))
             Menu {
                 Button("View All Assignments", systemImage: "list.bullet") { destination = .assignments }
                 Button("Add Grade", systemImage: "plus") { adding = true }.disabled(!reliable)

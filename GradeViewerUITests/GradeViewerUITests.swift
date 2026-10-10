@@ -1,5 +1,19 @@
 import XCTest
 final class GradeViewerUITests: XCTestCase {
+    @MainActor func testMidyearFreshInstallShowsEarlierSchoologyProgression() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--demo", "--period-fixture", "--midyear-history-fixture", "--screen=detail", "--record-chart-touch"]
+        app.launch()
+        let chart = app.otherElements["grade-chart"]
+        XCTAssertTrue(chart.waitForExistence(timeout:10))
+        let reconstructed = NSPredicate(format:"value == %@", "5 grades, latest 80%")
+        expectation(for:reconstructed, evaluatedWith:chart)
+        waitForExpectations(timeout:10)
+        chart.coordinate(withNormalizedOffset:CGVector(dx:0,dy:0.5)).press(forDuration:0.4)
+        XCTAssertEqual(chart.value as? String, "Released; last touch 90%")
+        let attachment = XCTAttachment(screenshot:app.screenshot())
+        attachment.name = "midyear-schoology-progression"; attachment.lifetime = .keepAlways; add(attachment)
+    }
     @MainActor func testSchoologyOnlySettingsAndConnectedAccountActions() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--screen=settings"]; app.launch()
         XCTAssertTrue(app.buttons["Schoology, Connect"].waitForExistence(timeout: 10))
@@ -15,11 +29,13 @@ final class GradeViewerUITests: XCTestCase {
         app.buttons["Disconnect"].tap(); app.buttons["Disconnect and remove its saved grades"].tap()
         XCTAssertEqual(app.descendants(matching: .any)["connection-status"].value as? String, "Connected", "Demo never deletes a real connection")
     }
-    @MainActor func testCalculatedSchoologyGradeIsLabeledAndEditable() {
+    @MainActor func testSchoologyAssignmentTotalKeepsNormalLabelAndEditing() {
         let app = XCUIApplication(); app.launchArguments = ["--demo", "--calculated-fixture", "--screen=detail"]; app.launch()
-        XCTAssertTrue(app.staticTexts["Calculated Grade"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Course Grade"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Calculated Grade"].exists)
+        XCTAssertFalse(app.staticTexts["Estimated Grade"].exists)
         let grade = app.descendants(matching: .any)["course-grade-value"]
-        XCTAssertEqual(grade.label, "Calculated grade")
+        XCTAssertEqual(grade.label, "Course grade")
         let options = app.buttons["Options for 2-D Kinematics Quiz"]
         XCTAssertTrue(options.isEnabled); options.tap(); app.buttons["Edit Grade"].tap()
         let field = app.textFields["edit-score-field"]; XCTAssertTrue(field.waitForExistence(timeout: 5))

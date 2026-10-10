@@ -306,7 +306,7 @@ public struct SchoologyProvider: Sendable {
                 source.source.fields["grade_snapshot_hash"] = batch.fingerprint
                 source.source.fields["section_metadata_fetched"] = stamp
                 source.source.fields["section_metadata_course_count"] = String(courses.count)
-                source.source.fields["section_metadata_version"] = "3"
+                source.source.fields["section_metadata_version"] = "4"
                 return source
             }
         }
@@ -331,7 +331,7 @@ public struct SchoologyProvider: Sendable {
         let now = Date().timeIntervalSince1970
         guard !cached.isEmpty, cached.allSatisfy({ source in
             let fields = source.source.fields
-            guard fields["section_metadata_version"] == "3", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
+            guard fields["section_metadata_version"] == "4", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
                   fields["section_metadata_course_count"] == String(cached.count),
                   let stamp = fields["section_metadata_fetched"].flatMap(Double.init), stamp <= now, now - stamp < 300 else { return false }
             if let periodStamp = fields["period_metadata_fetched"].flatMap(Double.init), periodStamp > now || now - periodStamp >= 3600 { return false }

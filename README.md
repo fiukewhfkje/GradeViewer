@@ -28,7 +28,9 @@ Grades refresh on launch, real background return, pull-to-refresh, and once a mi
 
 Unchanged complete grade reads may reuse title/category metadata for five minutes. Changed grades and manual refresh renew it immediately. Optional title throttles preserve fresh scores and the provider's cooldown. Missing metadata leaves an untitled row; different assignments are never deduplicated by name.
 
-Reported Schoology totals take priority. When a complete snapshot omits an overall, supported category rules produce a **Calculated** total and local calculator basis. Unknown rules/scales leave it unavailable. Calculated chart points remain separate from observed history; no dates or grades are invented.
+Reported Schoology totals take priority. When an interpretable overall is unavailable, assignment calculations use the normal Course Grade label and existing editing behavior. Student accounts cannot see category methods/drop counts; omitted fields retain the original points/zero-drops defaults with available category weights. Explicit unsupported category rules or incomplete scores leave the calculation unavailable. A custom-scale overall is not interpreted as a percentage, but numeric assignment points can calculate independently.
+
+The graph includes available earlier grading periods even on a first connection halfway through the year. It reconstructs progression from Schoology scores and actual update/due dates, combined with preserved local history. Each period keeps its own rules. Calculations remain separate from observed provider history; missing dates and overwritten past scores cannot be recovered.
 
 [The assignment audit](docs/PROVIDER_PARITY_AUDIT.md) found every IC assignment represented in Schoology for the original student's five current classes. IC is removed from login, settings, networking, refresh and matching. Existing installations migrate compatible history/local edits and clear retired connections on their next update; keep your same team/bundle ID and install over the existing app. This account's snapshot agreement does not guarantee future or district-wide parity.
 

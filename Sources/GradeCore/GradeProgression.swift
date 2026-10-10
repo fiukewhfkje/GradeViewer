@@ -15,15 +15,31 @@ public struct GradeProgressionPoint: Identifiable, Sendable {
     }
 }
 public enum GradeProgression {
-    public static func calculated(_ source: SourceCourse, before cutoff: Date) -> [GradeProgressionPoint] {
+    /// Reconstruct the section's available year from its actual assignment periods.
+    /// Each period retains its own calculation rules; semester rollups and exams
+    /// are not counted again when quarter assignment periods are available.
+    public static func points(for course: Course, among available: [Course]) -> [GradeProgressionPoint] {
+        let assignmentPeriods = GradingPeriods.assignmentPeriods(for: course, among: available)
+        let periods = assignmentPeriods.isEmpty ? [course] : assignmentPeriods
+        let populated = periods.filter { $0.calculationSource.assignments.contains { $0.score.isGraded } || !$0.history.isEmpty }
+        guard let latest = populated.last else { return [] }
+        return populated.flatMap { period in
+            let source = period.calculationSource, end = GradingPeriods.descriptor(period).end
+            // A fetch today of a completed quarter is not a new year-end grade
+            // event. Keep its dated assignments and observations made in-period.
+            let history = period.history.filter { snapshot in period.id == latest.id || end.map { $0 >= snapshot.date } == true }
+            return calculated(source, before: source.fetched, includeCurrent: period.id == latest.id) + history.map(GradeProgressionPoint.init)
+        }
+    }
+    public static func calculated(_ source: SourceCourse, before cutoff: Date, includeCurrent: Bool = true) -> [GradeProgressionPoint] {
         guard GradeCalculator.isReliable(source) else { return [] }
         guard let reported = source.grade.percent, let baseline = try? GradeCalculator.percent(course: source) else { return [] }
         // A calculated current total uses the real snapshot fetch time. It can
         // follow older imported observations without rewriting those observations.
-        let current = source.hasCalculatedGrade && source.fetched <= cutoff
+        let current = includeCurrent && source.hasCalculatedGrade && source.fetched <= cutoff
             ? [GradeProgressionPoint(id: "snapshot:" + source.id, date: source.fetched, percent: reported, usesDueDate: false)] : []
         let scored = source.assignments.filter { $0.score.earned != nil }
-        guard scored.count > 1, scored.allSatisfy({ ($0.updated ?? $0.due).map { $0 <= source.fetched } == true }) else { return current }
+        guard !scored.isEmpty, scored.allSatisfy({ ($0.updated ?? $0.due).map { $0 <= source.fetched } == true }) else { return current }
         // A batch edit can give several distinct scores the same timestamp. Keep
         // every contribution; due date and identity provide stable ties, not new dates.
         let ordered = scored.sorted {

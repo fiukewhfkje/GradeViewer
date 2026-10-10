@@ -151,7 +151,6 @@ struct CourseListView: View {
                         HStack(spacing: 14) {
                             VStack(alignment: .leading, spacing: 7) {
                                 Text(course.name).font(.title3.bold()).foregroundStyle(.primary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
-                                if course.display.hasCalculatedGrade { Text("Calculated").font(.caption).foregroundStyle(.secondary) }
                                 UpdatedLabel(date: store.updated(course))
                             }.frame(maxWidth: .infinity, alignment: .leading)
                             GradeLabel(grade: course.display.grade)
@@ -177,8 +176,8 @@ struct CourseDetailView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     CourseGradeSummary(course: course, overall: semester)
                     VStack(alignment: .leading, spacing: 17) {
-                        Text(GradingPeriods.descriptor(selected).kind == .quarter ? GradingPeriods.descriptor(selected).label + " Grade Progression" : "Grade Progression").font(.title3.bold())
-                        GradeProgressionView(course: selected).zIndex(1)
+                        Text("Grade Progression").font(.title3.bold())
+                        GradeProgressionView(course: selected, periods: GradingPeriods.related(to: selected, among: store.courses)).zIndex(1)
                     }.zIndex(1)
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Recently Graded Assignments").font(.title3.bold()).padding(.bottom, 7)
@@ -220,13 +219,14 @@ struct AssignmentPeriodPills: View {
 }
 struct GradeProgressionView: View {
     let course: Course
-    @State private var calculated: [GradeProgressionPoint] = []
+    let periods: [Course]
+    @State private var points: [GradeProgressionPoint] = []
     var body: some View {
-        GradeChart(history: course.history, calculated: calculated)
-            .task(id: course.calculationSource.fetched) {
-                let source = course.calculationSource, first = course.calculationSource.fetched
-                let points = await Task.detached(priority: .userInitiated) { GradeProgression.calculated(source, before: first) }.value
-                if !Task.isCancelled { calculated = points }
+        GradeChart(history: [], calculated: points)
+            .task(id: periods.map { $0.calculationSource.fetched }) {
+                let course = course, periods = periods
+                let generated = await Task.detached(priority: .userInitiated) { GradeProgression.points(for: course, among: periods) }.value
+                if !Task.isCancelled { points = generated }
             }
     }
 }
