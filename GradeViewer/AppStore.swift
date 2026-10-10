@@ -89,6 +89,15 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             if arguments.contains("--error") { errors[.schoology] = "Schoology could not refresh." }
             if demo && arguments.contains("--period-fixture") {
                 courses = Reconciler.reconcile(Demo.periodSources(includeExam:arguments.contains("--exam-fixture")))
+                if arguments.contains("--midyear-history-fixture") {
+                    let sources = courses.map { course in
+                        var source = course.display
+                        source.fetched = ISO8601DateFormatter().date(from:"2027-01-03T00:00:00Z")!
+                        source.grade = OverallGrade()
+                        return source
+                    }
+                    courses = Reconciler.reconcile(sources)
+                }
                 for i in courses.indices { courses[i].order = GradingPeriods.descriptor(courses[i]).label == "Q1" ? 0 : i + 1 }
                 courses.sort { $0.order < $1.order }
             }
@@ -165,6 +174,8 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         let rows: [[String: Any]] = visibleCourses.map { course in
             let source = course.calculationSource
             let generated = GradeProgression.calculated(source, before: source.fetched)
+            let progression = GradeProgression.points(for: course, among: courses)
+            let curve = GradeCurve(points: progression)
             let overview = AssignmentGrouping.overview(for:course)
             let dates = overview.compactMap { $0.display.updated }
             return ["method": source.method.rawValue, "provider": source.source.provider.rawValue,
@@ -181,8 +192,11 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                     "latestCalculatedMatchesReported": generated.last?.grade.percent.map { abs($0 - (source.grade.percent ?? $0)) < 0.000000001 } ?? true,
                     "assignments": source.assignments.count, "reliableBaseline": GradeCalculator.isReliable(source),
                     "calculatedPoints": generated.count, "observedPoints": course.history.count,
+                    "yearGraphPoints": curve.nodes.count,
+                    "yearGraphMatchesCurrent": curve.nodes.last.map { abs($0.value - (source.grade.percent ?? $0.value)) < 0.000000001 } ?? false,
                     "hasUpdateDate": updated(course) != nil,
-                    "categoryCount": source.categories.count]
+                    "categoryCount": source.categories.count,
+                    "hasNumericTotal": source.grade.percent != nil, "calculatedTotal": source.hasCalculatedGrade]
         }
         let payload: [String: Any] = ["phase": phase, "schoologyConnected": connected.contains(.schoology),
                                      "pendingConnections": pending.count,
@@ -332,7 +346,15 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         #endif
         let schoology = try SchoologyProvider(credentials: credentials, diagnosticsEnabled: verify)
         do {
-            let result = try await schoology.fetchSnapshot(previous: courses.flatMap(\.sources), refreshMetadata: refreshMetadata)
+            var previous = courses.flatMap(\.sources)
+            #if DEBUG
+            let firstConnection = ProcessInfo.processInfo.arguments.contains("--verify-first-connection")
+            if firstConnection { previous = [] }
+            #endif
+            let result = try await schoology.fetchSnapshot(previous: previous, refreshMetadata: refreshMetadata)
+            #if DEBUG
+            if firstConnection { verifyFirstConnection(result.courses, startedAt: startedAt) }
+            #endif
             if credentials.userID != result.userID {
                 credentials.userID = result.userID; try SecureStore.save(credentials, account: "schoology")
             }
@@ -343,6 +365,29 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             throw error
         }
     }
+    #if DEBUG
+    /// Explicit read-only network check with no previous sources/metadata. It
+    /// never clears saved data; normal reconciliation still preserves history.
+    private func verifyFirstConnection(_ fetched: [SourceCourse], startedAt: Date) {
+        let fresh = Reconciler.reconcile(fetched)
+        let visible = CourseSelection.visible(fresh, term: selectedTerm)
+        let rows = fetched.flatMap(\.assignments).filter { $0.score.isGraded }
+        let dates = rows.compactMap { $0.updated ?? $0.due }
+        let curves = visible.map { GradeCurve(points:GradeProgression.points(for:$0, among:fresh)) }
+        let report: [String:Any] = ["previousSources":0, "courses":fresh.count,
+            "gradedRows":rows.count, "datedGradedRows":dates.count,
+            "rowsPredatingConnection":dates.filter { $0 < startedAt }.count,
+            "rowsOlderThanThirtyDays":dates.filter { startedAt.timeIntervalSince($0) > 30 * 86400 }.count,
+            "homeCards":visible.count, "numericTotals":visible.filter { $0.display.grade.percent != nil }.count,
+            "graphPoints":curves.map { $0.nodes.count },
+            "allGraphsHaveEarlierData":curves.allSatisfy { $0.nodes.contains { $0.date < startedAt.addingTimeInterval(-86400) } },
+            "graphEndpointsMatchCurrent":zip(visible,curves).allSatisfy { $0.display.grade.percent == $1.nodes.last?.value }]
+        if let data = try? JSONSerialization.data(withJSONObject:report, options:[.prettyPrinted,.sortedKeys]),
+           let root = FileManager.default.urls(for:.cachesDirectory, in:.userDomainMask).first {
+            try? data.write(to:root.appendingPathComponent("first-connection-verification.json"), options:[.atomic,.completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+    #endif
     @discardableResult private func applySnapshot(_ fetched: [SourceCourse], provider: ProviderID) async -> Bool {
         // Rebase if a local visibility/order edit occurred while the
         // worker was running. Background normalization must never undo that edit.

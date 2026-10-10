@@ -2,10 +2,37 @@ import XCTest
 @testable import GradeCore
 
 extension HTTPTests {
+    func testFirstConnectionReadsEarlierGradingPeriodsWithoutCacheOrDateFilter() async throws {
+        let provider = try refreshFixture()
+        let q1 = Int(ProviderParsing.date("2025-09-01")!.timeIntervalSince1970)
+        let q2 = Int(ProviderParsing.date("2025-11-01")!.timeIntervalSince1970)
+        StubURLProtocol.bodies["/v1/users/fixture-user/grades?section_id=100"] = """
+        {"section":[{"section_id":"100","period":[
+        {"period_id":"p1","period_title":"Q1","assignment":[{"assignment_id":10,"grade":100,"max_points":100,"type":"assignment","category_id":2,"timestamp":\(q1)}]},
+        {"period_id":"p2","period_title":"Q2","assignment":[{"assignment_id":12,"grade":60,"max_points":100,"type":"assignment","category_id":2,"timestamp":\(q2)}]}],"final_grade":[]}]}
+        """
+        StubURLProtocol.bodies["/v1/sections/100/grade_items?limit=200"] = """
+        {"assignment":[{"id":10,"type":"assignment","title":"Earlier quiz","grading_period":1,"grading_category":2,"max_points":100},
+        {"id":12,"type":"assignment","title":"Later quiz","grading_period":2,"grading_category":2,"max_points":100}]}
+        """
+        StubURLProtocol.bodies["/v1/sections/100/grading_periods?limit=200"] = """
+        {"grading_period":[{"id":1,"title":"Q1","start":"2025-08-20","end":"2025-10-30"},
+        {"id":2,"title":"Q2","start":"2025-11-01","end":"2026-01-04"}]}
+        """
+        StubURLProtocol.requests = []
+        let fresh = Reconciler.reconcile(try await provider.fetch(previous:[]))
+        XCTAssertEqual(fresh.count,2); XCTAssertTrue(fresh.allSatisfy { $0.history.isEmpty })
+        let latest = try XCTUnwrap(fresh.first { $0.display.term.id == "p2" })
+        let curve = GradeCurve(points:GradeProgression.points(for:latest, among:fresh))
+        XCTAssertEqual(curve.nodes.map(\.value),[100,60,60])
+        XCTAssertEqual(curve.nodes.first?.date,ProviderParsing.date("2025-09-01"))
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("timestamp=") || $0.contains("grading_period_ids=") })
+        XCTAssertTrue(StubURLProtocol.requests.contains("/v1/users/fixture-user/grades?section_id=100"))
+    }
     func testPreUpgradeMetadataIsReadAgainBeforeUsingNewCalculationRules() async throws {
         let provider = try refreshFixture()
         var first = try await provider.fetch()
-        for i in first.indices { first[i].source.fields["section_metadata_version"] = nil }
+        for i in first.indices { first[i].source.fields["section_metadata_version"] = "3" }
         StubURLProtocol.requests = []
         _ = try await provider.fetch(previous: first)
         XCTAssertTrue(StubURLProtocol.requests.contains("/v1/sections/100/grading_categories?limit=200"))

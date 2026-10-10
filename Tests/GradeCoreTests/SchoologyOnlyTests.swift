@@ -2,14 +2,41 @@ import XCTest
 @testable import GradeCore
 
 final class SchoologyOnlyTests: XCTestCase {
-    func testUndeclaredCategoryMethodCannotBecomeCalculatedPoints() throws {
+    func testStudentHiddenRulesAndNullOverallPreservePointsDefaults() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
         func fixture(_ name: String) throws -> Data { try Data(contentsOf: root.appendingPathComponent(name + ".json")) }
         let categories = Data("{\"grading_category\":[{\"id\":2,\"title\":\"Tests\",\"weight\":100}]}".utf8)
-        let courses = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: fixture("schoology-grades"), items: fixture("schoology-items"), categories: categories)
-        XCTAssertEqual(courses[0].method, .unknown)
-        var source = courses[0]; source.grade = OverallGrade()
-        XCTAssertNil(SchoologyGrades.resolved([source])[0].grade.percent)
+        var grades = try JSONSerialization.jsonObject(with: fixture("schoology-grades")) as! [String:Any]
+        var sections = grades["section"] as! [[String:Any]]
+        sections[0]["final_grade"] = [["period_id":"p1","grade":NSNull(),"scale_id":17]]; grades["section"] = sections
+        let courses = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: JSONSerialization.data(withJSONObject:grades), items: fixture("schoology-items"), categories: categories)
+        XCTAssertEqual(courses[0].method, .weightedCategories)
+        XCTAssertNil(courses[0].source.fields["unsupported_overall_scale"])
+        let resolved = SchoologyGrades.resolved(courses)[0]
+        XCTAssertEqual(resolved.grade.percent,0); XCTAssertTrue(resolved.hasCalculatedGrade)
+        XCTAssertTrue(Reconciler.reconcile(courses)[0].history.isEmpty)
+        sections[0]["final_grade"] = [["period_id":"p1","grade":"  ","scale_id":17]]; grades["section"] = sections
+        let blank = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: JSONSerialization.data(withJSONObject:grades), items: fixture("schoology-items"), categories:categories)
+        XCTAssertNil(blank[0].grade.letter); XCTAssertTrue(SchoologyGrades.resolved(blank)[0].hasCalculatedGrade)
+        sections[0]["final_grade"] = [["period_id":"p1","grade":999,"scale_id":17]]; grades["section"] = sections
+        let custom = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: JSONSerialization.data(withJSONObject:grades), items: fixture("schoology-items"), categories:categories)
+        XCTAssertNil(custom[0].grade.percent, "A custom-scale score is not a percentage")
+        XCTAssertEqual(custom[0].source.fields["unsupported_overall_scale"], "true")
+        XCTAssertEqual(SchoologyGrades.resolved(custom)[0].grade.percent, 0, "Available assignment points still calculate independently")
+        let invalid = Data("{\"grading_category\":[{\"id\":2,\"title\":\"Tests\",\"weight\":100,\"calculation_type\":9}]}".utf8)
+        let unknown = try ProviderParsing.schoology(section: fixture("schoology-section"), grades: JSONSerialization.data(withJSONObject:grades), items: fixture("schoology-items"), categories:invalid)
+        XCTAssertEqual(unknown[0].method,.unknown); XCTAssertNil(SchoologyGrades.resolved(unknown)[0].grade.percent)
+    }
+    func testReportedTotalWinsOverStudentHiddenRulesAndSemesterStillCalculates() {
+        var source = Demo.courses()[0].display
+        source.source.fields["grade_rules_inferred"] = "true"
+        XCTAssertFalse(SchoologyGrades.resolved([source])[0].hasCalculatedGrade)
+        var periods = Demo.periodSources()
+        let q1 = periods.firstIndex { GradingPeriods.descriptor($0).label == "Q1" }!
+        let s1 = periods.firstIndex { GradingPeriods.descriptor($0).label == "S1" }!
+        periods[q1].grade = OverallGrade(); periods[q1].source.fields["grade_rules_inferred"] = "true"
+        periods[s1].grade = OverallGrade()
+        XCTAssertTrue(SchoologyGrades.resolved(periods)[s1].hasCalculatedGrade)
     }
     func testMissingReportedGradeUsesSupportedSchoologyRulesWithoutObservedHistory() throws {
         var source = Demo.courses()[0].display; source.grade = OverallGrade()
@@ -44,13 +71,13 @@ final class SchoologyOnlyTests: XCTestCase {
         XCTAssertEqual(curve.nodes.last?.value, resolved.grade.percent)
         XCTAssertEqual(observation.grade.percent, 99)
     }
-    func testUnknownIncompleteAndUnsupportedScaleDoNotInventTotals() {
+    func testUnknownIncompleteRulesCannotInventTotalsButOverallScaleDoesNotBlockPoints() throws {
         var source = Demo.courses()[0].display; source.grade = OverallGrade(); source.method = .unknown
         XCTAssertNil(Reconciler.reconcile([source])[0].display.grade.percent)
         source.method = .points; source.assignments[0].score.possible = nil
         XCTAssertNil(Reconciler.reconcile([source])[0].display.grade.percent)
         source = Demo.courses()[0].display; source.grade = OverallGrade(); source.source.fields["unsupported_overall_scale"] = "true"
-        XCTAssertNil(Reconciler.reconcile([source])[0].display.grade.percent)
+        XCTAssertEqual(Reconciler.reconcile([source])[0].display.grade.percent!, try GradeCalculator.percent(course:source), accuracy:1e-9)
     }
     func testLetterAssignmentCannotSilentlyDisappearFromCalculatedTotal() {
         var source = Demo.courses()[0].display; source.grade = OverallGrade()

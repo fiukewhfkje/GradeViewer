@@ -1,13 +1,21 @@
 # Next work
 
-## Schoology-only delivery
+## October 10 device and history follow-up
+
+- [x] Install over the original phone identity and verify the saved Schoology connection, live totals, graph endpoints, retained course identities, all 20 original observations and saved local scenarios.
+- [x] Restore pre-migration defaults for student-hidden category methods/drops; fix null/blank/custom-scale overall handling without rewriting editing behavior. Remove Calculated labels as requested.
+- [x] Build the graph across available assignment periods and verify earlier-data retrieval through the actual first-connection network path with zero previous sources. Keep reconstruction separate from observed history and document unavailable score revisions.
+- [x] Pass 89 core/24 hosted tests and six focused UI flows, rerun final labels/editing/midyear cases, inspect screenshots, and pass signed device/Release simulator builds. Install build 7 and launch normally.
+- [x] Verify a clean local clone's 89 core tests and neutral-signing Release build; push the validated follow-up through [PR #6](https://github.com/fiukewhfkje/GradeViewer/pull/6) under the existing merge authorization.
+
+## October 8 initial Schoology-only delivery (historical)
 
 - [x] Audit complete captured source assignments class by class; find all 77 IC rows represented in Schoology and seven additional graded Schoology rows. Record matching evidence, snapshot-age limits and calculated-total agreement without exposing scores/credentials.
 - [x] Remove IC networking, parsing, cookies/SAML/browser login, settings, refresh/freshness and cross-provider matching/UI paths. Retain Schoology owner checks, retries/cache behavior and provider read-only scope.
 - [x] Add supported calculated Schoology totals/semesters with visible basis, reject unknown rules and preserve observed history separately.
 - [x] Add an atomic/idempotent old-cache upgrade preserving compatible identity/history/scenarios; clear retired Keychain connections only on the updated app. Validate captured-payload preservation locally.
 - [x] Pass 85 core/24 hosted tests, nine distinct focused UI cases with the 18-screen appearance matrix, final relevant reruns and the Release simulator build; inspect representative screenshots and verify the captured upgrade and graph endpoints against final sources.
-- [x] Commit/push the validated Schoology-only change and deliver through [PR #5](https://github.com/fiukewhfkje/GradeViewer/pull/5) under the user's merge authorization; installation is intentionally deferred to the user.
+- [x] Commit/push the validated Schoology-only change and deliver through [PR #5](https://github.com/fiukewhfkje/GradeViewer/pull/5) under the user's merge authorization; installation was deferred then completed on October 10.
 
 ## Historical completed work
 
@@ -46,10 +54,10 @@
 ## Current evidence-driven follow-up
 
 - [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. Five captured Schoology graded rows remain neutral after the upgrade; do not infer that all are inaccessible. Keep honoring provider cooldowns and preserving scores.
-- [ ] Verify another student's own district/account and physical installation; fixture/clean-clone tests do not establish live district compatibility.
+- [ ] Verify another student's own district/account, earlier/inactive-period accessibility and physical installation; original-account first-connection and fixture checks do not establish district-wide compatibility. No documented full score-change history has been established for fresh installs.
 - [ ] Recover unresolved Schoology titles only if the provider makes compatible matching metadata accessible; do not infer a deleted assignment or teacher setting.
 - [ ] Observe naturally populated completed periods and genuine new grades; calibrate timezone-less dates, rubric scales, rounding or teacher overrides only with demonstrated discrepancies.
-- [ ] The user will install build 3 over the existing identity, then verify live Schoology totals/new grades and measure launch latency. Rebuild/reinstall when local development provisioning expires. Wider distribution needs a separate App Store/TestFlight signing/release decision.
+- [ ] Rebuild/reinstall when local development provisioning expires. Build 7 is installed and live-verified on the original phone; wider distribution requires a separate App Store/TestFlight signing/release decision.
 - [ ] Measure further provider latency/rate limits only when a new observed issue justifies it; the measured refresh fixes are documented in docs/PERFORMANCE_REPORT.md.
 
 No widgets, grade-write endpoints, notification server, background polling, paid tier, planner, analytics or invented grades/dates. No Muse watcher was implemented or deployed.
