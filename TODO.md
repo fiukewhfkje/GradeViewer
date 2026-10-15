@@ -10,7 +10,7 @@
 - [x] Verify live category and quarter/exam weights; add a deterministic, asterisked inverse quarter estimate with blank/scored/zero-exam handling and automatic replacement by actual data. Keep actual assignment scores/history separate.
 - [x] Include named no-score assignments in All Assignments, suppress unnamed empty stubs and avoid claiming a missing score was updated.
 - [x] Pass 112 core/26 hosted tests, 11 focused UI flows, signed device/Release builds and preserved-data checks; install build 8 with the original identity.
-- [ ] Complete the last foreground/normal-launch check, merge [PR #7](https://github.com/fiukewhfkje/GradeViewer/pull/7) and leave main synchronized with the delivery branch removed.
+- [x] Verify final foreground/normal launches, merge [PR #7](https://github.com/fiukewhfkje/GradeViewer/pull/7) into main (`ac04e1d`), remove the delivery branch and synchronize the clean checkout. No separate worktree was created.
 
 ## October 10 device and history follow-up
 
