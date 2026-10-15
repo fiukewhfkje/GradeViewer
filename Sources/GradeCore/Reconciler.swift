@@ -27,7 +27,7 @@ public enum Reconciler {
         }.sorted { $0.order == $1.order ? $0.id < $1.id : $0.order < $1.order }
     }
     private static func changed(_ a: Double?, _ b: Double?) -> Bool {
-        switch (a,b) { case let (x?,y?): return abs(x-y) >= 0.01; case (nil,nil): return false; default: return true }
+        switch (a,b) { case let (x?,y?): return GradePrecision.isReportingDifference(x,y); case (nil,nil): return false; default: return true }
     }
     /// Called only after a complete schema-valid read. Failures never replace data.
     public static func refreshing(previous: [Course], successful: [ProviderID: [SourceCourse]], now: Date = Date()) -> [Course] {

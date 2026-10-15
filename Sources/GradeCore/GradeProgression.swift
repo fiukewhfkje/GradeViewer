@@ -13,6 +13,10 @@ public struct GradeProgressionPoint: Identifiable, Sendable {
     init(id: String, date: Date, percent: Double, usesDueDate: Bool) {
         self.id = "calculated:\(id)"; self.date = date; grade = OverallGrade(percent: percent); calculated = true; self.usesDueDate = usesDueDate
     }
+    init(aligning point: GradeProgressionPoint, percent: Double) {
+        id=point.id; date=point.date; grade=OverallGrade(percent:percent)
+        calculated=point.calculated; usesDueDate=point.usesDueDate
+    }
 }
 public enum GradeProgression {
     /// Reconstruct the section's available year from its actual assignment periods.
@@ -28,7 +32,25 @@ public enum GradeProgression {
             // A fetch today of a completed quarter is not a new year-end grade
             // event. Keep its dated assignments and observations made in-period.
             let history = period.history.filter { snapshot in period.id == latest.id || GradingPeriods.includesHistory(source,date:snapshot.date) }
-            return calculated(source, before: source.fetched, includeCurrent: period.id == latest.id) + history.map(GradeProgressionPoint.init)
+            let reconstructed=calculated(source, before: source.fetched, includeCurrent: period.id == latest.id)
+            return anchored(reconstructed,to:history) + history.map(GradeProgressionPoint.init)
+        }
+    }
+    /// A rounded observation is better evidence than a reconstructed prefix in
+    /// the same assignment interval. Only adjust calculated presentation points
+    /// within a hundredth; retain every real observation, score and event date.
+    private static func anchored(_ points: [GradeProgressionPoint], to history: [GradeHistorySnapshot]) -> [GradeProgressionPoint] {
+        let dates=Array(Set(points.map(\.date))).sorted()
+        let next=Dictionary(uniqueKeysWithValues:zip(dates,dates.dropFirst()))
+        let observations=history.sorted { $0.date == $1.date ? $0.id.uuidString < $1.id.uuidString : $0.date < $1.date }
+        return points.map { point in
+            // An actual current calculation remains the calculator's endpoint.
+            guard !point.id.hasPrefix("calculated:snapshot:"),let value=point.grade.percent,
+                  let observed=observations.first(where: { snapshot in
+                      snapshot.date >= point.date && snapshot.date < (next[point.date] ?? .distantFuture)
+                          && snapshot.grade.percent.map { GradePrecision.matchesReconstruction(value,$0) } == true
+                  })?.grade.percent else { return point }
+            return GradeProgressionPoint(aligning:point,percent:observed)
         }
     }
     public static func calculated(_ source: SourceCourse, before cutoff: Date, includeCurrent: Bool = true) -> [GradeProgressionPoint] {

@@ -6,7 +6,7 @@ struct Palette {
     static let row = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.195, green: 0.19, blue: 0.185, alpha: 1) : UIColor(red: 0.953, green: 0.937, blue: 0.91, alpha: 1) })
     static let grade = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.30, green: 0.82, blue: 0.07, alpha: 1) : UIColor(red: 0.32, green: 0.74, blue: 0.16, alpha: 1) })
 }
-func percentText(_ value: Double?) -> String { value.map { $0.formatted(.number.precision(.fractionLength(0...2))) + "%" } ?? "—" }
+func percentText(_ value: Double?, fractionDigits: Int = 2) -> String { value.map { $0.formatted(.number.precision(.fractionLength(0...fractionDigits))) + "%" } ?? "—" }
 func pointsText(_ value: Double?) -> String { value.map { $0.formatted(.number.precision(.fractionLength(0...2))) } ?? "—" }
 
 /// A fixed label from a provider's score-change date, never a live refresh counter.
@@ -395,15 +395,15 @@ struct QuarterGradeSummary: View {
                 Text(label + " Grade").font(.headline)
                 Spacer()
                 if let estimate {
-                    Text(percentText(estimate.percent) + "*").font(.title3.bold()).foregroundStyle(Palette.grade).monospacedDigit()
+                    Text(percentText(estimate.percent,fractionDigits:estimate.maximumFractionDigits) + "*").font(.title3.bold()).foregroundStyle(Palette.grade).monospacedDigit()
                         .accessibilityIdentifier("quarter-grade-estimate")
-                        .accessibilityLabel("Estimated " + label + " grade").accessibilityValue(percentText(estimate.percent))
+                        .accessibilityLabel("Estimated " + label + " grade").accessibilityValue(percentText(estimate.percent,fractionDigits:estimate.maximumFractionDigits))
                 } else {
                     GradeLabel(grade:course.display.grade).accessibilityIdentifier("quarter-grade-actual")
                 }
             }
             if let estimate {
-                Text("*Estimated from " + ([estimate.semesterLabel] + estimate.knownPeriodLabels).joined(separator:", ") + " and reported weights." + (estimate.excludesBlankExam ? " Blank exam omitted." : "") + " Replaced when grades are available.")
+                Text("*Estimated from " + ([estimate.semesterLabel] + estimate.knownPeriodLabels).joined(separator:", ") + " and reported weights." + (estimate.excludesBlankExam ? " Blank exam omitted." : "") + " Rounded totals limit precision. Replaced when grades are available.")
                     .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("quarter-estimate-note")
             }
         }.padding(16).background(Palette.row,in:RoundedRectangle(cornerRadius:16))
