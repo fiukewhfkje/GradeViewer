@@ -58,10 +58,17 @@ public struct GradeHistorySnapshot: Codable, Hashable, Identifiable, Sendable {
 }
 public struct Course: Codable, Identifiable, Sendable {
     public var id: String; public var sources: [SourceCourse]; public var assignments: [Assignment]; public var history: [GradeHistorySnapshot]; public var hidden: Bool; public var order: Int
+    /// Explicit local removals, scoped to stable provider identities. Optional
+    /// decoding keeps existing caches compatible; raw provider sources remain intact.
+    public var removedAssignmentIDs: Set<String>?
     public var display: SourceCourse { sources[0] }
-    public var calculationSource: SourceCourse { display }
+    public var calculationSource: SourceCourse {
+        var source=display
+        if let removedAssignmentIDs { source.assignments.removeAll { removedAssignmentIDs.contains($0.id) } }
+        return source
+    }
     public var name: String { display.source.fields["course_name"] ?? display.title }
-    public init(id: String, sources: [SourceCourse], assignments: [Assignment] = [], history: [GradeHistorySnapshot] = [], hidden: Bool = false, order: Int = 0) { self.id = id; self.sources = sources; self.assignments = assignments; self.history = history; self.hidden = hidden; self.order = order }
+    public init(id: String, sources: [SourceCourse], assignments: [Assignment] = [], history: [GradeHistorySnapshot] = [], hidden: Bool = false, order: Int = 0, removedAssignmentIDs: Set<String>? = nil) { self.id = id; self.sources = sources; self.assignments = assignments; self.history = history; self.hidden = hidden; self.order = order; self.removedAssignmentIDs = removedAssignmentIDs }
 }
 public struct Hypothesis: Codable, Sendable {
     public var scores: [String: Double] = [:]; public var ignored: Set<String> = []; public var added: [SourceAssignment] = []

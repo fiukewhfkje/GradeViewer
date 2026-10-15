@@ -24,10 +24,10 @@ public enum GradeProgression {
         let populated = periods.filter { $0.calculationSource.assignments.contains { $0.score.isGraded } || !$0.history.isEmpty }
         guard let latest = populated.last else { return [] }
         return populated.flatMap { period in
-            let source = period.calculationSource, end = GradingPeriods.descriptor(period).end
+            let source = period.calculationSource
             // A fetch today of a completed quarter is not a new year-end grade
             // event. Keep its dated assignments and observations made in-period.
-            let history = period.history.filter { snapshot in period.id == latest.id || end.map { $0 >= snapshot.date } == true }
+            let history = period.history.filter { snapshot in period.id == latest.id || GradingPeriods.includesHistory(source,date:snapshot.date) }
             return calculated(source, before: source.fetched, includeCurrent: period.id == latest.id) + history.map(GradeProgressionPoint.init)
         }
     }

@@ -386,3 +386,35 @@ private actor SchoologyNetworkFixture {
         return courses
     }
 }
+
+extension RepositoryTests {
+    func testFinalQuarterDaySelectsQuarterAndSemesterFreshnessUsesChildDates() throws {
+        let repository=try GradeRepository(memory:true)
+        let courses=Reconciler.reconcile(Demo.periodSources())
+        try repository.save(courses)
+        let store=AppStore(repository:repository,demo:false,readCredentials:false)
+        let now=ISO8601DateFormatter().date(from:"2026-10-15T16:00:00Z")!
+        XCTAssertEqual(store.preferredTerm(at:now),"Q1")
+        let semester=try XCTUnwrap(courses.first { $0.display.term.id == "S1" })
+        XCTAssertEqual(store.updated(semester),AssignmentGrouping.updated(for:semester,among:courses))
+        XCTAssertNotNil(store.updated(semester))
+    }
+}
+
+extension RepositoryTests {
+    func testExplicitRemovalSurvivesSaveReopenAndRefreshAndCanBeRestored() async throws {
+        let repository=try GradeRepository(memory:true)
+        let original=Demo.courses()[0]; try repository.save([original])
+        let store=AppStore(repository:repository,demo:false,readCredentials:false,fetch:{ _ in [original.display] })
+        store.connected=[.schoology]
+        store.removeAssignment(original.assignments[0],from:original)
+        XCTAssertEqual(try repository.load()[0].removedAssignmentIDs,[original.assignments[0].id])
+        await store.refresh()
+        let course=try XCTUnwrap(store.courses.first)
+        XCTAssertFalse(AssignmentGrouping.overview(for:course).contains { $0.id == original.assignments[0].id })
+        XCTAssertEqual(course.display.assignments,original.display.assignments)
+        XCTAssertEqual(course.history,original.history)
+        store.restoreRemovedAssignments(in:course)
+        XCTAssertTrue(AssignmentGrouping.overview(for:try repository.load()[0]).contains { $0.id == original.assignments[0].id })
+    }
+}

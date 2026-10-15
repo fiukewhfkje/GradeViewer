@@ -175,6 +175,7 @@ public actor ReadOnlyHTTP {
         else if url.path.contains("/folder/") { return "course folder metadata" }
         else if url.path.hasSuffix("/grading_categories") { return "categories" }
         else if url.path.hasSuffix("/grading_periods") { return "grading periods" }
+        else if url.path.hasSuffix("/grading_scales") { return "grading scales" }
         else if url.path.contains("/assignments/") { return "assignment metadata" }
         else if url.path.contains("/sections/") { return "section" }
         else if url.path.contains("/users/") { return "user" }
@@ -202,6 +203,75 @@ public actor ReadOnlyHTTP {
         ]
         records.append(HTTPDiagnostic(route: "section normalization", status: 0, contentType: "local validation", responseBytes: 0, structure: checks, redirect: nil))
     }
+    /// Explicit verification only. Inspect complete responses in memory and
+    /// export fixed aggregate counters, never response values or identities.
+    func recordGradeAudit(grades: Data, items: Data, courses: [SourceCourse]) {
+        guard diagnosticsEnabled,
+              let payload = try? ProviderParsing.object(grades),
+              let catalog = try? ProviderParsing.object(items) else { return }
+        var counts: [String:Int] = [:]
+        func add(_ key: String, _ condition: Bool = true) { if condition { counts[key, default:0] += 1 } }
+        let itemRows = ProviderParsing.rows(catalog["assignment"])
+        for section in ProviderParsing.rows(payload["section"]) {
+            for period in ProviderParsing.rows(section["period"]) {
+                let source = courses.first { $0.term.id == ProviderParsing.text(period["period_id"]) }
+                let rows = ProviderParsing.rows((period["assignment"] as? [String:Any])?["grade"] ?? period["assignment"])
+                for row in rows {
+                    add("grade rows")
+                    let possible = ProviderParsing.number(row["max_points"])
+                    add("points omitted", row["max_points"] == nil)
+                    add("points null", row["max_points"] is NSNull)
+                    add("points blank", (row["max_points"] as? String)?.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty == true)
+                    add("points nonnumeric", possible == nil && row["max_points"] != nil && !(row["max_points"] is NSNull))
+                    add("numeric grades", ProviderParsing.number(row["grade"]) != nil)
+                    add("numeric calculated grades", ProviderParsing.number(row["calculated_grade"]) != nil)
+                    add("numeric overrides", ProviderParsing.number(row["override"]) != nil)
+                    add("grade differs from calculated", ProviderParsing.number(row["calculated_grade"]).map { $0 != ProviderParsing.number(row["grade"]) } == true)
+                    let id = ProviderParsing.nonempty(row["assignment_id"])
+                    let parsed = source?.assignments.first { $0.source.fields["assignment_id"] == id }
+                    let candidates = itemRows.filter { ProviderParsing.itemID($0) == id || ProviderParsing.nonempty($0["id"]) == id }
+                    add("missing parsed title", parsed?.hasTitle == false)
+                    add("missing title with catalog identity", parsed?.hasTitle == false && !candidates.isEmpty)
+                    add("missing title with catalog title", parsed?.hasTitle == false && candidates.contains { ProviderParsing.nonempty($0["title"]) != nil })
+                    if parsed?.hasTitle == false, let location=ProviderParsing.text(row["location"]),
+                       let locationID=URLComponents(string:location)?.path.split(separator:"/").last.map(String.init) {
+                        add("missing title location matches grade identity",locationID == id)
+                        add("missing title location has catalog identity",itemRows.contains { ProviderParsing.itemID($0) == locationID || ProviderParsing.nonempty($0["id"]) == locationID })
+                    }
+                    add("numeric score missing parsed points", parsed?.score.earned != nil && parsed?.score.possible == nil)
+                    add("missing points with catalog points", parsed?.score.earned != nil && parsed?.score.possible == nil && candidates.contains { ProviderParsing.number($0["max_points"]) != nil })
+                    add("parsed score differs from raw", parsed?.score.earned != nil && parsed?.score.earned != ProviderParsing.number(row["grade"]))
+                }
+            }
+            for final in ProviderParsing.rows(section["final_grade"]) {
+                guard let raw = ProviderParsing.number(final["grade"]) else { continue }
+                add("numeric final totals")
+                add("numeric custom scale totals", ProviderParsing.number(final["scale_id"]) != 0)
+                if let source = courses.first(where:{ $0.term.id == ProviderParsing.text(final["period_id"]) }),
+                   let calculated = try? GradeCalculator.percent(course:source) {
+                    add("numeric finals matching assignment calculation", abs(raw - calculated) <= 0.15)
+                    add("numeric finals differing from assignment calculation", abs(raw - calculated) > 0.15)
+                }
+            }
+        }
+        records.append(HTTPDiagnostic(route:"grade audit",status:0,contentType:"local validation",responseBytes:0,structure:counts.mapValues(String.init),redirect:nil))
+    }
+    func recordResolvedTotals(grades: Data, courses: [SourceCourse]) {
+        guard diagnosticsEnabled, let payload=try? ProviderParsing.object(grades) else { return }
+        let resolved=SchoologyGrades.resolved(courses)
+        var counts: [String:Int] = [:]
+        for section in ProviderParsing.rows(payload["section"]) {
+            for final in ProviderParsing.rows(section["final_grade"]) {
+                guard let value=ProviderParsing.number(final["grade"]),let source=resolved.first(where:{ $0.term.id == ProviderParsing.text(final["period_id"]) }) else { continue }
+                counts["numeric provider totals",default:0] += 1
+                if let displayed=source.grade.percent {
+                    counts[abs(displayed-value) <= 0.000001 ? "display matches provider total" : "display differs from provider total",default:0] += 1
+                } else { counts["display total unavailable",default:0] += 1 }
+                if source.source.fields["overall_scale_type"] != nil { counts["verified numeric or percent scale",default:0] += 1 }
+            }
+        }
+        records.append(HTTPDiagnostic(route:"total audit",status:0,contentType:"local validation",responseBytes:0,structure:counts.mapValues(String.init),redirect:nil))
+    }
     public static func retryAfter(_ value: String?) -> TimeInterval {
         if let value, let seconds = Double(value), seconds >= 0, seconds.isFinite { return seconds }
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.timeZone = TimeZone(secondsFromGMT: 0); formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss z"
@@ -214,6 +284,7 @@ private struct SchoologyMetadataBatch: Sendable {
     let courses: [SourceCourse]
     let fingerprint: String
     let reused: Bool
+    let grades: Data
 }
 public struct SchoologyProvider: Sendable {
     let http: ReadOnlyHTTP
@@ -224,7 +295,7 @@ public struct SchoologyProvider: Sendable {
     public func fetch(previous: [SourceCourse] = [], refreshMetadata: Bool = false) async throws -> [SourceCourse] {
         try await fetchSnapshot(previous: previous, refreshMetadata: refreshMetadata).courses
     }
-    public func fetchSnapshot(previous: [SourceCourse] = [], refreshMetadata: Bool = false) async throws -> SchoologySnapshot {
+    public func fetchSnapshot(previous: [SourceCourse] = [], refreshMetadata: Bool = false, skippedTitleIDs: Set<String> = []) async throws -> SchoologySnapshot {
         // Authentication does not prove that cached student identity is still the
         // credential owner. Recheck users/me before requesting a student's grades.
         let me = try ProviderParsing.object(await http.get(URL(string: "https://api.schoology.com/v1/users/me")!))
@@ -271,12 +342,12 @@ public struct SchoologyProvider: Sendable {
         let unique = gradeRows.filter { row in row.owner.map { owners.insert($0).inserted } ?? false }
         let batches = try await concurrentMap(unique, limit: 3) { row in
             let fingerprint = try gradeFingerprint(row)
-            if !refreshMetadata, let cached = cachedMetadata(row, fingerprint: fingerprint, userID: userID, previous: previous) {
+            if !refreshMetadata, let cached = cachedMetadata(row, fingerprint: fingerprint, userID: userID, previous: previous, skippedTitleIDs:skippedTitleIDs) {
                 // Identity, enrollments and complete grades were just read fresh.
                 // Reuse metadata only for a byte-equivalent normalized grade row.
                 return SchoologyMetadataBatch(enrollment: row.id, courses: cached.map { original in
                     var source = original; source.fetched = Date(); return source
-                }, fingerprint: fingerprint, reused: true)
+                }, fingerprint: fingerprint, reused: true, grades:row.data)
             }
             let escaped = OAuth1.encode(row.id)
             async let sectionData = http.get(URL(string: "https://api.schoology.com/v1/sections/\(escaped)")!)
@@ -288,8 +359,9 @@ public struct SchoologyProvider: Sendable {
             do {
                 let started = Date()
                 let courses = try ProviderParsing.schoology(section: section, grades: row.data, items: items, categories: categories, periods: periods.data, periodsFetched: periods.fetched, gradeSectionID: row.owner)
+                await http.recordGradeAudit(grades:row.data,items:items,courses:courses)
                 await http.recordTiming("grade parsing", started: started, counts: ["periods": courses.count, "rows": courses.reduce(0) { $0 + $1.assignments.count }])
-                return SchoologyMetadataBatch(enrollment: row.id, courses: courses, fingerprint: fingerprint, reused: false)
+                return SchoologyMetadataBatch(enrollment: row.id, courses: courses, fingerprint: fingerprint, reused: false, grades:row.data)
             } catch {
                 await http.recordSchoologyChecks(section: section, grades: row.data, requestedID: row.id)
                 throw error
@@ -299,14 +371,26 @@ public struct SchoologyProvider: Sendable {
         // 429 can put other sections' still-queued grade metadata into cooldown.
         let enriched = try await concurrentMap(batches, limit: 3) { batch in
             if batch.reused { return batch.courses }
-            let courses = try await enrichTitles(batch.courses, enrollment: batch.enrollment, previous: previous)
+            var resolved = batch.courses
+            if resolved.contains(where:{ $0.source.fields["reported_numeric_total"] != nil }) {
+                do {
+                    let scales = try await http.get(URL(string:"https://api.schoology.com/v1/sections/\(OAuth1.encode(batch.enrollment))/grading_scales")!,retryThrottles:false)
+                    resolved = try ProviderParsing.schoologyOveralls(resolved,scales:scales)
+                } catch {
+                    if error is CancellationError || error as? ProviderError == .reconnect { throw error }
+                    // Optional scale metadata cannot discard complete fresh scores.
+                    resolved = ProviderParsing.schoologyCachedOveralls(resolved,previous:previous)
+                }
+            }
+            await http.recordResolvedTotals(grades:batch.grades,courses:resolved)
+            let courses = try await enrichTitles(resolved, enrollment: batch.enrollment, previous: previous, refreshMetadata:refreshMetadata, skippedTitleIDs:skippedTitleIDs)
             let stamp = String(Date().timeIntervalSince1970)
             return courses.map { original in
                 var source = original
                 source.source.fields["grade_snapshot_hash"] = batch.fingerprint
                 source.source.fields["section_metadata_fetched"] = stamp
                 source.source.fields["section_metadata_course_count"] = String(courses.count)
-                source.source.fields["section_metadata_version"] = "4"
+                source.source.fields["section_metadata_version"] = "6"
                 return source
             }
         }
@@ -326,17 +410,18 @@ public struct SchoologyProvider: Sendable {
         let normalized = try JSONSerialization.data(withJSONObject: matches[0], options: [.sortedKeys])
         return SHA256.hash(data: normalized).map { String(format: "%02x", $0) }.joined()
     }
-    private func cachedMetadata(_ row: SchoologySectionGrades, fingerprint: String, userID: String, previous: [SourceCourse]) -> [SourceCourse]? {
+    private func cachedMetadata(_ row: SchoologySectionGrades, fingerprint: String, userID: String, previous: [SourceCourse], skippedTitleIDs: Set<String>) -> [SourceCourse]? {
         let cached = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == row.owner && $0.source.fields["section_id"] == row.id }
         let now = Date().timeIntervalSince1970
         guard !cached.isEmpty, cached.allSatisfy({ source in
             let fields = source.source.fields
-            guard fields["section_metadata_version"] == "4", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
+            guard fields["section_metadata_version"] == "6", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
                   fields["section_metadata_course_count"] == String(cached.count),
                   let stamp = fields["section_metadata_fetched"].flatMap(Double.init), stamp <= now, now - stamp < 300 else { return false }
             if let periodStamp = fields["period_metadata_fetched"].flatMap(Double.init), periodStamp > now || now - periodStamp >= 3600 { return false }
+            if let scaleStamp = fields["overall_scale_verified_at"].flatMap(Double.init), scaleStamp > now || now - scaleStamp >= 3600 { return false }
             return !source.assignments.contains { row in
-                !row.hasTitle && row.source.fields["title_lookup_retry_after"].flatMap(Double.init).map { $0 <= now } == true
+                !skippedTitleIDs.contains(row.id) && !row.hasTitle && row.source.fields["title_lookup_retry_after"].flatMap(Double.init).map { $0 <= now } == true
             }
         }) else { return nil }
         return cached
@@ -372,7 +457,7 @@ public struct SchoologyProvider: Sendable {
         let ownerSources = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == owner }
         let cached = ownerSources.filter { $0.source.fields["period_metadata_id"] != nil }
         let complete = ownerSources.allSatisfy { source in
-            source.source.fields["section_metadata_course_count"].map { $0 == String(ownerSources.count) } ?? true
+            source.source.fields["section_metadata_version"] == "6" && (source.source.fields["section_metadata_course_count"].map { $0 == String(ownerSources.count) } ?? true)
         }
         let stamp = cached.compactMap { $0.source.fields["period_metadata_fetched"].flatMap(Double.init) }.min().map(Date.init(timeIntervalSince1970:))
         let payload = try ProviderParsing.object(grades)
@@ -383,8 +468,8 @@ public struct SchoologyProvider: Sendable {
             let formatter = ISO8601DateFormatter()
             let rows: [[String:Any]] = cached.map { source in
                 var row: [String:Any] = ["id":source.source.fields["period_metadata_id"]!, "title":source.term.name]
-                if let date = source.term.start { row["start"] = formatter.string(from:date) }
-                if let date = source.term.end { row["end"] = formatter.string(from:date) }
+                if let date = source.term.start { let value=formatter.string(from:date); row["start"] = source.source.fields["period_start_date_only"] == "true" ? String(value.prefix(10)) : value }
+                if let date = source.term.end { let value=formatter.string(from:date); row["end"] = source.source.fields["period_end_date_only"] == "true" ? String(value.prefix(10)) : value }
                 if let weight = source.term.weight { row["weight"] = weight }
                 return row
             }
@@ -399,14 +484,14 @@ public struct SchoologyProvider: Sendable {
             return SchoologyPeriodMetadata(data:Data("{\"grading_period\":[]}".utf8),fetched:Date())
         }
     }
-    private func enrichTitles(_ courses: [SourceCourse], enrollment: String, previous: [SourceCourse]) async throws -> [SourceCourse] {
+    private func enrichTitles(_ courses: [SourceCourse], enrollment: String, previous: [SourceCourse], refreshMetadata: Bool, skippedTitleIDs: Set<String>) async throws -> [SourceCourse] {
         let started = Date()
         let cached = Dictionary(previous.flatMap(\.assignments).map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a })
-        let unresolved = Dictionary(courses.flatMap(\.assignments).filter { !$0.hasTitle && $0.score.isGraded }.map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a }).values.sorted { $0.id < $1.id }
+        let unresolved = Dictionary(courses.flatMap(\.assignments).filter { !$0.hasTitle && $0.score.isGraded && !skippedTitleIDs.contains($0.id) }.map { ($0.id, $0) }, uniquingKeysWith: { a,_ in a }).values.sorted { $0.id < $1.id }
         let periods = Dictionary(courses.flatMap { course in course.assignments.map { ($0.id, course.term.id) } }, uniquingKeysWith: { a,_ in a })
         var metadata = try await concurrentMap(unresolved, limit: 3) { row -> SourceAssignment in
             if let old = cached[row.id], old.hasTitle { return old }
-            if let old = cached[row.id], old.score == row.score,
+            if !refreshMetadata, let old = cached[row.id], old.score == row.score,
                old.source.fields["timestamp"] == row.source.fields["timestamp"],
                old.source.fields["category_id"] == row.source.fields["category_id"],
                let until = old.source.fields["title_lookup_retry_after"].flatMap(Double.init), until > Date().timeIntervalSince1970 {
