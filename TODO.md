@@ -1,5 +1,12 @@
 # Next work
 
+## October 15 precision follow-up
+
+- [x] Reproduce tiny graph transitions and rounded-input quarter estimate precision; retain actual observations and real assignment changes.
+- [x] Anchor matching reconstructed prefixes within their own assignment interval, propagate inverse rounding uncertainty, and handle exact-cent history comparisons consistently.
+- [x] Pass 118 core/26 hosted tests and five focused UI flows; inspect synthetic screenshots and preserve grade/score/history provenance.
+- [ ] Finish final build 9 live verification, PR/merge and delivery branch cleanup.
+
 ## October 15 Schoology hardening
 
 - [x] Audit live grade/catalog/scale responses without exporting credentials or grade values; reproduce response-shape, date-boundary, freshness and home/detail discrepancies.

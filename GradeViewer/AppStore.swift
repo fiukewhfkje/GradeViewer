@@ -51,16 +51,18 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                 courses[0].history = [GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_000_000), grade: OverallGrade(percent: 80), provider: .schoology), GradeHistorySnapshot(date: Date(timeIntervalSince1970: 1_790_172_800), grade: OverallGrade(percent: 100), provider: .schoology)]
                 courses[0].sources[0].assignments = []
             }
-            if demo && arguments.contains("--graph-rounding-fixture"), !courses.isEmpty {
+            if demo && (arguments.contains("--graph-rounding-fixture") || arguments.contains("--precision-graph-fixture")), !courses.isEmpty {
+                let precisionFixture=arguments.contains("--precision-graph-fixture")
                 var source = courses[0].display; source.method = .points; source.categories = []
                 source.assignments = Array(source.assignments.prefix(2))
-                source.assignments[0].score = Score(earned:100, possible:100)
-                source.assignments[1].score = Score(earned:92.598, possible:100)
+                source.assignments[0].score = Score(earned:precisionFixture ? 89.991 : 100, possible:100)
+                source.assignments[1].score = Score(earned:precisionFixture ? 70.009 : 92.598, possible:100)
                 source.assignments[0].updated = Demo.now
                 source.assignments[1].updated = Demo.now.addingTimeInterval(100)
-                source.fetched = Demo.now.addingTimeInterval(200); source.grade.percent = 96.29
+                source.fetched = Demo.now.addingTimeInterval(200); source.grade = OverallGrade(percent:precisionFixture ? 80 : 96.29)
                 courses[0].sources = [source]
-                courses[0].history = [GradeHistorySnapshot(date:Demo.now.addingTimeInterval(50), grade:OverallGrade(percent:100), provider:source.source.provider), GradeHistorySnapshot(date:source.fetched, grade:source.grade, provider:source.source.provider)]
+                courses[0].assignments=source.assignments.map { Assignment(id:$0.id,sources:[$0]) }
+                courses[0].history = [GradeHistorySnapshot(date:Demo.now.addingTimeInterval(50), grade:OverallGrade(percent:precisionFixture ? 90 : 100), provider:source.source.provider), GradeHistorySnapshot(date:source.fetched, grade:source.grade, provider:source.source.provider)]
             }
             if demo && arguments.contains("--calculated-fixture"), !courses.isEmpty {
                 var source = courses[0].display; source.grade = OverallGrade()
@@ -99,6 +101,13 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                         if source.term.id == "Q2" {
                             source.grade=OverallGrade()
                             for index in source.assignments.indices { source.assignments[index].score.earned=nil }
+                        }
+                        if arguments.contains("--rounded-period-fixture") {
+                            if source.term.id == "Q1" {
+                                source.grade.percent=93.97
+                                for index in source.assignments.indices { source.assignments[index].score.earned=93.97 }
+                            }
+                            if source.term.id == "S1" { source.grade.percent=81.99 }
                         }
                         return source
                     }

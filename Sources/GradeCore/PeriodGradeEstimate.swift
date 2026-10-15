@@ -7,6 +7,10 @@ public struct PeriodGradeEstimate: Sendable {
     public let semesterLabel: String
     public let knownPeriodLabels: [String]
     public let excludesBlankExam: Bool
+    /// Conservative propagation of one hundredth per reported input; this is
+    /// a rounding budget, not a guarantee about hidden provider calculations.
+    public let roundingUncertainty: Double
+    public let maximumFractionDigits: Int
 }
 
 public extension GradingPeriods {
@@ -63,7 +67,13 @@ public extension GradingPeriods {
         guard knownWeight > 0, abs(reported - knownSum / knownWeight) > 0.005 else { return nil }
         let value = (reported * totalWeight - knownSum) / ownWeight
         guard totalWeight.isFinite, knownSum.isFinite, value.isFinite, value >= 0 else { return nil }
+        let uncertainty=GradePrecision.increment * (totalWeight + knownWeight) / ownWeight
+        // Avoid claiming hundredths recovered from rounded totals. Unusual
+        // weights can amplify uncertainty enough to require whole percentages
+        // or to make a useful point estimate unavailable.
+        guard uncertainty.isFinite,uncertainty < 0.5 else { return nil }
         return PeriodGradeEstimate(percent:value,semesterLabel:descriptor(semester).label,
-                                   knownPeriodLabels:knownLabels,excludesBlankExam:excludesBlankExam)
+                                   knownPeriodLabels:knownLabels,excludesBlankExam:excludesBlankExam,
+                                   roundingUncertainty:uncertainty,maximumFractionDigits:uncertainty < 0.05 ? 1 : 0)
     }
 }

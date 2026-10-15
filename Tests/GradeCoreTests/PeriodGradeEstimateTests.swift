@@ -109,4 +109,19 @@ final class PeriodGradeEstimateTests: XCTestCase {
         XCTAssertEqual(parsed.source.fields["overall_override"],"true")
         XCTAssertEqual(parsed.grade.percent,0,"An override stays reported; only inverse estimation is withheld")
     }
+    func testRoundedInputsDoNotClaimRecoveredHundredths() throws {
+        var input=sources(q1Weight:45,q2Weight:45,examWeight:10)
+        input[0].grade.percent=93.97;input[4].grade.percent=81.99
+        let result=try XCTUnwrap(estimate(input))
+        XCTAssertEqual(result.percent,70.01,accuracy:0.000000001,"Preserve the inverse arithmetic internally")
+        XCTAssertEqual(result.maximumFractionDigits,1)
+        XCTAssertEqual(result.roundingUncertainty,0.03,accuracy:0.000000001)
+        XCTAssertEqual((result.percent*10).rounded()/10,70,"Presentation cannot pretend rounded inputs establish a hundredth")
+    }
+    func testSmallTargetWeightReducesPrecisionOrWithholdsUnstableEstimate() throws {
+        let result=try XCTUnwrap(estimate(sources(q1Weight:95,q2Weight:5,examWeight:0)))
+        XCTAssertEqual(result.maximumFractionDigits,0)
+        XCTAssertGreaterThan(result.roundingUncertainty,0.05)
+        XCTAssertNil(try estimate(sources(q1Weight:99,q2Weight:1,examWeight:0)))
+    }
 }

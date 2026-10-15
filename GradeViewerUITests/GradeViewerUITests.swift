@@ -495,6 +495,26 @@ extension GradeViewerUITests {
         XCTAssertTrue(options.waitForExistence(timeout:5))
         XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"95.8%")
     }
+    @MainActor func testRoundedQuarterEstimateDoesNotDisplaySpuriousHundredth() {
+        let app=XCUIApplication();app.launchArguments=["--demo","--period-fixture","--unavailable-period-fixture","--rounded-period-fixture","--screen=assignments","-appearance","light"];app.launch()
+        let q2=app.buttons["period-Q2-quarter"];XCTAssertTrue(q2.waitForExistence(timeout:10));q2.tap()
+        let estimate=app.staticTexts["quarter-grade-estimate"]
+        XCTAssertTrue(estimate.waitForExistence(timeout:5));XCTAssertEqual(estimate.value as? String,"70%")
+        XCTAssertTrue(app.staticTexts["quarter-estimate-note"].label.contains("Rounded totals limit precision"))
+        XCTAssertFalse(app.staticTexts["70.01%*"].exists)
+        let attachment=XCTAttachment(screenshot:app.screenshot());attachment.name="rounded-quarter-estimate";attachment.lifetime = .keepAlways;add(attachment)
+    }
+    @MainActor func testGraphReconstructionDoesNotInventCentStepBeforeObservation() {
+        let app=XCUIApplication();app.launchArguments=["--demo","--precision-graph-fixture","--screen=detail","--record-chart-touch"];app.launch()
+        let chart=app.otherElements["grade-chart"];XCTAssertTrue(chart.waitForExistence(timeout:10))
+        let ready=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value CONTAINS '4 grades'"),object:chart)
+        XCTAssertEqual(XCTWaiter.wait(for:[ready],timeout:5),.completed)
+        for x in [0.05,0.4] {
+            chart.coordinate(withNormalizedOffset:CGVector(dx:x,dy:0.5)).press(forDuration:0.6)
+            XCTAssertEqual(chart.value as? String,"Released; last touch 90%")
+        }
+        let attachment=XCTAttachment(screenshot:app.screenshot());attachment.name="observed-and-reconstructed-precision";attachment.lifetime = .keepAlways;add(attachment)
+    }
     @MainActor func testQ2KnownAssignmentsRemainVisibleWhenScoresAreUnavailable() {
         let app=XCUIApplication(); app.launchArguments=["--demo","--period-fixture","--unavailable-period-fixture","--period-refresh-fixture","--screen=assignments"]; app.launch()
         let q2=app.buttons["period-Q2-quarter"]
