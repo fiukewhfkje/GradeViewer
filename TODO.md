@@ -5,7 +5,7 @@
 - [x] Reproduce tiny graph transitions and rounded-input quarter estimate precision; retain actual observations and real assignment changes.
 - [x] Anchor matching reconstructed prefixes within their own assignment interval, propagate inverse rounding uncertainty, and handle exact-cent history comparisons consistently.
 - [x] Pass 118 core/26 hosted tests and five focused UI flows; inspect synthetic screenshots and preserve grade/score/history provenance.
-- [ ] Finish final build 9 live verification, PR/merge and delivery branch cleanup.
+- [x] Verify build 9 live, foreground and normal refreshes with preserved provider scores/history/scenarios; merge [PR #8](https://github.com/fiukewhfkje/GradeViewer/pull/8) (`8819b3b`), delete the delivery branch and synchronize main. No separate worktree was created.
 
 ## October 15 Schoology hardening
 
