@@ -40,7 +40,13 @@ public enum ProviderParsing {
     }
     static func nonempty(_ value: Any?) -> String? { text(value)?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty }
     // grade_item_id identifies the graded node; a gradebook wrapper can have another id.
-    static func itemID(_ row: [String: Any]) -> String? { nonempty(row["grade_item_id"]) ?? nonempty(row["id"]) }
+    static func itemID(_ row: [String: Any]) -> String? {
+        // Grade columns return 0 when there is no separate graded node.
+        let node = nonempty(row["grade_item_id"]).flatMap { value in
+            number(value).map { $0 <= 0 } == true ? nil : value
+        }
+        return node ?? nonempty(row["id"])
+    }
     static func itemKey(_ row: [String: Any]) -> String? { itemID(row).map { "\(nonempty(row["type"]) ?? "assignment"):\($0)" } }
     /// Title metadata cannot change a grade's identity, score, or exclusion rules.
     static func assignmentMetadata(_ item: [String: Any], for row: SourceAssignment, period: String?) -> SourceAssignment? {
@@ -58,7 +64,8 @@ public enum ProviderParsing {
         let kind = nonempty(item["type"]) ?? "assignment"
         guard kind != "folder" else { return false }
         if ["assignment", "discussion", "assessment"].contains(kind) && kind != expectedKind { return false }
-        if !["assignment", "discussion", "assessment"].contains(kind) && itemID(item) != id { return false }
+        if !["assignment", "discussion", "assessment"].contains(kind), itemID(item) != id,
+           !(kind == expectedKind && nonempty(item["id"]) == id) { return false }
         if let expected = possible, let actual = number(item["max_points"]), expected != actual { return false }
         if let expected = category, let actual = nonempty(item["grading_category"]), expected != actual { return false }
         if let expected = period, let actual = nonempty(item["grading_period"]),
@@ -161,21 +168,79 @@ public enum ProviderParsing {
                 let exception = number(r["exception"]) ?? 0
                 // Letter/rubric scales cannot be interpreted as points without a numeric value.
                 let earned = exception == 0 ? number(r["grade"]) : nil
-                return SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(kind):\(id)", fields: raw(r, ["assignment_id", "type", "category_id", "exception", "grade", "scale_id", "scale_type", "timestamp"])), title: nonempty(item["title"]) ?? nonempty(r["title"]) ?? "Untitled assignment", categoryID: text(r["category_id"] ?? item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), updated: date(r["timestamp"]), score: Score(earned: earned, possible: number(r["max_points"] ?? item["max_points"]), letter: exception == 0 ? text(r["grade"]).flatMap { Double($0) == nil ? $0 : nil } : nil, excused: exception == 1), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"]))
+                return SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(kind):\(id)", fields: raw(r, ["assignment_id", "type", "category_id", "exception", "grade", "scale_id", "scale_type", "timestamp"])), title: nonempty(item["title"]) ?? nonempty(r["title"]) ?? "Untitled assignment", categoryID: text(r["category_id"] ?? item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), updated: date(r["timestamp"]), score: Score(earned: earned, possible: number(r["max_points"]) ?? number(item["max_points"]), letter: exception == 0 ? nonempty(r["grade"]).flatMap { Double($0) == nil ? $0 : nil } : nil, excused: exception == 1), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"]))
             }
             let existing = Set(rawGrades.compactMap { r in text(r["assignment_id"]).map { "\(text(r["type"]) ?? "assignment"):\($0)" } })
+            let represented = Set(rawGrades.compactMap { row -> String? in
+                guard let id=nonempty(row["assignment_id"]) else { return nil }
+                return itemKey(itemMetadata("\(nonempty(row["type"]) ?? "assignment"):\(id)",grade:row,periodID:periodID))
+            })
             for item in itemRows where text(item["grading_period"]) == periodID.replacingOccurrences(of: "p", with: "") {
-                guard let id = itemID(item), let key = itemKey(item), !existing.contains(key) else { continue }
+                guard let id = itemID(item), let key = itemKey(item), !existing.contains(key), !represented.contains(key) else { continue }
                 assignments.append(SourceAssignment(source: Provenance(.schoology, "\(gradeOwner):\(periodID):\(text(item["type"]) ?? "assignment"):\(id)"), title: nonempty(item["title"]) ?? "Untitled assignment", categoryID: text(item["grading_category"]).map { "schoology:\(gradeOwner):category:\($0)" }, due: date(item["due"]), score: Score(possible: number(item["max_points"])), multiplier: number(item["factor"]) ?? 1, excluded: item["count_in_grade"] != nil && !flag(item["count_in_grade"])))
             }
             var fields = ["section_id":sectionID, "grade_section_id":gradeOwner, "period_id":periodID, "course_name":text(section["course_title"]) ?? text(section["section_title"]) ?? "Course"]
-            if nonempty(final?["grade"]) != nil, number(final?["scale_id"]) != 0 { fields["unsupported_overall_scale"] = "true" }
+            if ["override", "override_grade", "grade_override"].contains(where: { nonempty(final?[$0]) != nil }) || flag(final?["is_override"]) {
+                fields["overall_override"] = "true"
+            }
+            for key in ["start", "end"] {
+                if let value = nonempty(metadata[key] ?? period[key]) {
+                    // The section endpoint documents calendar dates as
+                    // timezone-free "YYYY-MM-DD 00:00:00"; these are school
+                    // days, unlike explicit ISO instants with a timezone.
+                    fields["period_" + key + "_date_only"] = value.range(of:"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?: 00:00:00)?$",options:.regularExpression) != nil ? "true" : "false"
+                }
+            }
+            if nonempty(final?["grade"]) != nil, number(final?["scale_id"]) != 0 {
+                fields["unsupported_overall_scale"] = "true"
+                if let value = number(final?["grade"]), let scale = nonempty(final?["scale_id"]) {
+                    fields["reported_numeric_total"] = String(value); fields["reported_scale_id"] = scale
+                }
+            }
             if inferredRules { fields["grade_rules_inferred"] = "true" }
             if let metadataID = nonempty(metadata["id"]) {
                 fields["period_metadata_id"] = metadataID
                 fields["period_metadata_fetched"] = String((periodsFetched ?? fetched).timeIntervalSince1970)
             }
-            return SourceCourse(source: Provenance(.schoology, "\(gradeOwner):\(periodID)", fields: fields), title: text(section["course_title"]) ?? text(section["section_title"]) ?? "Course", teacher: text(section["teacher_display"] ?? section["teacherDisplay"]) ?? "", term: Term(id: periodID, name: periodName, start: date(metadata["start"] ?? period["start"]) ?? dates.0, end: date(metadata["end"] ?? period["end"]) ?? dates.1, weight: number(final?["weight"] ?? metadata["weight"] ?? period["weight"])), grade: grade, categories: parsedCategories, assignments: assignments, method: method, fetched: fetched, assignmentCatalog: catalog)
+            return SourceCourse(source: Provenance(.schoology, "\(gradeOwner):\(periodID)", fields: fields), title: text(section["course_title"]) ?? text(section["section_title"]) ?? "Course", teacher: text(section["teacher_display"] ?? section["teacherDisplay"]) ?? "", term: Term(id: periodID, name: periodName, start: date(metadata["start"] ?? period["start"]) ?? dates.0, end: date(metadata["end"] ?? period["end"]) ?? dates.1, weight: number(final?["weight"]) ?? number(metadata["weight"]) ?? number(period["weight"])), grade: grade, categories: parsedCategories, assignments: assignments, method: method, fetched: fetched, assignmentCatalog: catalog)
+        }
+    }
+    /// A nonzero scale ID can still be a documented numeric/percent scale.
+    /// Verify its type before treating the provider's numeric total as percent.
+    static func schoologyOveralls(_ courses: [SourceCourse], scales: Data) throws -> [SourceCourse] {
+        let rows = try collection(object(scales)["grading_scale"])
+        return courses.map { original in
+            var course=original
+            guard let id=course.source.fields["reported_scale_id"], let value=course.source.fields["reported_numeric_total"].flatMap(Double.init),value.isFinite else { return course }
+            let matches=rows.filter { nonempty($0["id"]) == id }
+            guard matches.count == 1, let scale=matches.first, let type=number(scale["type"]),[0,1].contains(type),
+                  scale["hide_numeric"] == nil || number(scale["hide_numeric"]) == 0 else { return course }
+            course.grade.percent=value
+            course.source.fields["unsupported_overall_scale"]=nil
+            course.source.fields["overall_scale_type"]=String(Int(type))
+            course.source.fields["overall_scale_verified_at"]=String(Date().timeIntervalSince1970)
+            return course
+        }
+    }
+    /// An optional metadata failure may reuse a recent, account/section-scoped
+    /// verified scale. Keep its original verification time, never extend it.
+    static func schoologyCachedOveralls(_ courses: [SourceCourse], previous: [SourceCourse], at now: Date = Date()) -> [SourceCourse] {
+        courses.map { original in
+            var course=original
+            guard let id=course.source.fields["reported_scale_id"],
+                  let section=course.source.fields["section_id"],let owner=course.source.fields["grade_section_id"],
+                  let value=course.source.fields["reported_numeric_total"].flatMap(Double.init),value.isFinite else { return course }
+            let matches=previous.filter { old in
+                let fields=old.source.fields
+                return fields["section_id"] == section && fields["grade_section_id"] == owner
+                    && fields["reported_scale_id"] == id && ["0","1"].contains(fields["overall_scale_type"] ?? "")
+                    && fields["overall_scale_verified_at"].flatMap(Double.init).map { $0 <= now.timeIntervalSince1970 && now.timeIntervalSince1970 - $0 < 3600 } == true
+            }
+            guard let old=matches.first,Set(matches.compactMap { $0.source.fields["overall_scale_type"] }).count == 1 else { return course }
+            course.grade.percent=value; course.source.fields["unsupported_overall_scale"]=nil
+            course.source.fields["overall_scale_type"]=old.source.fields["overall_scale_type"]
+            course.source.fields["overall_scale_verified_at"]=matches.compactMap { $0.source.fields["overall_scale_verified_at"].flatMap(Double.init) }.min().map { String($0) }
+            return course
         }
     }
 }

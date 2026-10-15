@@ -153,7 +153,7 @@ struct CourseListView: View {
                                 Text(course.name).font(.title3.bold()).foregroundStyle(.primary).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
                                 UpdatedLabel(date: store.updated(course))
                             }.frame(maxWidth: .infinity, alignment: .leading)
-                            GradeLabel(grade: course.display.grade)
+                            GradeLabel(grade: GradingPeriods.overall(for:course,among:store.courses).display.grade)
                             Image(systemName: "chevron.right").font(.title3.weight(.medium)).foregroundStyle(.primary)
                         }.padding(16).frame(minHeight: 100).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
                     }.buttonStyle(.plain).accessibilityIdentifier("course-\(course.order)")
@@ -330,12 +330,12 @@ struct AssignmentRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
                 Text(a.title).font(.body.weight(.semibold)).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
-                UpdatedLabel(date: a.updated)
+                if a.score.isGraded { UpdatedLabel(date: a.updated) }
             }.frame(maxWidth: .infinity, alignment: .leading)
             VStack(alignment: .trailing, spacing: 6) {
                 if a.score.excused { Text("Excused").foregroundStyle(.secondary) }
                 else if a.score.earned != nil { Text("\(pointsText(a.score.earned))/\(pointsText(a.score.possible))").font(.body.weight(.semibold)); Text(percentText(a.score.percent)).font(.body.weight(.medium)) }
-                else { Text(a.score.letter ?? "Ungraded").foregroundStyle(.secondary) }
+                else { Text(a.score.letter ?? "—").foregroundStyle(.secondary) }
             }.foregroundStyle(changed ? Color.blue : Palette.grade).strikethrough(dropped).monospacedDigit().fixedSize()
         }.padding(.vertical, 23).padding(.leading, 16).padding(.trailing, 6)
     }
@@ -351,7 +351,7 @@ struct AssignmentsView: View {
         let scoped = self.scoped || !periods.isEmpty
         let course = scoped ? GradingPeriods.presentation(for: selected, among: store.courses) : selected
         let added = store.addedAssignments(course)
-        let groups = AssignmentGrouping.groups(for: course)
+        let groups = AssignmentGrouping.groups(for: course, includeUngraded:true)
         let exams = GradingPeriods.exams(for:selected, among:store.courses)
         ScrollView {
             VStack(spacing: 20) {
@@ -359,8 +359,11 @@ struct AssignmentsView: View {
                     AssignmentPeriodPills(periods:periods, selectedID:selected.id) { store.selectedPeriods[original.id] = $0 }
                 }
                 CourseGradeSummary(course: course, overall: scoped ? GradingPeriods.semester(for: selected, among: store.courses) : nil)
+                if GradingPeriods.descriptor(selected).kind == .quarter {
+                    QuarterGradeSummary(course:selected)
+                }
                 if !added.isEmpty { AssignmentGroup(course: course, title: "Added Grades", assignments: added) }
-                if added.isEmpty && groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No graded assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
+                if added.isEmpty && groups.allSatisfy({ $0.assignments.isEmpty }) { Text("No assignments in this period.").foregroundStyle(.secondary).padding(.vertical, 16) }
                 ForEach(groups.filter { !$0.assignments.isEmpty }) { group in AssignmentGroup(course: course, title: group.title, assignments: group.assignments) }
                 ForEach(exams) { exam in
                     VStack(alignment:.leading, spacing:10) {
@@ -377,8 +380,33 @@ struct AssignmentsView: View {
                     }.frame(maxWidth:.infinity, alignment:.leading)
                 }
             }.padding(16)
-        }.background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
+        }.accessibilityIdentifier("assignments-scroll").background(Palette.background).navigationTitle(course.name).navigationBarTitleDisplayMode(.inline)
             .refreshable { await store.refresh() }
+    }
+}
+struct QuarterGradeSummary: View {
+    @Environment(AppStore.self) private var store
+    let course: Course
+    var body: some View {
+        let label = GradingPeriods.descriptor(course).label
+        let estimate = GradingPeriods.estimatedGrade(for:course,among:store.courses)
+        VStack(alignment:.leading,spacing:8) {
+            HStack {
+                Text(label + " Grade").font(.headline)
+                Spacer()
+                if let estimate {
+                    Text(percentText(estimate.percent) + "*").font(.title3.bold()).foregroundStyle(Palette.grade).monospacedDigit()
+                        .accessibilityIdentifier("quarter-grade-estimate")
+                        .accessibilityLabel("Estimated " + label + " grade").accessibilityValue(percentText(estimate.percent))
+                } else {
+                    GradeLabel(grade:course.display.grade).accessibilityIdentifier("quarter-grade-actual")
+                }
+            }
+            if let estimate {
+                Text("*Estimated from " + ([estimate.semesterLabel] + estimate.knownPeriodLabels).joined(separator:", ") + " and reported weights." + (estimate.excludesBlankExam ? " Blank exam omitted." : "") + " Replaced when grades are available.")
+                    .font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("quarter-estimate-note")
+            }
+        }.padding(16).background(Palette.row,in:RoundedRectangle(cornerRadius:16))
     }
 }
 struct AssignmentGroup: View {

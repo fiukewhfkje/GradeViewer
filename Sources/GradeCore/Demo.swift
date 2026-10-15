@@ -1,12 +1,29 @@
 import Foundation
 public enum Demo {
     public static let now = Date(timeIntervalSince1970: 1_790_719_200)
+    /// Offline response shapes observed during the Schoology parser audit, with
+    /// entirely synthetic identities, titles and scores.
+    public static func schoologyStabilitySources() -> [SourceCourse] {
+        func data(_ value: String) -> Data { Data(value.utf8) }
+        let sources = try! ProviderParsing.schoology(
+            section:data(#"{"id":"fixture-section","course_title":"Synthetic Biology","options":{"weighted_grading_categories":0}}"#),
+            grades:data(#"{"section":[{"section_id":"fixture-section","period":[{"period_id":"p1","period_title":"Q1: 2026-08-20 - 2026-10-15","assignment":[{"assignment_id":10,"type":"assignment","grade":8,"max_points":10,"category_id":2,"timestamp":1792095000},{"assignment_id":11,"type":"external_tool","grade":10,"max_points":10,"category_id":2,"timestamp":1792095060},{"assignment_id":12,"type":"assignment","grade":9,"max_points":null,"category_id":2,"timestamp":1792095120}]}],"final_grade":[{"period_id":"p1","grade":90,"scale_id":17}]}]}"#),
+            items:data(#"{"assignment":[{"id":10,"grade_item_id":0,"type":"grade_column","title":"Column quiz","grading_period":1,"grading_category":2,"max_points":10},{"id":11,"grade_item_id":501,"type":"external_tool","title":"Tool quiz","grading_period":1,"grading_category":2,"max_points":10},{"id":12,"type":"assignment","title":"Points quiz","grading_period":1,"grading_category":2,"max_points":10}]}"#),
+            categories:data(#"{"grading_category":[{"id":2,"title":"Tests"}]}"#),
+            fetched:ProviderParsing.date("2026-10-15T20:21:00Z")!)
+        let instant=Date()
+        return try! ProviderParsing.schoologyOveralls(sources,scales:data(#"{"grading_scale":[{"id":17,"type":1,"hide_numeric":0}]}"#)).map { original in
+            var source=original; source.fetched=instant
+            for index in source.assignments.indices { source.assignments[index].updated=instant.addingTimeInterval(-Double(index + 1) * 60) }
+            return source
+        }
+    }
     /// Synthetic Schoology period hierarchy for regression/UI verification.
     public static func periodSources(includeExam: Bool = false) -> [SourceCourse] {
         func date(_ value: String) -> Date { ProviderParsing.date(value)! }
         func course(_ provider: ProviderID, period: String, start: String, end: String, grade: Double? = nil, titles: [String] = []) -> SourceCourse {
             let identity = period
-            let fields = ["section_id":"fixture-enrollment", "grade_section_id":"fixture-owner", "course_name":"AP Physics 1"]
+            let fields = ["section_id":"fixture-enrollment", "grade_section_id":"fixture-owner", "course_name":"AP Physics 1", "period_start_date_only":"true", "period_end_date_only":"true"]
             let assignments = titles.enumerated().map { index, title in
                 SourceAssignment(source: Provenance(provider, identity + ":" + String(index)), title:title, due:date(start).addingTimeInterval(Double(index + 1) * 86400), updated:date(start).addingTimeInterval(Double(index + 1) * 86400), score:Score(earned:grade, possible:100))
             }

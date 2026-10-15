@@ -79,6 +79,10 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                 var source = courses[0].display; source.assignments[0].title = "Unit 2 Test"
                 courses[0] = Reconciler.reconcile([source], previous:[courses[0]])[0]
             }
+            if demo && arguments.contains("--unresolved-title-fixture"), !courses.isEmpty {
+                var source=courses[0].display; source.assignments[0].title="Untitled assignment"
+                courses[0]=Reconciler.reconcile([source],previous:[courses[0]])[0]
+            }
             if demo && arguments.contains("--freshness-fixture"), !courses.isEmpty {
                 var source = courses[0].display
                 for i in source.assignments.indices { source.assignments[i].updated = Date().addingTimeInterval(-3 * 86400) }
@@ -89,6 +93,17 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             if arguments.contains("--error") { errors[.schoology] = "Schoology could not refresh." }
             if demo && arguments.contains("--period-fixture") {
                 courses = Reconciler.reconcile(Demo.periodSources(includeExam:arguments.contains("--exam-fixture")))
+                if arguments.contains("--unavailable-period-fixture") {
+                    let sources=courses.map { course in
+                        var source=course.display
+                        if source.term.id == "Q2" {
+                            source.grade=OverallGrade()
+                            for index in source.assignments.indices { source.assignments[index].score.earned=nil }
+                        }
+                        return source
+                    }
+                    courses=Reconciler.reconcile(sources)
+                }
                 if arguments.contains("--midyear-history-fixture") {
                     let sources = courses.map { course in
                         var source = course.display
@@ -102,6 +117,7 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                 courses.sort { $0.order < $1.order }
             }
             if demo && arguments.contains("--connected-settings-fixture") { connected = Set(ProviderID.allCases) }
+            if demo && arguments.contains("--schoology-stability-fixture") { courses = Reconciler.reconcile(Demo.schoologyStabilitySources()) }
             if !demo && readCredentials {
                 try SecureStore.removeRetiredConnections()
                 if try SecureStore.load(SchoologyCredentials.self, account: "schoology") != nil { connected.insert(.schoology) }
@@ -119,6 +135,7 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             }
         }
         selectedTerm = preferredTerm()
+        if demo && arguments.contains("--period-fixture") { selectedTerm = "Q1" }
         needsFreshData = !demo && (!connected.isEmpty || !courses.isEmpty)
         if demo && arguments.contains("--loading-fixture") { needsFreshData = true }
         if demo && arguments.contains("--fresh-failure-fixture") { needsFreshData = true; foregroundRefreshFailed = true }
@@ -131,37 +148,16 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         verifyLayout(phase: "cached startup")
         #endif
     }
-    var terms: [String] {
-        let unique = Set(courses.map { $0.display.term.name })
-        return unique.sorted { a,b in
-            let startA = courses.first { $0.display.term.name == a }?.display.term.start ?? .distantPast
-            let startB = courses.first { $0.display.term.name == b }?.display.term.start ?? .distantPast
-            return startA == startB ? a > b : startA > startB
-        }
-    }
+    var terms: [String] { CourseSelection.terms(courses) }
     var visibleCourses: [Course] { CourseSelection.visible(courses, term: selectedTerm) }
-    func preferredTerm(at now: Date = Date()) -> String {
-        let ranks = Dictionary(uniqueKeysWithValues: terms.map { name in
-            (name, courses.filter { $0.display.term.name == name }.map { course in
-                GradingPeriods.descriptor(course).kind == .quarter ? 4 : 0
-            }.max() ?? 0)
-        })
-        let ranked = terms.sorted { a,b in
-            ranks[a] == ranks[b] ? terms.firstIndex(of:a)! < terms.firstIndex(of:b)! : ranks[a]! > ranks[b]!
-        }
-        let current = ranked.first { name in courses.contains { course in
-            let term = course.display.term
-            return term.name == name && term.start.map { $0 <= now } == true && term.end.map { $0 >= now } == true
-        } }
-        if let current { return current }
-        return terms.first { name in courses.contains { course in
-            let source = course.display
-            return source.term.name == name && (source.term.start == nil || source.term.start! <= now) && (source.grade.percent != nil || source.grade.letter?.isEmpty == false)
-        } } ?? terms.first ?? ""
-    }
+    func preferredTerm(at now: Date = Date()) -> String { CourseSelection.preferredTerm(courses,at:now) }
     func startup() async {
         guard !started else { return }; started = true
-        await refresh(refreshMetadata: false)
+        var manualVerification = false
+        #if DEBUG
+        manualVerification = ProcessInfo.processInfo.arguments.contains("--verify-manual-refresh")
+        #endif
+        await refresh(refreshMetadata: manualVerification)
         #if DEBUG
         verifyLayout(phase: "after startup refresh")
         #endif
@@ -176,7 +172,8 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             let generated = GradeProgression.calculated(source, before: source.fetched)
             let progression = GradeProgression.points(for: course, among: courses)
             let curve = GradeCurve(points: progression)
-            let overview = AssignmentGrouping.overview(for:course)
+            let home = GradingPeriods.overall(for:course,among:courses)
+            let overview = AssignmentGrouping.overview(for:GradingPeriods.presentation(for:home,among:courses))
             let dates = overview.compactMap { $0.display.updated }
             return ["method": source.method.rawValue, "provider": source.source.provider.rawValue,
                     "periodCount": GradingPeriods.related(to:course, among:courses).count,
@@ -185,10 +182,16 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
                     }),
                     "hasSemester": GradingPeriods.semester(for:course, among:courses) != nil,
                     "overviewGradedRows": AssignmentGrouping.overview(for: course).count,
+                    "allAssignmentsRows": AssignmentGrouping.all(for:course).count,
+                    "removedAssignmentCount": course.removedAssignmentIDs?.count ?? 0,
+                    "estimatedQuarterCount": GradingPeriods.related(to:course,among:courses).filter { GradingPeriods.estimatedGrade(for:$0,among:courses) != nil }.count,
+                    "categoryWeightsPresent": source.categories.allSatisfy { $0.weight?.isFinite == true },
                     "overviewSorted": zip(dates,dates.dropFirst()).allSatisfy { $0 >= $1 },
                     "overviewUnique": Set(overview.map(\.id)).count == overview.count,
                     "untitledOverviewRows": overview.filter { !$0.display.hasTitle }.count,
                     "homeMatchesOverviewDate": updated(course) == overview.compactMap { $0.display.updated }.max(),
+                    "homeUsesSemester": GradingPeriods.descriptor(home).kind == .semester,
+                    "homeHasReportedTotal": !home.display.hasCalculatedGrade && home.display.grade.percent != nil,
                     "latestCalculatedMatchesReported": generated.last?.grade.percent.map { abs($0 - (source.grade.percent ?? $0)) < 0.000000001 } ?? true,
                     "assignments": source.assignments.count, "reliableBaseline": GradeCalculator.isReliable(source),
                     "calculatedPoints": generated.count, "observedPoints": course.history.count,
@@ -213,6 +216,12 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
     /// Foreground and manual requests join the same in-flight refresh.
     func refresh(refreshMetadata: Bool = true) async {
         presentationDate = Date()
+        #if DEBUG
+        if demo && refreshMetadata && ProcessInfo.processInfo.arguments.contains("--period-refresh-fixture") {
+            courses=Reconciler.refreshing(previous:courses,successful:[.schoology:Demo.periodSources()]); courseRevision += 1
+            return
+        }
+        #endif
         if let refreshTask { await refreshTask.value; return }
         guard !demo, !refreshing, repository != nil else { return }
         refreshing = true
@@ -271,7 +280,7 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         }
     }
     func updated(_ course: Course) -> Date? {
-        return AssignmentGrouping.updated(for: course)
+        return AssignmentGrouping.updated(for: GradingPeriods.overall(for:course,among:courses), among:courses)
     }
     private func performRefresh(refreshMetadata: Bool) async {
         #if DEBUG
@@ -351,7 +360,8 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
             let firstConnection = ProcessInfo.processInfo.arguments.contains("--verify-first-connection")
             if firstConnection { previous = [] }
             #endif
-            let result = try await schoology.fetchSnapshot(previous: previous, refreshMetadata: refreshMetadata)
+            let removed=Set(courses.flatMap { $0.removedAssignmentIDs ?? [] })
+            let result = try await schoology.fetchSnapshot(previous: previous, refreshMetadata: refreshMetadata, skippedTitleIDs:removed)
             #if DEBUG
             if firstConnection { verifyFirstConnection(result.courses, startedAt: startedAt) }
             #endif
@@ -500,6 +510,16 @@ private typealias ProviderFetch = (courses: [SourceCourse], retryAfter: Date?)
         catch { localError = "Grades could not be saved on this device."; return }
     }
     func setHidden(_ id: String, hidden: Bool) { var updated = courses; if let i = updated.firstIndex(where: { $0.id == id }) { updated[i].hidden = hidden }; persist(updated) }
+    func removeAssignment(_ assignment: Assignment, from course: Course) {
+        guard let index=courses.firstIndex(where:{ $0.id == course.id }),courses[index].assignments.contains(where:{ $0.id == assignment.id }) else { return }
+        var updated=courses
+        updated[index].removedAssignmentIDs = (updated[index].removedAssignmentIDs ?? []).union([assignment.id])
+        persist(updated)
+    }
+    func restoreRemovedAssignments(in course: Course) {
+        guard let index=courses.firstIndex(where:{ $0.id == course.id }) else { return }
+        var updated=courses; updated[index].removedAssignmentIDs=nil; persist(updated)
+    }
     func move(from: IndexSet, to: Int) { var ordered = courses.sorted { $0.order < $1.order }; ordered.move(fromOffsets: from, toOffset: to); for i in ordered.indices { ordered[i].order = i }; persist(ordered) }
     func scenario(_ course: Course) -> Hypothesis { (scenarios[course.id] ?? Hypothesis()).normalized(for: course.calculationSource) }
     func addedAssignments(_ course: Course) -> [Assignment] { scenario(course).added.reversed().map { Assignment(id: $0.id, sources: [$0]) } }

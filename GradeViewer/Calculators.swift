@@ -81,6 +81,9 @@ struct InteractiveAssignmentRow: View {
                         store.saveScenario(h, course: course)
                     }
                 } else {
+                    if !source.hasTitle {
+                        Button("Remove Assignment",systemImage:"trash",role:.destructive) { store.removeAssignment(assignment,from:course) }
+                    }
                     Button("Reset Assignment", systemImage: "arrow.uturn.backward") { var h = scenario; h.scores[source.id] = nil; h.ignored.remove(source.id); store.saveScenario(h, course: course) }.disabled(!changed)
                 }
             } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).foregroundStyle(.primary).frame(width: 38, height: 44) }
@@ -126,7 +129,7 @@ struct CourseGradeSummary: View {
         let h = store.scenario(course)
         let changed = !h.scores.isEmpty || !h.ignored.isEmpty || !h.added.isEmpty
         let reliable = GradeCalculator.isReliable(course.calculationSource)
-        let gradeCourse = overall ?? course
+        let gradeCourse = overall ?? GradingPeriods.overall(for:course,among:store.courses)
         let original = gradeCourse.display.grade.percent
         let scale = overall.flatMap { $0.id == course.id ? 1 : GradingPeriods.semesterScale(for: course, semester: $0, among: store.courses) } ?? (overall == nil ? 1 : nil)
         let quarterResult = changed && reliable ? try? GradeCalculator.hypotheticalPercent(course: course.calculationSource, hypothesis: h) : nil
@@ -151,6 +154,9 @@ struct CourseGradeSummary: View {
                 Button("Add Grade", systemImage: "plus") { adding = true }.disabled(!reliable)
                 Button("Final Grade Calculator", systemImage: "equal") { destination = .final }
                 Button("Reset All Changes", systemImage: "arrow.uturn.backward") { store.saveScenario(Hypothesis(), course: course) }.disabled(!changed)
+                if course.removedAssignmentIDs?.isEmpty == false {
+                    Button("Restore Removed Assignments",systemImage:"arrow.uturn.backward") { store.restoreRemovedAssignments(in:course) }
+                }
             } label: { Image(systemName: "ellipsis").rotationEffect(.degrees(90)).frame(width: 32, height: 44).foregroundStyle(.primary) }.tint(.primary).accessibilityLabel("Course options")
         }.padding(.leading, 16).padding(.trailing, 6).padding(.vertical, 24).background(Palette.row, in: RoundedRectangle(cornerRadius: 16))
             .sheet(isPresented: $adding) {

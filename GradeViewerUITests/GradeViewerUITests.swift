@@ -367,7 +367,7 @@ extension GradeViewerUITests {
         let exam = XCTAttachment(screenshot:app.screenshot()); exam.name = "q2-exam-at-bottom"; exam.lifetime = .keepAlways; add(exam)
         if !app.buttons["period-Q4-quarter"].isHittable { app.swipeDown() }
         app.buttons["period-Q4-quarter"].tap()
-        XCTAssertTrue(app.staticTexts["No graded assignments in this period."].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["No assignments in this period."].waitForExistence(timeout:5))
         XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
         XCTAssertFalse(app.staticTexts["Semester exam"].exists)
         XCTAssertTrue(app.staticTexts["S2 overall"].exists)
@@ -441,4 +441,84 @@ extension GradeViewerUITests {
     }
 
 
+}
+
+extension GradeViewerUITests {
+    @MainActor func testSchoologyColumnsToolsAndNullPointsStayTitledAndEditable() {
+        let app=XCUIApplication()
+        app.launchArguments=["--demo","--schoology-stability-fixture"]
+        app.launch()
+        let card=app.buttons["course-0"]
+        XCTAssertTrue(card.waitForExistence(timeout:10))
+        XCTAssertTrue(card.label.contains("90%"))
+        XCTAssertTrue(card.label.contains("updated recently"))
+        card.tap()
+        XCTAssertTrue(app.staticTexts["Course Grade"].waitForExistence(timeout:5))
+        for title in ["Column quiz","Tool quiz","Points quiz"] {
+            XCTAssertEqual(app.buttons.matching(identifier:"Options for " + title).count,1)
+        }
+        XCTAssertFalse(app.staticTexts["Untitled assignment"].exists)
+        app.buttons["Options for Points quiz"].tap(); app.buttons["Edit Grade"].tap()
+        let score=app.textFields["edit-score-field"]
+        XCTAssertTrue(score.waitForExistence(timeout:5)); replaceScore(score,with:"12")
+        app.buttons["save-score"].tap()
+        XCTAssertTrue(app.staticTexts["12/10"].waitForExistence(timeout:5))
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"100%")
+        let attachment=XCTAttachment(screenshot:app.screenshot()); attachment.name="schoology-titled-columns-null-points"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["Options for Points quiz"].tap(); app.buttons["Reset Assignment"].tap()
+        XCTAssertTrue(app.staticTexts["9/10"].waitForExistence(timeout:5))
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"90%")
+    }
+}
+
+extension GradeViewerUITests {
+    @MainActor func testHomeAndDetailUseSameSemesterOverall() {
+        let app=XCUIApplication(); app.launchArguments=["--demo","--period-fixture"]; app.launch()
+        let card=app.buttons["course-0"]
+        XCTAssertTrue(card.waitForExistence(timeout:10)); XCTAssertTrue(card.label.contains("85%"))
+        card.tap()
+        XCTAssertTrue(app.staticTexts["S1 overall"].waitForExistence(timeout:5))
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"85%")
+        let attachment=XCTAttachment(screenshot:app.screenshot()); attachment.name="matching-home-detail-semester"; attachment.lifetime = .keepAlways; add(attachment)
+    }
+}
+
+extension GradeViewerUITests {
+    @MainActor func testRemovedUnresolvedRowCanBeRestoredWithoutChangingReportedGrade() {
+        let app=XCUIApplication(); app.launchArguments=["--demo","--unresolved-title-fixture","--screen=detail"]; app.launch()
+        let options=app.buttons["Options for Untitled assignment"]
+        XCTAssertTrue(options.waitForExistence(timeout:10)); options.tap()
+        app.buttons["Remove Assignment"].tap()
+        XCTAssertFalse(app.staticTexts["Untitled assignment"].exists)
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"95.8%")
+        app.buttons["Course options"].tap(); app.buttons["Restore Removed Assignments"].tap()
+        XCTAssertTrue(options.waitForExistence(timeout:5))
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"95.8%")
+    }
+    @MainActor func testQ2KnownAssignmentsRemainVisibleWhenScoresAreUnavailable() {
+        let app=XCUIApplication(); app.launchArguments=["--demo","--period-fixture","--unavailable-period-fixture","--period-refresh-fixture","--screen=assignments"]; app.launch()
+        let q2=app.buttons["period-Q2-quarter"]
+        XCTAssertTrue(q2.waitForExistence(timeout:10)); q2.tap()
+        XCTAssertTrue(app.staticTexts["S1 overall"].exists)
+        XCTAssertEqual(app.descendants(matching:.any)["course-grade-value"].value as? String,"85%")
+        let estimate=app.staticTexts["quarter-grade-estimate"]
+        XCTAssertTrue(estimate.waitForExistence(timeout:5)); XCTAssertEqual(estimate.value as? String,"80%")
+        XCTAssertTrue(app.staticTexts["quarter-estimate-note"].exists)
+        app.buttons["Total Points"].tap()
+        XCTAssertTrue(app.staticTexts["Second quarter lab"].waitForExistence(timeout:5))
+        XCTAssertTrue(app.staticTexts["Second quarter quiz"].exists)
+        XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
+        XCTAssertFalse(app.staticTexts["No assignments in this period."].exists)
+        XCTAssertFalse(app.buttons["Options for Second quarter lab"].isEnabled)
+        XCTAssertFalse(app.staticTexts["80/100"].exists)
+        let attachment=XCTAttachment(screenshot:app.screenshot()); attachment.name="q2-known-assignments-unavailable-scores"; attachment.lifetime = .keepAlways; add(attachment)
+        let scroll=app.scrollViews["assignments-scroll"]
+        scroll.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.2)).press(forDuration:0.1,thenDragTo:scroll.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.9)))
+        let actual=app.descendants(matching:.any)["quarter-grade-actual"]
+        XCTAssertTrue(actual.waitForExistence(timeout:5))
+        XCTAssertFalse(estimate.exists); XCTAssertFalse(app.staticTexts["quarter-estimate-note"].exists)
+        XCTAssertTrue(app.staticTexts["80/100"].waitForExistence(timeout:5))
+        XCTAssertFalse(app.staticTexts["First quarter lab"].exists)
+        let refreshed=XCTAttachment(screenshot:app.screenshot()); refreshed.name="q2-actual-replaces-estimate"; refreshed.lifetime = .keepAlways; add(refreshed)
+    }
 }

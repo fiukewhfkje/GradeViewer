@@ -188,3 +188,70 @@ extension HTTPTests {
         }
     }
 }
+
+extension HTTPTests {
+    func testVerifiedCustomPercentScaleUsesProviderTotalAndWarmCacheAvoidsScaleReads() async throws {
+        let provider=try refreshFixture()
+        let path="/v1/users/fixture-user/grades?limit=200"
+        var payload=try ProviderParsing.object(Data(StubURLProtocol.bodies[path]!.utf8))
+        var sections=try ProviderParsing.collection(payload["section"])
+        sections[0]["final_grade"]=[["period_id":"p1","grade":78.25,"scale_id":17]]
+        payload["section"]=sections
+        StubURLProtocol.bodies[path]=String(decoding:try JSONSerialization.data(withJSONObject:payload),as:UTF8.self)
+        StubURLProtocol.bodies["/v1/users/fixture-user/grades?section_id=100"]=StubURLProtocol.bodies[path]
+        let scalePath="/v1/sections/100/grading_scales"
+        StubURLProtocol.bodies[scalePath]="{\"grading_scale\":[{\"id\":17,\"type\":1,\"hide_numeric\":0}]}"
+        let first=try await provider.fetch()
+        XCTAssertEqual(first[0].grade.percent,78.25)
+        XCTAssertFalse(SchoologyGrades.resolved(first)[0].hasCalculatedGrade)
+        XCTAssertFalse(GradeCalculator.isReliable(first[0]),"A provider override must not be replaced with a different assignment calculation")
+        StubURLProtocol.requests=[]
+        let second=try await provider.fetch(previous:first)
+        XCTAssertEqual(second[0].grade.percent,78.25)
+        XCTAssertFalse(StubURLProtocol.requests.contains(scalePath))
+        StubURLProtocol.statuses[scalePath]=429; StubURLProtocol.extraHeaders=["Retry-After":"600"]
+        let throttled=try await provider.fetchSnapshot(previous:first,refreshMetadata:true)
+        XCTAssertEqual(throttled.courses[0].assignments,first[0].assignments)
+        XCTAssertEqual(throttled.courses[0].grade.percent,78.25,"An optional scale failure must not replace a verified reported total with a different calculation")
+        XCTAssertEqual(throttled.courses[0].source.fields["overall_scale_verified_at"],first[0].source.fields["overall_scale_verified_at"],"A failed read cannot extend verification lifetime")
+        XCTAssertNotNil(throttled.retryAfter)
+    }
+    func testGradeAuditCannotExportResponseValuesOrIdentifiers() async throws {
+        let http=try ReadOnlyHTTP(origin:URL(string:"https://example.com/v1/")!,diagnosticsEnabled:true)
+        let grades=Data("{\"section\":[{\"section_id\":\"PRIVATE_SECTION\",\"period\":[{\"period_id\":\"PRIVATE_PERIOD\",\"assignment\":[{\"assignment_id\":\"PRIVATE_ID\",\"grade\":87.654321,\"max_points\":null}]}]}]}".utf8)
+        await http.recordGradeAudit(grades:grades,items:Data("{\"assignment\":[]}".utf8),courses:[])
+        let encoded=String(decoding:try JSONEncoder().encode(await http.diagnostics()),as:UTF8.self)
+        XCTAssertFalse(encoded.contains("PRIVATE")); XCTAssertFalse(encoded.contains("87.654321"))
+        XCTAssertTrue(encoded.contains("points null"))
+    }
+}
+
+extension HTTPTests {
+    func testManualRefreshRetriesNegativeTitleCacheWithoutChangingScore() async throws {
+        let provider=try refreshFixture(missingTitle:true)
+        let first=try await provider.fetch()
+        let path="/v1/sections/100/assignments/10"
+        StubURLProtocol.statuses[path]=200
+        StubURLProtocol.bodies[path]="{\"id\":10,\"title\":\"Newly accessible title\"}"
+        let automatic=try await provider.fetch(previous:first)
+        XCTAssertFalse(automatic[0].assignments[0].hasTitle)
+        StubURLProtocol.requests=[]
+        let manual=try await provider.fetch(previous:automatic,refreshMetadata:true)
+        XCTAssertEqual(manual[0].assignments[0].title,"Newly accessible title")
+        XCTAssertTrue(StubURLProtocol.requests.contains(path))
+        XCTAssertEqual(manual[0].assignments[0].score,first[0].assignments[0].score)
+    }
+}
+
+extension HTTPTests {
+    func testRemovedTitleIsNotQueriedAgainButFreshGradeSnapshotIsStillRead() async throws {
+        let provider=try refreshFixture(missingTitle:true)
+        let first=try await provider.fetch()
+        let id=try XCTUnwrap(first.first?.assignments.first?.id)
+        StubURLProtocol.requests=[]
+        let result=try await provider.fetchSnapshot(previous:first,refreshMetadata:true,skippedTitleIDs:[id])
+        XCTAssertEqual(result.courses[0].assignments[0].score,first[0].assignments[0].score)
+        XCTAssertTrue(StubURLProtocol.requests.contains { $0.contains("/grades?") })
+        XCTAssertFalse(StubURLProtocol.requests.contains { $0.contains("/assignments") || $0.contains("/folder/") })
+    }
+}

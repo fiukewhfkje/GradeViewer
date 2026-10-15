@@ -19,6 +19,33 @@ public enum GradingPeriods {
         guard dates.count == 2, dates[0] <= dates[1] else { return (nil,nil) }
         return (dates[0],dates[1])
     }
+    /// Provider calendar dates describe whole school days in the user's local
+    /// calendar. Explicit timestamp boundaries keep their exact instant.
+    private static func dateOnly(_ source: SourceCourse, end: Bool) -> Bool {
+        let value = end ? source.term.end : source.term.start
+        let dates = titleDates(source.term.name)
+        if let explicit = source.source.fields[end ? "period_end_date_only" : "period_start_date_only"] { return explicit == "true" }
+        return value != nil && (end ? dates.1 : dates.0) == value
+    }
+    static func boundary(_ source: SourceCourse, end: Bool, calendar: Calendar) -> Date? {
+        guard let value = end ? source.term.end : source.term.start else { return nil }
+        guard dateOnly(source,end:end) else { return value }
+        var utc = Calendar(identifier:.gregorian); utc.timeZone = TimeZone(secondsFromGMT:0)!
+        var localCalendar = Calendar(identifier:.gregorian); localCalendar.timeZone = calendar.timeZone
+        guard let local = localCalendar.date(from:utc.dateComponents([.year,.month,.day],from:value)) else { return nil }
+        return end ? localCalendar.date(byAdding:.day,value:1,to:local) : local
+    }
+    public static func contains(_ source: SourceCourse, at now: Date, calendar: Calendar = .current) -> Bool {
+        guard let start = boundary(source,end:false,calendar:calendar), let end = boundary(source,end:true,calendar:calendar) else { return false }
+        return start <= now && (dateOnly(source,end:true) ? now < end : now <= end)
+    }
+    static func hasStarted(_ source: SourceCourse, at now: Date, calendar: Calendar = .current) -> Bool {
+        boundary(source,end:false,calendar:calendar).map { $0 <= now } ?? true
+    }
+    static func includesHistory(_ source: SourceCourse, date: Date, calendar: Calendar = .current) -> Bool {
+        guard let end = boundary(source,end:true,calendar:calendar) else { return false }
+        return dateOnly(source,end:true) ? date < end : date <= end
+    }
     public static func descriptor(_ source: SourceCourse) -> PeriodDescriptor {
         let name = Reconciler.normalize(source.term.name)
         func index(_ regex: NSRegularExpression) -> Int? {
@@ -74,6 +101,11 @@ public enum GradingPeriods {
         }
         return matches.count == 1 ? matches[0] : nil
     }
+    /// Home and detail use the same semester overall while assignment lists
+    /// and their calculators keep the selected quarter's own source.
+    public static func overall(for course: Course, among available: [Course]) -> Course {
+        semester(for:course,among:available) ?? course
+    }
     public static func ordered(_ courses: [Course]) -> [Course] {
         courses.sorted { a,b in
             let x = descriptor(a), y = descriptor(b)
@@ -127,18 +159,18 @@ public enum GradingPeriods {
         }
         var result = course
         let rows = ([course] + ordered(children)).flatMap { child in
-            AssignmentGrouping.overview(for: child)
+            AssignmentGrouping.all(for: child)
         }
         // Provider assignment IDs survive period changes; repeated IDs may appear
         // in both the semester rollup and a child quarter. Keep one presentation.
         var seen = Set<String>()
-        result.assignments = AssignmentOrdering.graded(rows.filter { row in
+        result.assignments = rows.filter { row in
             let identities = row.sources.map { item in
                 item.source.provider.rawValue + ":" + (item.source.fields["assignment_id"].map { $0 + ":" + (item.source.fields["type"] ?? "assignment") } ?? item.id)
             }
             guard identities.allSatisfy({ !seen.contains($0) }) else { return false }
             seen.formUnion(identities); return true
-        })
+        }
         return result
     }
     /// Explicit provider weights, normalized across currently available component

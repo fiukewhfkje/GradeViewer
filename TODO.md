@@ -1,5 +1,17 @@
 # Next work
 
+## October 15 Schoology hardening
+
+- [x] Audit live grade/catalog/scale responses without exporting credentials or grade values; reproduce response-shape, date-boundary, freshness and home/detail discrepancies.
+- [x] Recover grade-column/external-tool names, null/blank points and verified numeric custom-scale totals; keep metadata conflict guards and avoid duplicate contributions.
+- [x] Use the same reported semester overall on home/detail, retain quarter calculation scope, include final calendar days and retry missing titles on manual refresh while honoring server cooldowns.
+- [x] Match all seven Biology screenshot titles and all 30 CSA website rows (28 graded); identify the one extra API-only untitled Homework grade without inventing its title, deletion or score. The real Weekly Programs row stays; the later explicitly authorized local removal of the extra Homework identity persists across refresh/relaunch, with undo and raw-source preservation.
+- [x] Verify Physics's reported semester includes its website Q2 score despite the individual-score API omission; do not insert an invented provider row/value.
+- [x] Verify live category and quarter/exam weights; add a deterministic, asterisked inverse quarter estimate with blank/scored/zero-exam handling and automatic replacement by actual data. Keep actual assignment scores/history separate.
+- [x] Include named no-score assignments in All Assignments, suppress unnamed empty stubs and avoid claiming a missing score was updated.
+- [x] Pass 112 core/26 hosted tests, 11 focused UI flows, signed device/Release builds and preserved-data checks; install build 8 with the original identity.
+- [ ] Complete the last foreground/normal-launch check, merge [PR #7](https://github.com/fiukewhfkje/GradeViewer/pull/7) and leave main synchronized with the delivery branch removed.
+
 ## October 10 device and history follow-up
 
 - [x] Install over the original phone identity and verify the saved Schoology connection, live totals, graph endpoints, retained course identities, all 20 original observations and saved local scenarios.
@@ -53,11 +65,11 @@
 
 ## Current evidence-driven follow-up
 
-- [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. Five captured Schoology graded rows remain neutral after the upgrade; do not infer that all are inaccessible. Keep honoring provider cooldowns and preserving scores.
+- [ ] Observe the deferred title lookups after their natural 15-minute/server deadline only if further live evidence warrants it. The hardening recovered every current Biology title. One extra CSA Homework grade has no accessible metadata after complete list/folder checks; retain its score without inventing a title or deletion. Keep honoring provider cooldowns and preserving scores.
 - [ ] Verify another student's own district/account, earlier/inactive-period accessibility and physical installation; original-account first-connection and fixture checks do not establish district-wide compatibility. No documented full score-change history has been established for fresh installs.
 - [ ] Recover unresolved Schoology titles only if the provider makes compatible matching metadata accessible; do not infer a deleted assignment or teacher setting.
 - [ ] Observe naturally populated completed periods and genuine new grades; calibrate timezone-less dates, rubric scales, rounding or teacher overrides only with demonstrated discrepancies.
-- [ ] Rebuild/reinstall when local development provisioning expires. Build 7 is installed and live-verified on the original phone; wider distribution requires a separate App Store/TestFlight signing/release decision.
+- [ ] Rebuild/reinstall when local development provisioning expires. Build 8 is installed and live-verified on the original phone; wider distribution requires a separate App Store/TestFlight signing/release decision.
 - [ ] Measure further provider latency/rate limits only when a new observed issue justifies it; the measured refresh fixes are documented in docs/PERFORMANCE_REPORT.md.
 
 No widgets, grade-write endpoints, notification server, background polling, paid tier, planner, analytics or invented grades/dates. No Muse watcher was implemented or deployed.

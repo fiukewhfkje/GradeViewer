@@ -13,7 +13,7 @@ public enum Reconciler {
         return resolved.enumerated().map { index, source in
             let old = oldBySource[source.id]
             let rows = Dictionary(source.assignments.map { ($0.id, $0) }, uniquingKeysWith: { a,b in (a.updated ?? .distantPast) > (b.updated ?? .distantPast) ? a : b }).values
-            var course = Course(id: old?.id ?? source.id, sources: [source], assignments: rows.map { Assignment(id: $0.id, sources: [$0]) }, history: old?.history ?? [], hidden: old?.hidden ?? false, order: old?.order ?? index)
+            var course = Course(id: old?.id ?? source.id, sources: [source], assignments: rows.map { Assignment(id: $0.id, sources: [$0]) }, history: old?.history ?? [], hidden: old?.hidden ?? false, order: old?.order ?? index, removedAssignmentIDs:old?.removedAssignmentIDs)
             course.assignments = AssignmentOrdering.graded(course.assignments) + course.assignments.filter { !$0.display.score.isGraded }.sorted { $0.id < $1.id }
             let grade = source.grade
             // Calculated totals/prefixes are not observations of a provider total.
