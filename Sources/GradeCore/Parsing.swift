@@ -185,7 +185,10 @@ public enum ProviderParsing {
             }
             for key in ["start", "end"] {
                 if let value = nonempty(metadata[key] ?? period[key]) {
-                    fields["period_" + key + "_date_only"] = value.range(of:"^[0-9]{4}-[0-9]{2}-[0-9]{2}$",options:.regularExpression) != nil ? "true" : "false"
+                    // The section endpoint documents calendar dates as
+                    // timezone-free "YYYY-MM-DD 00:00:00"; these are school
+                    // days, unlike explicit ISO instants with a timezone.
+                    fields["period_" + key + "_date_only"] = value.range(of:"^[0-9]{4}-[0-9]{2}-[0-9]{2}(?: 00:00:00)?$",options:.regularExpression) != nil ? "true" : "false"
                 }
             }
             if nonempty(final?["grade"]) != nil, number(final?["scale_id"]) != 0 {

@@ -69,6 +69,18 @@ final class SchoologyStabilityTests: XCTestCase {
         source.source.fields["period_end_date_only"]="false"
         XCTAssertFalse(GradingPeriods.contains(source,at:date("2026-10-15T00:00:01Z"),calendar:eastern),"Explicit midnight timestamps must not fall back to the legacy calendar-date heuristic")
     }
+    func testDocumentedSectionMidnightStringsAreWholeDaysButZonedInstantsAreExact() throws {
+        func data(_ value: String) -> Data { Data(value.utf8) }
+        for end in ["2026-10-15 00:00:00","2026-10-15","2026-10-15T00:00:00Z"] {
+            let source=try ProviderParsing.schoology(
+                section:data(#"{"id":1,"options":{"weighted_grading_categories":0}}"#),
+                grades:data(#"{"section":[{"section_id":1,"period":[{"period_id":"p1","assignment":[]}]}]}"#),
+                items:data(#"{"assignment":[]}"#),categories:data(#"{"grading_category":[]}"#),
+                periods:data("{\"grading_period\":[{\"id\":1,\"title\":\"Q1: 2026-08-20 - 2026-10-15\",\"start\":\"2026-08-20 00:00:00\",\"end\":\"\(end)\"}]}"))[0]
+            XCTAssertEqual(GradingPeriods.contains(source,at:date("2026-10-16T03:59:59Z"),calendar:eastern),!end.hasSuffix("Z"))
+            XCTAssertFalse(GradingPeriods.contains(source,at:date("2026-10-16T04:00:00Z"),calendar:eastern))
+        }
+    }
     func testSemesterFreshnessUsesRelatedAssignmentDatesInsteadOfOldHistory() throws {
         var courses=Reconciler.reconcile(Demo.periodSources())
         let semester=try XCTUnwrap(courses.firstIndex { $0.display.term.id == "S1" })

@@ -9,8 +9,8 @@
 - [x] Verify Physics's reported semester includes its website Q2 score despite the individual-score API omission; do not insert an invented provider row/value.
 - [x] Verify live category and quarter/exam weights; add a deterministic, asterisked inverse quarter estimate with blank/scored/zero-exam handling and automatic replacement by actual data. Keep actual assignment scores/history separate.
 - [x] Include named no-score assignments in All Assignments, suppress unnamed empty stubs and avoid claiming a missing score was updated.
-- [x] Pass 111 core/26 hosted tests, 11 focused UI flows, signed device/Release builds and preserved-data checks; install build 8 with the original identity.
-- [ ] Finish GitHub PR/merge, final normal phone launch and branch cleanup for this delivery.
+- [x] Pass 112 core/26 hosted tests, 11 focused UI flows, signed device/Release builds and preserved-data checks; install build 8 with the original identity.
+- [ ] Complete the last foreground/normal-launch check, merge [PR #7](https://github.com/fiukewhfkje/GradeViewer/pull/7) and leave main synchronized with the delivery branch removed.
 
 ## October 10 device and history follow-up
 

@@ -390,7 +390,7 @@ public struct SchoologyProvider: Sendable {
                 source.source.fields["grade_snapshot_hash"] = batch.fingerprint
                 source.source.fields["section_metadata_fetched"] = stamp
                 source.source.fields["section_metadata_course_count"] = String(courses.count)
-                source.source.fields["section_metadata_version"] = "6"
+                source.source.fields["section_metadata_version"] = "7"
                 return source
             }
         }
@@ -415,7 +415,7 @@ public struct SchoologyProvider: Sendable {
         let now = Date().timeIntervalSince1970
         guard !cached.isEmpty, cached.allSatisfy({ source in
             let fields = source.source.fields
-            guard fields["section_metadata_version"] == "6", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
+            guard fields["section_metadata_version"] == "7", fields["user_id"] == userID, fields["grade_snapshot_hash"] == fingerprint,
                   fields["section_metadata_course_count"] == String(cached.count),
                   let stamp = fields["section_metadata_fetched"].flatMap(Double.init), stamp <= now, now - stamp < 300 else { return false }
             if let periodStamp = fields["period_metadata_fetched"].flatMap(Double.init), periodStamp > now || now - periodStamp >= 3600 { return false }
@@ -457,7 +457,7 @@ public struct SchoologyProvider: Sendable {
         let ownerSources = previous.filter { $0.source.provider == .schoology && $0.source.fields["grade_section_id"] == owner }
         let cached = ownerSources.filter { $0.source.fields["period_metadata_id"] != nil }
         let complete = ownerSources.allSatisfy { source in
-            source.source.fields["section_metadata_version"] == "6" && (source.source.fields["section_metadata_course_count"].map { $0 == String(ownerSources.count) } ?? true)
+            source.source.fields["section_metadata_version"] == "7" && (source.source.fields["section_metadata_course_count"].map { $0 == String(ownerSources.count) } ?? true)
         }
         let stamp = cached.compactMap { $0.source.fields["period_metadata_fetched"].flatMap(Double.init) }.min().map(Date.init(timeIntervalSince1970:))
         let payload = try ProviderParsing.object(grades)
