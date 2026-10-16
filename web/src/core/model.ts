@@ -7,7 +7,7 @@ export interface SourceCourse { id: string; title: string; teacher: string; term
 export interface Observation { id: string; date: number; grade: Grade; provider: string }
 export interface Course extends SourceCourse { history: Observation[]; hidden: boolean; order: number; removed: string[] }
 export interface Scenario { scores: Record<string,number>; ignored: string[]; added: Assignment[] }
-export interface SavedState { schema: 1; account?: string; courses: Course[]; scenarios: Record<string,Scenario> }
+export interface SavedState { schema: 1; account?: string; courses: Course[]; scenarios: Record<string,Scenario>; metadata?:Record<string,{account:string;fetched:number;fingerprint:string;payload:{section:Record<string,unknown>;items:Record<string,unknown>[];categories:Record<string,unknown>[];periods:Record<string,unknown>[];scales?:Record<string,unknown>[]}}> }
 export const emptyScenario = (): Scenario => ({scores:{},ignored:[],added:[]});
 export const emptyState = (): SavedState => ({schema:1,courses:[],scenarios:{}});
 export const hasTitle = (a: Assignment) => !!a.title.trim() && !/^(untitled assignment|assignment(?: \d+)?)$/i.test(a.title.trim());
