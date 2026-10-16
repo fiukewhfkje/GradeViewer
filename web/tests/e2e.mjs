@@ -77,7 +77,10 @@ try {
     }),
     page = await context.newPage(),
     errors = [];
-  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("pageerror", (e) => {
+    errors.push(e.message);
+    console.error("Synthetic page error:", e.message);
+  });
   await check("private API and security headers", async () => {
     const r = await fetch(base + "/api/scan/start", {
       method: "POST",
@@ -108,6 +111,101 @@ try {
     assert.equal(await page.locator(".course").count(), 5);
     await page.screenshot({ path: directory + "/home-light.png" });
   });
+  await check(
+    "phone pull-to-refresh respects thresholds, cancellation, scrolling and manual refresh rules",
+    async () => {
+      assert.equal(await page.locator(".desktop-refresh").isVisible(), false);
+      const touch = await context.newCDPSession(page);
+      let scans = 0,
+        manual = false;
+      const request = (r) => {
+        if (r.url().endsWith("/api/scan/start")) {
+          scans++;
+          manual = r.postDataJSON().refreshMetadata === true;
+        }
+      };
+      page.on("request", request);
+      const send = (type, x = 30, y = 170) =>
+        touch.send("Input.dispatchTouchEvent", {
+          type,
+          touchPoints:
+            type === "touchEnd" || type === "touchCancel" ? [] : [{ x, y }],
+        });
+      try {
+        await page.evaluate(() => scrollTo(0, 0));
+        await send("touchStart");
+        await send("touchMove", 30, 195);
+        await send("touchEnd");
+        // Dispatch the horizontal case to the app directly: Chromium otherwise
+        // turns this into its browser-history navigation gesture.
+        await page.evaluate(() => {
+          const target = document.querySelector("main");
+          for (const [type, x, y] of [
+            ["touchstart", 160, 170],
+            ["touchmove", 300, 185],
+            ["touchend", 300, 185],
+          ]) {
+            const touch = new Touch({
+              identifier: 1,
+              target,
+              clientX: x,
+              clientY: y,
+            });
+            target.dispatchEvent(
+              new TouchEvent(type, {
+                bubbles: true,
+                cancelable: true,
+                touches: type === "touchend" ? [] : [touch],
+                changedTouches: [touch],
+              }),
+            );
+          }
+        });
+        await send("touchStart");
+        await send("touchMove", 30, 330);
+        await send("touchCancel");
+        await page.waitForTimeout(100);
+        assert.equal(scans, 0);
+        await page.setViewportSize({ width: 390, height: 500 });
+        await page.evaluate(() => scrollTo(0, 100));
+        assert.ok(await page.evaluate(() => scrollY > 0));
+        await send("touchStart");
+        await send("touchMove", 30, 330);
+        await send("touchEnd");
+        assert.equal(scans, 0);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.evaluate(() => scrollTo(0, 0));
+        await send("touchStart");
+        await send("touchMove", 30, 250);
+        await send("touchMove", 30, 330);
+        await page.getByText("Release to refresh", { exact: true }).waitFor();
+        const committed = page.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await send("touchEnd");
+        await committed;
+        await page.waitForFunction(
+          () => !document.querySelector(".desktop-refresh")?.disabled,
+        );
+        assert.equal(scans, 1);
+        assert.equal(manual, true);
+        assert.equal(await page.locator(".course").count(), 5);
+        await page
+          .getByRole("button", { name: "Profile", exact: true })
+          .click();
+        assert.equal(
+          await page
+            .getByRole("button", { name: "Refresh grades", exact: true })
+            .isVisible(),
+          true,
+        );
+        await page.getByRole("button", { name: "Grades", exact: true }).click();
+      } finally {
+        page.off("request", request);
+        await touch.detach();
+      }
+    },
+  );
   let cId, assignmentTitle;
   await check("same home/detail overall and graph", async () => {
     const homeGrade = await page
@@ -504,12 +602,16 @@ try {
           body: '{"error":"providerUnavailable"}',
         }),
       );
-      await page.getByLabel("Refresh grades", { exact: true }).click();
+      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Refresh grades", exact: true })
+        .click();
       await page
         .getByText("Schoology is unavailable. Your saved data is retained.", {
           exact: true,
         })
         .waitFor();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
       assert.equal(await page.locator(".course").count(), 5);
       await page.reload();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
@@ -556,6 +658,10 @@ try {
           .click();
         await secondPage.getByRole("button", { name: /AP Biology/ }).waitFor();
         assert.equal(await secondPage.locator(".course").count(), 5);
+        assert.equal(
+          await secondPage.locator(".desktop-refresh").isVisible(),
+          true,
+        );
         assert.equal(
           await secondPage
             .getByLabel("Schoology API secret", { exact: true })

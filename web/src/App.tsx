@@ -56,6 +56,7 @@ import {
 } from "./core/calculator";
 import { progression, curve } from "./core/progression";
 import { demoCourses } from "./core/demo";
+import { usePullRefresh } from "./usePullRefresh";
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<unknown>;
@@ -221,7 +222,7 @@ export default function App() {
   const flight = useRef<Promise<void> | undefined>(undefined),
     channel = useRef<BroadcastChannel | undefined>(undefined),
     mounted = useRef(false),
-    touch = useRef<number | undefined>(undefined);
+    app = useRef<HTMLDivElement>(null);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
@@ -699,9 +700,16 @@ export default function App() {
     }
   }
   const locked = !demo && !status?.authenticated;
+  const canRefresh =
+    !busy && !locked && !demo && !!status?.connected && deadline <= Date.now();
+  const pull = usePullRefresh(
+    app,
+    canRefresh && tab === "grades" && fresh && !modal && !install,
+    () => void refresh(undefined, true).catch(() => {}),
+  );
   return (
     <>
-      <div className="app">
+      <div className="app" ref={app}>
         <header>
           <div>
             {selected ? (
@@ -743,9 +751,9 @@ export default function App() {
             </button>
           ) : (
             <button
-              className={"icon " + (busy ? "spinning" : "")}
+              className={"icon desktop-refresh " + (busy ? "spinning" : "")}
               aria-label="Refresh grades"
-              disabled={busy || locked || demo || deadline > Date.now()}
+              disabled={!canRefresh}
               onClick={() => void refresh(undefined, true).catch(() => {})}
             >
               <RefreshCw size={21} />
@@ -792,24 +800,20 @@ export default function App() {
             {error}
           </p>
         )}
-        <main
-          onTouchStart={(e) => {
-            touch.current =
-              window.scrollY === 0 ? e.touches[0].clientY : undefined;
-          }}
-          onTouchEnd={(e) => {
-            if (
-              touch.current !== undefined &&
-              e.changedTouches[0].clientY - touch.current > 100 &&
-              tab === "grades" &&
-              !busy &&
-              !locked &&
-              !demo
-            )
-              void refresh().catch(() => {});
-            touch.current = undefined;
-          }}
-        >
+        {pull.distance > 0 && (
+          <div
+            className="pull-refresh"
+            role="status"
+            style={{ height: Math.min(64, pull.distance) }}
+          >
+            <RefreshCw
+              size={18}
+              style={{ transform: `rotate(${pull.distance * 3}deg)` }}
+            />
+            {pull.ready ? "Release to refresh" : "Pull to refresh"}
+          </div>
+        )}
+        <main>
           {tab === "profile" ? (
             <>
               <section>
@@ -907,6 +911,15 @@ export default function App() {
                   <Download size={18} /> Add to Home Screen
                 </button>
               </section>
+              {!demo && status?.authenticated && (
+                <button
+                  className="secondary full"
+                  disabled={!canRefresh}
+                  onClick={() => void refresh(undefined, true).catch(() => {})}
+                >
+                  <RefreshCw size={18} /> Refresh grades
+                </button>
+              )}
               {!demo && status?.authenticated && (
                 <button
                   className="secondary"
