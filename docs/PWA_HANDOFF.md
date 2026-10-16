@@ -1,3 +1,15 @@
+# Current PWA handoff — resumed October 16, 2026
+
+The checkpoint below has been applied. Continue from `pwa-migration`, not the old partial scaffold. The app now builds and its synthetic test suites, local Worker/browser flows, generated-template signed update/rollback and live Schoology snapshot path have run. Read [PWA_VALIDATION.md](PWA_VALIDATION.md), PROJECT_STATUS and TODO for actual evidence and remaining external gates.
+
+Current user steering: focused commits on one migration branch, one final merge only when complete/confident, then release/deploy. Start public PWA versions at 0.1.0. Random nontechnical users must deploy into their own Cloudflare accounts without terminal/token/database setup. Implement signed automatic updates for copied deployments. Web/iOS/Android support and a visible copyable personal workers.dev address are required. The initial unauthenticated 401 was a reachability probe; authenticated OAuth and a full snapshot now succeed. Do not re-investigate the old network-policy denial.
+
+No final merge, public release, repository visibility change or real Cloudflare deployment has occurred. This runtime is not Cloudflare-authenticated, and the GitHub integration cannot administer Actions secrets (HTTP 403). Preserve the ignored release signing key securely; do not put it in source/chat/artifacts. Complete account-backed hosted onboarding/update/rollback and physical-phone checks before calling those gates passed. All existing browser fixtures/screenshots remain synthetic; live records were kept in process memory only.
+
+---
+
+## Historical checkpoint (superseded)
+
 # GradeViewer PWA handoff — October 16, 2026
 
 ## Start here

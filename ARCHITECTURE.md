@@ -1,5 +1,9 @@
 # Architecture
 
+The active PWA lives in `web/`; see [PWA architecture and validation](docs/PWA_VALIDATION.md). React/Vite serves the browser UI. Each user owns a Cloudflare Worker and SQLite Durable Object storing only encrypted API credentials, hashed sessions, cooldowns and bounded verification/cache receipts. Grade snapshots/history/scenarios remain in versioned IndexedDB. Same-origin APIs stage complete parsed snapshots before activation, sign only allowlisted Schoology GETs and validate redirects/pagination. A static-only service worker offers controlled updates. Signed source releases update copied repositories through GitHub Actions; Cloudflare Builds performs deployment. The following description is the preserved native reference, not the PWA security/storage model.
+
+## Native reference
+
 GradeViewer is one native local SwiftUI iPhone app, using Apple frameworks and the local GradeCore package. Schoology is its sole provider. There is no server, analytics, advertising, Muse dependency, widget, extension, App Group, or background polling.
 
 `SchoologyProvider` → GradeCore source courses/calculations → stable canonical courses → protected SwiftData cache → SwiftUI.

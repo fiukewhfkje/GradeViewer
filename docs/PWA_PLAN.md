@@ -1,6 +1,6 @@
 # GradeViewer PWA plan — October 16, 2026
 
-Status: implementation was authorized and began, then the user requested a pause for a new thread. The self-contained web project and a first TypeScript core draft exist; dependencies are installed. There is no Worker implementation, UI, runnable PWA, deployment or end-to-end result yet. See [PWA_HANDOFF.md](PWA_HANDOFF.md) for the exact checkpoint and validation failure. The investigation below records the evidence available before implementation.
+Status: resumed and implemented as release candidate 0.1.0. The application, security/persistence layer, installation assets, signed release/update machinery and synthetic suites now exist. Live OAuth identity and a full snapshot succeeded. See [PWA_VALIDATION.md](PWA_VALIDATION.md) for current evidence and the external Cloudflare/public-release/physical-phone gates. The investigation below preserves the original design rationale; its old network/checkpoint observations are historical.
 
 ## Goal and scope
 

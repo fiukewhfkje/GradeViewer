@@ -1,3 +1,9 @@
+# October 16 PWA evidence update
+
+The new runtime reports unrestricted/enforced network policy and ready Schoology variables. An unauthenticated HEAD reached Schoology and returned 401; authenticated production OAuth `users/me` then succeeded. The production Worker/client snapshot path completed with credentials and provider records held only in ephemeral process memory, exporting counts/booleans only. These are this account's live results, not district-wide compatibility or browser CORS evidence. Browser tests remain synthetic.
+
+Cloudflare's current [deployment-button documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) confirms public source, self-contained subdirectory copies, automatic Durable Object provisioning, secret prompts from .dev.vars.example and package.json descriptions, and detected build/deploy scripts. Our isolated template, signed updater and rollback pass locally. Actual Cloudflare authorization, fresh-account onboarding, GitHub-triggered builds, hosted Free-plan budgets and physical phone installation are still unverified. See [PWA validation](docs/PWA_VALIDATION.md). Earlier network-denial/planning conclusions below describe the previous runtime.
+
 # Current provider research — October 15, 2026
 
 **Documented:** [User Grades](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) separates assignment rows by `period_id` and returns `final_grade` records with grades/weights; period filters are available. [Course Section](https://developers.schoology.com/api-documentation/rest-api-v1/course-section/) exposes category weighting mode, category weights and scale metadata. [Midterms and finals](https://uc.powerschool-docs.com/en/schoology/latest/midterms-and-finals) explains that an exam can be weighted against a parent’s sub-periods or against overall periods. These are different levels of weighting, not interchangeable fields.
