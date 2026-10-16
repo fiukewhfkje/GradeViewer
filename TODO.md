@@ -8,7 +8,10 @@
 - [x] Build the responsive PWA, IndexedDB persistence, local scenarios, phone-install assets/help, visible personal address and controlled app-shell updates.
 - [x] Implement signed 0.x releases, isolated template packaging, copied-repository automatic update workflow and explicit rollback; verify generated-copy install/update/rollback locally.
 - [x] Run synthetic unit/security/snapshot and browser suites, inspect screenshots, and dry-run the production Worker. See [PWA_VALIDATION.md](docs/PWA_VALIDATION.md) for exact results and final follow-ups.
-- [ ] Complete actual public template deployment on a new Cloudflare Free account, preserving the stable URL, Durable Object and secret on redeploy. No Cloudflare authorization is configured here.
+- [ ] Complete actual public template deployment on a new Cloudflare Free account, preserving the stable URL, Durable Object and secret on redeploy. Cloudflare OAuth is now configured and an isolated staging deployment has passed live snapshots/redeploy/rollback. The public template signup/build flow is still pending.
+- [x] Add phone pull-to-refresh (threshold, cancellation, normal scrolling, manual-refresh semantics), desktop refresh and an accessible Profile control; pass 95 tests and 22 browser checks.
+- [ ] Run the original Swift core suite and the new 1,200-case Swift/JavaScript parity corpus in macOS CI; complete the documented parity audit.
+- [ ] Record final hosted cold/reopen performance benchmarks after optimization.
 - [ ] Configure the maintainer's generated Ed25519 private key as GitHub Actions secret RELEASE_SIGNING_KEY through an account with Actions-secret administration; this integration receives HTTP 403. Never put that key in source or a release artifact.
 - [ ] Verify the copied GitHub workflow's push triggers Cloudflare Builds, and exercise actual hosted update/rollback; local source/update tests do not establish this external integration.
 - [ ] Validate real Safari/Home Screen and Android installation, session persistence and foreground behavior on physical phones.

@@ -8,6 +8,18 @@ on:
 permissions:
   contents: read
 jobs:
+  native-reference:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test
+        env:
+          PWA_PARITY_OUTPUT: web/.local-test/native-parity.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && node scripts/verify-native-parity.mjs
+        working-directory: web
   verify:
     runs-on: ubuntu-latest
     defaults:
@@ -35,7 +47,7 @@ jobs:
           path: web/.local-test/e2e/*.png
   release:
     if: startsWith(github.ref, 'refs/tags/v0.') && github.repository == 'fiukewhfkje/GradeViewer'
-    needs: verify
+    needs: [verify, native-reference]
     runs-on: ubuntu-latest
     permissions:
       contents: write

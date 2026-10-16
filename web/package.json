@@ -13,7 +13,8 @@
     "release:package": "node scripts/package-release.mjs",
     "update": "node scripts/update.mjs",
     "verify:live": "node --use-env-proxy scripts/verify-live.mjs",
-    "verify:live:snapshot": "node --use-env-proxy scripts/verify-live-snapshot.mjs"
+    "verify:live:snapshot": "node --use-env-proxy scripts/verify-live-snapshot.mjs",
+    "verify:hosted": "node --use-env-proxy scripts/verify-hosted.mjs"
   },
   "dependencies": {
     "idb": "^8.0.3",
