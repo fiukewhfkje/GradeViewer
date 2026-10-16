@@ -119,6 +119,21 @@ export function semester<T extends SourceCourse>(
 }
 export const overall = <T extends SourceCourse>(c: T, all: T[]) =>
   semester(c, all) ?? c;
+export function latestGradeUpdate(c: SourceCourse, all: SourceCourse[]) {
+  const summary = overall(c, all);
+  let latest: number | undefined;
+  for (const period of all)
+    if (overall(period, all).id === summary.id)
+      for (const assignment of period.assignments) {
+        if (
+          graded(assignment) &&
+          assignment.updated !== undefined &&
+          Number.isFinite(assignment.updated)
+        )
+          latest = Math.max(latest ?? -Infinity, assignment.updated);
+      }
+  return latest;
+}
 export function assignmentPeriods<T extends SourceCourse>(c: T, all: T[]): T[] {
   const rows = ordered(related(c, all));
   for (const kind of ["quarter", "semester", "other", "year"] as PeriodKind[]) {

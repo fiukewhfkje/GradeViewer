@@ -6,12 +6,14 @@ import {
   type Assignment,
   emptyScenario,
   scoreInput,
+  updateAge,
 } from "../src/core/model";
-import { parseSection, assignmentMetadata, itemID } from "../src/core/parser";
+import { parseSection, assignmentMetadata, itemID, date } from "../src/core/parser";
 import { reconcile, resolveGrades } from "../src/core/reconcile";
 import { syntheticPayload } from "../src/core/demo";
 import {
   estimateQuarter,
+  latestGradeUpdate,
   contains,
   overall,
   semesterScale,
@@ -445,5 +447,24 @@ describe("native progression regressions", () => {
     );
     expect(path).not.toContain("NaN");
     expect(path).toContain("C");
+  });
+});
+
+describe("real update dates only", () => {
+  it("withholds missing/nonfinite ages and uses actual semester component dates", () => {
+    const p = periods();
+    expect(latestGradeUpdate(p[1], p)).toBeUndefined();
+    expect(updateAge(-Infinity)).toBeUndefined();
+    p[0].assignments = [score(80)];
+    p[0].assignments[0].updated = Date.parse("2026-10-10T12:00:00Z");
+    expect(latestGradeUpdate(p[1], p)).toBe(Date.parse("2026-10-10T12:00:00Z"));
+  });
+  it("rejects zero/partial/impossible dates and treats timezone-less timestamps as UTC", () => {
+    expect(date(0)).toBeUndefined();
+    expect(date("2026")).toBeUndefined();
+    expect(date("2026-02-30")).toBeUndefined();
+    expect(date("2026-10-16 12:30:10.125")).toBe(
+      Date.parse("2026-10-16T12:30:10.125Z"),
+    );
   });
 });

@@ -147,7 +147,7 @@ export function updateAge(
   date?: number,
   now = Date.now(),
 ): { text: string; fresh: boolean } | undefined {
-  if (date === undefined) return;
+  if (date === undefined || !Number.isFinite(date)) return;
   const elapsed = Math.max(0, now - date),
     h = elapsed / 3600000;
   let count, unit;

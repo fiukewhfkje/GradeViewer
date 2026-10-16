@@ -474,9 +474,18 @@ try {
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
-        await page
-          .getByRole("button", { name: "Reload to update", exact: true })
-          .click();
+        await Promise.all([
+          page.waitForNavigation({ waitUntil: "load" }),
+          page
+            .getByRole("button", { name: "Reload to update", exact: true })
+            .click(),
+        ]);
+        assert.equal(
+          await page
+            .locator('meta[name="synthetic-update"]')
+            .getAttribute("content"),
+          "verified",
+        );
         await page.getByRole("button", { name: /AP Biology/ }).waitFor();
         await page.getByRole("button", { name: /AP Biology/ }).click();
         assert.match(await page.locator(".rows").first().innerText(), /102.25/);

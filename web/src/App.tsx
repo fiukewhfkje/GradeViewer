@@ -46,6 +46,7 @@ import {
   descriptor,
   exams,
   estimateQuarter,
+  latestGradeUpdate,
 } from "./core/periods";
 import {
   reliable,
@@ -756,7 +757,11 @@ export default function App() {
             An update is ready.
             <button
               disabled={busy || !!modal}
-              onClick={() => update.postMessage({ type: "ACTIVATE" })}
+              onClick={() => {
+                setBusy(true);
+                setFresh(false);
+                update.postMessage({ type: "ACTIVATE" });
+              }}
             >
               Reload to update
             </button>
@@ -978,9 +983,7 @@ export default function App() {
               <div className="courses">
                 {visibleCourses(state.courses).map((c) => {
                   const grade = overall(c, state.courses).grade,
-                    age = updateAge(
-                      Math.max(...c.assignments.map((a) => a.updated ?? 0)),
-                    );
+                    age = updateAge(latestGradeUpdate(c, state.courses));
                   return (
                     <button
                       className="course row"

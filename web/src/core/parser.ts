@@ -41,14 +41,28 @@ export function date(v: unknown): number | undefined {
   const s = nonempty(v);
   if (!s) return;
   const n = number(s);
-  if (n !== undefined && n > 1000000) {
+  if (n !== undefined) {
+    if (n <= 1000000) return;
     const ms = n > 100000000000 ? n : n * 1000;
     return ms <= 253402300799000 ? ms : undefined;
   }
+  if (
+    !/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/.test(
+      s,
+    )
+  )
+    return;
+  const calendar = new Date(s.slice(0, 10) + "T00:00:00Z");
+  if (
+    !Number.isFinite(calendar.getTime()) ||
+    calendar.toISOString().slice(0, 10) !== s.slice(0, 10)
+  )
+    return;
+  const normalized = s.replace(" ", "T");
   const parsed = Date.parse(
-    /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(s)
-      ? s.replace(" ", "T") + "Z"
-      : s,
+    normalized.includes("T") && !/(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized)
+      ? normalized + "Z"
+      : normalized,
   );
   return Number.isFinite(parsed) ? parsed : undefined;
 }
