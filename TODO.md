@@ -1,5 +1,21 @@
 # Next work
 
+## PWA migration — partial implementation paused October 16
+
+- [x] Create a self-contained web/ package and initial TypeScript core draft; install dependencies. User then requested pausing for a fresh thread. See [PWA_HANDOFF.md](docs/PWA_HANDOFF.md).
+- [ ] First fix the checkpoint TS2769 configuration error, validate the core against native synthetic cases, and implement the missing Worker/vault/UI/persistence/PWA pieces. The app is not runnable or end-to-end verified yet.
+
+- [x] Verify that both Schoology credential variables are nonempty without displaying values; investigate native integration and browser authentication/CORS constraints without requesting student records.
+- [x] Record feasibility, security, parity, onboarding and release/update requirements in [PWA_PLAN.md](docs/PWA_PLAN.md).
+- [x] Confirm cloud development capability with Node/Web Crypto and headless Chromium API-driven synthetic smoke checks; record the user's plan to publish the repo after completion and specify persistent encrypted credentials/session behavior. No PWA implementation started.
+- [ ] When implementation is authorized, first prove a synthetic-only deployment template on a fresh Cloudflare Free account: public source access, isolated PWA directory, automatic bindings, protected owner setup, Settings credential vault, stable URL and secret preservation.
+- [ ] Prove a release-to-existing-installation update and rollback flow requiring no terminal, Git commands or manually created Cloudflare API token. A template copy does not automatically track upstream releases.
+- [ ] Port GradeCore behavior to TypeScript against synthetic reference outputs, then reproduce the current native screens, interactions, persistence and freshness rules. Avoid historical IC/widget/What-If-page scope.
+- [ ] Add the restricted same-origin Worker OAuth adapter, authenticated encrypted credential storage, account binding, shared cooldowns and failure-safe activation. Never bundle secrets or deploy a public shared-credential proxy.
+- [ ] Validate PWA installation, iPhone layout/touch behavior, session persistence, service-worker updates, storage-loss recovery and synthetic security/grade regressions. Development and CI must remain synthetic with outbound provider calls disabled by default.
+- [ ] Resolve live validation separately: this environment currently blocks Schoology at the proxy, actual CORS is unknown, credentials have not been authenticated and another district's API access is not guaranteed. Do not fetch real records as part of synthetic development.
+- [ ] After the gates pass, provide a short plain-language README, illustrated key-retrieval help, tested versioned releases and an update guide for nontechnical users. No code/deployment work is authorized in the October 16 planning turn.
+
 ## October 15 precision follow-up
 
 - [x] Reproduce tiny graph transitions and rounded-input quarter estimate precision; retain actual observations and real assignment changes.
