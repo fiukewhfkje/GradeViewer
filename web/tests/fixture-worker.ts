@@ -1,0 +1,60 @@
+// Separate test entry point. Production imports neither this file nor its fixture provider.
+import worker, { CredentialVault } from "../worker/index";
+import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
+export class FixtureVault extends CredentialVault {
+  protected upstream = async (request: Request): Promise<Response> => {
+    const auth = request.headers.get("Authorization") ?? "",
+      key = decodeURIComponent(
+        auth.match(/oauth_consumer_key="([^"]+)"/)?.[1] ?? "",
+      ),
+      u = new URL(request.url);
+    if (!key.startsWith("fixture")) return Response.json({}, { status: 401 });
+    if (u.pathname.endsWith("/users/me"))
+      return Response.json({
+        uid: key === "fixture-other" ? "sample-other" : SYNTHETIC_ACCOUNT,
+      });
+    if (u.pathname.endsWith("/sections") && u.pathname.includes("/users/"))
+      return Response.json({
+        section:
+          key === "fixture-empty"
+            ? []
+            : Array.from({ length: 5 }, (_, i) => ({ id: String(100 + i) })),
+      });
+    if (u.pathname.endsWith("/grades")) {
+      const sections = Array.from(
+        { length: 5 },
+        (_, i) =>
+          syntheticPayload(String(100 + i), Date.parse("2026-10-16T12:00:00Z"))
+            .grades.section as unknown[],
+      )
+        .flat()
+        .filter(
+          (r) =>
+            !u.searchParams.has("section_id") ||
+            String((r as Record<string, unknown>).section_id) ===
+              u.searchParams.get("section_id"),
+        );
+      return Response.json({
+        section:
+          key === "fixture-malformed" ? [{ section_id: "100" }] : sections,
+      });
+    }
+    const section = u.pathname.split("/")[3],
+      p = syntheticPayload(section, Date.parse("2026-10-16T12:00:00Z"));
+    if (u.pathname === `/v1/sections/${section}`)
+      return Response.json(p.section);
+    const name = u.pathname.split("/").at(-1);
+    const payloads: Record<string, unknown> = {
+      grade_items: { assignment: p.items },
+      grading_categories: { grading_category: p.categories },
+      grading_periods: { grading_period: p.periods },
+      grading_scales: { grading_scale: [] },
+      assignments: { assignment: [] },
+      "0": { "folder-item": [] },
+    };
+    return payloads[name!]
+      ? Response.json(payloads[name!])
+      : Response.json({}, { status: 403 });
+  };
+}
+export default worker;
