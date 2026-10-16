@@ -36,6 +36,8 @@ interface Scan {
   fingerprints: Record<string, string>;
   reused: string[];
   replacement: boolean;
+  cachedOwners?: string[];
+  freshMetadata?: boolean;
 }
 interface Vault {
   credentials?: Envelope;
@@ -50,6 +52,10 @@ interface Vault {
   metadata: Record<
     string,
     { account: string; fingerprint: string; expires: number; owner: string }
+  >;
+  gradeLinks?: Record<
+    string,
+    { account: string; owner: string; expires: number }
   >;
 }
 const cookieName = "__Host-gradeviewer";
@@ -122,6 +128,158 @@ export class CredentialVault {
     const result = this.queue.then(() => this.handle(request));
     this.queue = result.catch(() => {});
     return result;
+  }
+  private async read(
+    scan: Scan,
+    vault: Vault,
+    b: Record<string, unknown>,
+    now: number,
+  ) {
+    const resource = String(b.resource),
+      section = String(b.section ?? ""),
+      extra = String(b.extra ?? "");
+    if (
+      ![
+        "sections",
+        "grades",
+        "section",
+        "items",
+        "categories",
+        "periods",
+        "scales",
+        "assignment",
+        "assignmentList",
+        "folder",
+      ].includes(resource)
+    )
+      throw new ApiError(400, "invalidResource");
+    if (
+      !["sections", "grades"].includes(resource) &&
+      (!validID(section) || !scan.sections.includes(section))
+    )
+      throw new ApiError(403, "sectionNotEnrolled");
+    const collections: Record<string, string> = {
+      sections: "section",
+      grades: "section",
+      items: "assignment",
+      categories: "grading_category",
+      periods: "grading_period",
+      scales: "grading_scale",
+      assignmentList: "assignment",
+      folder: "folder-item",
+    };
+    let path =
+      resource === "sections"
+        ? `users/${scan.account}/sections?limit=200`
+        : resource === "grades"
+          ? `users/${scan.account}/grades?${section ? "section_id=" + section + "&" : ""}limit=200`
+          : resource === "section"
+            ? `sections/${section}`
+            : `sections/${section}/${({ items: "grade_items", categories: "grading_categories", periods: "grading_periods", scales: "grading_scales", assignmentList: "assignments" } as Record<string, string>)[resource]}?limit=200`;
+    if (resource === "grades" && section && !scan.sections.includes(section))
+      throw new ApiError(403, "sectionNotEnrolled");
+    if (resource === "assignment" || resource === "folder") {
+      ensure(validID(extra));
+      path =
+        resource === "assignment"
+          ? `sections/${section}/assignments/${extra}`
+          : `courses/${section}/folder/${extra}`;
+    }
+    const key = resource + ":" + section + ":" + extra;
+    if (b.next === true) {
+      if (!scan.cursors[key]) throw new ApiError(400, "invalidPagination");
+      path = scan.cursors[key];
+    } else {
+      scan.pages[key] = 0;
+      delete scan.cursors[key];
+    }
+    if ((scan.pages[key] ?? 0) >= 100) throw new ApiError(502, "tooManyPages");
+    if (now < vault.cooldown)
+      throw new ApiError(
+        429,
+        "rateLimited",
+        Math.ceil((vault.cooldown - now) / 1000),
+      );
+    const credentials = await unseal<Credentials>(
+      scan.credentials,
+      this.env.APP_PASSWORD,
+    );
+    let data: Record<string, unknown>;
+    try {
+      data = await readProvider(path, credentials, this.upstream);
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "rateLimited")
+        vault.cooldown = Date.now() + (e.retryAfter ?? 60) * 1000;
+      if (e instanceof ApiError && e.status === 403) {
+        if (resource === "grades" && section)
+          scan.done.push("gradesDenied:" + section);
+        if (resource === "periods") scan.done.push(key);
+      }
+      throw e;
+    }
+    const list = collections[resource]
+      ? rows(data, collections[resource])
+      : undefined;
+    if (resource === "sections") {
+      for (const row of list!) {
+        const id = String(row.id ?? "");
+        if (!validID(id)) throw new ApiError(502, "malformedProvider");
+        if (!scan.sections.includes(id)) scan.sections.push(id);
+      }
+    }
+    if (resource === "grades" && section && list!.length === 0)
+      scan.owners[section] = "empty";
+    if (resource === "grades")
+      for (const row of list!) {
+        const id = String(row.section_id ?? "");
+        if (!validID(id) || row.period === undefined)
+          throw new ApiError(502, "malformedProvider");
+        if (section) {
+          scan.owners[section] = id;
+          scan.fingerprints[section] = await hash(JSON.stringify(row));
+        } else if (scan.sections.includes(id)) {
+          scan.owners[id] = id;
+          scan.fingerprints[id] = await hash(JSON.stringify(row));
+        }
+      }
+    // A recent, server-verified enrollment alias can use this scan's fresh
+    // bulk grade row. Never trust a browser-supplied owner, extend the link's
+    // expiry on reuse, or carry it across accounts/replacement/manual reads.
+    if (resource === "grades" && !section && !scan.freshMetadata) {
+      for (const enrollment of scan.sections) {
+        if (scan.owners[enrollment]) continue;
+        const link = vault.gradeLinks?.[enrollment];
+        const matches = list!.filter(
+          (row) => String(row.section_id) === link?.owner,
+        );
+        if (
+          link?.account === scan.account &&
+          link.expires > now &&
+          matches.length === 1
+        ) {
+          scan.owners[enrollment] = link.owner;
+          scan.fingerprints[enrollment] = await hash(
+            JSON.stringify(matches[0]),
+          );
+          scan.done.push("grades:" + enrollment + ":");
+          scan.cachedOwners ??= [];
+          scan.cachedOwners.push(enrollment);
+        }
+      }
+    }
+    const next = collections[resource] ? nextPage(data, path) : undefined;
+    if (next === path) throw new ApiError(502, "invalidPagination");
+    scan.pages[key] = (scan.pages[key] ?? 0) + 1;
+    if (next) scan.cursors[key] = next;
+    else {
+      delete scan.cursors[key];
+      if (!scan.done.includes(key)) scan.done.push(key);
+    }
+    return {
+      data,
+      next: !!next,
+      ...(resource === "grades" && !section ? { owners: scan.owners } : {}),
+    };
   }
   private async handle(request: Request) {
     let vault: Vault | undefined;
@@ -260,152 +418,113 @@ export class CredentialVault {
             fingerprints: {},
             reused: [],
             replacement: b.key !== undefined,
+            freshMetadata: b.refreshMetadata === true || b.key !== undefined,
+            cachedOwners: [],
           };
           result = json({ scan: id, account });
         } else if (route === "scan/reuse" && post) {
           const b = await body(request),
-            scan = vault.scans[String(b.scan)],
-            section = String(b.section),
-            cached = vault.metadata?.[section];
+            scan = vault.scans[String(b.scan)];
+          const sections = b.sections === undefined ? [b.section] : b.sections;
+          ensure(
+            Array.isArray(sections) &&
+              sections.length > 0 &&
+              sections.length <= 32 &&
+              sections.every((s) => typeof s === "string") &&
+              new Set(sections).size === sections.length,
+          );
           if (
             !scan ||
             scan.replacement ||
-            !scan.sections.includes(section) ||
-            !cached ||
-            cached.account !== scan.account ||
-            cached.expires < now ||
-            cached.fingerprint !== scan.fingerprints[section]
+            scan.freshMetadata ||
+            sections.some((section) => {
+              const cached = vault!.metadata?.[section];
+              return (
+                !scan.sections.includes(section) ||
+                !cached ||
+                cached.account !== scan.account ||
+                cached.expires < now ||
+                cached.fingerprint !== scan.fingerprints[section]
+              );
+            })
           )
             throw new ApiError(409, "metadataExpired");
-          for (const r of ["section", "items", "categories", "periods"])
-            scan.done.push(r + ":" + section + ":");
-          scan.owners[section] = cached.owner;
-          scan.reused.push(section);
+          for (const section of sections) {
+            const cached = vault.metadata[section];
+            for (const r of ["section", "items", "categories", "periods"])
+              scan.done.push(r + ":" + section + ":");
+            scan.owners[section] = cached.owner;
+            scan.reused.push(section);
+          }
           result = json({ ok: true });
-        } else if (route === "scan/read" && post) {
+        } else if (["scan/read", "scan/read-batch"].includes(route) && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
           if (!scan) throw new ApiError(409, "scanExpired");
-          const resource = String(b.resource),
-            section = String(b.section ?? ""),
-            extra = String(b.extra ?? "");
-          if (
-            ![
-              "sections",
-              "grades",
-              "section",
-              "items",
-              "categories",
-              "periods",
-              "scales",
-              "assignment",
-              "assignmentList",
-              "folder",
-            ].includes(resource)
-          )
-            throw new ApiError(400, "invalidResource");
-          if (
-            !["sections", "grades"].includes(resource) &&
-            (!validID(section) || !scan.sections.includes(section))
-          )
-            throw new ApiError(403, "sectionNotEnrolled");
-          const collections: Record<string, string> = {
-            sections: "section",
-            grades: "section",
-            items: "assignment",
-            categories: "grading_category",
-            periods: "grading_period",
-            scales: "grading_scale",
-            assignmentList: "assignment",
-            folder: "folder-item",
-          };
-          let path =
-            resource === "sections"
-              ? `users/${scan.account}/sections?limit=200`
-              : resource === "grades"
-                ? `users/${scan.account}/grades?${section ? "section_id=" + section + "&" : ""}limit=200`
-                : resource === "section"
-                  ? `sections/${section}`
-                  : `sections/${section}/${({ items: "grade_items", categories: "grading_categories", periods: "grading_periods", scales: "grading_scales", assignmentList: "assignments" } as Record<string, string>)[resource]}?limit=200`;
-          if (
-            resource === "grades" &&
-            section &&
-            !scan.sections.includes(section)
-          )
-            throw new ApiError(403, "sectionNotEnrolled");
-          if (resource === "assignment" || resource === "folder") {
-            ensure(validID(extra));
-            path =
-              resource === "assignment"
-                ? `sections/${section}/assignments/${extra}`
-                : `courses/${section}/folder/${extra}`;
-          }
-          const key = resource + ":" + section + ":" + extra;
-          if (b.next === true) {
-            if (!scan.cursors[key])
-              throw new ApiError(400, "invalidPagination");
-            path = scan.cursors[key];
-          } else {
-            scan.pages[key] = 0;
-            delete scan.cursors[key];
-          }
-          if ((scan.pages[key] ?? 0) >= 100)
-            throw new ApiError(502, "tooManyPages");
-          if (now < vault.cooldown)
-            throw new ApiError(
-              429,
-              "rateLimited",
-              Math.ceil((vault.cooldown - now) / 1000),
-            );
-          const credentials = await unseal<Credentials>(
-            scan.credentials,
-            this.env.APP_PASSWORD,
-          );
-          let data: Record<string, unknown>;
-          try {
-            data = await readProvider(path, credentials, this.upstream);
-          } catch (e) {
-            if (e instanceof ApiError && e.status === 403) {
-              if (resource === "grades" && section)
-                scan.done.push("gradesDenied:" + section);
-              if (resource === "periods") scan.done.push(key);
-            }
-            throw e;
-          }
-          const list = collections[resource]
-            ? rows(data, collections[resource])
-            : undefined;
-          if (resource === "sections") {
-            for (const row of list!) {
-              const id = String(row.id ?? "");
-              if (!validID(id)) throw new ApiError(502, "malformedProvider");
-              if (!scan.sections.includes(id)) scan.sections.push(id);
-            }
-          }
-          if (resource === "grades" && section && list!.length === 0)
-            scan.owners[section] = "empty";
-          if (resource === "grades")
-            for (const row of list!) {
-              const id = String(row.section_id ?? "");
-              if (!validID(id) || row.period === undefined)
-                throw new ApiError(502, "malformedProvider");
-              if (section) {
-                scan.owners[section] = id;
-                scan.fingerprints[section] = await hash(JSON.stringify(row));
-              } else if (scan.sections.includes(id)) {
-                scan.owners[id] = id;
-                scan.fingerprints[id] = await hash(JSON.stringify(row));
-              }
-            }
-          const next = collections[resource] ? nextPage(data, path) : undefined;
-          if (next === path) throw new ApiError(502, "invalidPagination");
-          scan.pages[key] = (scan.pages[key] ?? 0) + 1;
-          if (next) scan.cursors[key] = next;
+          if (route === "scan/read")
+            result = json(await this.read(scan, vault, b, now));
           else {
-            delete scan.cursors[key];
-            if (!scan.done.includes(key)) scan.done.push(key);
+            ensure(
+              Array.isArray(b.jobs) && b.jobs.length > 0 && b.jobs.length <= 4,
+            );
+            const jobs = b.jobs as Record<string, unknown>[];
+            ensure(
+              jobs.every(
+                (job) =>
+                  job &&
+                  typeof job === "object" &&
+                  [
+                    "grades",
+                    "section",
+                    "items",
+                    "categories",
+                    "periods",
+                    "scales",
+                    "assignment",
+                  ].includes(String(job.resource)) &&
+                  typeof job.section === "string" &&
+                  scan.sections.includes(job.section) &&
+                  !job.next &&
+                  (job.resource === "assignment"
+                    ? typeof job.extra === "string" && validID(job.extra)
+                    : job.extra === undefined),
+              ),
+            );
+            ensure(
+              new Set(
+                jobs.map(
+                  (job) =>
+                    job.resource + ":" + job.section + ":" + (job.extra ?? ""),
+                ),
+              ).size === jobs.length,
+            );
+            const results: unknown[] = new Array(jobs.length);
+            let cursor = 0;
+            const run = async () => {
+              while (cursor < jobs.length) {
+                const index = cursor++;
+                try {
+                  results[index] = {
+                    ok: true,
+                    value: await this.read(scan, vault!, jobs[index], now),
+                  };
+                } catch (error) {
+                  const e =
+                    error instanceof ApiError
+                      ? error
+                      : new ApiError(500, "requestFailed");
+                  results[index] = {
+                    ok: false,
+                    error: e.code,
+                    status: e.status,
+                    retryAfter: e.retryAfter,
+                  };
+                }
+              }
+            };
+            await Promise.all([run(), run()]);
+            result = json({ results });
           }
-          result = json({ data, next: !!next });
         } else if (route === "scan/commit" && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
@@ -434,6 +553,22 @@ export class CredentialVault {
           )
             throw new ApiError(409, "incompleteSnapshot");
           vault.metadata ??= {};
+          const links: NonNullable<Vault["gradeLinks"]> = {};
+          for (const s of scan.sections) {
+            const owner = scan.owners[s] ?? s;
+            if (
+              owner !== "empty" &&
+              Object.entries(scan.owners).some(
+                ([enrollment, id]) => id === owner && metadataReady(enrollment),
+              )
+            ) {
+              links[s] =
+                scan.cachedOwners?.includes(s) && vault.gradeLinks?.[s]
+                  ? vault.gradeLinks[s]
+                  : { account: scan.account, owner, expires: now + 5 * 60000 };
+            }
+          }
+          vault.gradeLinks = links;
           for (const s of scan.sections)
             if (
               !scan.reused.includes(s) &&

@@ -24,9 +24,46 @@ export async function readSnapshot(
 ): Promise<SavedState> {
   const { scan, account } = await api<{ scan: string; account: string }>(
     "scan/start",
-    credentials ?? {},
+    { ...credentials, refreshMetadata },
   );
+  async function fingerprintGrade(row: Row) {
+    return btoa(
+      String.fromCharCode(
+        ...new Uint8Array(
+          await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode(JSON.stringify(row)),
+          ),
+        ),
+      ),
+    );
+  }
   let committed = false;
+  const gradeOwners: Record<string, string> = {};
+  type Page = { data: Row; next: boolean; owners?: Record<string, string> };
+  type ReadResult =
+    | { ok: true; value: Page }
+    | { ok: false; error: string; status: number; retryAfter?: number };
+  const prefetched = new Map<string, ReadResult>();
+  async function preload(
+    jobs: { resource: string; section: string; extra?: string }[],
+  ) {
+    for (let offset = 0; offset < jobs.length; offset += 4) {
+      const chunk = jobs.slice(offset, offset + 4);
+      const { results } = await api<{ results: ReadResult[] }>(
+        "scan/read-batch",
+        { scan, jobs: chunk },
+      );
+      if (!Array.isArray(results) || results.length !== chunk.length)
+        throw new Error("malformed");
+      chunk.forEach((job, index) =>
+        prefetched.set(
+          job.resource + ":" + job.section + ":" + (job.extra ?? ""),
+          results[index],
+        ),
+      );
+    }
+  }
   async function read(
     resource: string,
     key?: string,
@@ -37,16 +74,28 @@ export async function readSnapshot(
     const values: Row[] = [];
     let next = false;
     do {
-      let response: { data: Row; next: boolean };
+      let response: Page;
       for (let attempt = 0; ; attempt++) {
         try {
-          response = await api("scan/read", {
-            scan,
-            resource,
-            section,
-            extra,
-            next,
-          });
+          const key = resource + ":" + (section ?? "") + ":" + (extra ?? "");
+          const cached = !next && prefetched.get(key);
+          if (cached) {
+            prefetched.delete(key);
+            if (!cached.ok)
+              throw new RequestError(
+                cached.error,
+                cached.retryAfter,
+                cached.status,
+              );
+            response = cached.value;
+          } else
+            response = await api("scan/read", {
+              scan,
+              resource,
+              section,
+              extra,
+              next,
+            });
           break;
         } catch (e) {
           if (
@@ -65,6 +114,8 @@ export async function readSnapshot(
       values.push(
         ...(key ? collection(response.data[key]) : [object(response.data)]),
       );
+      if (resource === "grades" && !section && response.owners)
+        Object.assign(gradeOwners, response.owners);
       next = response.next;
     } while (next);
     return values;
@@ -83,11 +134,28 @@ export async function readSnapshot(
       sources: SourceCourse[] = [];
     const batches: { id: string; match?: Row }[] = [],
       gradeFailures: { id: string; error: unknown }[] = [];
+    const enrollmentIDs = sections.map((enrollment) => {
+      const id = nonempty(enrollment.id);
+      if (!id) throw new Error("malformed");
+      return id;
+    });
+    await preload(
+      enrollmentIDs
+        .filter(
+          (id) =>
+            !bulk?.some(
+              (row) => nonempty(row.section_id) === (gradeOwners[id] ?? id),
+            ),
+        )
+        .map((section) => ({ resource: "grades", section })),
+    );
     for (const enrollment of sections) {
       const id = nonempty(enrollment.id);
       if (!id) throw new Error("malformed");
       try {
-        let grades = bulk?.filter((r) => nonempty(r.section_id) === id);
+        let grades = bulk?.filter(
+          (r) => nonempty(r.section_id) === (gradeOwners[id] ?? id),
+        );
         if (!grades?.length) grades = await read("grades", "section", id);
         const match =
           grades.find((r) => nonempty(r.section_id) === id) ??
@@ -108,22 +176,46 @@ export async function readSnapshot(
         owners.has(failure.id)
       ))
         throw failure.error;
+    // Prefer the enrollment whose metadata was previously verified when several
+    // section aliases expose the same grade owner.
+    batches.sort(
+      (a, b) =>
+        Number(!previous.metadata?.[a.id]) - Number(!previous.metadata?.[b.id]),
+    );
+    const selectedBatches: { id: string; match: Row; owner: string }[] = [];
+    const fingerprints = new Map<string, string>();
+    const candidates: string[] = [],
+      reused = new Set<string>();
     for (const { id, match } of batches) {
       if (!match) continue;
       const owner = nonempty(match.section_id);
       if (!owner) throw new Error("malformed");
       if (seen.has(owner)) continue;
       seen.add(owner);
-      const fingerprint = btoa(
-          String.fromCharCode(
-            ...new Uint8Array(
-              await crypto.subtle.digest(
-                "SHA-256",
-                new TextEncoder().encode(JSON.stringify(match)),
-              ),
-            ),
-          ),
-        ),
+      selectedBatches.push({ id, match, owner });
+      const fingerprint = await fingerprintGrade(match),
+        cached = previous.metadata?.[id];
+      fingerprints.set(id, fingerprint);
+      if (
+        !credentials &&
+        !refreshMetadata &&
+        cached?.account === account &&
+        cached.fingerprint === fingerprint &&
+        Date.now() - cached.fetched < 5 * 60000
+      )
+        candidates.push(id);
+    }
+    for (let offset = 0; offset < candidates.length; offset += 32) {
+      const sections = candidates.slice(offset, offset + 32);
+      try {
+        await api("scan/reuse", { scan, sections });
+        sections.forEach((id) => reused.add(id));
+      } catch {
+        /* Check individual receipts below if one expired or changed. */
+      }
+    }
+    for (const { id, match, owner } of selectedBatches) {
+      const fingerprint = fingerprints.get(id)!,
         cached = previous.metadata?.[id];
       if (
         !credentials &&
@@ -133,7 +225,7 @@ export async function readSnapshot(
         Date.now() - cached.fetched < 5 * 60000
       ) {
         try {
-          await api("scan/reuse", { scan, section: id });
+          if (!reused.has(id)) await api("scan/reuse", { scan, section: id });
           metadata[id] = cached;
           payloads.push({
             p: {
@@ -150,6 +242,12 @@ export async function readSnapshot(
           /* Renew metadata when the server receipt has expired. */
         }
       }
+      await preload(
+        ["section", "items", "categories", "periods"].map((resource) => ({
+          resource,
+          section: id,
+        })),
+      );
       const [section] = await read("section", undefined, id),
         items = await read("items", "assignment", id),
         categories = await read("categories", "grading_category", id),
@@ -175,6 +273,15 @@ export async function readSnapshot(
       payloads.push({ p, enrollment: id });
     }
     // Required reads finish before optional scale/title recovery can encounter a cooldown.
+    await preload(
+      payloads
+        .filter(
+          ({ p }) =>
+            !p.scales &&
+            parseSection(p).some((c) => c.fields.reported_scale_id),
+        )
+        .map(({ enrollment }) => ({ resource: "scales", section: enrollment })),
+    ).catch(() => {});
     for (const { p, enrollment, cachedAt } of payloads) {
       let parsed = parseSection(p);
       if (p.scales && cachedAt) {
@@ -264,8 +371,25 @@ export async function readSnapshot(
       if (unresolved.length && !optionalCooldown) {
         for (const { a } of unresolved) attemptedTitles.add(a.id);
         try {
+          const lookups = [
+            ...new Set(
+              unresolved
+                .slice(0, 20)
+                .filter(({ a }) => !hasTitle(a))
+                .map(({ a }) => a.fields.assignment_id),
+            ),
+          ];
+          await preload(
+            lookups.map((extra) => ({
+              resource: "assignment",
+              section: enrollment,
+              extra,
+            })),
+          ).catch(() => {});
+          const queried = new Set<string>();
           for (const { a, c } of unresolved.slice(0, 20)) {
-            if (!hasTitle(a)) {
+            if (!hasTitle(a) && !queried.has(a.fields.assignment_id)) {
+              queried.add(a.fields.assignment_id);
               try {
                 apply(
                   await read(

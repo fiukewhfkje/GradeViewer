@@ -18,7 +18,9 @@ export class FixtureVault extends CredentialVault {
         section:
           key === "fixture-empty"
             ? []
-            : Array.from({ length: 5 }, (_, i) => ({ id: String(100 + i) })),
+            : Array.from({ length: 5 }, (_, i) => ({
+                id: String((key === "fixture-aliases" ? 1000 : 100) + i),
+              })),
       });
     if (u.pathname.endsWith("/grades")) {
       const sections = Array.from(
@@ -32,7 +34,10 @@ export class FixtureVault extends CredentialVault {
           (r) =>
             !u.searchParams.has("section_id") ||
             String((r as Record<string, unknown>).section_id) ===
-              u.searchParams.get("section_id"),
+              String(
+                Number(u.searchParams.get("section_id")) -
+                  (key === "fixture-aliases" ? 900 : 0),
+              ),
         );
       return Response.json({
         section:
@@ -40,7 +45,11 @@ export class FixtureVault extends CredentialVault {
       });
     }
     const section = u.pathname.split("/")[3],
-      p = syntheticPayload(section, Date.parse("2026-10-16T12:00:00Z"));
+      p = syntheticPayload(
+        key === "fixture-aliases" ? String(Number(section) - 900) : section,
+        Date.parse("2026-10-16T12:00:00Z"),
+      );
+    if (key === "fixture-aliases") p.section.id = section;
     if (u.pathname === `/v1/sections/${section}`)
       return Response.json(p.section);
     const name = u.pathname.split("/").at(-1);
