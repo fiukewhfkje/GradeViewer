@@ -1,0 +1,35 @@
+name: Update GradeViewer
+on:
+  schedule:
+    - cron: '23 9 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Leave blank for latest; choose an earlier version to roll back (for example 0.1.0).'
+        required: false
+permissions:
+  contents: write
+concurrency:
+  group: gradeviewer-update
+  cancel-in-progress: false
+jobs:
+  update:
+    if: github.repository != 'fiukewhfkje/GradeViewer'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify and apply official release
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: node scripts/update.mjs "$REQUESTED_VERSION"
+      - name: Commit update for Cloudflare Builds
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'GradeViewer updates'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m 'Update GradeViewer from verified release'
+          git push
