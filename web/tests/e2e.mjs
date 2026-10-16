@@ -12,7 +12,8 @@ await mkdir(directory, { recursive: true });
 let server,
   browser,
   log = "",
-  completed = 0;
+  completed = 0,
+  originalDeployment;
 async function start() {
   log = "";
   server = spawn(
@@ -453,7 +454,8 @@ try {
     async () => {
       const originalIndex = await readFile("dist/index.html"),
         originalWorker = await readFile("dist/sw.js");
-      try {
+      originalDeployment = { index: originalIndex, worker: originalWorker };
+      {
         await writeFile(
           "dist/index.html",
           originalIndex
@@ -479,10 +481,8 @@ try {
         await page.getByRole("button", { name: /AP Biology/ }).click();
         assert.match(await page.locator(".rows").first().innerText(), /102.25/);
         await page.getByLabel("Close course", { exact: true }).click();
-      } finally {
-        await writeFile("dist/index.html", originalIndex);
-        await writeFile("dist/sw.js", originalWorker);
       }
+      // Keep the tested deployment stable for later cases. Restore only after shutdown.
     },
   );
   await check(
@@ -525,6 +525,37 @@ try {
       await other.getByRole("button", { name: /AP Biology/ }).waitFor();
       await page.waitForTimeout(250);
       await other.close();
+    },
+  );
+  await check(
+    "a new browser unlocks without pasting Schoology keys again",
+    async () => {
+      const second = await browser.newContext({
+          viewport: { width: 390, height: 844 },
+        }),
+        secondPage = await second.newPage();
+      try {
+        await secondPage.goto(base);
+        await secondPage
+          .getByLabel("App password", { exact: true })
+          .fill("synthetic-owner-password-for-tests-only");
+        await secondPage
+          .getByRole("button", { name: "Unlock app", exact: true })
+          .click();
+        await secondPage
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await secondPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        assert.equal(await secondPage.locator(".course").count(), 5);
+        assert.equal(
+          await secondPage
+            .getByLabel("Schoology API secret", { exact: true })
+            .count(),
+          0,
+        );
+      } finally {
+        await second.close();
+      }
     },
   );
   await check("disconnect clears data and revokes sessions", async () => {
@@ -578,13 +609,25 @@ try {
   console.error(e);
   if (browser) {
     const pages = browser.contexts().flatMap((c) => c.pages());
-    for (let i = 0; i < pages.length; i++)
+    for (let i = 0; i < pages.length; i++) {
+      console.error(
+        "Synthetic browser state:",
+        await pages[i]
+          .locator("body")
+          .innerText()
+          .catch(() => ""),
+      );
       await pages[i]
         .screenshot({ path: directory + `/failure-${i}.png` })
         .catch(() => {});
+    }
   }
   process.exitCode = 1;
 } finally {
   await browser?.close();
   await stop();
+  if (originalDeployment) {
+    await writeFile("dist/index.html", originalDeployment.index);
+    await writeFile("dist/sw.js", originalDeployment.worker);
+  }
 }

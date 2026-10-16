@@ -1,6 +1,6 @@
 # PWA release candidate 0.1.0 — October 16, 2026
 
-The implementation is on `pwa-migration`, based on native build 9 (`3447420`). Use one final merge to preserve that comparison point. No public release or hosted deployment is established by local tests.
+The implementation is on `pwa-migration` ([draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9)), based on native build 9 (`3447420`). Use one final merge to preserve that comparison point. No public release or hosted deployment is established by local tests.
 
 ## Implemented behavior
 
@@ -37,7 +37,7 @@ node scripts/verify-template.mjs
 
 - Production TypeScript/Vite build passed; Wrangler packaged the production Worker/Durable Object/assets configuration in dry-run mode.
 - 87 synthetic tests passed: calculator/parser/reconciliation/period/estimate/progression regressions, cryptography/OAuth/transport, owner/vault/session lifecycle, signed-release integrity/path checks, and cold/warm snapshot integration. Unchanged five-section warm refreshes require three provider reads rather than the cold 23. Metadata expiry does not slide; manual refresh renews it.
-- 20 Chromium/local Worker+SQLite integration checks passed: private API, owner unlock/full connection, home/detail consistency, graph, shared decimal edit, drop/reset, Add Grade/removal, period scopes/ungraded rows, categories/final calculator, 320px phone/dark/profile/URL/install help, rejected account replacement, reload/scenarios, interrupted activation recovery, Worker restart, offline freshness gate, shell-only caches, controlled service-worker update, failure retention/Retry/Profile, multiple tabs, disconnect, and separate desktop sample mode. Screenshots live under ignored `web/.local-test/e2e/`; all data is synthetic.
+- 21 Chromium/local Worker+SQLite integration checks passed: private API, owner unlock/full connection, home/detail consistency, graph, shared decimal edit, drop/reset, Add Grade/removal, period scopes/ungraded rows, categories/final calculator, 320px phone/dark/profile/URL/install help, rejected account replacement, reload/scenarios, interrupted activation recovery, Worker restart, offline freshness gate, shell-only caches, controlled service-worker update, failure retention/Retry/Profile, multiple tabs, new-browser unlock with saved Schoology keys, disconnect, and separate desktop sample mode. Screenshots live under ignored `web/.local-test/e2e/`; all data is synthetic.
 - An isolated generated copy passed dependency installation, production build, unit tests and Worker dry-run. The actual updater script accepted a locally signed 0.1.1 release, preserved the personal Worker name/configuration and local secret file, rebuilt successfully, then explicitly rolled back to signed 0.1.0 and rebuilt. These were test versions, not public releases.
 - Production dependency audit found zero known vulnerabilities at the time of the run. Source/artifact credential-value scans report only booleans/counts; never expose values.
 
@@ -48,7 +48,7 @@ npm run verify:live
 npm run verify:live:snapshot
 ```
 
-The runtime reported unrestricted/enforced networking. An unauthenticated Schoology probe returned the expected 401. Authenticated production OAuth `users/me` succeeded, and the production Worker/client snapshot pipeline completed with 45 course-period records bound to the verified account. Credentials, student records, cookies and responses remained in ephemeral process memory; only counts/booleans were exported. This establishes one account's live access, not all districts, CORS, hosted Cloudflare performance or a physical-phone result.
+The runtime reported unrestricted/enforced networking. An unauthenticated Schoology probe returned the expected 401. Authenticated production OAuth `users/me` succeeded, and the production Worker/client snapshot pipeline completed with 45 course-period records bound to the verified account. Credentials, student records, cookies and responses remained in ephemeral process memory; only counts/booleans were exported. Final cold and warm runs both completed (67 and 22 same-origin API calls in this account; counts include session/staging/cache-control calls, not just upstream reads). This establishes one account's live access, not all districts, CORS, hosted Cloudflare performance or a physical-phone result.
 
 ## Releases and automatic updates
 
