@@ -322,6 +322,11 @@ try {
       }
     },
   );
+  async function expandAssignmentGroups() {
+    for (const group of await page.locator(".assignment-group").all())
+      if (!(await group.evaluate((el) => el.open)))
+        await group.locator(":scope > summary").click();
+  }
   let cId, assignmentTitle;
   await check("same home/detail overall and graph", async () => {
     const homeGrade = await page
@@ -357,7 +362,16 @@ try {
         .getByRole("button", { name: "View All Assignments", exact: true })
         .last()
         .click();
-      assert.match(await page.locator(".rows").first().innerText(), /-1.25/);
+      assert.equal(await page.locator(".assignment-group[open]").count(), 0);
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
+      await page
+        .getByRole("heading", { name: "Q2 Grade", exact: true })
+        .waitFor();
+      await expandAssignmentGroups();
+      assert.match(
+        (await page.locator(".rows").allInnerTexts()).join("\n"),
+        /-1.25/,
+      );
       assert.equal(
         await page.getByRole("button", { name: "Q1", exact: true }).count(),
         1,
@@ -392,7 +406,10 @@ try {
       .getByRole("button", { name: "Reset Assignment", exact: true })
       .click();
     await page.waitForFunction(
-      () => !document.querySelector(".rows")?.textContent.includes("-1.25"),
+      () =>
+        ![...document.querySelectorAll(".rows")].some((el) =>
+          el.textContent.includes("-1.25"),
+        ),
     );
     assert.doesNotMatch(
       await page.locator(".rows").first().innerText(),
@@ -408,6 +425,8 @@ try {
     await page.getByLabel("Score", { exact: true }).fill("110.5");
     await page.getByLabel("Total points", { exact: true }).fill("100");
     await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.getByLabel("Added Grades", { exact: true }).waitFor();
+    await expandAssignmentGroups();
     await page
       .getByLabel("Options for Synthetic extra credit", { exact: true })
       .click();
@@ -424,9 +443,12 @@ try {
   });
   await check("period scopes and named ungraded rows", async () => {
     await page.getByRole("button", { name: "Q1", exact: true }).click();
+    await expandAssignmentGroups();
     await page.getByText("Upcoming assignment", { exact: true }).waitFor();
     assert.ok(
-      (await page.locator(".rows").first().innerText()).includes("Not graded"),
+      (await page.locator(".rows").allInnerTexts())
+        .join("\n")
+        .includes("Not graded"),
     );
     await page.getByRole("button", { name: "Q2", exact: true }).click();
   });

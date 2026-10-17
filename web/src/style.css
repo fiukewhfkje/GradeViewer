@@ -689,3 +689,79 @@ svg.spinning {
   font-size: 14px;
   font-weight: 700;
 }
+
+.assignment-group {
+  background: var(--row);
+  border-radius: 16px;
+  margin-bottom: 20px;
+  overflow: visible;
+}
+.assignment-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  list-style: none;
+  cursor: pointer;
+}
+.assignment-group > summary::-webkit-details-marker {
+  display: none;
+}
+.assignment-group > summary > strong {
+  flex: 1;
+  font-size: 20px;
+}
+.group-chevron {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--bg);
+}
+.assignment-group[open] > summary .group-chevron svg {
+  transform: rotate(90deg);
+}
+.assignment-group .rows {
+  gap: 0;
+}
+.assignment-group .assignment {
+  background: none;
+  border-radius: 0;
+  min-height: 90px;
+  padding-top: 23px;
+  padding-bottom: 23px;
+  border-top: 1px solid var(--line);
+}
+.quarter-summary {
+  display: block;
+  margin-bottom: 20px;
+}
+.quarter-summary .section-heading {
+  margin-bottom: 0;
+}
+.quarter-summary h2 {
+  font-size: 17px;
+  margin: 0;
+}
+.quarter-summary p {
+  font-size: 12px;
+  margin-top: 8px;
+}
+@media (max-width: 760px) {
+  .brand {
+    display: none;
+  }
+  .course-screen header h1 {
+    font-size: 20px;
+    letter-spacing: -0.3px;
+  }
+}
+
+.course-screen footer {
+  display: none;
+}
+.course-screen {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}

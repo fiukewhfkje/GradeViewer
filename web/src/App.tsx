@@ -484,17 +484,36 @@ export default function App() {
     setPeriod(c.id);
     setView("detail");
   };
-  function list(c: Course, all = false, readOnly = false) {
+  function list(
+    c: Course,
+    all = false,
+    readOnly = false,
+    subset?: Assignment[],
+  ) {
     const s = scenario(c),
-      rows = readOnly
-        ? c.assignments
-        : [
-            ...s.added,
-            ...c.assignments.filter((a) => !c.removed.includes(a.id)),
-          ],
-      items = all
-        ? rows.filter((a) => graded(a) || hasTitle(a))
-        : recent(rows).slice(0, 5);
+      rows =
+        subset ??
+        (readOnly
+          ? c.assignments
+          : [
+              ...s.added,
+              ...c.assignments.filter((a) => !c.removed.includes(a.id)),
+            ]),
+      items = readOnly
+        ? recent(rows)
+        : all
+          ? [
+              ...recent(rows),
+              ...rows
+                .filter((a) => !graded(a) && hasTitle(a))
+                .sort(
+                  (a, b) =>
+                    (a.due ?? Infinity) - (b.due ?? Infinity) ||
+                    a.title.localeCompare(b.title) ||
+                    a.id.localeCompare(b.id),
+                ),
+            ]
+          : recent(rows).slice(0, 5);
     return items.length ? (
       <div className="rows">
         {items.map((a) => {
@@ -608,8 +627,76 @@ export default function App() {
       </div>
     ) : (
       <p className="muted">
-        No {all ? "assignments" : "graded assignments"} in this period.
+        {readOnly
+          ? "No graded exam assignments."
+          : `No ${all ? "assignments" : "graded assignments"} in this period.`}
       </p>
+    );
+  }
+  function groupedAssignments(c: Course) {
+    const added = scenario(c).added;
+    const actual = c.assignments.filter(
+      (a) => !c.removed.includes(a.id) && (graded(a) || hasTitle(a)),
+    );
+    const groups: { id: string; title: string; rows: Assignment[] }[] = [];
+    if (added.length)
+      groups.push({ id: "added", title: "Added Grades", rows: added });
+    if (c.method === "points" || !c.categories.length) {
+      if (actual.length)
+        groups.push({ id: "total", title: "Total Points", rows: actual });
+    } else {
+      const used = new Set<string>();
+      for (const category of c.categories) {
+        const rows = actual.filter((a) => a.categoryID === category.id);
+        rows.forEach((a) => used.add(a.id));
+        if (rows.length)
+          groups.push({ id: category.id, title: category.name, rows });
+      }
+      const other = actual.filter((a) => !used.has(a.id));
+      if (other.length)
+        groups.push({ id: "other", title: "Other Assignments", rows: other });
+    }
+    return groups.length ? (
+      groups.map((group) => (
+        <details key={group.id} className="assignment-group">
+          <summary aria-label={group.title}>
+            <span className="group-chevron">
+              <ChevronRight size={19} />
+            </span>
+            <strong>{group.title}</strong>
+            {group.id === "total" && <Grade {...c.grade} />}
+          </summary>
+          {list(c, true, false, group.rows)}
+        </details>
+      ))
+    ) : (
+      <p className="muted">No assignments in this period.</p>
+    );
+  }
+  function quarterSummary(c: Course) {
+    if (descriptor(c).kind !== "quarter") return null;
+    const estimate = estimateQuarter(c, state.courses),
+      label = descriptor(c).label;
+    return (
+      <section className="quarter-summary row">
+        <div className="section-heading">
+          <h2>{label} Grade</h2>
+          {estimate ? (
+            <span className="grade">
+              {percentText(estimate.percent, estimate.digits)}*
+            </span>
+          ) : (
+            <Grade {...c.grade} />
+          )}
+        </div>
+        {estimate && (
+          <p className="muted">
+            *Estimated from {estimate.semester} and reported period weights.
+            {estimate.blankExam ? " Blank exam omitted." : ""} Rounded totals
+            limit precision. Replaced when grades are available.
+          </p>
+        )}
+      </section>
     );
   }
   function summary(c: Course, whole: boolean) {
@@ -736,7 +823,13 @@ export default function App() {
   );
   return (
     <>
-      <div className="app" ref={app}>
+      <div
+        className={
+          "app" +
+          (tab === "grades" && selected && fresh ? " course-screen" : "")
+        }
+        ref={app}
+      >
         <header>
           <div>
             {selected ? (
@@ -761,7 +854,7 @@ export default function App() {
                   ? view === "detail"
                     ? original?.title
                     : view === "assignments"
-                      ? "Assignments"
+                      ? original?.title
                       : view === "categories"
                         ? "Categories"
                         : "Final grade"
@@ -1117,13 +1210,15 @@ export default function App() {
                   </button>
                 ))}
               </div>
-              {summary(course, false)}
-              {list(course, true)}
+              {summary(course, true)}
+              {quarterSummary(course)}
+              {groupedAssignments(course)}
               {exams(course, state.courses).map((exam) => (
                 <section key={exam.id}>
                   <div className="section-heading">
                     <h2>Exam</h2>
-                    <Grade {...exam.grade} />
+                    {(exam.grade.percent !== undefined ||
+                      exam.grade.letter) && <Grade {...exam.grade} />}
                   </div>
                   {list(exam, true, true)}
                 </section>
