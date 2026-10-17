@@ -15,6 +15,8 @@ import {
   X,
   ArrowRight,
   Check,
+  CheckCircle2,
+  Clock,
   Copy,
   ExternalLink,
   Download,
@@ -78,10 +80,12 @@ function Grade({
   return (
     <span className="grade">
       {letter && <span>{letter}</span>}
-      <span>
-        {percentText(percent, digits)}
-        {estimate ? "*" : ""}
-      </span>
+      {(percent !== undefined || !letter) && (
+        <span>
+          {percent === undefined ? "—" : `(${percentText(percent, digits)})`}
+          {estimate ? "*" : ""}
+        </span>
+      )}
     </span>
   );
 }
@@ -502,14 +506,13 @@ export default function App() {
               <div className="row-text">
                 <strong>{a.title}</strong>
                 <small>
-                  {modified
-                    ? "Local change"
-                    : (age?.text ??
-                      (a.score.excused
-                        ? "Excused"
-                        : !graded(a)
-                          ? "Not graded"
-                          : ""))}
+                  {age?.text ?? (!graded(a) ? "Not graded" : "")}
+                  {age &&
+                    (age.fresh ? (
+                      <CheckCircle2 size={14} />
+                    ) : (
+                      <Clock size={14} />
+                    ))}
                   {a.excluded ? " · Not counted" : ""}
                 </small>
               </div>
@@ -619,6 +622,12 @@ export default function App() {
         c.grade.percent !== undefined
           ? base.grade.percent + (q - c.grade.percent) * scale
           : undefined;
+    const showScenario =
+      changed(s) &&
+      reliable(calculationSource(c)) &&
+      scale !== undefined &&
+      (sim === undefined || Math.abs(sim - (base.grade.percent ?? 0)) >= 0.005);
+    const age = updateAge(latestGradeUpdate(c, state.courses));
     return (
       <>
         <div className="summary row">
@@ -629,13 +638,31 @@ export default function App() {
                 ? descriptor(base).label + " overall"
                 : descriptor(c).label}
             </small>
+            {age && (
+              <small className={age.fresh ? "updated fresh" : "updated"}>
+                {age.text}
+                {age.fresh ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+              </small>
+            )}
           </div>
-          <Grade
-            percent={sim ?? base.grade.percent ?? est?.percent}
-            letter={base.grade.letter}
-            estimate={base.grade.percent === undefined && !!est}
-            digits={base.grade.percent === undefined && est ? est.digits : 2}
-          />
+          {showScenario ? (
+            <div className="scenario-grade" aria-label="What-If grade">
+              <strong>{percentText(sim)}</strong>
+              {sim !== undefined && base.grade.percent !== undefined && (
+                <small className="scenario-delta">
+                  {sim - base.grade.percent >= 0 ? "+" : ""}
+                  {(sim - base.grade.percent).toFixed(2)}%
+                </small>
+              )}
+            </div>
+          ) : (
+            <Grade
+              percent={base.grade.percent ?? est?.percent}
+              letter={base.grade.letter}
+              estimate={base.grade.percent === undefined && !!est}
+              digits={base.grade.percent === undefined && est ? est.digits : 2}
+            />
+          )}
           <Menu label="Course options">
             <button
               onClick={() => {
@@ -668,13 +695,7 @@ export default function App() {
             )}
           </Menu>
         </div>
-        {changed(s) && (
-          <p className="notice">
-            {sim !== undefined
-              ? `Local changes · original ${percentText(base.grade.percent)}`
-              : "Local changes · total unavailable for this scenario."}
-          </p>
-        )}
+
         {base.grade.percent === undefined && est && (
           <p className="muted">
             * Estimated from {est.semester} and reported period weights. Rounded
@@ -1006,9 +1027,15 @@ export default function App() {
                       <div className="row-text">
                         <strong>{c.title}</strong>
                         {age && (
-                          <small>
+                          <small
+                            className={age.fresh ? "updated fresh" : "updated"}
+                          >
                             {age.text}
-                            {age.fresh && <Check size={14} />}
+                            {age.fresh ? (
+                              <CheckCircle2 size={14} />
+                            ) : (
+                              <Clock size={14} />
+                            )}
                           </small>
                         )}
                       </div>

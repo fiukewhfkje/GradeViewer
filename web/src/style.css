@@ -7,7 +7,7 @@
   --row: #f3efe8;
   --ink: #242421;
   --muted: #6d6b63;
-  --grade: #399c23;
+  --grade: #52bd29;
   --line: #dedbd3;
   --blue: #2567b1;
   color-scheme: light;
@@ -18,7 +18,7 @@
     --row: #32312f;
     --ink: #f4f2eb;
     --muted: #b1afa7;
-    --grade: #77d642;
+    --grade: #4dd112;
     --line: #484741;
     --blue: #8dbbfa;
     color-scheme: dark;
@@ -29,7 +29,7 @@
   --row: #32312f;
   --ink: #f4f2eb;
   --muted: #b1afa7;
-  --grade: #77d642;
+  --grade: #4dd112;
   --line: #484741;
   --blue: #8dbbfa;
   color-scheme: dark;
@@ -661,4 +661,31 @@ svg.spinning {
   h1 {
     font-size: 29px;
   }
+}
+
+.updated {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+.updated.fresh {
+  color: var(--grade);
+}
+.scenario-grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: var(--blue);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.scenario-delta {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--grade);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
 }
