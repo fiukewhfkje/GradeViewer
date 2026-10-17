@@ -48,6 +48,12 @@ export async function readSnapshot(
   async function preload(
     jobs: { resource: string; section: string; extra?: string }[],
   ) {
+    jobs = jobs.filter(
+      (job) =>
+        !prefetched.has(
+          job.resource + ":" + job.section + ":" + (job.extra ?? ""),
+        ),
+    );
     for (let offset = 0; offset < jobs.length; offset += 32) {
       const chunk = jobs.slice(offset, offset + 32);
       const { results } = await api<{ results: ReadResult[] }>(
@@ -163,8 +169,8 @@ export async function readSnapshot(
       if (!id) throw new Error("malformed");
       return id;
     });
-    await preload(
-      enrollmentIDs
+    await preload([
+      ...enrollmentIDs
         .filter(
           (id) =>
             !bulk?.some(
@@ -172,7 +178,25 @@ export async function readSnapshot(
             ),
         )
         .map((section) => ({ resource: "grades", section })),
-    );
+      // Expired metadata must be renewed even when fresh grades are unchanged.
+      // These already-enrolled sections can renew alongside alias discovery;
+      // neither read depends on the other's result. Only fresh server results
+      // decide the owner and which payload is ultimately committed.
+      ...enrollmentIDs
+        .filter((id) => {
+          const cached = previous.metadata?.[id];
+          return (
+            cached?.account === account &&
+            (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000)
+          );
+        })
+        .flatMap((section) =>
+          ["section", "items", "categories", "periods"].map((resource) => ({
+            resource,
+            section,
+          })),
+        ),
+    ]);
     for (const enrollment of sections) {
       const id = nonempty(enrollment.id);
       if (!id) throw new Error("malformed");

@@ -63,6 +63,21 @@ let cookie = "",
   requests = 0,
   coldMetrics;
 const timings = [];
+function routeMetrics(offset) {
+  const reads = timings.slice(offset);
+  return Object.fromEntries(
+    [...new Set(reads.map((t) => t.route))].map((route) => {
+      const values = reads.filter((t) => t.route === route);
+      return [
+        route,
+        {
+          requests: values.length,
+          totalMs: Math.round(values.reduce((sum, t) => sum + t.ms, 0)),
+        },
+      ];
+    }),
+  );
+}
 globalThis.fetch = async (path, init = {}) => {
   if (!String(path).startsWith("/api/"))
     throw new Error("Unexpected verification request.");
@@ -160,9 +175,18 @@ try {
     // fresh grades succeed. Respect it before starting benchmark-only repeats.
     if (connected.cooldown > Date.now()) {
       const remaining = connected.cooldown - Date.now();
-      if (remaining > 120000) throw new Error("Provider cooldown exceeds benchmark window.");
-      console.log(JSON.stringify({providerCooldownSeconds:Math.ceil(remaining/1000),coldMs:Math.round(coldMs)}));
-      while (Date.now() <= connected.cooldown) await new Promise(r=>setTimeout(r,Math.min(30000,connected.cooldown-Date.now()+50)));
+      if (remaining > 120000)
+        throw new Error("Provider cooldown exceeds benchmark window.");
+      console.log(
+        JSON.stringify({
+          providerCooldownSeconds: Math.ceil(remaining / 1000),
+          coldMs: Math.round(coldMs),
+        }),
+      );
+      while (Date.now() <= connected.cooldown)
+        await new Promise((r) =>
+          setTimeout(r, Math.min(30000, connected.cooldown - Date.now() + 50)),
+        );
     }
     const samples = Number(process.env.GRADEVIEWER_BENCHMARK_RUNS ?? 3);
     assert.ok(Number.isInteger(samples) && samples >= 1 && samples <= 5);
@@ -178,22 +202,7 @@ try {
       warmRuns.push({
         ms: Math.round(performance.now() - started),
         requests,
-        routes: Object.fromEntries(
-          [...new Set(timings.slice(offset).map((t) => t.route))].map(
-            (route) => {
-              const values = timings
-                .slice(offset)
-                .filter((t) => t.route === route);
-              return [
-                route,
-                {
-                  requests: values.length,
-                  totalMs: Math.round(values.reduce((sum, t) => sum + t.ms, 0)),
-                },
-              ];
-            },
-          ),
-        ),
+        routes: routeMetrics(offset),
       });
       previous = warm;
     }
@@ -208,13 +217,15 @@ try {
           setTimeout(r, Math.min(30000, expiry - Date.now())),
         );
       requests = 0;
-      const started = performance.now();
+      const offset = timings.length,
+        started = performance.now();
       const expired = await readSnapshot(previous, await status());
       assert.equal(expired.courses.length, state.courses.length);
       expiredRun = {
         ms: Math.round(performance.now() - started),
         requests,
         completeSnapshot: true,
+        routes: routeMetrics(offset),
       };
     }
     console.log(

@@ -15,7 +15,8 @@ describe("complete snapshot and cache integration", () => {
     large = false,
     limited = false,
     active = 0,
-    maximumActive = 0;
+    maximumActive = 0,
+    batches: string[][] = [];
   beforeEach(async () => {
     await repository.clear();
     requests = 0;
@@ -23,6 +24,7 @@ describe("complete snapshot and cache integration", () => {
     omitBulkOwner = false;
     slow = limited = redirects = large = false;
     active = maximumActive = 0;
+    batches = [];
     const data = new Map();
     class RecordingVault extends FixtureVault {
       constructor(ctx: DurableObjectState, env: Env) {
@@ -87,6 +89,12 @@ describe("complete snapshot and cache integration", () => {
       { APP_PASSWORD: "synthetic-owner-password-for-tests-only" } as Env,
     );
     vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      if (path === "/api/scan/read-batch")
+        batches.push(
+          JSON.parse(String(init.body)).jobs.map(
+            (j: { resource: string }) => j.resource,
+          ),
+        );
       const headers = new Headers(init.headers);
       headers.set("Cookie", cookie);
       headers.set("Origin", "https://app.test");
@@ -245,8 +253,12 @@ describe("complete snapshot and cache integration", () => {
       .mockReturnValue(Date.now() + 5 * 60000 + 1);
     try {
       requests = 0;
+      batches = [];
       await readSnapshot(warm, await status());
       expect(requests).toBe(28);
+      expect(batches).toHaveLength(1);
+      expect(batches[0].filter((r) => r === "grades")).toHaveLength(5);
+      expect(batches[0].filter((r) => r !== "grades")).toHaveLength(20);
     } finally {
       clock.mockRestore();
     }

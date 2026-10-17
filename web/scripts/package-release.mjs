@@ -64,6 +64,7 @@ verifyArchive(manifest, archive);
 for (const secretName of [
   "SCHOOLOGY_API_KEY",
   "SCHOOLOGY_API_SECRET",
+  "CLOUDFLARE_API_TOKEN",
   "APP_PASSWORD",
 ]) {
   const value = process.env[secretName];
