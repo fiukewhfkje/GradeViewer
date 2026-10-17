@@ -24,21 +24,23 @@ final class PWAParityTests: XCTestCase {
         var rows: [Row] = []
         let methods: [CourseMethod] = [.points, .weightedCategories, .equalCategories, .unknown]
         for i in 0..<1200 {
-            let categories = (0..<3).map { j in
+            let categories: [GradingCategory] = (0..<3).map { j in
                 GradingCategory(id: "c\(j)", name: "Synthetic category \(j)",
                     weight: i % 23 == 0 && j == 0 ? nil : Double([70, 30, 0][j]),
                     method: (i + j) % 3 == 0 ? .percent : .points,
                     dropLowest: (i + j) % 3, excluded: i % 19 == 0 && j == 1)
             }
-            let assignments = (0..<8).map { j in
-                SourceAssignment(source: Provenance(.schoology, "a\(j)"), title: "Synthetic assignment \(j)",
-                    categoryID: i % 37 == 0 && j == 0 ? "missing" : "c\(j % 3)",
-                    score: Score(earned: i % 17 == 0 && j == 0 ? nil : Double((i * 7 + j * 13) % 171 - 20) / 1.25,
-                        possible: i % 31 == 0 && j == 0 ? -1 : (i % 7 == 0 && j == 1 ? 0 : Double([5, 20, 100][j % 3])),
-                        letter: i % 17 == 0 && j == 0 ? "A" : nil,
-                        excused: i % 11 == 0 && j == 2),
-                    multiplier: i % 29 == 0 && j == 0 ? 0 : [0.5, 1, 2, 3][(i + j) % 4],
-                    excluded: i % 13 == 0 && j == 4)
+            let assignments: [SourceAssignment] = (0..<8).map { j in
+                let earned: Double? = i % 17 == 0 && j == 0 ? nil : Double((i * 7 + j * 13) % 171 - 20) / 1.25
+                var possible: Double = [5, 20, 100][j % 3]
+                if i % 31 == 0 && j == 0 { possible = -1 }
+                else if i % 7 == 0 && j == 1 { possible = 0 }
+                let letter: String? = i % 17 == 0 && j == 0 ? "A" : nil
+                let score = Score(earned: earned, possible: possible, letter: letter, excused: i % 11 == 0 && j == 2)
+                let multiplier: Double = i % 29 == 0 && j == 0 ? 0 : [0.5, 1, 2, 3][(i + j) % 4]
+                let category = i % 37 == 0 && j == 0 ? "missing" : "c\(j % 3)"
+                return SourceAssignment(source: Provenance(.schoology, "a\(j)"), title: "Synthetic assignment \(j)",
+                    categoryID: category, score: score, multiplier: multiplier, excluded: i % 13 == 0 && j == 4)
             }
             var course = SourceCourse(source: Provenance(.schoology, "synthetic-\(i)"), title: "Synthetic course",
                 term: Term(id: "synthetic", name: "Synthetic term"), categories: categories,

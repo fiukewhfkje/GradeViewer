@@ -95,7 +95,7 @@ final class PeriodGradeEstimateTests: XCTestCase {
     func testZeroWeightExamAndExtraCreditQuarterRemainValid() throws {
         XCTAssertEqual(try XCTUnwrap(estimate(sources(examWeight:0,exam:0))).percent,70,accuracy:0.000000001)
         var input=sources(q1Weight:20,q2Weight:70,examWeight:10,exam:95)
-        input[4].grade.percent=(90*20+112*70+95*10)/100
+        input[4].grade.percent=(90.0*20.0+112.0*70.0+95.0*10.0)/100.0
         XCTAssertEqual(try XCTUnwrap(estimate(input)).percent,112,accuracy:0.000000001)
     }
     func testNullFinalWeightUsesMetadataAndExplicitOverrideIsFlagged() throws {
