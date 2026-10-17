@@ -2,7 +2,8 @@
 
 ## October 17 automatic updates
 
-- [ ] Ship initial automatic README linking for future full-template copies; verify real initial activation, commit/push and preservation of later owner README edits without changing launcher permissions.
+- [x] Ship signed stable v0.1.7 with initial automatic README linking; verify real official-template activation/commit and signed rollback/upgrade preserving a customized README; archive the disposable test copy. Launcher permissions are unchanged.
+- [ ] Observe the brother’s natural midnight Eastern stable-update check on October 18, 2026. v0.1.7 is published and latest; this future scheduled acceptance is not yet observed.
 
 - [x] Use the expanded form’s exact labels in both READMEs: Path, API token, Variable name, Variable value and Encrypt; spell out exact commands and retain manual custom-command entry without an unverified autofill promise.
 

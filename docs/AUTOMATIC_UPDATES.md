@@ -10,6 +10,8 @@ The repository contains `.github/workflows/gradeviewer-update.yml` at its actual
 
 A new full GitHub-template copy automatically receives a short root `README.md` linking to the [official current guide](https://github.com/fiukewhfkje/GradeViewer#readme). The existing updater initializes it on the initial default-branch push. It confirms GitHub’s official template relationship, the unchanged initial commit and a clean regular README file before writing. The normal updater commit includes this one parent file without staging unrelated root files. No additional workflow or permission is needed.
 
+App changes are committed into each copy’s `web/` folder when a new signed release is installed. Root `README.md` and `docs/` are not routinely mirrored from the official repository.
+
 The official repository keeps its full README. Existing copies, later scheduled/manual runs and owner README edits are preserved. For an existing template copy, editing the root `README.md` on GitHub to link to the official guide is fine. `web/README.md` remains part of the signed app release and can be replaced by a future release. An old isolated Cloudflare import has no separate root README and is outside this initialization.
 
 Do not use the old public-repository **Deploy to Cloudflare** import as a promise of automatic updates. Its GitHub app currently has administration/contents/checks/deployments access but lacks the separate Workflows permission. A deployment audit published by another project's maintainer records `.github/workflows` being removed on import. Moving the file to another source folder does not grant that missing permission. We cannot safely create GitHub workflows with a Cloudflare API token or an ordinary contents-only build credential.
@@ -17,6 +19,8 @@ Do not use the old public-repository **Deploy to Cloudflare** import as a promis
 Sources: [Cloudflare GitHub app permissions](https://api.github.com/apps/cloudflare-workers-and-pages), [GitHub App permission requirements](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps), [Cloudflare's subdirectory behavior](https://developers.cloudflare.com/workers/platform/deploy-buttons/), [firsthand import audit](https://www.mailda.site/docs/receipts/deploy-button-install/).
 
 ### What was actually verified
+
+For signed [v0.1.7](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.7), a new private copy generated directly from the official template [automatically initialized and committed the link README](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038673175). The bot commit changed exactly `README.md` and `web/.gradeviewer-update.json`. After an owner README customization, actual signed [rollback to 0.1.6](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038770718) and [upgrade to 0.1.7](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038974996) preserved that README byte-for-byte. The test repository is archived to stop schedules and retain evidence. [Release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39038732036) passed 145 tests and all existing browser/native/provenance checks. This README test did not create a Cloudflare test Worker or use Schoology data.
 
 The official repository is now configured as a GitHub template. A fresh private copy generated directly from that actual published repository also automatically ran [its root updater](https://github.com/fiukewhfkje/gradeviewer-official-template-probe-20261017/actions/runs/39005050802) and skipped the maintainer’s heavy CI. No workflow was manually created in that copy.
 
@@ -67,7 +71,7 @@ This uses the maintainer's already authenticated `gh` CLI to enable/dispatch tha
 For a just-published release, include its version to select it directly while GitHub’s latest-release redirect settles. This brief propagation delay was observed during the real v0.1.6 checks. For a particular release or rollback:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --version 0.1.6
+npm run update:copy -- OWNER/REPOSITORY --version 0.1.7
 npm run update:copy -- OWNER/REPOSITORY --version 0.1.3
 ```
 
@@ -75,7 +79,7 @@ A rollback changes app source, not the existing URL, vault, secret or browser da
 
 ### Optional preview channel
 
-Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.7-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
+Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.8-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
 
 ```sh
 npm run update:copy -- OWNER/REPOSITORY --preview
@@ -84,7 +88,7 @@ npm run update:copy -- OWNER/REPOSITORY --preview
 Preview selection persists in that copy's non-secret receipt. It accepts only signed official releases and selects the highest valid stable/alpha/beta/rc version. The midnight schedule stays the same; run the command again for an immediate check. Return to stable with:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.6
+npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.7
 ```
 
 No unsigned branch/main build is accepted as a release.

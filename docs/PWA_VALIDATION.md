@@ -2,6 +2,14 @@
 
 The latest release evidence is first. Version-specific and original staging records below are historical; current setup instructions are in [PWA_ONBOARDING.md](PWA_ONBOARDING.md).
 
+## v0.1.7 template README verification
+
+[PR #15 CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39038492257) and [signed release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39038732036) passed **145 tests, 26 Chromium + 26 WebKit flows, 119 Swift tests and 1,200 comparisons**, builds, Worker dry-runs and provenance checks. Five new tests cover real Git staging/commit/push of the separate README with unrelated-root-file retention, owner edits, reruns, official-template/initial-event boundaries and failure/symlink handling.
+
+A real private repository generated from the official GitHub template automatically ran [39038673175](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038673175), confirmed its template relationship using its built-in token, and committed exactly the link README and app receipt. After a synthetic owner edited the README, actual signed [0.1.6 rollback](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038770718) and [0.1.7 upgrade](https://github.com/fiukewhfkje/gradeviewer-readme-probe-20261017/actions/runs/39038974996) retained that file byte-for-byte. The repository is archived. The official source keeps its full guide; workflow YAML/permissions and native code are unchanged.
+
+Production reports v0.1.7 following a successful existing Cloudflare Git build. The user's requested natural overnight test is the unchanged midnight America/New_York schedule on October 18; that future run has not yet been observed. The README integration test used no Cloudflare test resource, real credentials or Schoology records. Earlier independent Cloudflare-account and physical-phone acceptance limits remain.
+
 ## v0.1.6 final verification
 
 [PR #14 CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39006417088) and [signed release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39006571854) passed **140 tests, 26 Chromium + 26 WebKit flows, 119 Swift tests and 1,200 Swift/JavaScript comparisons**, builds, Worker dry-runs and provenance checks. The no-version repair regression fails before the fix; the real documented command then installed signed v0.1.6 on the older template copy. Separate [latest-stable](https://github.com/fiukewhfkje/gradeviewer-install-probe-20261017044121/actions/runs/39006699282) and [explicit immediate](https://github.com/fiukewhfkje/gradeviewer-final-template-probe-20261017/actions/runs/39006743091) real signature/hash verification and pushes passed. All three test copies reached v0.1.6 with active root workflows before being archived.
