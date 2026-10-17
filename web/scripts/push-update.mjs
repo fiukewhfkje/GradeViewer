@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
-// update.mjs writes only verified managed files and its non-secret receipt.
+// The initial template run also stages its separate root README explicitly.
+// Other update writes are verified managed files and the non-secret receipt.
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 if (git("status", "--porcelain", "--untracked-files=all")) {
   git("config", "user.name", "GradeViewer updates");

@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from "node:util";
 import { currentDeployment } from "./deployment-status.mjs";
 import { verifyArchive, parseJsonc } from "./release-lib.mjs";
 import { verifyProvenance } from "./verify-provenance.mjs";
+import { configureCopyReadme } from "./configure-copy-readme.mjs";
 import {
   upstream,
   officialRelease,
@@ -112,6 +113,7 @@ export async function applyRelease(
     "scripts/verify-provenance.mjs",
     "scripts/updater-workflow.mjs",
     "scripts/deployment-status.mjs",
+    "scripts/configure-copy-readme.mjs",
     "src/release.ts",
   ]);
   const changes = [];
@@ -307,5 +309,10 @@ export async function update(
     );
   return { applied, version, channel, launcher };
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await update(process.argv[2]);
+  await configureCopyReadme();
+}

@@ -6,6 +6,12 @@ Use the short [README steps](../README.md): create a private GitHub copy using *
 
 The repository contains `.github/workflows/gradeviewer-update.yml` at its actual root. GitHub template generation copies it, enables Actions and starts its initial push run. No file editing, token setup, initial Commit changes step or manual workflow trigger is needed for ordinary users. The full native/PWA verification workflow is restricted to the official source repository, so copied installations do not spend runner time on the maintainer's macOS/browser CI.
 
+### README in personal copies
+
+A new full GitHub-template copy automatically receives a short root `README.md` linking to the [official current guide](https://github.com/fiukewhfkje/GradeViewer#readme). The existing updater initializes it on the initial default-branch push. It confirms GitHub’s official template relationship, the unchanged initial commit and a clean regular README file before writing. The normal updater commit includes this one parent file without staging unrelated root files. No additional workflow or permission is needed.
+
+The official repository keeps its full README. Existing copies, later scheduled/manual runs and owner README edits are preserved. For an existing template copy, editing the root `README.md` on GitHub to link to the official guide is fine. `web/README.md` remains part of the signed app release and can be replaced by a future release. An old isolated Cloudflare import has no separate root README and is outside this initialization.
+
 Do not use the old public-repository **Deploy to Cloudflare** import as a promise of automatic updates. Its GitHub app currently has administration/contents/checks/deployments access but lacks the separate Workflows permission. A deployment audit published by another project's maintainer records `.github/workflows` being removed on import. Moving the file to another source folder does not grant that missing permission. We cannot safely create GitHub workflows with a Cloudflare API token or an ordinary contents-only build credential.
 
 Sources: [Cloudflare GitHub app permissions](https://api.github.com/apps/cloudflare-workers-and-pages), [GitHub App permission requirements](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps), [Cloudflare's subdirectory behavior](https://developers.cloudflare.com/workers/platform/deploy-buttons/), [firsthand import audit](https://www.mailda.site/docs/receipts/deploy-button-install/).

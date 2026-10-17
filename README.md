@@ -8,7 +8,7 @@ Follow these steps in order. Everything happens in your browser.
 
 1. **Create your free accounts.** If you do not have GitHub, [sign up for GitHub](https://github.com/signup) and finish its email verification. Then [sign up for Cloudflare](https://dash.cloudflare.com/sign-up): enter your email and a password, click **Create Account**, and open Cloudflare's verification email. Stay signed in to both accounts. Use the **Free** plan if asked. You do not need to buy or add a domain.
 
-2. **Create your GradeViewer copy.** Open **[Create your GradeViewer copy](https://github.com/new?template_owner=fiukewhfkje&template_name=GradeViewer&name=gradeviewer&visibility=private)**. Keep the name `gradeviewer`, choose **Private**, leave **Include all branches** off, and create the repository. Your copy includes the automatic updater.
+2. **Create your GradeViewer copy.** Open **[Create your GradeViewer copy](https://github.com/new?template_owner=fiukewhfkje&template_name=GradeViewer&name=gradeviewer&visibility=private)**. Keep the name `gradeviewer`, choose **Private**, leave **Include all branches** off, and create the repository. Your copy includes the automatic updater. After its first automatic run, your copy’s README will link back to this current guide.
 
 3. **Connect your copy to Cloudflare.** Open **[Cloudflare setup](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)**. If Cloudflare shows a welcome or domain-setup page after signup, use this link to go to app setup. Select your Cloudflare account if asked, then click **Continue with GitHub**.
 
