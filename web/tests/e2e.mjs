@@ -1,15 +1,62 @@
 import { chromium, webkit } from "playwright-core";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 const port = 8901,
-  base = `http://localhost:${port}`,
+  base = `https://localhost:${port}`,
   engine = process.env.GRADEVIEWER_BROWSER ?? "chromium",
   directory =
     engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e";
 assert.ok(["chromium", "webkit"].includes(engine));
+// Secure host cookies must be tested over HTTPS: WebKit correctly rejects
+// __Host- cookies over plain HTTP, including the localhost exception in Chromium.
+// This CA is confined to this synthetic loopback test process and its children.
+if (!process.env.GRADEVIEWER_TEST_TLS_CERT) {
+  const tls = resolve(".local-test/e2e-tls");
+  await mkdir(tls, { recursive: true });
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-days",
+      "1",
+      "-subj",
+      "/CN=localhost",
+      "-addext",
+      "subjectAltName=DNS:localhost,IP:127.0.0.1",
+      "-keyout",
+      tls + "/localhost.key",
+      "-out",
+      tls + "/localhost.crt",
+    ],
+    { stdio: "ignore" },
+  );
+  const originalCA = process.env.NODE_EXTRA_CA_CERTS
+    ? await readFile(process.env.NODE_EXTRA_CA_CERTS, "utf8")
+    : "";
+  await writeFile(
+    tls + "/trusted-ca.pem",
+    originalCA + "\n" + (await readFile(tls + "/localhost.crt", "utf8")),
+  );
+  const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_EXTRA_CA_CERTS: tls + "/trusted-ca.pem",
+      GRADEVIEWER_TEST_TLS_CERT: tls + "/localhost.crt",
+      GRADEVIEWER_TEST_TLS_KEY: tls + "/localhost.key",
+    },
+  });
+  process.exit(child.status ?? 1);
+}
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
 let server,
@@ -30,6 +77,12 @@ async function start() {
       String(port),
       "--ip",
       "127.0.0.1",
+      "--local-protocol",
+      "https",
+      "--https-cert-path",
+      process.env.GRADEVIEWER_TEST_TLS_CERT,
+      "--https-key-path",
+      process.env.GRADEVIEWER_TEST_TLS_KEY,
       "--persist-to",
       directory + "/state",
     ],
@@ -78,6 +131,7 @@ try {
         });
   const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
+      ignoreHTTPSErrors: true,
       isMobile: true,
       hasTouch: true,
     }),
@@ -676,6 +730,7 @@ try {
     async () => {
       const second = await browser.newContext({
           viewport: { width: 390, height: 844 },
+          ignoreHTTPSErrors: true,
         }),
         secondPage = await second.newPage();
       try {
