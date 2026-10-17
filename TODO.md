@@ -10,10 +10,13 @@
 - [x] Replace maintainer Ed25519 signing-secret setup with exact-identity GitHub OIDC/Sigstore provenance. Isolated template update/config/secret preservation/rollback passes; real cryptographic verification passes separately in CI.
 - [x] Measure actual metadata expiry: **3.367 s after 310 seconds**, steady **1.17–1.39 s**, empty-state/title traversal **6.547 s**. Record evidence without claiming the target met.
 - [x] Verify the newly saved CLOUDFLARE_API_TOKEN with Cloudflare (active); register the Builds deployment credential and existing-preview trigger; store the preview password as a secret build variable. No secret values in chat.
-- [ ] Verify a real Git push starts a successful Cloudflare build/deployment, reconnect the preview after replacement-VM password recovery and confirm stored-credential reuse.
-- [ ] Improve expired-metadata/late-open performance to the user's couple-second target while retaining complete fresh reads/fixed TTL; measure browser/phone startup too.
-- [ ] Finish native UI/UX source/device audit, particularly assignment score/excused/ungraded/letter presentation, dropped rows, Categories route and course-sheet/back/graph interactions.
-- [ ] Verify beginner public template signup/permissions/Git dropdown/generated copy/Free-plan build/resources/password setup. CLI deployment alone is insufficient ease evidence; no terminal or manually created token for end users.
+- [x] Verify real Git pushes start successful Cloudflare Builds/deployments; reconnect the existing preview after replacement-VM password recovery.
+- [x] Eliminate separate deferred scale calls, order required reads before optional scales across chunks, and use five bounded concurrent reads; verify stored credential reuse across automatic redeployment.
+- [ ] Improve expired-metadata/late-open performance to the user's couple-second target while retaining complete fresh reads/fixed TTL; latest natural-expiry result **3.043 s / six calls** (was 3.619 s / seven in the resumed baseline). Browser/phone startup remains unmeasured.
+- [x] Match native assignment score/excused/ungraded/letter/override presentation, score-only dropped styling and Categories alias; fix closing a selected-period view. Local UI checks pass.
+- [ ] Finish physical course-sheet/back/graph/keyboard and installation checks; headless source/navigation checks do not establish phone behavior.
+- [x] Clarify Git account selection in both READMEs and write the three-entry [setup guide](docs/PWA_ONBOARDING.md).
+- [ ] Verify beginner public template signup/permissions/generated copy/Free-plan resources/password setup. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
 - [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
 - [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
 - [ ] Check newest remote CI, source/package secret scans and PR description. Choose/set the owner's production app password securely.
