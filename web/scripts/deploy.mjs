@@ -21,7 +21,11 @@ function invoke(args, env, input) {
     child.stdin.end(input ?? "");
   });
 }
-export async function deploy(environment = process.env, run = invoke) {
+export async function deploy(
+  environment = process.env,
+  run = invoke,
+  args = [],
+) {
   const password = environment.APP_PASSWORD;
   if (password && password.length < 20)
     throw new Error("Choose an APP_PASSWORD of at least 20 characters.");
@@ -31,11 +35,11 @@ export async function deploy(environment = process.env, run = invoke) {
   // Apply that one password as a runtime secret without placing it in argv or a file.
   if (password)
     await run(
-      ["secret", "bulk"],
+      ["secret", "bulk", ...args],
       childEnv,
       JSON.stringify({ APP_PASSWORD: password }),
     );
-  await run(["deploy"], childEnv);
+  await run(["deploy", ...args], childEnv);
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  await deploy();
+  await deploy(process.env, invoke, process.argv.slice(2));

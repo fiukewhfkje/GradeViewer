@@ -27,6 +27,20 @@ describe("no-terminal password setup", () => {
     expect(calls[1].env.CLOUDFLARE_API_TOKEN).toBe("synthetic-build-token");
     expect(calls[1].args).toEqual(["deploy"]);
   });
+  it("applies secrets and deployment to the same explicitly selected Worker", async () => {
+    const calls: string[][] = [];
+    await deploy(
+      { APP_PASSWORD: "synthetic-owner-password-at-least-20" },
+      async (args: string[]) => {
+        calls.push(args);
+      },
+      ["--name", "gradeviewer-preview"],
+    );
+    expect(calls).toEqual([
+      ["secret", "bulk", "--name", "gradeviewer-preview"],
+      ["deploy", "--name", "gradeviewer-preview"],
+    ]);
+  });
   it("keeps existing runtime secrets on ordinary redeploy and stops after secret-setup failure", async () => {
     const calls: string[][] = [];
     await deploy({}, async (args: string[]) => {
