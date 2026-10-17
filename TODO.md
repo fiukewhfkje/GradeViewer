@@ -2,6 +2,7 @@
 
 ## October 17 automatic updates
 
+- [x] Match README/onboarding to the actual existing-repository Cloudflare screens, correct build/deploy defaults and advanced settings, and shorten the setup link to Create application. Do not claim an unverified final-form shortcut.
 - [x] Verify Cloudflare/GitHub import constraints and replace the unsupported automatic-workflow claim with clear template-first setup.
 - [x] Include the canonical root launcher, midnight Eastern/DST schedule, automatic initial run, verified script updates, limited deployment retry and monthly check receipt.
 - [x] Distinguish official/deployed/ready/stalled/failed update states; preserve unsaved forms and saved data across per-tab service-worker activation.

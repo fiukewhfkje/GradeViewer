@@ -5,12 +5,30 @@ Follow the five short [README steps](../README.md). The supported setup creates 
 You need your own free GitHub and Cloudflare accounts. Account signup, email verification and approving their connection are normal one-time account steps. You do not need Git commands or an API token.
 
 1. Use **Create your GradeViewer copy** in the README. Keep `gradeviewer`, choose **Private**, leave **Include all branches** off and create it.
-2. In Cloudflare **Workers & Pages → Create application**, connect GitHub and select **your newly created copy**.
-3. Set **Root directory / Path** to `web`. Keep build `npm run build` and deploy `npm run deploy`. Add a private **build secret** called `APP_PASSWORD`, with a password of at least 12 characters. Save it in your password manager. Turn preview builds off and deploy.
+2. Open **[Cloudflare setup](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)**. This skips the projects list. On **Make something new**, choose **Continue with GitHub**. On **Select a repository**, choose your GitHub account, select **your newly created `gradeviewer` copy**, then click **Next**. If Cloudflare asks for repository access, include that copy.
+3. On **Set up your application**, confirm the repository belongs to your account, then fill the form below. Click **Deploy** after completing **Advanced settings**.
+
+   | Field | What to enter |
+   | --- | --- |
+   | Project name | `gradeviewer` |
+   | Build command | Enter `npm run build`; the field starts empty. |
+   | Deploy command | Replace `npx wrangler deploy` with `npm run deploy`. |
+   | Preview command | Leave `npx wrangler preview`; it is unused while preview builds are off. |
+   | Enable Preview builds | Turn **Off**. |
+   | Protect with Cloudflare Access | Leave **Off**. GradeViewer has its own app password. |
+   | Advanced settings → Root directory | Set to `web`. |
+   | Advanced settings → Build variables and secrets | Add a **Secret** named `APP_PASSWORD`, with a new password of at least 12 characters. Save it in your password manager. |
+
 4. Open and bookmark the personal **workers.dev** website. The bare account subdomain is not the app; use the full `https://gradeviewer.<your-subdomain>.workers.dev` address.
 5. Open **Profile**, unlock with your saved password, then use **Get my Schoology keys** to obtain and connect your own personal key and secret. Your school must permit API access. **Add to Home Screen** provides phone installation instructions.
 
 Use your personal website thereafter. Creating another copy or deploying another Worker is not part of normal updates. You stay unlocked for up to 90 days per browser.
+
+## Can the link open the final form directly?
+
+The setup link above opens **Create an app** directly. Choosing **Continue with GitHub**, your account and the existing repository still comes before **Set up your application**. We have not verified a supported link that skips those selections for an existing private copy.
+
+The old **Deploy to Cloudflare** button imports a public repository into a new copy. That import can omit the automatic updater, so it is not the supported shortcut. See Cloudflare's [deploy-button documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) and [build configuration reference](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/) for the two setup flows and field meanings.
 
 ## If you already used the old Cloudflare button
 
