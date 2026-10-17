@@ -135,6 +135,7 @@ export class CredentialVault {
     b: Record<string, unknown>,
     now: number,
     upstream: Fetcher = this.upstream,
+    prefetched?: Record<string, unknown>,
   ) {
     const resource = String(b.resource),
       section = String(b.section ?? ""),
@@ -207,7 +208,7 @@ export class CredentialVault {
     );
     let data: Record<string, unknown>;
     try {
-      data = await readProvider(path, credentials, upstream);
+      data = prefetched ?? (await readProvider(path, credentials, upstream));
     } catch (e) {
       if (e instanceof ApiError && e.code === "rateLimited")
         vault.cooldown = Date.now() + (e.retryAfter ?? 60) * 1000;
@@ -458,6 +459,78 @@ export class CredentialVault {
             scan.reused.push(section);
           }
           result = json({ ok: true });
+        } else if (route === "scan/roots" && post) {
+          const b = await body(request),
+            scan = vault.scans[String(b.scan)];
+          if (!scan) throw new ApiError(409, "scanExpired");
+          if (now < vault.cooldown)
+            throw new ApiError(
+              429,
+              "rateLimited",
+              Math.ceil((vault.cooldown - now) / 1000),
+            );
+          const credentials = await unseal<Credentials>(
+            scan.credentials,
+            this.env.APP_PASSWORD,
+          );
+          // Identity was verified by scan/start. Fetch independent discovery reads
+          // together, then process enrollment before resolving the fresh grade owners.
+          const [sectionResult, gradeResult] = await Promise.allSettled([
+            readProvider(
+              `users/${scan.account}/sections?limit=200`,
+              credentials,
+              this.upstream,
+            ),
+            readProvider(
+              `users/${scan.account}/grades?limit=200`,
+              credentials,
+              this.upstream,
+            ),
+          ]);
+          for (const r of [sectionResult, gradeResult])
+            if (
+              r.status === "rejected" &&
+              r.reason instanceof ApiError &&
+              r.reason.code === "rateLimited"
+            )
+              vault.cooldown = Date.now() + (r.reason.retryAfter ?? 60) * 1000;
+          if (sectionResult.status === "rejected") throw sectionResult.reason;
+          // Completed reads may be processed even if the other root hit a cooldown.
+          const sections = await this.read(
+            scan,
+            vault,
+            { resource: "sections" },
+            now,
+            this.upstream,
+            sectionResult.value,
+          );
+          let grades;
+          try {
+            if (gradeResult.status === "rejected") throw gradeResult.reason;
+            grades = {
+              ok: true,
+              value: await this.read(
+                scan,
+                vault,
+                { resource: "grades" },
+                now,
+                this.upstream,
+                gradeResult.value,
+              ),
+            };
+          } catch (error) {
+            const e =
+              error instanceof ApiError
+                ? error
+                : new ApiError(500, "requestFailed");
+            grades = {
+              ok: false,
+              error: e.code,
+              status: e.status,
+              retryAfter: e.retryAfter,
+            };
+          }
+          result = json({ sections, grades });
         } else if (["scan/read", "scan/read-batch"].includes(route) && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
@@ -501,7 +574,7 @@ export class CredentialVault {
             );
             const results: unknown[] = new Array(jobs.length);
             // Keep a Free-plan invocation below 50 subrequests, including redirects.
-            // Six in-flight reads is Cloudflare's documented connection limit.
+            // Four in-flight reads leave headroom under Cloudflare's six-connection limit.
             let cursor = 0,
               subrequests = 0,
               responseBytes = 0;
@@ -544,7 +617,7 @@ export class CredentialVault {
               }
             };
             await Promise.all(
-              Array.from({ length: Math.min(6, jobs.length) }, run),
+              Array.from({ length: Math.min(4, jobs.length) }, run),
             );
             result = json({ results });
           }

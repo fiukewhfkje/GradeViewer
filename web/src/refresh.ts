@@ -109,6 +109,16 @@ export async function readSnapshot(
           if (
             !optional &&
             e instanceof RequestError &&
+            e.code === "providerUnavailable" &&
+            e.status === 502 &&
+            attempt === 0
+          ) {
+            await new Promise((r) => setTimeout(r, 150));
+            continue;
+          }
+          if (
+            !optional &&
+            e instanceof RequestError &&
             e.code === "rateLimited" &&
             (e.retryAfter ?? 999) <= 10 &&
             attempt === 0
@@ -129,6 +139,12 @@ export async function readSnapshot(
     return values;
   }
   try {
+    const roots = await api<{ sections: Page; grades: ReadResult }>(
+      "scan/roots",
+      { scan },
+    );
+    prefetched.set("sections::", { ok: true, value: roots.sections });
+    prefetched.set("grades::", roots.grades);
     const sections = await read("sections", "section"),
       bulk = await read("grades", "section").catch((e) => {
         if (e instanceof RequestError && [403, 502].includes(e.status ?? 0))

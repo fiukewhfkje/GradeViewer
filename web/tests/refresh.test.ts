@@ -101,13 +101,13 @@ describe("complete snapshot and cache integration", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
   const status = () => api<Status>("status");
-  it("bounds hosted batches to six provider reads and validates every job before any read", async () => {
+  it("bounds hosted batches to four provider reads and validates every job before any read", async () => {
     slow = true;
     await readSnapshot(emptyState(), await status(), {
       key: "fixture",
       secret: "fixture-secret",
     });
-    expect(maximumActive).toBe(6);
+    expect(maximumActive).toBe(4);
     const { scan } = await api<{ scan: string }>("scan/start", {});
     await api("scan/read", { scan, resource: "sections" });
     const count = requests;
@@ -187,10 +187,10 @@ describe("complete snapshot and cache integration", () => {
         ),
       },
     );
-    expect(requests).toBeLessThanOrEqual(6);
+    expect(requests).toBeLessThanOrEqual(4);
     expect(
       result.results.filter((r) => !r.ok && r.error === "rateLimited").length,
-    ).toBeGreaterThanOrEqual(7);
+    ).toBeGreaterThanOrEqual(9);
     await expect(
       api("scan/start", { key: "fixture", secret: "fixture-secret" }),
     ).rejects.toMatchObject({ code: "rateLimited" });
