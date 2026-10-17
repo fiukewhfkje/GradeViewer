@@ -152,19 +152,65 @@ header > div {
   flex-shrink: 0;
   border-radius: 50%;
 }
-.pull-refresh {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
+/* The document stays still; the app scroll view owns vertical movement. */
+html,
+body,
+#root {
+  height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
+}
+.app-scroll {
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+}
+.app {
+  position: relative;
+  min-height: 100%;
+}
+.refresh-content {
+  transition: transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.refresh-content[data-pulling="true"] {
+  transition: none;
+}
+.pull-refresh {
+  position: absolute;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
-  font-size: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    opacity 160ms;
+}
+.pull-refresh[data-phase="pulling"] {
+  transition: none;
+}
+.pull-refresh[data-visible="true"] {
+  opacity: 1;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 @media (max-width: 760px) and (pointer: coarse) {
-  html {
-    overscroll-behavior-y: contain;
-  }
   .desktop-refresh {
     display: none;
   }
@@ -226,7 +272,8 @@ main > section + section {
   font-weight: 700;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -448,40 +495,68 @@ select {
   font-size: 14px;
   color: var(--muted);
 }
+.graph-section {
+  position: relative;
+  z-index: 2;
+}
 .chart {
   position: relative;
-  height: 174px;
-  margin-top: 24px;
+  height: 154px;
   touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: crosshair;
+  border-radius: 16px;
+}
+.chart:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 4px;
+}
+.chart-plot {
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--row);
 }
 .chart svg {
+  display: block;
   width: 100%;
-  height: 160px;
-  overflow: visible;
+  height: 100%;
 }
-.chart path {
+.chart-line {
   fill: none;
-  stroke: var(--grade);
+  stroke: currentColor;
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
   stroke-linecap: round;
 }
-.chart-tooltip {
-  display: block;
-  min-height: 20px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--muted);
+.chart-marker {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 12px color-mix(in srgb, var(--ink) 12%, transparent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
-.chart-scrubber {
-  width: 100%;
-  height: 16px;
-  min-height: 20px;
-  accent-color: var(--grade);
-  padding: 0;
-  margin: 5px 0 12px;
-  border: 0;
-  opacity: 0.6;
+.chart-tooltip {
+  position: absolute;
+  bottom: calc(100% + 16px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 16px;
+  background: #fcf9f2;
+  color: #242421;
+  padding: 12px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 2px 16px #0001;
+  pointer-events: none;
 }
 .menu {
   position: relative;
@@ -767,4 +842,180 @@ svg.spinning {
 }
 .course-screen {
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+/* Inset grouped settings follow the native Profile. */
+.profile .settings-group {
+  margin: 0 0 20px;
+}
+.profile .settings-group > h2 {
+  margin: 0 0 8px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+}
+.settings-card {
+  border-radius: 16px;
+  background: var(--row);
+  overflow: hidden;
+}
+.settings-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.connection-heading,
+.settings-row,
+.site-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  min-height: 56px;
+}
+.connection-heading > strong,
+.settings-label {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 500;
+}
+.connection-heading .connection {
+  font-size: 13px;
+  margin: 0;
+  gap: 6px;
+  color: var(--muted);
+}
+.connection-heading .status-dot {
+  background: var(--muted);
+  width: 6px;
+  height: 6px;
+}
+.connection-heading [data-connected="true"] .status-dot {
+  background: var(--grade);
+}
+.settings-action,
+.app-actions .settings-card > button {
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 18px;
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 400;
+}
+.settings-action > svg:last-child {
+  margin-left: auto;
+  color: var(--muted);
+}
+.app-actions .settings-card > button:first-child {
+  border-top: 0;
+}
+.settings-row {
+  margin: 0;
+  flex-direction: row;
+  font-weight: 400;
+}
+.settings-row select {
+  min-height: 36px;
+  border: 0;
+  padding: 6px 4px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 15px;
+}
+.profile .settings-card form {
+  padding: 18px;
+  border-top: 1px solid var(--line);
+}
+.profile form > p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.site-heading {
+  padding-bottom: 8px;
+}
+.site-heading strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+.site-card > label {
+  margin: 0 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.site-card input {
+  background: var(--bg);
+  font-size: 14px;
+}
+.site-card .button-row {
+  margin: 8px 12px 12px;
+}
+.site-card .button-row > * {
+  background: transparent;
+  min-height: 40px;
+  padding: 8px;
+  font-size: 14px;
+}
+.site-card > button {
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 400;
+  justify-content: flex-start;
+}
+.site-card > button svg:last-child {
+  margin-left: auto;
+  color: var(--muted);
+}
+.profile .settings-note {
+  margin: 8px 16px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.profile-footnote {
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.8;
+  padding-bottom: 8px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .refresh-content,
+  .pull-refresh {
+    transition: none;
+  }
+}
+
+.summary {
+  padding: 24px 6px 24px 16px;
+  gap: 10px;
+}
+.summary .grade {
+  font-size: 22px;
+}
+.summary .menu summary {
+  width: 32px;
+}
+.updated svg {
+  flex-shrink: 0;
+}
+
+.update-result {
+  margin: -8px 16px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
 }

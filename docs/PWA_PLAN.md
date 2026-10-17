@@ -12,7 +12,6 @@ Follow-up decisions: the user plans to make this repository public once the work
 
 Cloud development is supported here: Node 24.19.0 and npm 11.9.0 are installed, a local Node assertion/Web Crypto encryption round trip passed, and headless Chromium 154 executed a synthetic DOM/JavaScript check through its local DevTools API. Chromium's dump-dom smoke commands timed out; the API-driven check succeeded. These are runtime checks, not a PWA test suite. Swift/Xcode are unavailable here; native simulator testing requires a Mac, but TypeScript development does not. The current network policy is enforced and excludes api.schoology.com; both credential variable readiness observations are now ready. That does not validate the credentials against Schoology. Provider-free unit/integration/browser tests can run here; live Schoology access requires the network restriction to be resolved, and final iPhone Safari/Home Screen behavior needs actual iPhone validation.
 
-This request supersedes the earlier native-only/no-backend restriction for the proposed PWA. Preserve the current Schoology-only scope and simple interface. Do not restore IC, widgets, the removed What-If page, notifications infrastructure, Muse, paid features, ads or analytics. The native app remains the behavior reference until parity is demonstrated.
 
 ## What was actually verified
 
