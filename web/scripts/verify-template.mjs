@@ -96,7 +96,7 @@ try {
   await writeFile(
     join(fixtureBin, "gh"),
     `#!/usr/bin/env node
-const fs=require('node:fs'),crypto=require('node:crypto');
+import fs from 'node:fs';import crypto from 'node:crypto';
 const args=process.argv.slice(2), path=args[2], bundle=args[args.indexOf('--bundle')+1];
 const bytes=fs.readFileSync(path), manifest=JSON.parse(bytes), proof=JSON.parse(fs.readFileSync(bundle));
 const valid=proof.synthetic && proof.manifestSha256===crypto.createHash('sha256').update(bytes).digest('hex') &&
