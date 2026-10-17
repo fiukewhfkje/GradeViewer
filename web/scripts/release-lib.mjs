@@ -70,9 +70,16 @@ export function verifyRelease(
     )
   )
     throw new Error("Release signature is invalid.");
+  const result = verifyArchive(manifestBytes, archiveBytes);
+  if (result.manifest.schema !== 1)
+    throw new Error("Unsupported legacy signature.");
+  return result;
+}
+export function verifyArchive(manifestBytes, archiveBytes) {
   const manifest = JSON.parse(manifestBytes);
   if (
-    manifest.schema !== 1 ||
+    ![1, 2].includes(manifest.schema) ||
+    (manifest.schema === 2 && manifest.verification !== "github-attestation") ||
     manifest.localSchema !== 1 ||
     !/^0\.\d+\.\d+$/.test(manifest.version) ||
     manifest.archive !== "gradeviewer-source.json" ||

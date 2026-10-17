@@ -56,12 +56,42 @@ jobs:
           name: synthetic-browser-${{ matrix.browser }}
           path: web/.local-test/e2e*/*.png
           include-hidden-files: true
+  release-verification:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci && npm run release:package
+        working-directory: web
+      - uses: actions/attest-build-provenance@v3
+        id: provenance
+        with:
+          subject-path: web/release/manifest.json
+      - name: Verify real workflow provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh attestation verify web/release/manifest.json
+          --repo fiukewhfkje/GradeViewer
+          --bundle "${{ steps.provenance.outputs.bundle-path }}"
+          --signer-workflow fiukewhfkje/GradeViewer/.github/workflows/pwa.yml
+          --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA"
+          --deny-self-hosted-runners
   release:
     if: startsWith(github.ref, 'refs/tags/v0.') && github.repository == 'fiukewhfkje/GradeViewer'
     needs: [verify, native-reference]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,9 +99,12 @@ jobs:
           node-version: 24
       - run: npm ci && npm run build && npm run release:package
         working-directory: web
-        env:
-          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+      - uses: actions/attest-build-provenance@v3
+        id: provenance
+        with:
+          subject-path: web/release/manifest.json
+      - run: cp "${{ steps.provenance.outputs.bundle-path }}" web/release/provenance.json
       - name: Publish verified source release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" web/release/gradeviewer-source.json web/release/manifest.json web/release/manifest.sig --verify-tag --generate-notes --title "GradeViewer $GITHUB_REF_NAME"
+        run: gh release create "$GITHUB_REF_NAME" web/release/gradeviewer-source.json web/release/manifest.json web/release/provenance.json --verify-tag --generate-notes --title "GradeViewer $GITHUB_REF_NAME"

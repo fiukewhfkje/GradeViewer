@@ -24,6 +24,7 @@ jobs:
       - name: Verify and apply official release
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/update.mjs "$REQUESTED_VERSION"
       - name: Commit update for Cloudflare Builds
         run: |

@@ -1,7 +1,6 @@
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { sign } from "node:crypto";
-import { sha256, verifyRelease } from "./release-lib.mjs";
+import { sha256, verifyArchive } from "./release-lib.mjs";
 const pkg = JSON.parse(await readFile("package.json", "utf8")),
   version = pkg.version;
 if (
@@ -50,7 +49,8 @@ const archive = Buffer.from(
 );
 const manifest = Buffer.from(
   JSON.stringify({
-    schema: 1,
+    schema: 2,
+    verification: "github-attestation",
     version,
     localSchema: 1,
     sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
@@ -60,16 +60,7 @@ const manifest = Buffer.from(
     archiveSha256: sha256(archive),
   }) + "\n",
 );
-const privateKey =
-  process.env.RELEASE_SIGNING_KEY ??
-  (await readFile(".local-test/release-signing.pem", "utf8"));
-const signature = sign(null, manifest, privateKey).toString("base64") + "\n";
-verifyRelease(
-  manifest,
-  signature,
-  archive,
-  await readFile("scripts/release-public-key.pem"),
-);
+verifyArchive(manifest, archive);
 for (const secretName of [
   "SCHOOLOGY_API_KEY",
   "SCHOOLOGY_API_SECRET",
@@ -90,7 +81,6 @@ for (const secretName of [
 await mkdir("release", { recursive: true });
 await writeFile("release/gradeviewer-source.json", archive);
 await writeFile("release/manifest.json", manifest);
-await writeFile("release/manifest.sig", signature);
 console.log(
-  `Packaged signed GradeViewer ${version} (${files.length} source files).`,
+  `Packaged GradeViewer ${version} (${files.length} source files; provenance required before publication).`,
 );

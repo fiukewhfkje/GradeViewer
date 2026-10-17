@@ -7,7 +7,8 @@ import {
   unlink,
 } from "node:fs/promises";
 import { dirname } from "node:path";
-import { verifyRelease, parseJsonc } from "./release-lib.mjs";
+import { verifyArchive, parseJsonc } from "./release-lib.mjs";
+import { verifyProvenance } from "./verify-provenance.mjs";
 const upstream = "fiukewhfkje/GradeViewer",
   requested = process.argv[2];
 if (requested && !/^v?0\.\d+\.\d+$/.test(requested))
@@ -61,14 +62,10 @@ const asset = (name) => {
   return a.browser_download_url;
 };
 const manifestBytes = await download(asset("manifest.json"), 20000),
-  signature = (await download(asset("manifest.sig"), 1000)).toString(),
+  provenance = await download(asset("provenance.json"), 200000),
   archiveBytes = await download(asset("gradeviewer-source.json"));
-const { archive, manifest } = verifyRelease(
-  manifestBytes,
-  signature,
-  archiveBytes,
-  await readFile("scripts/release-public-key.pem"),
-);
+await verifyProvenance(manifestBytes, provenance, version);
+const { archive, manifest } = verifyArchive(manifestBytes, archiveBytes);
 if (manifest.version !== version) throw new Error("Release version mismatch.");
 const currentConfig = parseJsonc(await readFile("wrangler.jsonc", "utf8"));
 // Verify everything before touching the checkout. Never overwrite local secrets or workflows.

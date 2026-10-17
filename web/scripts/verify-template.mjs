@@ -3,7 +3,6 @@ import { mkdtemp, readFile, writeFile, mkdir, cp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
-import { sign } from "node:crypto";
 import assert from "node:assert/strict";
 import { sha256, parseJsonc } from "./release-lib.mjs";
 const temporary = await mkdtemp(join(tmpdir(), "gradeviewer-template-"));
@@ -50,8 +49,7 @@ try {
     "--outdir",
     ".local-test/worker",
   ]);
-  const privateKey = await readFile(".local-test/release-signing.pem"),
-    publicKey = await readFile("scripts/release-public-key.pem");
+  const publicKey = await readFile("scripts/release-public-key.pem");
   const stub = join(temporary, ".local-test/release-fixtures");
   await mkdir(stub, { recursive: true });
   for (const version of ["0.1.1", "0.1.0"]) {
@@ -69,7 +67,9 @@ try {
     const bytes = Buffer.from(JSON.stringify(archive)),
       manifest = Buffer.from(
         JSON.stringify({
-          schema: 1,
+          schema: 2,
+          verification: "github-attestation",
+          sourceCommit: "a".repeat(40),
           version,
           localSchema: 1,
           archive: "gradeviewer-source.json",
@@ -80,17 +80,36 @@ try {
     await writeFile(join(stub, version, "gradeviewer-source.json"), bytes);
     await writeFile(join(stub, version, "manifest.json"), manifest);
     await writeFile(
-      join(stub, version, "manifest.sig"),
-      sign(null, manifest, privateKey).toString("base64"),
+      join(stub, version, "provenance.json"),
+      JSON.stringify({ synthetic: true, manifestSha256: sha256(manifest) }),
     );
   }
   const interceptor = join(stub, "intercept.mjs");
   await writeFile(
     interceptor,
-    `import {readFile} from 'node:fs/promises';const version=process.env.TEST_RELEASE;globalThis.fetch=async url=>{if(url.startsWith('https://api.github.com/'))return Response.json({tag_name:'v'+version,draft:false,prerelease:false,assets:['manifest.json','manifest.sig','gradeviewer-source.json'].map(name=>({name,browser_download_url:'https://github.com/fiukewhfkje/GradeViewer/releases/download/v'+version+'/'+name}))});return new Response(await readFile(new URL('./'+version+'/'+url.split('/').at(-1),import.meta.url)));};`,
+    `import {readFile} from 'node:fs/promises';const version=process.env.TEST_RELEASE;globalThis.fetch=async url=>{if(url.startsWith('https://api.github.com/'))return Response.json({tag_name:'v'+version,draft:false,prerelease:false,assets:['manifest.json','provenance.json','gradeviewer-source.json'].map(name=>({name,browser_download_url:'https://github.com/fiukewhfkje/GradeViewer/releases/download/v'+version+'/'+name}))});return new Response(await readFile(new URL('./'+version+'/'+url.split('/').at(-1),import.meta.url)));};`,
   );
+  // Only this isolated application/preservation test substitutes gh. The real
+  // Sigstore verifier is exercised against an actual GitHub attestation in CI.
+  const fixtureBin = join(stub, "bin");
+  await mkdir(fixtureBin, { recursive: true });
+  await writeFile(
+    join(fixtureBin, "gh"),
+    `#!/usr/bin/env node
+const fs=require('node:fs'),crypto=require('node:crypto');
+const args=process.argv.slice(2), path=args[2], bundle=args[args.indexOf('--bundle')+1];
+const bytes=fs.readFileSync(path), manifest=JSON.parse(bytes), proof=JSON.parse(fs.readFileSync(bundle));
+const valid=proof.synthetic && proof.manifestSha256===crypto.createHash('sha256').update(bytes).digest('hex') &&
+  args.includes('fiukewhfkje/GradeViewer') && args.includes('fiukewhfkje/GradeViewer/.github/workflows/pwa.yml') &&
+  args.includes('refs/tags/v'+manifest.version) && args.includes(manifest.sourceCommit) && args.includes('--deny-self-hosted-runners');
+process.exit(valid?0:1);
+`,
+    { mode: 0o755 },
+  );
+  const fixturePath = fixtureBin + ":" + process.env.PATH;
   run("node", ["--import", interceptor, "scripts/update.mjs"], temporary, {
     TEST_RELEASE: "0.1.1",
+    PATH: fixturePath,
   });
   assert.equal(
     JSON.parse(await readFile(join(temporary, "package.json"))).version,
@@ -116,7 +135,7 @@ try {
     "node",
     ["--import", interceptor, "scripts/update.mjs", "0.1.0"],
     temporary,
-    { TEST_RELEASE: "0.1.0" },
+    { TEST_RELEASE: "0.1.0", PATH: fixturePath },
   );
   assert.equal(
     JSON.parse(await readFile(join(temporary, "package.json"))).version,
@@ -125,7 +144,7 @@ try {
   run("npm", ["ci"]);
   run("npm", ["run", "build"]);
   console.log(
-    "PASS isolated template install/build/dry-run, signed update, configuration/secret retention and explicit rollback.",
+    "PASS isolated template install/build/dry-run, attested-update fixture, configuration/secret retention and explicit rollback (cryptographic provenance is checked separately in CI).",
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });
