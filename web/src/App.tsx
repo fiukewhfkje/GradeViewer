@@ -333,7 +333,7 @@ export default function App() {
     window.addEventListener("beforeinstallprompt", installer);
     document.addEventListener("visibilitychange", visibility);
     if ("serviceWorker" in navigator) {
-      const hadController = !!navigator.serviceWorker.controller;
+      let hadController = !!navigator.serviceWorker.controller;
       void navigator.serviceWorker
         .register("/sw.js", { updateViaCache: "none" })
         .then((reg) => {
@@ -356,6 +356,9 @@ export default function App() {
           reloading = true;
           location.reload();
         }
+        // Skip only the initial claim. Later, explicitly activated updates reload
+        // even if this page first opened before a service worker was installed.
+        hadController = true;
       });
     }
     // This application root lives for the whole page; the setup guard also tolerates StrictMode.

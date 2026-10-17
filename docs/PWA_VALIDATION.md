@@ -2,6 +2,12 @@
 
 [Production](https://gradeviewer.fiukewhfkje.workers.dev) is deployed and connected. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged once as `1b60b6f`, retaining native baseline `3447420`. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published; [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) is green. Final delivery evidence is in PROJECT_STATUS.md; historical staging measurements remain below.
 
+## v0.1.3 update activation
+
+The same-session first-visit update test now mounts the app before its first service worker claims it, deploys a changed synthetic app shell, then installs it through Profile. Update now reloads correctly on that first page as well as on returning visits; saved local scenarios remain intact. The startup claim is ignored once, rather than disabling all later update reloads. Local build and 25 Chromium flows pass; physical Home Screen behavior remains unverified.
+
+The preceding v0.1.2 signed release passed [release CI 39000083606](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000083606) and exact production asset-hash verification. Its published tag is preserved.
+
 ## v0.1.2 UI and refresh validation
 
 - [PR #10](https://github.com/fiukewhfkje/GradeViewer/pull/10) merged as `8478870`. Final implementation [CI 38999924488](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38999924488) passed **121 tests, 25 Chromium flows, 25 WebKit flows, 119 Swift tests, 1,200 Swift/JavaScript comparisons and real GitHub provenance verification**. This includes the second-finger cancellation regression. Version 0.1.2 follows the existing main-branch production build and signed tag-release workflows.

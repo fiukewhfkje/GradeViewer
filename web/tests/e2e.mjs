@@ -800,6 +800,7 @@ try {
         .getByRole("button", { name: "Profile", exact: true })
         .waitFor();
       assert.equal(await page.locator(".course").count(), 0);
+      await page.getByRole("alert").waitFor();
       assert.match(
         await page.locator("body").innerText(),
         /connection|internet|unavailable/i,
@@ -833,7 +834,19 @@ try {
       const originalIndex = await readFile("dist/index.html"),
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
-      {
+      const firstVisit = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        storageState: await context.storageState(),
+      });
+      const freshPage = await firstVisit.newPage();
+      try {
+        // This page mounts before its first worker claims it; it is never reloaded
+        // until Update now is clicked. A captured startup-controller flag fails here.
+        await freshPage.goto(base);
+        await freshPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        await freshPage.waitForFunction(
+          () => !!navigator.serviceWorker.controller,
+        );
         await writeFile(
           "dist/index.html",
           originalIndex
@@ -845,6 +858,28 @@ try {
         );
         execFileSync("node", ["scripts/service-worker.mjs"]);
         await page.waitForTimeout(500);
+        await freshPage
+          .getByRole("button", { name: "Profile", exact: true })
+          .click();
+        await freshPage
+          .getByRole("button", { name: "Check for updates", exact: true })
+          .click();
+        await freshPage
+          .getByRole("button", { name: "Update now", exact: true })
+          .waitFor();
+        await Promise.all([
+          freshPage.waitForNavigation({ waitUntil: "load" }),
+          freshPage
+            .getByRole("button", { name: "Update now", exact: true })
+            .click(),
+        ]);
+        assert.equal(
+          await freshPage
+            .locator('meta[name="synthetic-update"]')
+            .getAttribute("content"),
+          "verified",
+        );
+        await freshPage.getByRole("button", { name: /AP Biology/ }).waitFor();
         await page
           .getByRole("button", { name: "Profile", exact: true })
           .click();
@@ -871,6 +906,8 @@ try {
         await page.getByRole("button", { name: /AP Biology/ }).click();
         assert.match(await page.locator(".rows").first().innerText(), /102.25/);
         await page.getByLabel("Close course", { exact: true }).click();
+      } finally {
+        await firstVisit.close();
       }
       // Keep the tested deployment stable for later cases. Restore only after shutdown.
     },
