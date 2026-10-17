@@ -4,6 +4,8 @@ The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and alrea
 
 ## v0.1.3 first-visit update activation — October 16, 2026
 
+- [PR #11](https://github.com/fiukewhfkje/GradeViewer/pull/11) merged as `d030774`. Final [CI 39000299014](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000299014) passed 121 tests, 25 Chromium and 25 WebKit flows, native-reference comparisons and real release provenance. Both fresh-install and returning-page Profile update paths are covered.
+
 - The update reload listener now skips only the first service-worker claim, rather than permanently remembering an uncontrolled startup. Check for updates → Update now also reloads correctly in the same session as the app's first installation.
 - The controlled-update browser flow opens a genuinely fresh browser context before its first worker exists, then installs a changed app shell through Profile without any intervening reload. The returning-page flow still verifies saved scenarios survive. Offline assertions wait for the error state rather than racing the startup spinner.
 - Production build and all 25 local Chromium flows pass. The new native chart, spinner-only refresh, Profile layout, update controls and Schoology-only documentation are retained.

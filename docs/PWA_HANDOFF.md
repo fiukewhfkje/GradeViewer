@@ -6,7 +6,7 @@ The user reached Cloudflare's setup form from another account and reported confu
 
 ## v0.1.3 first-visit correction
 
-Source version 0.1.3 fixes Update now in the app's first visit: the initial service-worker claim is skipped once, then later activated updates reload normally. The fresh-context and returning-context update flows both pass locally, with saved scenarios retained. v0.1.2's signed release and deployed asset hashes were verified; its tag is preserved. See PROJECT_STATUS.md for the current follow-up.
+Source version 0.1.3 fixes Update now in the app's first visit: the initial service-worker claim is skipped once, then later activated updates reload normally. The fresh-context and returning-context update flows pass locally and in Chromium/WebKit CI, with saved scenarios retained. [PR #11](https://github.com/fiukewhfkje/GradeViewer/pull/11) merged as `d030774`; [CI 39000299014](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000299014) passed. v0.1.2's signed release and deployed asset hashes were verified; its tag is preserved. See PROJECT_STATUS.md for the current follow-up.
 
 ## v0.1.2 follow-up
 

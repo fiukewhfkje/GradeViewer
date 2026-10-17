@@ -4,6 +4,8 @@
 
 ## v0.1.3 update activation
 
+[PR #11](https://github.com/fiukewhfkje/GradeViewer/pull/11) merged as `d030774`; [CI 39000299014](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000299014) passed 121 tests, 25 flows in each browser, native comparisons and real provenance verification.
+
 The same-session first-visit update test now mounts the app before its first service worker claims it, deploys a changed synthetic app shell, then installs it through Profile. Update now reloads correctly on that first page as well as on returning visits; saved local scenarios remain intact. The startup claim is ignored once, rather than disabling all later update reloads. Local build and 25 Chromium flows pass; physical Home Screen behavior remains unverified.
 
 The preceding v0.1.2 signed release passed [release CI 39000083606](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000083606) and exact production asset-hash verification. Its published tag is preserved.
