@@ -71,18 +71,24 @@ function Grade({
   letter,
   estimate = false,
   digits = 2,
+  parentheses = true,
 }: {
   percent?: number;
   letter?: string;
   estimate?: boolean;
   digits?: number;
+  parentheses?: boolean;
 }) {
   return (
     <span className="grade">
       {letter && <span>{letter}</span>}
       {(percent !== undefined || !letter) && (
         <span>
-          {percent === undefined ? "—" : `(${percentText(percent, digits)})`}
+          {percent === undefined
+            ? "—"
+            : parentheses
+              ? `(${percentText(percent, digits)})`
+              : percentText(percent, digits)}
           {estimate ? "*" : ""}
         </span>
       )}
@@ -1554,7 +1560,7 @@ function FinalCalculator({ course }: { course: Course }) {
       </p>
       <div className="row">
         <strong>Needed on final</strong>
-        <Grade percent={value} />
+        <Grade percent={value} parentheses={false} />
       </div>
       {value !== undefined && value > 100 && <p>Requires extra credit.</p>}
       {value !== undefined && value < 0 && (
