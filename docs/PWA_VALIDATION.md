@@ -1,5 +1,7 @@
 # PWA verification — October 16, 2026
 
+Current release: [v0.1.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.3). [Release CI 39000465199](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000465199) passed all checks and published source/manifest/provenance. Production HTML and JavaScript/CSS/service-worker hashes match the tested build. Physical Home Screen containers remain unverified.
+
 [Production](https://gradeviewer.fiukewhfkje.workers.dev) is deployed and connected. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged once as `1b60b6f`, retaining native baseline `3447420`. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published; [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) is green. Final delivery evidence is in PROJECT_STATUS.md; historical staging measurements remain below.
 
 ## v0.1.3 update activation

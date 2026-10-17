@@ -1,8 +1,10 @@
 # Project status — October 16, 2026
 
-The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published. Native production sources and the Mac resigning setup remain unchanged.
+The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.3) is published and deployed. Native production sources and the Mac resigning setup remain unchanged.
 
 ## v0.1.3 first-visit update activation — October 16, 2026
+
+- [Release CI 39000465199](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000465199) passed and published v0.1.3 with source, manifest and keyless provenance. Production HTML/JavaScript/CSS/service-worker hashes match the tested v0.1.3 build, and the Worker responds. Both fix branches and the already-merged migration branch are removed; only synchronized main remains.
 
 - [PR #11](https://github.com/fiukewhfkje/GradeViewer/pull/11) merged as `d030774`. Final [CI 39000299014](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000299014) passed 121 tests, 25 Chromium and 25 WebKit flows, native-reference comparisons and real release provenance. Both fresh-install and returning-page Profile update paths are covered.
 
