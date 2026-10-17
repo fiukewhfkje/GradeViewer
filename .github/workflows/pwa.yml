@@ -5,6 +5,9 @@ on:
     branches: [main]
     tags: ['v0.*']
   workflow_dispatch:
+concurrency:
+  group: pwa-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -26,6 +29,7 @@ jobs:
       matrix:
         browser: [chromium, webkit]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GRADEVIEWER_BROWSER: ${{ matrix.browser }}
     defaults:
@@ -51,6 +55,7 @@ jobs:
         with:
           name: synthetic-browser-${{ matrix.browser }}
           path: web/.local-test/e2e*/*.png
+          include-hidden-files: true
   release:
     if: startsWith(github.ref, 'refs/tags/v0.') && github.repository == 'fiukewhfkje/GradeViewer'
     needs: [verify, native-reference]

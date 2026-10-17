@@ -1,5 +1,6 @@
 import { chromium, webkit } from "playwright-core";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -112,12 +113,36 @@ async function stop() {
   ]);
 }
 async function check(name, run) {
-  await run();
-  completed++;
-  console.log("PASS " + name);
+  let timer;
+  try {
+    await Promise.race([
+      run(),
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Timed out: " + name)),
+          60000,
+        );
+      }),
+    ]);
+    completed++;
+    console.log("PASS " + name);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 try {
   await start();
+  const publicKey = execFileSync("openssl", [
+    "x509",
+    "-in",
+    process.env.GRADEVIEWER_TEST_TLS_CERT,
+    "-pubkey",
+    "-noout",
+  ]);
+  const spki = execFileSync("openssl", ["pkey", "-pubin", "-outform", "DER"], {
+    input: publicKey,
+  });
+  const certificatePin = createHash("sha256").update(spki).digest("base64");
   browser =
     engine === "webkit"
       ? await webkit.launch()
@@ -127,7 +152,11 @@ try {
             (existsSync("/usr/bin/chromium")
               ? "/usr/bin/chromium"
               : chromium.executablePath()),
-          args: ["--no-sandbox", "--disable-dev-shm-usage"],
+          args: [
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--ignore-certificate-errors-spki-list=" + certificatePin,
+          ],
         });
   const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -319,9 +348,11 @@ try {
         .click();
       await page.getByLabel("Score", { exact: true }).fill("-1.25");
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page
-        .getByText("Local changes · original", { exact: false })
-        .waitFor();
+      await page.getByLabel("What-If grade", { exact: true }).waitFor();
+      assert.match(
+        await page.locator(".scenario-delta").innerText(),
+        /^-\d+\.\d{2}%$/,
+      );
       await page
         .getByRole("button", { name: "View All Assignments", exact: true })
         .last()
@@ -599,6 +630,7 @@ try {
     "offline shell gates stale grades and preserves saved snapshot",
     async () => {
       await page.evaluate(async () => {
+        await navigator.serviceWorker.register("/sw.js");
         await navigator.serviceWorker.ready;
       });
       await context.setOffline(true);
@@ -682,13 +714,11 @@ try {
   await check(
     "failure retains records and Profile/Retry remain usable",
     async () => {
-      await page.route("**/api/scan/read", (route) =>
-        route.fulfill({
-          status: 502,
-          contentType: "application/json",
-          body: '{"error":"providerUnavailable"}',
-        }),
-      );
+      // A server-side fixture works with service workers in both engines.
+      // Browser request interception does not cover WebKit service-worker fetches.
+      await context.request.post(base + "/api/fixture/failure", {
+        data: { enabled: true },
+      });
       await page.getByRole("button", { name: "Profile", exact: true }).click();
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
@@ -709,7 +739,9 @@ try {
       await page
         .getByRole("heading", { name: "Your personal website", exact: true })
         .waitFor();
-      await page.unroute("**/api/scan/read");
+      await context.request.post(base + "/api/fixture/failure", {
+        data: { enabled: false },
+      });
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.getByRole("button", { name: "Retry", exact: true }).click();
       await page.getByRole("button", { name: /AP Biology/ }).waitFor();

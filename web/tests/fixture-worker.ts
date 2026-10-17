@@ -1,8 +1,30 @@
 // Separate test entry point. Production imports neither this file nor its fixture provider.
-import worker, { CredentialVault } from "../worker/index";
+import worker, { CredentialVault, type Env } from "../worker/index";
 import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
 export class FixtureVault extends CredentialVault {
+  constructor(
+    private fixtureState: DurableObjectState,
+    env: Env,
+  ) {
+    super(fixtureState, env);
+  }
+  override async fetch(request: Request): Promise<Response> {
+    if (
+      new URL(request.url).pathname === "/api/fixture/failure" &&
+      request.method === "POST"
+    ) {
+      const { enabled } = (await request.json()) as { enabled: boolean };
+      await this.fixtureState.storage.put(
+        "synthetic-provider-failure",
+        enabled === true,
+      );
+      return Response.json({ ok: true });
+    }
+    return super.fetch(request);
+  }
   protected upstream = async (request: Request): Promise<Response> => {
+    if (await this.fixtureState.storage.get("synthetic-provider-failure"))
+      return Response.json({}, { status: 502 });
     const auth = request.headers.get("Authorization") ?? "",
       key = decodeURIComponent(
         auth.match(/oauth_consumer_key="([^"]+)"/)?.[1] ?? "",
