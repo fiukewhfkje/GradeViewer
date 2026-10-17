@@ -1,70 +1,53 @@
-# PWA release candidate 0.1.0 — October 16, 2026
+# PWA verification — October 16, 2026
 
-The implementation is on `pwa-migration` ([draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9)), based on native build 9 (`3447420`). Use one final merge to preserve that comparison point. No public release or hosted deployment is established by local tests.
+Release candidate `0.1.0`, branch `pwa-migration`, [draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9), native baseline `3447420`. No final migration merge, version tag or public PWA release has occurred. See [PWA_HANDOFF.md](PWA_HANDOFF.md) for precise resumption instructions and account/environment details.
 
-## Implemented behavior
+## Implementation and parity evidence
 
-`web/` is a self-contained React/TypeScript/Vite project. Its own Worker serves the UI and same-origin API; every user deploys into their own Cloudflare account. No shared maintainer proxy or grade database exists. Native source remains the behavior reference and is unchanged; the primary README now describes the PWA, with native setup archived in `NATIVE_SETUP.md`.
+The self-contained `web/` app includes the React/TypeScript UI, Schoology ports, user-owned Worker/SQLite encrypted credential vault, browser-local grade/history/scenario persistence, atomic prepared-save recovery, fresh-on-open gate, controlled static-shell PWA updates, personal URL/installation help and bounded read-only provider transport. It includes native-style local grade edits/drop/add/reset/removal, semester summaries, dated quarters/exams, progression, estimates and final calculator. Latest UI corrections restore native colors/update labels/what-if delta and collapsible assignment groups with semester/quarter cards.
 
-Grades/Profile navigation, associated semester summaries, dated quarter assignment scopes, read-only exams, categories, recent/all assignments, graph exploration, final calculator, signed decimal edits, extra credit, drop/undrop/reset, Add Grade, local removal/restore and inverse quarter estimates are implemented. Unknown rules/scales stay unavailable. Calculated progression/estimates do not create observed history. Selected regression expectations were ported from the Swift tests; Swift/Xcode were unavailable, so the full Swift suite/differential comparison was not executed here.
+Current local production build passes. **104 tests** pass (54 core, 21 security, 10 legacy release/JSONC, 6 provenance policy, 10 snapshot/batching, 3 deploy helper). **22 Chromium HTTPS + Worker/SQLite E2E checks** pass against the latest UI/helper source, covering connection, gestures, shared scenarios, grouping/quarter scopes, layout, persistence, restart/recovery, offline fresh gating, static-only cache, controlled SW updates, provider-failure retention, tabs, new-browser credential reuse and disconnect. Screenshots use synthetic records only.
 
-The interface supports small phones, desktop browsers, light/dark/system themes and safe areas. Profile permanently shows **Your personal website**, its address, Copy/Open controls and iOS/Android installation help. Browser installation removes weekly Apple development signing. A PWA does not import the native app's Keychain/history/scenarios; browsers/devices keep separate local stores.
+[Remote CI 38987163698](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38987163698), head `5fd3f0c`, passed Chromium and WebKit (22 flows each), **119 Swift tests**, **1,200 direct Swift/JavaScript calculation comparisons**, and **real GitHub provenance generation/verification**. This run includes the latest grouping/helper implementation; the handoff commit changes documentation only. Calculator differential evidence is not exhaustive parser/graph/UI equivalence. Native Sources remain unchanged.
 
-## Authentication and persistence
+HTTPS fixture testing preserves production cookie security. WebKit's plain-HTTP `__Host-` cookie rejection was correct. Local test CA/pinning is confined to synthetic loopback processes; public network TLS is not disabled. Real phone installation remains untested. Chromium's vertical touch input is native CDP; WebKit's gesture input is synthetic dispatch.
 
-- For a private Git import, the deploy helper accepts APP_PASSWORD as a Cloudflare **build secret** and securely applies it as the Worker runtime secret using stdin before deployment. Users do not need to create a Cloudflare API token or visit a second runtime-secret screen. Ordinary redeploys retain existing runtime secrets.
-- Deploy with a private password-manager-generated `APP_PASSWORD` of at least 20 characters. The empty `.dev.vars.example` declares the secret; package.json explains it in Cloudflare's setup prompt. There is no shared default or first-visitor owner claim.
-- A random session uses a persistent `__Host-` Secure/HttpOnly/SameSite=Strict cookie, expires after 90 days and can be revoked. Only its hash is stored. Origin checks, password-attempt limits, strict CSP and no-store API responses apply. Sessions survive process restart/redeploy but are not guaranteed permanent browser storage.
-- Schoology credentials are accepted only from an authenticated owner. A random AES-GCM data key encrypts them, and a domain-separated key derived from the high-entropy Worker password wraps that key with separate nonces/AAD. Durable Object ciphertext is separate from the root secret. Cloudflare executes the decryption/signing code; this is not encryption from Cloudflare itself.
-- `users/me` verifies identity on every scan before student reads. Disconnect is required to change accounts. Credentials remain staged until complete reads parse successfully and the browser prepares its snapshot. The server commits credentials, then IndexedDB atomically activates the prepared state. Reload can finish an interrupted activation. Failed replacements retain the prior connection and snapshot.
-- Browser grades/history/scenarios and account-bound metadata use versioned IndexedDB. Persistent storage is requested where supported. Browser storage loss cannot recover local-only history or edits; fresh reads recover provider-accessible data. Changing the app password revokes sessions and requires entering Schoology keys again; ordinary updates preserve it.
-- The Worker accepts only fixed, GET-only Schoology routes for the verified owner/enrolled sections. It re-signs bounded safe redirects, validates page paths/query scopes, caps response/request sizes and pagination, and shares provider cooldowns. Required reads precede optional metadata recovery. One invocation handles one page/read, keeping cold refreshes split across requests.
-- Unchanged complete metadata can be reused for five minutes using account/section/grade-fingerprint receipts, without sliding expiry. Manual refresh bypasses it. Verified numeric scales can fall back for one hour on the same account/section/scale. Inaccessible titles have a 15-minute local retry deadline; manual refresh can retry while respecting Schoology cooldowns. Browser Web Locks coalesce overlapping tabs where supported; each tab also has one in-flight refresh.
-- Launch and real foreground return require fresh data. Routine refresh failures retain the current presentation; saved data stays internal behind a foreground failure gate. Profile/Retry remain reachable. No API, credentials or grade responses enter the service-worker cache; it caches only the app shell and installs updates on an explicit reload.
+## Hosted results and performance
 
-## Verification run here
+Staging [gradeviewer-preview](https://gradeviewer-preview.fiukewhfkje.workers.dev) is in the owner's account. Production OAuth and complete account-bound snapshots passed with 45 course-period records. A new process/login reused encrypted Schoology credentials after redeploy and rollback. Real records/responses stayed in process memory; only counts/booleans/timings were exported. The old unauthenticated 401 was expected; authenticated access works.
 
-Run commands from `web/`:
+| Measurement | Result | Limit |
+| --- | --- | --- |
+| Original serial cold / steady | 13.623 s / 3.6–3.9 s | Historical implementation |
+| Latest steady refreshes | 1.393 / 1.171 / 1.187 s; 6 API calls | Cloud workspace, not phone |
+| Full refresh after actual 310-second metadata expiry | **3.367 s**, 7 API calls, complete snapshot | Still above user's couple-second target |
+| Empty browser state / optional title traversal | 6.547 s, 24 API calls | Includes discovery and optional recovery; provider cooldowns can add delay |
 
-```sh
-npm ci
-npm run build
-npm test
-npm run test:e2e
-npx wrangler deploy --dry-run --outdir .local-test/production
-npm run release:package
-node scripts/verify-template.mjs
-```
+The Worker checks identity first, reads independent discovery roots concurrently and batches up to 32 validated jobs with at most four in-flight reads, 44 provider subrequests including redirects and 4 MB aggregate output. Deferred reads use another invocation; provider cooldowns stop queued requests. Fixed five-minute metadata/alias expiry, manual bypass and required-before-optional reads remain. Do not present warm results as every-open results.
 
-- Production TypeScript/Vite build passed; Wrangler packaged the production Worker/Durable Object/assets configuration in dry-run mode.
-- 91 synthetic tests passed: calculator/parser/reconciliation/period/estimate/progression regressions, cryptography/OAuth/transport, owner/vault/session lifecycle, signed-release integrity/path checks, and cold/warm snapshot integration. Unchanged five-section warm refreshes require three provider reads rather than the cold 23. Metadata expiry does not slide; manual refresh renews it.
-- 21 Chromium/local Worker+SQLite integration checks passed: private API, owner unlock/full connection, home/detail consistency, graph, shared decimal edit, drop/reset, Add Grade/removal, period scopes/ungraded rows, categories/final calculator, 320px phone/dark/profile/URL/install help, rejected account replacement, reload/scenarios, interrupted activation recovery, Worker restart, offline freshness gate, shell-only caches, controlled service-worker update, failure retention/Retry/Profile, multiple tabs, new-browser unlock with saved Schoology keys, disconnect, and separate desktop sample mode. Screenshots live under ignored `web/.local-test/e2e/`; all data is synthetic.
-- An isolated generated copy passed dependency installation, production build, unit tests and Worker dry-run. The actual updater script accepted a locally signed 0.1.1 release, preserved the personal Worker name/configuration and local secret file, rebuilt successfully, then explicitly rolled back to signed 0.1.0 and rebuilt. These were test versions, not public releases.
-- Production dependency audit found zero known vulnerabilities at the time of the run. Source/artifact credential-value scans report only booleans/counts; never expose values.
+Opt-in live tests are excluded from CI. From `web/`, use `npm run verify:hosted -- refresh` with your own `GRADEVIEWER_TEST_URL` and private password file; `GRADEVIEWER_BENCHMARK_EXPIRY=1` performs the natural-expiry measurement. Do not export live responses or hammer Schoology.
 
-Live checks are explicit opt-ins and are excluded from normal tests/CI:
+## Credentials and privacy
 
-```sh
-npm run verify:live
-npm run verify:live:snapshot
-```
+Deployment requires a private APP_PASSWORD of at least 20 characters. The deploy helper moves the build secret to the selected Worker's runtime via stdin; ordinary updates preserve it. Persistent sessions use hashed opaque IDs and 90-day Secure/HttpOnly/SameSite=Strict host cookies, origin checks and revocation. AES-GCM envelope encryption separates ciphertext from the Worker root secret. Cloudflare executes decryption/signing; this is not encryption from Cloudflare.
 
-The runtime reported unrestricted/enforced networking. An unauthenticated Schoology probe returned the expected 401. Authenticated production OAuth `users/me` succeeded, and the production Worker/client snapshot pipeline completed with 45 course-period records bound to the verified account. Credentials, student records, cookies and responses remained in ephemeral process memory; only counts/booleans were exported. Final cold and warm runs both completed (67 and 22 same-origin API calls in this account; counts include session/staging/cache-control calls, not just upstream reads). This establishes one account's live access, not all districts, CORS, hosted Cloudflare performance or a physical-phone result.
+Schoology identity is verified before student reads, account changes require disconnect, and staged credentials activate only after full parsing/prepared browser persistence. Failure retains the prior connection/snapshot. Grades/history/scenarios remain in versioned IndexedDB. Browser storage loss cannot recover local-only edits/history. Changing APP_PASSWORD revokes sessions and requires re-entering Schoology keys; native Keychain/history does not import.
 
-## Releases and automatic updates
+Only fixed enrolled-section Schoology GETs are allowed. OAuth redirects re-sign; pagination, payloads and reads are bounded. No provider writes, analytics or shared maintainer grade proxy exists. No API response enters SW cache. Static document/asset CSP/nosniff/frame/referrer/permissions headers are deployed through `_headers` as well as API wrappers.
 
-Use `0.1.0` / Git tag `v0.1.0` for the first public release. `scripts/package-release.mjs` creates a source archive, SHA-256 file/archive hashes and an Ed25519-signed manifest. It includes only explicit template roots/files, not dependencies, browser stores, local secret files, native captures or the signing private key. Public verification key: `web/scripts/release-public-key.pem`. The generated private key is ignored at `web/.local-test/release-signing.pem`; preserve it securely and configure the maintainer repository's `RELEASE_SIGNING_KEY` Actions secret before using automated release publishing. Never attach it to a PR/release or paste it into chat.
+## Releases and updates
 
-The root PWA workflow runs synthetic checks before tagged release publishing. The copied template's **Update GradeViewer** workflow checks official stable GitHub releases daily or on **Run workflow**. It validates the pinned public-key signature, archive/file hashes, version/schema and safe paths before changing application files. It preserves the personal Worker name/routes/settings and does not overwrite secrets or workflow files. Its push should trigger the user's Cloudflare Git connection. The user can explicitly select an older signed compatible release to roll back. Workflows themselves are retained because copied repositories' default workflow token is not intended to rewrite workflow definitions; workflow changes require a separately reviewed migration.
+Releases now use **GitHub keyless Sigstore provenance**, eliminating maintainer signing-secret setup. Schema-2 manifests contain archive/file SHA-256 hashes and source commit. The official release workflow signs `manifest.json` with GitHub OIDC; assets include `gradeviewer-source.json`, `manifest.json`, `provenance.json`.
 
-This mechanism requires public release assets/source, GitHub Actions permission to push, an enabled schedule and an active Cloudflare Builds Git connection. GitHub may pause inactive repository schedules. These are real external dependencies. The local verified updater does not establish the hosted webhook/build trigger. A service-worker reload delivers an already deployed version; it cannot update a Cloudflare deployment by itself.
+Before writing, the copied updater uses `gh attestation verify` to require the exact official repository/workflow, release tag/source digest and hosted runner, then checks schema/hashes/paths. It preserves personal Worker settings, secrets and workflow files. Daily/manual source updates should push into Cloudflare Builds. Real provenance passed in CI. An isolated template install/build/test/dry-run, updater/config/secret preservation and explicit rollback passed locally with a fixture verifier; that fixture is not cryptographic evidence. Legacy Ed25519 vectors remain tests; no RELEASE_SIGNING_KEY is needed.
 
-## Remaining release gates
+## Open release gates
 
-1. Authorize a real Cloudflare account and deploy the branch/template to verify resource provisioning, secret prompt, stable workers.dev address, actual Free-plan limits and process/redeploy persistence. No Cloudflare credentials are configured here; `wrangler whoami` reports unauthenticated. Do not use a centrally hosted Sites app or a shared temporary account as a substitute.
-2. Enable public reviewed template/release access at publication. The current GradeViewer repository is private; Cloudflare explicitly requires public source for the Deploy button. No visibility change has been performed. Review source/history before publication; publishing an isolated reviewed template is possible if repository history should remain private.
-3. Configure the release signing secret with a GitHub account that can administer Actions secrets. This integration gets HTTP 403 for Actions-secret administration. Existing integration access cannot establish whether an unrelated Cloudflare deployment exists.
-4. Exercise copied-repository automatic update → real Cloudflare build/deploy, then rollback with the same URL/secret/Durable Object. Do not label the hosted update chain verified based on the local updater test.
-5. Validate Safari and installed Home Screen mode on a physical iPhone, and Chrome/installation on Android: cookie separation, password-manager/paste flow, safe areas, foreground refresh, storage/session loss and controlled updates. Chromium phone emulation is layout/interaction evidence, not actual iOS/Android installation.
+1. Apply the saved CLOUDFLARE_API_TOKEN to the active environment; finish Builds deployment credential/trigger configuration. Existing OAuth can deploy and administer Builds, but its token-creation scope was omitted and creation returned 403. Last active runtime still lacked the user's newly saved token. Do not ask for its value in chat.
+2. Finish expired-metadata/first-open performance and remaining native UI/UX audit. Current 3.367-second expiry run does not meet the requested couple-second result.
+3. Prove public beginner signup/template deployment and Free-plan resources/secret prompt. Repo is public; the source form correctly prefilled scripts/password description, but the Git-account dropdown confused the user. CLI deployment does not prove ease for new users.
+4. Verify actual copied-repository automatic update → Cloudflare build/deploy and rollback at a stable URL, retaining credentials/local state.
+5. Validate physical iPhone Safari/Home Screen and Android installation/foreground/storage/update behavior. Keep native installed until verified.
+6. Check final CI and source/package credentials; choose a secure owner production password; then one migration merge, signed v0.1.0 publication and final production deployment.
 
-Once these gates pass, finish the one migration merge, publish the signed v0.1.0 release and deploy the final version. Branch/staging deployment needed to run these gates is expected before the final release.
+The latest deployed staging version is `2b0869cf-25da-4e23-b623-f0b8c2413d72`; the new grouped-assignment/helper source still needs redeployment. Production GradeViewer has not been created by this migration. The user's other Workers and Mac resigning script were untouched.

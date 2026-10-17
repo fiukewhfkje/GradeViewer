@@ -16,4 +16,4 @@ Deployment preserves your address and secrets. Keep your app password unchanged 
 
 Development and release evidence: [PWA validation](docs/PWA_VALIDATION.md). The prior Swift app remains available as a behavior reference; its [native setup](docs/NATIVE_SETUP.md) is archived.
 
-Release candidate: the public template, real Cloudflare onboarding/build trigger, and physical-phone installation still need their release gates. Do not treat the Deploy button as verified while source remains private.
+Release candidate: source is public and a staging Worker is verified. Beginner signup/build automation, expired-open performance and physical-phone gates remain; the migration is not merged/released yet. Current handoff: [PWA_HANDOFF.md](docs/PWA_HANDOFF.md).

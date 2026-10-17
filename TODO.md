@@ -1,21 +1,24 @@
 # Next work
 
-## PWA migration — release candidate 0.1.0
+## PWA migration — handoff, release candidate 0.1.0
 
-- [x] Restore the checkpoint and resolve the TypeScript configuration failure.
-- [x] Recheck unrestricted networking; verify authenticated Schoology identity and a complete production-path snapshot without exporting real records.
-- [x] Implement the TypeScript core, selected native regression cases, secure Worker/vault/sessions, staged activation, account binding, cooldowns and metadata reuse.
-- [x] Build the responsive PWA, IndexedDB persistence, local scenarios, phone-install assets/help, visible personal address and controlled app-shell updates.
-- [x] Implement signed 0.x releases, isolated template packaging, copied-repository automatic update workflow and explicit rollback; verify generated-copy install/update/rollback locally.
-- [x] Run synthetic unit/security/snapshot and browser suites, inspect screenshots, and dry-run the production Worker. See [PWA_VALIDATION.md](docs/PWA_VALIDATION.md) for exact results and final follow-ups.
-- [ ] Complete actual public template deployment on a new Cloudflare Free account, preserving the stable URL, Durable Object and secret on redeploy. Cloudflare OAuth is now configured and an isolated staging deployment has passed live snapshots/redeploy/rollback. The public template signup/build flow is still pending.
-- [x] Add phone pull-to-refresh (threshold, cancellation, normal scrolling, manual-refresh semantics), desktop refresh and an accessible Profile control; pass 95 tests and 22 browser checks.
-- [ ] Run the original Swift core suite and the new 1,200-case Swift/JavaScript parity corpus in macOS CI; complete the documented parity audit.
-- [ ] Record final hosted cold/reopen performance benchmarks after optimization.
-- [ ] Configure the maintainer's generated Ed25519 private key as GitHub Actions secret RELEASE_SIGNING_KEY through an account with Actions-secret administration; this integration receives HTTP 403. Never put that key in source or a release artifact.
-- [ ] Verify the copied GitHub workflow's push triggers Cloudflare Builds, and exercise actual hosted update/rollback; local source/update tests do not establish this external integration.
-- [ ] Validate real Safari/Home Screen and Android installation, session persistence and foreground behavior on physical phones.
-- [ ] After those gates pass, merge the focused migration commits once, tag/publish v0.1.0 and deploy. Preserve native baseline 3447420 and do not publish unreviewed repository history.
+- [x] Restore checkpoint; implement PWA/core/Worker/vault/sessions/local persistence/scenarios/installation/update UI with fixed read-only provider routes and staged recovery.
+- [x] Verify live OAuth/complete hosted snapshots/credential reuse/redeploy/rollback without exporting real records. Repo is public; staging exists.
+- [x] Add desktop refresh, guarded phone pull-down, Profile refresh, personal website Copy/Open and installation help.
+- [x] Run current local production build, **104 tests and 22 HTTPS Chromium/Worker browser flows**. Last remote green: Chromium/WebKit 22 each, **119 Swift tests + 1,200 Swift/JS comparisons**, real keyless provenance.
+- [x] Restore native colors/update/what-if labels and collapsed assignment groups with semester/quarter summaries; verify current Chromium interactions.
+- [x] Replace maintainer Ed25519 signing-secret setup with exact-identity GitHub OIDC/Sigstore provenance. Isolated template update/config/secret preservation/rollback passes; real cryptographic verification passes separately in CI.
+- [x] Measure actual metadata expiry: **3.367 s after 310 seconds**, steady **1.17–1.39 s**, empty-state/title traversal **6.547 s**. Record evidence without claiming the target met.
+- [ ] In the new thread, verify the newly saved CLOUDFLARE_API_TOKEN is actually applied; finish Builds credential, trigger and latest staging deploy. Current runtime lacked it. No secret values in chat.
+- [ ] Improve expired-metadata/late-open performance to the user's couple-second target while retaining complete fresh reads/fixed TTL; measure browser/phone startup too.
+- [ ] Finish native UI/UX source/device audit, particularly assignment score/excused/ungraded/letter presentation, dropped rows, Categories route and course-sheet/back/graph interactions.
+- [ ] Verify beginner public template signup/permissions/Git dropdown/generated copy/Free-plan build/resources/password setup. CLI deployment alone is insufficient ease evidence; no terminal or manually created token for end users.
+- [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
+- [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
+- [ ] Check newest remote CI, source/package secret scans and PR description. Choose/set the owner's production app password securely.
+- [ ] Only after gates pass, perform **one migration merge**, publish signed **v0.1.0** and deploy production. Preserve native baseline `3447420`; no merge/release claimed yet.
+
+Read [PWA_HANDOFF.md](docs/PWA_HANDOFF.md) first in the new thread. Rough overall progress: **80%**. Historical native work follows.
 
 ## October 15 precision follow-up
 
