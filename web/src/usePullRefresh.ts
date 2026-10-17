@@ -46,6 +46,7 @@ export function usePullRefresh(
     cancelPull.current = cancel;
     const start = (event: TouchEvent) => {
       if (phase === "refreshing") return;
+      if (gesture || phase === "pulling") settle();
       gesture = undefined;
       if (
         !phone.matches ||

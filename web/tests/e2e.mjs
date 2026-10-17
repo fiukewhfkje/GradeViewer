@@ -284,6 +284,32 @@ try {
         await send("touchCancel");
         await page.waitForTimeout(100);
         assert.equal(scans, 0);
+        // A second finger cancels the pull without leaving the content offset.
+        await page.evaluate(() => {
+          const target = document.querySelector(".app-scroll");
+          for (const [type, y, count] of [
+            ["touchstart", 170, 1],
+            ["touchmove", 330, 1],
+            ["touchstart", 330, 2],
+            ["touchend", 330, 0],
+          ]) {
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperty(event, "touches", {
+              value: Array.from({ length: count }, (_, i) => ({
+                identifier: i + 1,
+                clientX: 30 + i * 30,
+                clientY: y,
+              })),
+            });
+            target.dispatchEvent(event);
+          }
+        });
+        await page.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(scans, 0);
+        assert.equal(
+          await page.locator(".pull-refresh").getAttribute("data-visible"),
+          "false",
+        );
         await page.setViewportSize({ width: 390, height: 500 });
         await page.evaluate(() =>
           document.querySelector(".app-scroll").scrollTo(0, 100),
@@ -298,9 +324,12 @@ try {
         await send("touchEnd");
         assert.equal(scans, 0);
         await page.setViewportSize({ width: 390, height: 844 });
+        // Let the preceding native scroll/viewport change finish before the next gesture.
+        await page.waitForTimeout(300);
         await page.evaluate(() =>
           document.querySelector(".app-scroll").scrollTo(0, 0),
         );
+        await page.waitForTimeout(100);
         await send("touchStart");
         await send("touchMove", 30, 250);
         await send("touchMove", 30, 330);
