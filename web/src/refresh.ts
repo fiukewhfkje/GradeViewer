@@ -48,11 +48,18 @@ export async function readSnapshot(
   async function preload(
     jobs: { resource: string; section: string; extra?: string }[],
   ) {
-    jobs = jobs.filter(
-      (job) =>
-        !prefetched.has(
-          job.resource + ":" + job.section + ":" + (job.extra ?? ""),
-        ),
+    jobs = jobs.filter((job) => {
+      const cached = prefetched.get(
+        job.resource + ":" + job.section + ":" + (job.extra ?? ""),
+      );
+      return !cached || (!cached.ok && cached.error === "batchDeferred");
+    });
+    // Keep optional jobs after every required job before splitting at the
+    // invocation limit. Retry earlier deferrals together once required reads
+    // complete, rather than turning each scale into a separate round trip.
+    jobs.sort(
+      (a, b) =>
+        Number(a.resource === "scales") - Number(b.resource === "scales"),
     );
     for (let offset = 0; offset < jobs.length; offset += 32) {
       const chunk = jobs.slice(offset, offset + 32);
