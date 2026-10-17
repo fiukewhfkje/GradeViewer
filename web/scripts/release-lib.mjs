@@ -1,4 +1,5 @@
 import { createHash, verify } from "node:crypto";
+import { releaseVersion } from "../src/release.ts";
 export const sha256 = (value) =>
   createHash("sha256").update(value).digest("hex");
 export function parseJsonc(input) {
@@ -81,7 +82,7 @@ export function verifyArchive(manifestBytes, archiveBytes) {
     ![1, 2].includes(manifest.schema) ||
     (manifest.schema === 2 && manifest.verification !== "github-attestation") ||
     manifest.localSchema !== 1 ||
-    !/^0\.\d+\.\d+$/.test(manifest.version) ||
+    !releaseVersion.test(manifest.version) ||
     manifest.archive !== "gradeviewer-source.json" ||
     sha256(archiveBytes) !== manifest.archiveSha256
   )
@@ -97,11 +98,24 @@ export function verifyArchive(manifestBytes, archiveBytes) {
   let total = 0;
   for (const file of archive.files) {
     if (
+      !file ||
+      typeof file.content !== "string" ||
+      typeof file.sha256 !== "string" ||
       typeof file.path !== "string" ||
       !file.path ||
       file.path.startsWith("/") ||
       file.path.includes("\\") ||
       file.path.split("/").some((x) => x === ".." || x === "." || !x) ||
+      !/^(?:(?:src|worker|public|scripts|tests|\.github)\/|(?:README\.md|package(?:-lock)?\.json|tsconfig\.json|vite\.config\.ts|vitest\.config\.ts|wrangler(?:\.test)?\.jsonc|index\.html|\.gitignore|\.dev\.vars\.example)$)/.test(
+        file.path,
+      ) ||
+      file.path
+        .split("/")
+        .some(
+          (x) =>
+            /^(?:\.env|\.dev\.vars)(?:$|\.)/.test(x) &&
+            file.path !== ".dev.vars.example",
+        ) ||
       paths.has(file.path) ||
       file.path
         .split("/")

@@ -1,46 +1,46 @@
 # GradeViewer
 
-Your personal Schoology grade viewer, in a browser or on your phone.
+Your personal Schoology grade viewer, in a browser or on your phone. Your own Cloudflare account runs the app; grades and local changes stay in your browser. You need free GitHub and Cloudflare accounts.
 
-Cloudflare runs your personal copy; GitHub stores its code. You need a free account on each. Setup happens once, then you use your own website.
+## Set up your copy
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/fiukewhfkje/GradeViewer/tree/main/web)
+1. **[Create your GradeViewer copy](https://github.com/new?template_owner=fiukewhfkje&template_name=GradeViewer&name=gradeviewer&visibility=private).** Sign in to GitHub, keep the name `gradeviewer`, choose **Private**, and create the repository. Keep **Include all branches** off. This includes the automatic updater; you do not create or edit any code.
+2. Open **[Cloudflare Workers & Pages](https://dash.cloudflare.com/?to=/:account/workers-and-pages)** → **Create application** → connect GitHub. Select the **copy you just created in your account**. If asked which repositories Cloudflare may access, include that copy.
+3. Use these settings, then deploy:
 
-1. Tap **Deploy to Cloudflare** above and sign in to Cloudflare, or create an account. Choose the Free plan if asked.
-2. The button normally opens **Set up your application**, the last Cloudflare setup step, with GradeViewer already selected. Earlier pages can appear if you tap **Back**: **Make something new** → **Connect GitHub**; then **Select a repository** → keep the prefilled public GradeViewer URL and tap **Next**. You do not need to choose an existing repository. On the final page, use these settings:
-
-   | What you see | What to do |
+   | Setting | Value |
    | --- | --- |
-   | **Git account** | Tap **New GitHub connection**, sign in to GitHub (or create an account), and approve Cloudflare. Return to Cloudflare and select your GitHub username. If your username is already listed, select it. |
-   | **Create private Git repository** | You can check this to keep your personal code copy private. |
-   | **Project name** | Keep `gradeviewer`. |
-   | **APP_PASSWORD** | Choose a new password just for GradeViewer, **at least 12 characters**. Generate and save it with your password manager; you will enter it to unlock your app. |
-   | **Build command** | Keep `npm run build`. |
-   | **Deploy command** | Keep `npm run deploy`. |
-   | **Enable Preview builds** | Turn this off. You only need your main app. Leave Preview command alone. |
+   | Worker / project name | `gradeviewer` |
+   | Root directory / Path | `web` |
+   | Build command | `npm run build` |
+   | Deploy command | `npm run deploy` |
+   | Build secret `APP_PASSWORD` | A new password of at least 12 characters. Generate and save it with your password manager. |
+   | Preview builds | Off |
 
-3. Tap **Deploy** and wait for it to finish. Open and bookmark the website address ending in **workers.dev** that Cloudflare gives you. Setup is finished; use that address to return to your app. The Deploy to Cloudflare button starts another setup.
-4. In **Profile**, unlock with the app password you saved. Tap **Get my Schoology keys**, sign in to your school account, then copy your personal API key and secret into GradeViewer and connect. Your school must allow personal API access.
-5. Use the website, or open **Profile → Add to Home Screen** for phone installation instructions. Save your website address; Profile also has a Copy button.
+4. Open and bookmark your new **workers.dev** website. In **Profile**, unlock with your saved app password. Tap **Get my Schoology keys**, sign in to Schoology, and connect using your own personal API key and secret. Your school must allow personal API access.
+5. Use the website, or choose **Profile → Add to Home Screen** for phone installation instructions. Return through your personal website address.
 
-You stay unlocked for up to 90 days per browser. Your password manager can autofill the password when you need it again.
+**Why create the GitHub copy first?** Cloudflare's public-repository import can omit GitHub Actions workflows. GitHub's template-copy path includes and enables the updater automatically. You do not need a token, a terminal, a manual workflow file, or an initial “Commit changes” step. The verified GitHub-copy/update results and the remaining independent Cloudflare verification limit are recorded in [the update guide](docs/AUTOMATIC_UPDATES.md).
 
-<details>
-<summary>Updates and rollback</summary>
+## Updates
 
-Official fixes are checked daily by the **Update GradeViewer** workflow in your GitHub copy; Cloudflare builds the resulting update automatically. To update now or roll back, open your GitHub copy → **Actions → Update GradeViewer → Run workflow**. Leave Version blank for the latest release, or enter an earlier release such as `0.1.0`. Keep GitHub Actions and the Cloudflare Git connection enabled. GitHub can pause schedules in inactive repositories; Run workflow restarts a paused schedule. In **Profile → Check for updates**, check for a version already deployed to your website, then tap **Update now**. Your installed Home Screen app uses the same control. This does not start the GitHub source-update workflow; run that first if your copy has not deployed the release.
+Your copy checks verified official stable releases daily at **12:00 AM Eastern**, following EST/EDT. Cloudflare deploys a verified source update to your existing address. GitHub scheduling and deployment can run late.
 
-Deployment preserves your address and secrets. Keep your app password unchanged during updates; changing it revokes sessions and requires entering Schoology keys again. Version 0.1.0 required 20 characters, so copies set up with a shorter password should stay on 0.1.1 or later.
+In **Profile → Check for updates**:
 
-</details>
+- **Up to date:** no newer official stable release exists.
+- **Update available:** a newer release is waiting for your copy's scheduled update/deployment.
+- **Update ready:** choose **Update now** after saving or closing open changes.
+- **Stalled / unavailable:** the app explains the detected delay or failed check; saved data is retained.
 
-<details>
-<summary>Your data</summary>
+Newly deployed app versions also show a discreet update notice when the app opens or returns to the foreground. Other tabs keep their open forms until you accept an update in each tab.
 
-Your Schoology keys are encrypted in your own Cloudflare account. Grades, history and local changes stay in each browser. Browser storage clearing or key revocation can require reconnecting. Disconnect before switching students. Grades are read-only; local edits never change Schoology. This PWA does not import the native iPhone app’s local history or edits.
+Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
 
-</details>
+## Your data
 
-Development and release evidence: [PWA validation](docs/PWA_VALIDATION.md). The prior Swift app remains available as a behavior reference; its [native setup is archived](docs/NATIVE_SETUP.md).
+Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Changing the app password revokes sessions and requires reconnecting Schoology. Disconnect before switching students.
 
-Current maintainer handoff: [PWA_HANDOFF.md](docs/PWA_HANDOFF.md).
+There are no subscriptions, ads, analytics, provider grade writes or shared maintainer grade servers. The PWA does not import the native app's local history or edits.
+
+For maintainers: [immediate development updates, preview releases and rollback](docs/AUTOMATIC_UPDATES.md#immediate-development-updates). [Validation evidence](docs/PWA_VALIDATION.md) · [current status](PROJECT_STATUS.md) · [archived native setup](docs/NATIVE_SETUP.md).

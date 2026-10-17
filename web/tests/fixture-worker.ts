@@ -1,6 +1,12 @@
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
 import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
+import { version } from "../package.json";
+let releaseFixture: {
+  version: string;
+  publishedAt?: string;
+  failure?: boolean;
+} = { version };
 export class FixtureVault extends CredentialVault {
   constructor(
     private fixtureState: DurableObjectState,
@@ -88,4 +94,18 @@ export class FixtureVault extends CredentialVault {
       : Response.json({}, { status: 403 });
   };
 }
-export default worker;
+export default {
+  async fetch(request: Request, env: Env) {
+    const path = new URL(request.url).pathname;
+    if (path === "/api/fixture/release" && request.method === "POST") {
+      releaseFixture = await request.json();
+      return Response.json({ ok: true });
+    }
+    if (path === "/api/releases/latest")
+      return Response.json(releaseFixture, {
+        status: releaseFixture.failure ? 503 : 200,
+        headers: { "Cache-Control": "no-store" },
+      });
+    return worker.fetch(request, env);
+  },
+};

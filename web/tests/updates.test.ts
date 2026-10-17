@@ -1,5 +1,9 @@
 import { expect, it, vi } from "vitest";
-import { checkForAppUpdate } from "../src/updates";
+import {
+  checkForAppUpdate,
+  activateAppUpdate,
+  updateMessage,
+} from "../src/updates";
 
 function fixture() {
   const worker = Object.assign(new EventTarget(), { state: "installing" });
@@ -19,6 +23,69 @@ it("offers a cached update without another network check", async () => {
   Object.assign(reg, { waiting: worker });
   expect(await checkForAppUpdate(registration)).toBe(worker);
   expect(reg.update).not.toHaveBeenCalled();
+});
+it("distinguishes official releases, pending deployments, ready shells, missing automation and stalls", () => {
+  const installed = { version: "0.1.3", automation: "installed" as const };
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  expect(updateMessage("0.1.3", installed, { version: "0.1.3" }, false)).toBe(
+    "You’re up to date.",
+  );
+  expect(
+    updateMessage(
+      "0.1.3",
+      installed,
+      { version: "0.1.4", publishedAt: "2026-10-17T10:00:00Z" },
+      false,
+      now,
+    ),
+  ).toContain("Update available");
+  expect(
+    updateMessage(
+      "0.1.3",
+      installed,
+      { version: "0.1.4", publishedAt: "2026-10-14T10:00:00Z" },
+      false,
+      now,
+    ),
+  ).toContain("Update stalled");
+  expect(
+    updateMessage("0.1.3", installed, { version: "0.1.4" }, true),
+  ).toContain("Update ready");
+  expect(
+    updateMessage(
+      "0.1.3",
+      { ...installed, automation: "missing" },
+      { version: "0.1.3" },
+      false,
+    ),
+  ).toContain("one-time setup repair");
+  expect(
+    updateMessage(
+      "0.1.3",
+      { ...installed, version: "0.1.4" },
+      { version: "0.1.4" },
+      false,
+    ),
+  ).toContain("could not finish caching");
+  expect(() =>
+    updateMessage("0.1.3", installed, { version: "garbage" }, false),
+  ).toThrow();
+});
+it("reloads only after this tab explicitly requests activation, including an update accepted by another tab", async () => {
+  const worker = Object.assign(new EventTarget(), {
+    state: "installed",
+    postMessage: vi.fn(),
+  });
+  const reload = vi.fn();
+  const result = activateAppUpdate(worker as unknown as ServiceWorker, reload);
+  expect(worker.postMessage).toHaveBeenCalledWith({ type: "ACTIVATE" });
+  expect(reload).not.toHaveBeenCalled();
+  worker.state = "activated";
+  worker.dispatchEvent(new Event("statechange"));
+  await result;
+  expect(reload).toHaveBeenCalledOnce();
+  await activateAppUpdate(worker as unknown as ServiceWorker, reload);
+  expect(reload).toHaveBeenCalledTimes(2);
 });
 it("reports no update only after checking the server", async () => {
   const { reg, registration } = fixture();

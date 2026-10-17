@@ -1,4 +1,12 @@
-# PWA verification — October 16, 2026
+# PWA verification — October 17, 2026
+
+## v0.1.4 automatic-update candidate
+
+The production build, **137 unit/security/integration tests**, **26 Chromium + 26 WebKit** flows and the standalone template install/build/test/dry-run/update/rollback pass locally. The update browser flow covers two tabs sharing one service worker, unsaved connection-form retention, explicit activation in each tab and a separate same-session first-visit context. Profile distinguishes pending/stalled/failed official-release checks. Actual GitHub template generation, an active root updater, automatic initial execution, signed v0.1.2/v0.1.3 verification/push and rollback passed on real private repositories. Tampered real provenance was rejected by the actual GitHub verifier. `npm audit`: zero findings.
+
+These results do **not** constitute independent-account Cloudflare E2E. Exact run links, platform permission evidence, setup alternatives and unavailable account access are in [AUTOMATIC_UPDATES.md](AUTOMATIC_UPDATES.md). Remote CI/publication/production evidence will be recorded after delivery.
+
+## Prior released evidence
 
 Current release: [v0.1.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.3). [Release CI 39000465199](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000465199) passed all checks and published source/manifest/provenance. Production HTML and JavaScript/CSS/service-worker hashes match the tested build. Physical Home Screen containers remain unverified.
 

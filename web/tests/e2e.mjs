@@ -640,6 +640,41 @@ try {
     },
   );
   await check(
+    "official release pending, stalled and unavailable states",
+    async () => {
+      const release = async (value) =>
+        fetch(base + "/api/fixture/release", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(value),
+        });
+      for (const [value, message] of [
+        [
+          { version: "0.99.0", publishedAt: new Date().toISOString() },
+          "Update available:",
+        ],
+        [
+          {
+            version: "0.99.0",
+            publishedAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+          },
+          "Update stalled:",
+        ],
+        [
+          { version: "0.1.3", failure: true },
+          "Couldn’t check official releases",
+        ],
+      ]) {
+        await release(value);
+        await page
+          .getByRole("button", { name: "Check for updates", exact: true })
+          .click();
+        await page.getByRole("status").filter({ hasText: message }).waitFor();
+      }
+      await release({ version: "0.1.3" });
+    },
+  );
+  await check(
     "failed credential replacement retains current connection and local data",
     async () => {
       const before = await page.evaluate(async () => {
@@ -834,6 +869,16 @@ try {
       const originalIndex = await readFile("dist/index.html"),
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
+      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Update connection", exact: true })
+        .click();
+      await page
+        .getByLabel("Schoology API key", { exact: true })
+        .fill("fixture-unsaved");
+      const otherTab = await context.newPage();
+      await otherTab.goto(base);
+      await otherTab.getByRole("button", { name: /AP Biology/ }).waitFor();
       const firstVisit = await browser.newContext({
         ignoreHTTPSErrors: true,
         storageState: await context.storageState(),
@@ -880,6 +925,54 @@ try {
           "verified",
         );
         await freshPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        // This page shares the original tab's worker and really changes its controller.
+        await otherTab
+          .getByRole("button", { name: "Profile", exact: true })
+          .click();
+        await otherTab
+          .getByRole("button", { name: "Check for updates", exact: true })
+          .click();
+        await otherTab
+          .getByRole("button", { name: "Update now", exact: true })
+          .waitFor();
+        await Promise.all([
+          otherTab.waitForNavigation({ waitUntil: "load" }),
+          otherTab
+            .getByRole("button", { name: "Update now", exact: true })
+            .click(),
+        ]);
+        assert.equal(
+          await otherTab
+            .locator('meta[name="synthetic-update"]')
+            .getAttribute("content"),
+          "verified",
+        );
+        assert.equal(
+          await page.locator('meta[name="synthetic-update"]').count(),
+          0,
+        );
+        // Another tab activated the new worker. This tab must retain its form.
+        assert.equal(
+          await page
+            .getByLabel("Schoology API key", { exact: true })
+            .inputValue(),
+          "fixture-unsaved",
+        );
+        await page
+          .getByRole("button", { name: "Update now", exact: true })
+          .click();
+        await page
+          .getByText("Save or close your open changes before updating.", {
+            exact: true,
+          })
+          .waitFor();
+        assert.equal(
+          await page
+            .getByLabel("Schoology API key", { exact: true })
+            .inputValue(),
+          "fixture-unsaved",
+        );
+        await page.getByRole("button", { name: "Cancel", exact: true }).click();
         await page
           .getByRole("button", { name: "Profile", exact: true })
           .click();
@@ -907,6 +1000,7 @@ try {
         assert.match(await page.locator(".rows").first().innerText(), /102.25/);
         await page.getByLabel("Close course", { exact: true }).click();
       } finally {
+        await otherTab.close();
         await firstVisit.close();
       }
       // Keep the tested deployment stable for later cases. Restore only after shutdown.

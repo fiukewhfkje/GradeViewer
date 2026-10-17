@@ -56,7 +56,14 @@ import { reliable, hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
 import { GradeGraph } from "./GradeGraph";
 import { version } from "../package.json";
-import { checkForAppUpdate } from "./updates";
+import {
+  checkForAppUpdate,
+  activateAppUpdate,
+  readInstallation,
+  updateMessage as describeUpdate,
+  type Installation,
+  type OfficialRelease,
+} from "./updates";
 import { demoCourses } from "./core/demo";
 import { usePullRefresh } from "./usePullRefresh";
 type InstallEvent = Event & {
@@ -160,6 +167,7 @@ export default function App() {
     [update, setUpdate] = useState<ServiceWorker>(),
     [checkingUpdate, setCheckingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
+    [installation, setInstallation] = useState<Installation>(),
     [theme, setTheme] = useState(() => {
       try {
         return localStorage.getItem("theme") ?? "system";
@@ -168,6 +176,8 @@ export default function App() {
       }
     });
   const flight = useRef<Promise<void> | undefined>(undefined),
+    pendingSaves = useRef(0),
+    saveFailed = useRef(false),
     channel = useRef<BroadcastChannel | undefined>(undefined),
     mounted = useRef(false),
     app = useRef<HTMLDivElement>(null);
@@ -314,8 +324,19 @@ export default function App() {
     const visibility = () => {
       if (document.visibilityState === "visible" && !demoRef.current) {
         setFresh(false);
-        setModal(undefined);
         void refresh().catch(() => {});
+      }
+      if (
+        document.visibilityState === "visible" &&
+        "serviceWorker" in navigator
+      ) {
+        void navigator.serviceWorker
+          .getRegistration()
+          .then((reg) => reg && checkForAppUpdate(reg))
+          .then((worker) => {
+            if (worker) setUpdate(worker);
+          })
+          .catch(() => {});
       }
     };
     const timer = setInterval(() => {
@@ -332,6 +353,9 @@ export default function App() {
     };
     window.addEventListener("beforeinstallprompt", installer);
     document.addEventListener("visibilitychange", visibility);
+    void readInstallation()
+      .then(setInstallation)
+      .catch(() => {});
     if ("serviceWorker" in navigator) {
       let hadController = !!navigator.serviceWorker.controller;
       void navigator.serviceWorker
@@ -350,14 +374,10 @@ export default function App() {
           });
         })
         .catch(() => {});
-      let reloading = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (hadController && !reloading) {
-          reloading = true;
-          location.reload();
-        }
-        // Skip only the initial claim. Later, explicitly activated updates reload
-        // even if this page first opened before a service worker was installed.
+        // Another tab can accept an update without interrupting this tab's forms.
+        if (hadController && navigator.serviceWorker.controller)
+          setUpdate(navigator.serviceWorker.controller);
         hadController = true;
       });
     }
@@ -390,12 +410,17 @@ export default function App() {
     return () => clearInterval(timer);
   }, [deadline]);
   async function persist(next: SavedState) {
+    pendingSaves.current++;
     try {
       if (!demoRef.current) await repository.save(next);
       apply(next);
       channel.current?.postMessage("local");
+      saveFailed.current = false;
     } catch (e) {
+      saveFailed.current = true;
       setError(errorMessage(e));
+    } finally {
+      pendingSaves.current--;
     }
   }
   function scenario(c: Course) {
@@ -735,35 +760,67 @@ export default function App() {
       </>
     );
   }
-  function activateUpdate() {
+  async function activateUpdate() {
     if (!update || busy || modal) return;
+    if (
+      pendingSaves.current ||
+      saveFailed.current ||
+      document.querySelector("form[data-dirty='true']")
+    ) {
+      setUpdateMessage("Save or close your open changes before updating.");
+      return;
+    }
     setBusy(true);
-    setFresh(false);
-    update.postMessage({ type: "ACTIVATE" });
+    try {
+      await activateAppUpdate(update, () => location.reload());
+    } catch {
+      setUpdateMessage(
+        "The update could not activate. Your data is retained. Check again and retry.",
+      );
+      setBusy(false);
+    }
   }
   async function checkUpdates() {
     if (checkingUpdate) return;
     setCheckingUpdate(true);
     setUpdateMessage("");
     try {
-      if (!("serviceWorker" in navigator)) {
-        setUpdateMessage("Reopen your website to get the latest version.");
-        return;
-      }
       if (!navigator.onLine) throw new Error("offline");
-      const registration = await navigator.serviceWorker.getRegistration();
-      if (!registration) throw new Error("unavailable");
-      const worker = await checkForAppUpdate(registration);
+      const registration =
+        "serviceWorker" in navigator
+          ? await navigator.serviceWorker.getRegistration()
+          : undefined;
+      const [shell, deployed, official] = await Promise.allSettled([
+        registration
+          ? checkForAppUpdate(registration)
+          : Promise.resolve(undefined),
+        readInstallation(),
+        api<OfficialRelease>("releases/latest"),
+      ]);
+      let worker = shell.status === "fulfilled" ? shell.value : undefined;
+      if (deployed.status === "fulfilled") {
+        setInstallation(deployed.value);
+        if (!worker && deployed.value.version !== version)
+          worker = registration?.active ?? undefined;
+      }
       if (worker) {
         setUpdate(worker);
-        setUpdateMessage("An update is ready.");
-      } else {
-        setUpdateMessage("You’re up to date.");
-      }
+        setUpdateMessage(
+          "Update ready. Save any open changes, then choose Update now.",
+        );
+      } else if (shell.status === "rejected") throw shell.reason;
+      else if (
+        deployed.status === "fulfilled" &&
+        official.status === "fulfilled"
+      )
+        setUpdateMessage(
+          describeUpdate(version, deployed.value, official.value, false),
+        );
+      else throw new Error("release check unavailable");
     } catch {
       setUpdateMessage(
         navigator.onLine
-          ? "Couldn’t check for updates. Try again."
+          ? "Couldn’t check official releases or your deployment. Try again; your saved data is retained."
           : "You’re offline. Connect to check for updates.",
       );
     } finally {
@@ -797,7 +854,14 @@ export default function App() {
   );
   return (
     <>
-      <div className="app-scroll" ref={app}>
+      <div
+        className="app-scroll"
+        ref={app}
+        onInputCapture={(e) => {
+          const form = (e.target as HTMLElement).closest("form");
+          if (form) form.dataset.dirty = "true";
+        }}
+      >
         <div
           className={
             "app" +
@@ -1131,6 +1195,18 @@ export default function App() {
                       </button>
                     </div>
                   </section>
+                  {installation?.automation === "missing" && (
+                    <p className="settings-note" role="status">
+                      Automatic updates need a one-time setup repair.{" "}
+                      <a
+                        href="https://github.com/fiukewhfkje/GradeViewer/blob/main/docs/AUTOMATIC_UPDATES.md"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Setup guide
+                      </a>
+                    </p>
+                  )}
                   {updateMessage && (
                     <p className="update-result" role="status">
                       {updateMessage}

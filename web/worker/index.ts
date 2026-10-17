@@ -15,6 +15,7 @@ import {
   nextPage,
   type Fetcher,
 } from "./provider";
+import { latestRelease } from "./updates";
 export interface Env {
   APP_PASSWORD: string;
   VAULT: DurableObjectNamespace;
@@ -759,7 +760,16 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       if (request.headers.get("Sec-Fetch-Site") === "cross-site")
         response = json({ error: "originRejected" }, 403);
-      else
+      else if (url.pathname === "/api/releases/latest") {
+        if (request.method !== "GET")
+          response = json({ error: "methodNotAllowed" }, 405);
+        else
+          try {
+            response = json(await latestRelease());
+          } catch {
+            response = json({ error: "releaseCheckUnavailable" }, 503);
+          }
+      } else
         response = await env.VAULT.get(env.VAULT.idFromName("owner")).fetch(
           request,
         );

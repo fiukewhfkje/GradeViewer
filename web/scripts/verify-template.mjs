@@ -52,7 +52,10 @@ try {
   const publicKey = await readFile("scripts/release-public-key.pem");
   const stub = join(temporary, ".local-test/release-fixtures");
   await mkdir(stub, { recursive: true });
-  for (const version of ["0.1.1", "0.1.0"]) {
+  const current = source.version;
+  const pieces = current.split(".").map(Number);
+  const newer = `${pieces[0]}.${pieces[1]}.${pieces[2] + 1}`;
+  for (const version of [newer, current]) {
     const archive = structuredClone(source);
     archive.version = version;
     for (const file of archive.files)
@@ -108,12 +111,12 @@ process.exit(valid?0:1);
   );
   const fixturePath = fixtureBin + ":" + process.env.PATH;
   run("node", ["--import", interceptor, "scripts/update.mjs"], temporary, {
-    TEST_RELEASE: "0.1.1",
+    TEST_RELEASE: newer,
     PATH: fixturePath,
   });
   assert.equal(
     JSON.parse(await readFile(join(temporary, "package.json"))).version,
-    "0.1.1",
+    newer,
   );
   assert.equal(
     JSON.parse(await readFile(join(temporary, "wrangler.jsonc"))).name,
@@ -133,13 +136,13 @@ process.exit(valid?0:1);
   run("npm", ["run", "build"]);
   run(
     "node",
-    ["--import", interceptor, "scripts/update.mjs", "0.1.0"],
+    ["--import", interceptor, "scripts/update.mjs", current],
     temporary,
-    { TEST_RELEASE: "0.1.0", PATH: fixturePath },
+    { TEST_RELEASE: current, PATH: fixturePath },
   );
   assert.equal(
     JSON.parse(await readFile(join(temporary, "package.json"))).version,
-    "0.1.0",
+    current,
   );
   run("npm", ["ci"]);
   run("npm", ["run", "build"]);

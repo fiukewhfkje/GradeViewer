@@ -1,6 +1,6 @@
 {
   "name": "gradeviewer-pwa",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,8 @@
     "deploy": "node scripts/deploy.mjs",
     "release:package": "node scripts/package-release.mjs",
     "update": "node scripts/update.mjs",
+    "update:copy": "node scripts/update-copy.mjs",
+    "repair:copy": "node scripts/repair-copy.mjs",
     "verify:live": "node --use-env-proxy scripts/verify-live.mjs",
     "verify:live:snapshot": "node --use-env-proxy scripts/verify-live-snapshot.mjs",
     "verify:hosted": "node --use-env-proxy scripts/verify-hosted.mjs"
@@ -34,7 +36,7 @@
     "prettier": "^3.9.10",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
-    "vitest": "^3.2.4",
+    "vitest": "^4.1.12",
     "wrangler": "^4.45.0"
   },
   "cloudflare": {

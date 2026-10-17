@@ -12,6 +12,7 @@ permissions:
   contents: read
 jobs:
   native-reference:
+    if: github.repository == 'fiukewhfkje/GradeViewer'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +25,7 @@ jobs:
       - run: npm ci && node scripts/verify-native-parity.mjs
         working-directory: web
   verify:
+    if: github.repository == 'fiukewhfkje/GradeViewer'
     strategy:
       fail-fast: false
       matrix:
@@ -57,7 +59,7 @@ jobs:
           path: web/.local-test/e2e*/*.png
           include-hidden-files: true
   release-verification:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.repository == 'fiukewhfkje/GradeViewer' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,4 +109,4 @@ jobs:
       - name: Publish verified source release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" web/release/gradeviewer-source.json web/release/manifest.json web/release/provenance.json --verify-tag --generate-notes --title "GradeViewer $GITHUB_REF_NAME"
+        run: node web/scripts/publish-release.mjs

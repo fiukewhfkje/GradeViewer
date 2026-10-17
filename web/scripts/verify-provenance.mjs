@@ -2,6 +2,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { releaseVersion } from "../src/release.ts";
 
 // Trust GitHub's maintained Sigstore verifier, with an exact release identity.
 // Never accept a signature merely because it was produced somewhere on GitHub.
@@ -16,7 +17,7 @@ export async function verifyProvenance(
     manifest.schema !== 2 ||
     manifest.verification !== "github-attestation" ||
     manifest.version !== version ||
-    !/^0\.\d+\.\d+$/.test(version) ||
+    !releaseVersion.test(version) ||
     !/^[a-f0-9]{40}$/.test(manifest.sourceCommit)
   )
     throw new Error("Unsupported release provenance.");
