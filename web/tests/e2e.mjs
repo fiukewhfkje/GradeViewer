@@ -82,6 +82,10 @@ try {
     console.error("Synthetic page error:", e.message);
   });
   await check("private API and security headers", async () => {
+    const shell = await fetch(base);
+    assert.match(shell.headers.get("Content-Security-Policy"), /default-src 'self'/);
+    assert.equal(shell.headers.get("Referrer-Policy"), "no-referrer");
+    assert.equal(shell.headers.get("Cache-Control"), "no-cache");
     const r = await fetch(base + "/api/scan/start", {
       method: "POST",
       headers: { Origin: base, "Content-Type": "application/json" },
