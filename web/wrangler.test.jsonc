@@ -1,0 +1,17 @@
+{
+  "name": "gradeviewer-tests",
+  "main": "tests/fixture-worker.ts",
+  "compatibility_date": "2026-10-16",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "VAULT", "class_name": "FixtureVault" }],
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FixtureVault"] }],
+  "vars": { "APP_PASSWORD": "synthetic-owner-password-for-tests-only" },
+  "observability": { "enabled": false },
+}

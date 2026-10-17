@@ -1,0 +1,371 @@
+import {
+  type SourceCourse,
+  type Course,
+  normalize,
+  graded,
+  hasTitle,
+} from "./model";
+export type PeriodKind = "quarter" | "semester" | "exam" | "year" | "other";
+export function titleDates(s: string): [number?, number?] {
+  const dates = s.match(/\d{4}-\d{2}-\d{2}/g)?.map((x) => Date.parse(x));
+  return dates?.length === 2 &&
+    dates.every(Number.isFinite) &&
+    dates[0] <= dates[1]
+    ? [dates[0], dates[1]]
+    : [];
+}
+export function descriptor(c: SourceCourse) {
+  const n = normalize(c.term.name),
+    q = n.match(/^(?:q|quarter)\s*([1-9]\d*)\b/),
+    s = n.match(/^(?:s|semester)\s*([1-9]\d*)\b/);
+  let kind: PeriodKind = "other",
+    ordinal: number | undefined;
+  if (/^(exam|midterm)/.test(n)) kind = "exam";
+  else if (s) {
+    kind = "semester";
+    ordinal = +s[1];
+  } else if (q) {
+    kind = "quarter";
+    ordinal = +q[1];
+  } else if (n === "final" || n.includes("year")) kind = "year";
+  const dates = titleDates(c.term.name);
+  return {
+    kind,
+    ordinal,
+    label:
+      kind === "quarter"
+        ? `Q${ordinal}`
+        : kind === "semester"
+          ? `S${ordinal}`
+          : kind === "exam"
+            ? "Exam"
+            : kind === "year"
+              ? "Overall"
+              : c.term.name,
+    start: c.term.start ?? dates[0],
+    end: c.term.end ?? dates[1],
+  };
+}
+export const day = (n: number) => Math.floor(n / 86400000);
+function dateOnly(c: SourceCourse, end: boolean) {
+  const field =
+    c.fields[end ? "period_end_date_only" : "period_start_date_only"];
+  return field !== undefined
+    ? field === "true"
+    : end
+      ? titleDates(c.term.name)[1] === c.term.end
+      : titleDates(c.term.name)[0] === c.term.start;
+}
+export function boundary(c: SourceCourse, end: boolean) {
+  const v = end ? c.term.end : c.term.start;
+  if (v === undefined) return undefined;
+  if (!dateOnly(c, end)) return v;
+  const d = new Date(v);
+  return new Date(
+    d.getUTCFullYear(),
+    d.getUTCMonth(),
+    d.getUTCDate() + (end ? 1 : 0),
+  ).getTime();
+}
+export function contains(c: SourceCourse, now = Date.now()) {
+  const a = boundary(c, false),
+    b = boundary(c, true);
+  return (
+    a !== undefined &&
+    b !== undefined &&
+    a <= now &&
+    (dateOnly(c, true) ? now < b : now <= b)
+  );
+}
+export function includesHistory(c: SourceCourse, date: number) {
+  const end = boundary(c, true);
+  return end !== undefined && (dateOnly(c, true) ? date < end : date <= end);
+}
+export const physicalKey = (c: SourceCourse) =>
+  c.fields.grade_section_id ?? c.fields.section_id ?? c.id;
+export function related<T extends SourceCourse>(c: T, all: T[]): T[] {
+  return all.filter((x) => physicalKey(x) === physicalKey(c));
+}
+export function ordered<T extends SourceCourse>(all: T[]): T[] {
+  return [...all].sort((a, b) => {
+    const x = descriptor(a),
+      y = descriptor(b);
+    return (
+      (x.start ?? -Infinity) - (y.start ?? -Infinity) ||
+      x.kind.localeCompare(y.kind) ||
+      (x.ordinal ?? 0) - (y.ordinal ?? 0) ||
+      a.id.localeCompare(b.id)
+    );
+  });
+}
+export function semester<T extends SourceCourse>(
+  c: T,
+  all: T[],
+): T | undefined {
+  const d = descriptor(c);
+  if (d.kind === "semester") return c;
+  if (d.start === undefined || d.end === undefined) return;
+  const matches = related(c, all).filter((x) => {
+    const s = descriptor(x);
+    return (
+      s.kind === "semester" &&
+      s.start !== undefined &&
+      s.end !== undefined &&
+      day(s.start) <= day(d.start!) &&
+      day(s.end) >= day(d.end!)
+    );
+  });
+  return matches.length === 1 ? matches[0] : undefined;
+}
+export const overall = <T extends SourceCourse>(c: T, all: T[]) =>
+  semester(c, all) ?? c;
+export function latestGradeUpdate(c: SourceCourse, all: SourceCourse[]) {
+  const summary = overall(c, all);
+  let latest: number | undefined;
+  for (const period of all)
+    if (overall(period, all).id === summary.id)
+      for (const assignment of period.assignments) {
+        if (
+          graded(assignment) &&
+          assignment.updated !== undefined &&
+          Number.isFinite(assignment.updated)
+        )
+          latest = Math.max(latest ?? -Infinity, assignment.updated);
+      }
+  return latest;
+}
+export function assignmentPeriods<T extends SourceCourse>(c: T, all: T[]): T[] {
+  const rows = ordered(related(c, all));
+  for (const kind of ["quarter", "semester", "other", "year"] as PeriodKind[]) {
+    const group = rows.filter((x) => descriptor(x).kind === kind);
+    if (
+      kind === "other" &&
+      group.some(
+        (x) =>
+          descriptor(x).start === undefined || descriptor(x).end === undefined,
+      )
+    )
+      continue;
+    if (group.length) return group;
+  }
+  return [];
+}
+export function exams<T extends SourceCourse>(c: T, all: T[]): T[] {
+  if (descriptor(c).kind !== "quarter") return [];
+  const siblings = related(c, all);
+  return ordered(
+    siblings.filter((x) => {
+      const d = descriptor(x);
+      if (d.kind !== "exam" || d.start === undefined || d.end === undefined)
+        return false;
+      const containers = siblings.filter((q) => {
+        const s = descriptor(q);
+        return (
+          s.kind === "quarter" &&
+          s.start !== undefined &&
+          s.end !== undefined &&
+          day(s.start) <= day(d.start!) &&
+          day(s.end) >= day(d.end!)
+        );
+      });
+      return containers.length === 1 && containers[0].id === c.id;
+    }),
+  );
+}
+export function semesterScale(
+  c: SourceCourse,
+  s: SourceCourse,
+  all: SourceCourse[],
+) {
+  const children = related(s, all).filter(
+    (x) =>
+      ["quarter", "exam"].includes(descriptor(x).kind) &&
+      semester(x, all)?.id === s.id &&
+      x.grade.percent !== undefined,
+  );
+  if (
+    s.grade.percent === undefined ||
+    children.some(
+      (x) =>
+        x.term.weight === undefined ||
+        !Number.isFinite(x.term.weight) ||
+        x.term.weight < 0,
+    )
+  )
+    return;
+  const own = children.find((x) => x.id === c.id)?.term.weight,
+    total = children.reduce((n, x) => n + x.term.weight!, 0);
+  if (own === undefined || total <= 0) return;
+  const base =
+    children.reduce((n, x) => n + x.grade.percent! * x.term.weight!, 0) / total;
+  return Math.abs(base - s.grade.percent) <= 0.15 ? own / total : undefined;
+}
+export function estimateQuarter(c: SourceCourse, all: SourceCourse[]) {
+  if (
+    descriptor(c).kind !== "quarter" ||
+    c.grade.percent !== undefined ||
+    c.grade.letter ||
+    c.fields.unsupported_overall_scale === "true" ||
+    c.fields.overall_override === "true" ||
+    !c.assignments.some(hasTitle)
+  )
+    return;
+  const s = semester(c, all);
+  if (
+    !s ||
+    s.fields.grade_basis === "calculated" ||
+    s.fields.overall_override === "true" ||
+    s.grade.percent === undefined ||
+    s.assignments.some((a) => graded(a) && !a.excluded && !a.score.excused)
+  )
+    return;
+  const children = ordered(
+      related(s, all).filter(
+        (x) =>
+          ["quarter", "exam"].includes(descriptor(x).kind) &&
+          semester(x, all)?.id === s.id,
+      ),
+    ),
+    quarters = children.filter((x) => descriptor(x).kind === "quarter");
+  if (
+    quarters.length !== 2 ||
+    !quarters.some((x) => x.id === c.id) ||
+    new Set(quarters.map((x) => descriptor(x).ordinal)).size !== 2 ||
+    children.some(
+      (x) =>
+        x.term.weight === undefined ||
+        !Number.isFinite(x.term.weight) ||
+        x.term.weight < 0,
+    ) ||
+    (c.term.weight ?? 0) <= 0
+  )
+    return;
+  const a = descriptor(quarters[0]),
+    b = descriptor(quarters[1]),
+    d = descriptor(s);
+  if (
+    [a.start, a.end, b.start, b.end, d.start, d.end].some(
+      (x) => x === undefined,
+    ) ||
+    day(a.start!) !== day(d.start!) ||
+    day(b.end!) !== day(d.end!) ||
+    day(a.end!) + 1 !== day(b.start!)
+  )
+    return;
+  let total = c.term.weight!,
+    knownWeight = 0,
+    sum = 0,
+    blankExam = false;
+  for (const child of children.filter((x) => x.id !== c.id)) {
+    const w = child.term.weight!;
+    if (w === 0) continue;
+    if (
+      child.grade.percent !== undefined &&
+      child.fields.grade_basis !== "calculated" &&
+      child.fields.overall_override !== "true"
+    ) {
+      total += w;
+      knownWeight += w;
+      sum += w * child.grade.percent;
+    } else if (
+      descriptor(child).kind === "exam" &&
+      child.grade.percent === undefined &&
+      !child.grade.letter &&
+      child.fields.unsupported_overall_scale !== "true" &&
+      child.fields.overall_override !== "true" &&
+      !child.assignments.some(
+        (a) => graded(a) && !a.excluded && !a.score.excused,
+      )
+    )
+      blankExam = true;
+    else return;
+  }
+  if (
+    knownWeight <= 0 ||
+    Math.abs(s.grade.percent - sum / knownWeight) <= 0.005
+  )
+    return;
+  const value = (s.grade.percent * total - sum) / c.term.weight!,
+    uncertainty = (0.01 * (total + knownWeight)) / c.term.weight!;
+  if (
+    !Number.isFinite(value) ||
+    value < 0 ||
+    !Number.isFinite(uncertainty) ||
+    uncertainty >= 0.5
+  )
+    return;
+  return {
+    percent: value,
+    digits: uncertainty < 0.05 ? 1 : 0,
+    blankExam,
+    semester: descriptor(s).label,
+  };
+}
+export function visibleCourses(all: Course[], now = Date.now()) {
+  const terms = [...new Set(all.map((c) => c.term.name))].sort(
+    (a, b) =>
+      (all.find((c) => c.term.name === b)?.term.start ?? -Infinity) -
+        (all.find((c) => c.term.name === a)?.term.start ?? -Infinity) ||
+      b.localeCompare(a),
+  );
+  const ranked = [...terms].sort(
+    (a, b) =>
+      Number(
+        all.some((c) => c.term.name === b && descriptor(c).kind === "quarter"),
+      ) -
+      Number(
+        all.some((c) => c.term.name === a && descriptor(c).kind === "quarter"),
+      ),
+  );
+  const term =
+    ranked.find((n) =>
+      all.some((c) => c.term.name === n && contains(c, now)),
+    ) ??
+    terms.find((n) =>
+      all.some(
+        (c) =>
+          c.term.name === n &&
+          (boundary(c, false) ?? -Infinity) <= now &&
+          (c.grade.percent !== undefined || !!c.grade.letter),
+      ),
+    ) ??
+    terms[0];
+  const anchor = all.find((c) => c.term.name === term),
+    selected = anchor && descriptor(anchor);
+  const groups = new Map<string, Course[]>();
+  for (const c of all.filter((c) => !c.hidden)) {
+    const d = descriptor(c);
+    if (
+      selected &&
+      selected.start !== undefined &&
+      selected.end !== undefined &&
+      d.start !== undefined &&
+      d.end !== undefined &&
+      (selected.start > d.end || d.start > selected.end)
+    )
+      continue;
+    if (
+      c.term.name !== term &&
+      (!selected ||
+        d.kind !== selected.kind ||
+        d.ordinal !== selected.ordinal ||
+        d.kind === "other")
+    )
+      continue;
+    const key = physicalKey(c);
+    groups.set(key, [...(groups.get(key) ?? []), c]);
+  }
+  const rank = (c: Course) =>
+    (["exam", "year", "semester"].includes(descriptor(c).kind) ? 0 : 8) +
+    (c.grade.percent !== undefined || c.grade.letter ? 4 : 0) +
+    (c.assignments.some(graded) ? 2 : 0);
+  return [...groups.values()]
+    .map(
+      (group) =>
+        group.sort(
+          (a, b) =>
+            rank(b) - rank(a) || a.order - b.order || a.id.localeCompare(b.id),
+        )[0],
+    )
+    .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+}

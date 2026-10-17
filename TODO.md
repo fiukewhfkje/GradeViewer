@@ -1,5 +1,29 @@
 # Next work
 
+## PWA migration — handoff, release candidate 0.1.0
+
+- [x] Restore checkpoint; implement PWA/core/Worker/vault/sessions/local persistence/scenarios/installation/update UI with fixed read-only provider routes and staged recovery.
+- [x] Verify live OAuth/complete hosted snapshots/credential reuse/redeploy/rollback without exporting real records. Repo is public; staging exists.
+- [x] Add desktop refresh, guarded phone pull-down, Profile refresh, personal website Copy/Open and installation help.
+- [x] Run current local production build, **104 tests and 22 HTTPS Chromium/Worker browser flows**. Last remote green: Chromium/WebKit 22 each, **119 Swift tests + 1,200 Swift/JS comparisons**, real keyless provenance.
+- [x] Restore native colors/update/what-if labels and collapsed assignment groups with semester/quarter summaries; verify current Chromium interactions.
+- [x] Replace maintainer Ed25519 signing-secret setup with exact-identity GitHub OIDC/Sigstore provenance. Isolated template update/config/secret preservation/rollback passes; real cryptographic verification passes separately in CI.
+- [x] Measure actual metadata expiry: **3.367 s after 310 seconds**, steady **1.17–1.39 s**, empty-state/title traversal **6.547 s**. Record evidence without claiming the target met.
+- [x] Verify the newly saved CLOUDFLARE_API_TOKEN with Cloudflare (active); register the Builds deployment credential and existing-preview trigger; store the preview password as a secret build variable. No secret values in chat.
+- [x] Verify real Git pushes start successful Cloudflare Builds/deployments; reconnect the existing preview after replacement-VM password recovery.
+- [x] Eliminate separate deferred scale calls, order required reads before optional scales across chunks, and use five bounded concurrent reads; verify stored credential reuse across automatic redeployment.
+- [ ] Improve expired-metadata/late-open performance to the user's couple-second target while retaining complete fresh reads/fixed TTL; latest natural-expiry result **3.043 s / six calls** (was 3.619 s / seven in the resumed baseline). Browser/phone startup remains unmeasured.
+- [x] Match native assignment score/excused/ungraded/letter/override presentation, score-only dropped styling and Categories alias; fix closing a selected-period view. Local UI checks pass.
+- [ ] Finish physical course-sheet/back/graph/keyboard and installation checks; headless source/navigation checks do not establish phone behavior.
+- [x] Clarify Git account selection in both READMEs and write the three-entry [setup guide](docs/PWA_ONBOARDING.md).
+- [ ] Verify beginner public template signup/permissions/generated copy/Free-plan resources/password setup. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
+- [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
+- [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
+- [ ] Check newest remote CI, source/package secret scans and PR description. Choose/set the owner's production app password securely.
+- [ ] Only after gates pass, perform **one migration merge**, publish signed **v0.1.0** and deploy production. Preserve native baseline `3447420`; no merge/release claimed yet.
+
+Read [PWA_HANDOFF.md](docs/PWA_HANDOFF.md) first in the new thread. Rough overall progress: **80%**. Historical native work follows.
+
 ## October 15 precision follow-up
 
 - [x] Reproduce tiny graph transitions and rounded-input quarter estimate precision; retain actual observations and real assignment changes.

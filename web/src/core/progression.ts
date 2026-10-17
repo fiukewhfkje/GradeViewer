@@ -1,0 +1,146 @@
+import {
+  type Course,
+  type SourceCourse,
+  calculationSource,
+  graded,
+} from "./model";
+import { calculate, reliable } from "./calculator";
+import { assignmentPeriods, includesHistory } from "./periods";
+export interface GraphPoint {
+  id: string;
+  date: number;
+  percent: number;
+  calculated: boolean;
+}
+export function calculatedPoints(
+  c: SourceCourse,
+  includeCurrent = true,
+): GraphPoint[] {
+  if (!reliable(c)) return [];
+  const baseline = calculate(c),
+    reported = c.grade.percent!;
+  const current: GraphPoint[] =
+    includeCurrent && c.fields.grade_basis === "calculated"
+      ? [
+          {
+            id: "calculated:snapshot:" + c.id,
+            date: c.fetched,
+            percent: reported,
+            calculated: true,
+          },
+        ]
+      : [];
+  const rows = c.assignments.filter((a) => a.score.earned !== undefined);
+  if (
+    !rows.length ||
+    rows.some(
+      (a) =>
+        (a.updated ?? a.due) === undefined || (a.updated ?? a.due)! > c.fetched,
+    )
+  )
+    return current;
+  const ordered = [...rows].sort(
+      (a, b) =>
+        (a.updated ?? a.due)! - (b.updated ?? b.due)! ||
+        (a.due ?? -Infinity) - (b.due ?? -Infinity) ||
+        a.id.localeCompare(b.id),
+    ),
+    result: GraphPoint[] = [];
+  for (let i = 0; i < ordered.length; i++) {
+    try {
+      const n = calculate({ ...c, assignments: ordered.slice(0, i + 1) });
+      result.push({
+        id: "calculated:" + ordered[i].id,
+        date: (ordered[i].updated ?? ordered[i].due)!,
+        percent: Math.abs(n - baseline) <= 1e-9 ? reported : n,
+        calculated: true,
+      });
+    } catch {
+      /* An unsupported prefix is not a provider observation. */
+    }
+  }
+  return result.concat(current);
+}
+export function progression(c: Course, all: Course[]): GraphPoint[] {
+  const periods = assignmentPeriods(c, all),
+    populated = (periods.length ? periods : [c]).filter(
+      (p) => p.assignments.some(graded) || p.history.length,
+    ),
+    latest = populated.at(-1);
+  if (!latest) return [];
+  const points = populated.flatMap((p) => {
+    const history = p.history
+      .filter((h) => p.id === latest.id || includesHistory(p, h.date))
+      .filter((h) => h.grade.percent !== undefined)
+      .map((h) => ({
+        id: h.id,
+        date: h.date,
+        percent: h.grade.percent!,
+        calculated: false,
+      }));
+    const calculated = calculatedPoints(
+        calculationSource(p),
+        p.id === latest.id,
+      ),
+      dates = [...new Set(calculated.map((x) => x.date))].sort((a, b) => a - b);
+    return calculated
+      .map((point) => {
+        const next = dates[dates.indexOf(point.date) + 1] ?? Infinity,
+          anchor = [...history]
+            .sort((a, b) => a.date - b.date || a.id.localeCompare(b.id))
+            .find(
+              (h) =>
+                h.date >= point.date &&
+                h.date < next &&
+                Math.abs(h.percent - point.percent) <= 0.01 + 1e-9,
+            );
+        return anchor && !point.id.startsWith("calculated:snapshot:")
+          ? { ...point, percent: anchor.percent }
+          : point;
+      })
+      .concat(history);
+  });
+  return points
+    .sort(
+      (a, b) =>
+        a.date - b.date ||
+        Number(b.calculated) - Number(a.calculated) ||
+        a.id.localeCompare(b.id),
+    )
+    .filter((p, i, rows) =>
+      p.calculated
+        ? !rows.some((q) => !q.calculated && q.date === p.date)
+        : true,
+    );
+}
+/** Monotone cubic interpolation draws the curve; tooltip selection always uses discrete events. */
+export function curve(points: GraphPoint[]) {
+  const n = points.length;
+  if (!n) return "";
+  if (n === 1) return `M0,75 L1000,75`;
+  const values = points.map((p) => p.percent),
+    lo = Math.min(...values),
+    hi = Math.max(...values),
+    pad = Math.max(1, (hi - lo) * 0.12),
+    y = (v: number) => 12 + (1 - (v - lo + pad) / (hi - lo + 2 * pad)) * 130,
+    x = (i: number) => (i / (n - 1)) * 1000;
+  const slopes = values.slice(1).map((v, i) => (v - values[i]) * (n - 1)),
+    tangents = values.map((_, i) =>
+      i === 0
+        ? slopes[0]
+        : i === n - 1
+          ? slopes[n - 2]
+          : (Math.sign(slopes[i - 1]) + Math.sign(slopes[i])) *
+            Math.min(
+              Math.abs(slopes[i - 1]),
+              Math.abs(slopes[i]),
+              Math.abs((slopes[i - 1] + slopes[i]) / 4),
+            ),
+    );
+  let d = `M${x(0)},${y(values[0])}`;
+  for (let i = 0; i < n - 1; i++) {
+    const h = 1 / (n - 1);
+    d += ` C${x(i) + (1000 * h) / 3},${y(values[i] + (tangents[i] * h) / 3)} ${x(i + 1) - (1000 * h) / 3},${y(values[i + 1] - (tangents[i + 1] * h) / 3)} ${x(i + 1)},${y(values[i + 1])}`;
+  }
+  return d;
+}

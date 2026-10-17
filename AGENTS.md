@@ -1,5 +1,8 @@
 # GradeViewer development instructions
 
+Current PWA scope supersedes the native-only/framework-only/no-backend/Keychain-only rules below for `web/`. Read `docs/PWA_HANDOFF.md`, `docs/PWA_PLAN.md`, and `docs/PWA_VALIDATION.md`. The active app is React/TypeScript plus a user-owned Cloudflare Worker, with encrypted credentials and browser-local grade data. Native sources remain the behavior reference. Use synthetic tests and headless CLI browsers; never print credentials or real records. Use focused commits on the migration branch and one final merge only after release gates pass. No connected-browser/computer-use automation. `web/` must build as an isolated template root.
+
+
 Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, and RESEARCH.md before continuing. docs/PRODUCT_BRIEF.md preserves the user's detailed scope.
 
 - Keep the native app fast, simple, local, Schoology-only, and independent of Muse. No paid tiers, analytics, ads, backend, alternate icons, planner, or speculative features.
