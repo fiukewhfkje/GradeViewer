@@ -178,6 +178,9 @@ try {
     );
     assert.equal(shell.headers.get("Referrer-Policy"), "no-referrer");
     assert.equal(shell.headers.get("Cache-Control"), "no-cache");
+    const installation = await (await fetch(base + "/installation.json")).json();
+    assert.equal("repository" in installation, false);
+    assert.equal("branch" in installation, false);
     const r = await fetch(base + "/api/scan/start", {
       method: "POST",
       headers: { Origin: base, "Content-Type": "application/json" },

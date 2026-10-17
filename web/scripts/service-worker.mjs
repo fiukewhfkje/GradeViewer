@@ -2,9 +2,10 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { installationInfo } from "./installation.mjs";
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
+const { automation, channel, checkedAt } = await installationInfo();
 await writeFile(
   "dist/installation.json",
-  JSON.stringify({ version: pkg.version, ...(await installationInfo()) }),
+  JSON.stringify({ version: pkg.version, automation, channel, checkedAt }),
 );
 const assets = [
   "/",
