@@ -12,6 +12,8 @@ Sources: [Cloudflare GitHub app permissions](https://api.github.com/apps/cloudfl
 
 ### What was actually verified
 
+The official repository is now configured as a GitHub template. A fresh private copy generated directly from that actual published repository also automatically ran [its root updater](https://github.com/fiukewhfkje/gradeviewer-official-template-probe-20261017/actions/runs/39005050802) and skipped the maintainer’s heavy CI. No workflow was manually created in that copy.
+
 On October 17, 2026, a real **private template repository** was generated through GitHub into a separate private repository under the authenticated maintainer account. No workflow was manually added to that generated repository. GitHub reported the root workflow as **active**, Actions as **enabled**, and started its initial run automatically:
 
 - [Automatic initial run](https://github.com/fiukewhfkje/gradeviewer-install-probe-20261017044121/actions/runs/39003518851).
@@ -32,7 +34,7 @@ The installed small workflow is a stable permission boundary. Ordinary releases 
 
 An unchanged installation records a real check receipt at most every 28 days, providing repository activity without a daily Cloudflare rebuild. This addresses ordinary idle-repository expiry; it cannot override an owner disabling Actions, organization policy, exhausted account limits, revoked Cloudflare access or branch protection. Actual Cloudflare failed check runs cause up to three later source-push retries. Missing/unknown checks are never invented as failures. Repeated failures surface in the updater log and the app reports a release/deployment stall where detectable.
 
-The app compares its running version with deployed installation metadata and official stable release metadata from a fixed, credential-free endpoint on **its own Worker**. Successful release metadata is cached for 15 minutes per Worker isolate. A newer stable release unreceived for more than 48 hours is described as stalled, with possible causes rather than an invented diagnosis. Failed/offline checks never say the installation is current. A copied workflow's source presence does not prove its remote Actions settings remain enabled.
+The app compares its running version with deployed installation metadata and official stable release metadata from a fixed, credential-free endpoint on **its own Worker**. Successful release metadata is cached for 15 minutes per Worker isolate. Stable checks use GitHub’s documented latest-release manifest asset route; this avoids the HTTP 429 observed from Cloudflare against the public REST API. The manifest asset’s Last-Modified timestamp supplies the release-age signal. Preview source discovery remains an opt-in GitHub-runner API read. A newer stable release unreceived for more than 48 hours is described as stalled, with possible causes rather than an invented diagnosis. Failed/offline checks never say the installation is current. A copied workflow's source presence does not prove its remote Actions settings remain enabled.
 
 Static-only service-worker updates cache before offering activation. Reload requires explicit consent in each tab; pending saves and open forms block activation. Old app assets remain available while another tab still uses them. API responses, Schoology credentials and grades never enter the app-shell cache.
 
@@ -53,7 +55,7 @@ This uses the maintainer's already authenticated `gh` CLI to enable/dispatch tha
 For a particular release or rollback:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --version 0.1.4
+npm run update:copy -- OWNER/REPOSITORY --version 0.1.5
 npm run update:copy -- OWNER/REPOSITORY --version 0.1.3
 ```
 
@@ -61,7 +63,7 @@ A rollback changes app source, not the existing URL, vault, secret or browser da
 
 ### Optional preview channel
 
-Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.5-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
+Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.6-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
 
 ```sh
 npm run update:copy -- OWNER/REPOSITORY --preview
@@ -70,7 +72,7 @@ npm run update:copy -- OWNER/REPOSITORY --preview
 Preview selection persists in that copy's non-secret receipt. It accepts only signed official releases and selects the highest valid stable/alpha/beta/rc version. The midnight schedule stays the same; run the command again for an immediate check. Return to stable with:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.4
+npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.5
 ```
 
 No unsigned branch/main build is accepted as a release.
@@ -81,10 +83,10 @@ Do **not** delete or recreate the Worker, change its password or rotate credenti
 
 ```sh
 cd web
-npm run repair:copy -- OWNER/REPOSITORY 0.1.4
+npm run repair:copy -- OWNER/REPOSITORY
 ```
 
-The helper clones the existing copy, verifies the published release, preserves personal settings and storage bindings, installs only the exact reviewed **signed** launcher at the repository root, and pushes normally. It then enables the workflow. The existing Cloudflare Git connection builds the commit. A successful source push is not reported as a successful deployment.
+The helper clones the existing copy, verifies the latest stable release (or an optional explicit version), preserves personal settings and storage bindings, installs only the exact reviewed **signed** launcher at the repository root, and pushes normally. It then enables the workflow. The existing Cloudflare Git connection builds the commit. A successful source push is not reported as a successful deployment.
 
 If the account explicitly disables Actions or revokes Cloudflare access later, that account owner must restore the affected authorization. Repository code cannot safely override those account decisions. The app's stalled/repair message is the recovery signal.
 

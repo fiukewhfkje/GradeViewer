@@ -8,7 +8,8 @@
 - [x] Add immediate development updates, opt-in verified previews and a signed one-time repair helper.
 - [x] Verify a real generated private GitHub copy, automatic first run, real signed v0.1.2/v0.1.3 pushes and rollback; reject a tampered real manifest.
 - [x] Pass 137 tests, 26 Chromium + 26 WebKit flows, isolated template build/test/update/rollback and a Worker dry-run; resolve the pre-existing dependency audit findings.
-- [ ] Finish remote CI, merge, publish signed v0.1.4, verify the existing production Git deployment, enable official template metadata and clean the delivery branch.
+- [x] Finish remote CI, merge PR #12, publish signed v0.1.4, verify the existing production Git deployment, enable official template metadata and clean the first delivery branch.
+- [ ] Finish the measured Cloudflare REST-429 follow-up as v0.1.5: verify the asset route on real Cloudflare, same-version repair, complete CI, actual production PWA upgrade and final cleanup.
 - [ ] Complete genuine independent-account Cloudflare setup/update/rollback and real credential/local-state retention acceptance when that account is accessible. Hakabl is 404 to available GitHub access; the sole local Cloudflare account's Builds API is 403. This is not a completed E2E check.
 
 

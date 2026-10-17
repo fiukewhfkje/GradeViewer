@@ -186,6 +186,7 @@ export async function update(
     cwd = process.cwd(),
     channel: requestedChannel = process.env.REQUESTED_CHANNEL,
     deployment = currentDeployment,
+    force = false,
   } = {},
 ) {
   if (requested) requested = requested.replace(/^v/, "");
@@ -202,46 +203,54 @@ export async function update(
   if (!["stable", "preview"].includes(channel))
     throw new Error("Choose stable or preview.");
   const local = JSON.parse(await readFile(join(cwd, "package.json"), "utf8"));
-  const endpoint = requested
-    ? "releases/tags/v" + requested
-    : channel === "preview"
-      ? "releases?per_page=100"
-      : "releases/latest";
-  const metadata = JSON.parse(
-    await get(`https://api.github.com/repos/${upstream}/${endpoint}`, 1000000),
-  );
-  const release = Array.isArray(metadata)
-    ? metadata
-        .filter((r) => {
-          try {
-            officialRelease(r, channel);
-            return true;
-          } catch {
-            return false;
-          }
-        })
-        .sort((a, b) =>
-          compareVersions(b.tag_name.slice(1), a.tag_name.slice(1)),
-        )[0]
-    : metadata;
-  const { version } = officialRelease(release, channel);
+  let prefetchedManifest,
+    version = requested;
+  if (!requested && channel === "preview") {
+    const metadata = JSON.parse(
+      await get(
+        `https://api.github.com/repos/${upstream}/releases?per_page=100`,
+        1000000,
+      ),
+    );
+    if (!Array.isArray(metadata))
+      throw new Error("Invalid official release response.");
+    const release = metadata
+      .filter((r) => {
+        try {
+          officialRelease(r, channel);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) =>
+        compareVersions(b.tag_name.slice(1), a.tag_name.slice(1)),
+      )[0];
+    version = officialRelease(release, channel).version;
+  } else if (!requested) {
+    prefetchedManifest = await get(
+      `https://github.com/${upstream}/releases/latest/download/manifest.json`,
+      20000,
+    );
+    version = JSON.parse(prefetchedManifest).version;
+  }
+  if (
+    !releaseVersion.test(version) ||
+    (channel === "stable" && version.includes("-"))
+  )
+    throw new Error("Expected an official release from the selected channel.");
   const comparison = compareVersions(version, local.version);
   const build = !requested && comparison === 0 ? deployment(cwd) : "unknown";
   const retry = build === "failed" && (receipt?.deploymentRetries ?? 0) < 3;
   let applied = false;
   let launcher;
-  if (requested || comparison > 0) {
+  if (force || requested || comparison > 0) {
     const asset = (name) => {
       const expected = `https://github.com/${upstream}/releases/download/v${version}/${name}`;
-      if (
-        release.assets?.filter(
-          (a) => a.name === name && a.browser_download_url === expected,
-        ).length !== 1
-      )
-        throw new Error("Missing official release asset.");
       return expected;
     };
-    const manifest = await get(asset("manifest.json"), 20000);
+    const manifest =
+      prefetchedManifest ?? (await get(asset("manifest.json"), 20000));
     const provenance = await get(asset("provenance.json"), 200000);
     await verify(manifest, provenance, version);
     const archive = await get(asset("gradeviewer-source.json"));

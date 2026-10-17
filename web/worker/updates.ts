@@ -1,4 +1,4 @@
-import { officialRelease, upstream } from "../src/release";
+import { releaseVersion, upstream } from "../src/release";
 
 // This runs in the installation's own Worker. It has no credentials and never
 // forwards the visitor's headers or Schoology session to GitHub.
@@ -13,7 +13,7 @@ export function releaseReader(
     if (flight) return flight;
     flight = (async () => {
       const response = await upstreamFetch(
-        `https://api.github.com/repos/${upstream}/releases/latest`,
+        `https://github.com/${upstream}/releases/latest/download/manifest.json`,
         {
           headers: {
             Accept: "application/vnd.github+json",
@@ -25,7 +25,26 @@ export function releaseReader(
       if (!response.ok) throw new Error("Release check unavailable.");
       const text = await response.text();
       if (text.length > 1000000) throw new Error("Release response too large.");
-      const value = officialRelease(JSON.parse(text));
+      const manifest = JSON.parse(text);
+      if (
+        manifest.schema !== 2 ||
+        manifest.verification !== "github-attestation" ||
+        manifest.localSchema !== 1 ||
+        !releaseVersion.test(manifest.version) ||
+        manifest.version.includes("-") ||
+        !/^[a-f0-9]{40}$/.test(manifest.sourceCommit) ||
+        !/^[a-f0-9]{64}$/.test(manifest.archiveSha256) ||
+        manifest.archive !== "gradeviewer-source.json"
+      )
+        throw new Error("Invalid official release manifest.");
+      const modified = response.headers.get("Last-Modified");
+      const value = {
+        version: manifest.version,
+        publishedAt:
+          modified && Number.isFinite(Date.parse(modified))
+            ? new Date(modified).toISOString()
+            : undefined,
+      };
       cached = { value, until: now() + 15 * 60000 };
       return value;
     })();
