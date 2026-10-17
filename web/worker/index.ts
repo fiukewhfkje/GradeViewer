@@ -89,6 +89,30 @@ function initial(): Vault {
 function ensure(value: unknown): asserts value {
   if (!value) throw new ApiError(400, "invalidRequest");
 }
+function metadataReady(scan: Scan, section: string) {
+  return ["section", "items", "categories", "periods"].every((r) =>
+    scan.done.includes(r + ":" + section + ":"),
+  );
+}
+function snapshotReady(scan: Scan) {
+  const complete = (r: string, s = "") => scan.done.includes(r + ":" + s + ":");
+  return (
+    complete("sections") &&
+    scan.sections.every(
+      (s) =>
+        (scan.owners[s] === "empty" && complete("grades", s)) ||
+        (Object.entries(scan.owners).some(
+          ([enrollment, owner]) =>
+            owner === (scan.owners[s] ?? s) &&
+            metadataReady(scan, enrollment) &&
+            ((complete("grades") && owner === enrollment) ||
+              complete("grades", enrollment)),
+        ) &&
+          (scan.owners[s] !== undefined ||
+            scan.done.includes("gradesDenied:" + s))),
+    )
+  );
+}
 async function body(request: Request): Promise<Record<string, unknown>> {
   if (
     !request.headers.get("Content-Type")?.startsWith("application/json") ||
@@ -573,6 +597,16 @@ export class CredentialVault {
               ).size === jobs.length,
             );
             const results: unknown[] = new Array(jobs.length);
+            // Optional scale reads must wait for all required data, including
+            // pagination and authoritative alias resolution. Keep their original
+            // result indices so the client can consume a single bounded batch.
+            const required = jobs.flatMap((j, i) =>
+                j.resource === "scales" ? [] : [i],
+              ),
+              optional = jobs.flatMap((j, i) =>
+                j.resource === "scales" ? [i] : [],
+              );
+            let scheduled = required;
             // Keep a Free-plan invocation below 50 subrequests, including redirects.
             // Four in-flight reads leave headroom under Cloudflare's six-connection limit.
             let cursor = 0,
@@ -585,8 +619,8 @@ export class CredentialVault {
               return originalUpstream(request);
             };
             const run = async () => {
-              while (cursor < jobs.length) {
-                const index = cursor++;
+              while (cursor < scheduled.length) {
+                const index = scheduled[cursor++];
                 try {
                   const value = await this.read(
                     scan,
@@ -617,36 +651,28 @@ export class CredentialVault {
               }
             };
             await Promise.all(
-              Array.from({ length: Math.min(4, jobs.length) }, run),
+              Array.from({ length: Math.min(4, scheduled.length) }, run),
             );
+            if (snapshotReady(scan)) {
+              scheduled = optional;
+              cursor = 0;
+              await Promise.all(
+                Array.from({ length: Math.min(4, scheduled.length) }, run),
+              );
+            } else
+              for (const index of optional)
+                results[index] = {
+                  ok: false,
+                  error: "batchDeferred",
+                  status: 502,
+                };
             result = json({ results });
           }
         } else if (route === "scan/commit" && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
           if (!scan) throw new ApiError(409, "scanExpired");
-          const complete = (r: string, s = "") =>
-            scan.done.includes(r + ":" + s + ":");
-          const metadataReady = (s: string) =>
-            ["section", "items", "categories", "periods"].every((r) =>
-              complete(r, s),
-            );
-          if (
-            !complete("sections") ||
-            !scan.sections.every(
-              (s) =>
-                (scan.owners[s] === "empty" && complete("grades", s)) ||
-                (Object.entries(scan.owners).some(
-                  ([enrollment, owner]) =>
-                    owner === (scan.owners[s] ?? s) &&
-                    metadataReady(enrollment) &&
-                    ((complete("grades") && owner === enrollment) ||
-                      complete("grades", enrollment)),
-                ) &&
-                  (scan.owners[s] !== undefined ||
-                    scan.done.includes("gradesDenied:" + s))),
-            )
-          )
+          if (!snapshotReady(scan))
             throw new ApiError(409, "incompleteSnapshot");
           vault.metadata ??= {};
           const links: NonNullable<Vault["gradeLinks"]> = {};
@@ -655,7 +681,8 @@ export class CredentialVault {
             if (
               owner !== "empty" &&
               Object.entries(scan.owners).some(
-                ([enrollment, id]) => id === owner && metadataReady(enrollment),
+                ([enrollment, id]) =>
+                  id === owner && metadataReady(scan, enrollment),
               )
             ) {
               links[s] =
@@ -668,7 +695,7 @@ export class CredentialVault {
           for (const s of scan.sections)
             if (
               !scan.reused.includes(s) &&
-              metadataReady(s) &&
+              metadataReady(scan, s) &&
               scan.fingerprints[s]
             )
               vault.metadata[s] = {

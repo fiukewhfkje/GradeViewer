@@ -16,7 +16,9 @@ describe("complete snapshot and cache integration", () => {
     limited = false,
     active = 0,
     maximumActive = 0,
-    batches: string[][] = [];
+    batches: string[][] = [],
+    metadataCompleted = 0,
+    scalesAfterMetadata: number[] = [];
   beforeEach(async () => {
     await repository.clear();
     requests = 0;
@@ -25,6 +27,8 @@ describe("complete snapshot and cache integration", () => {
     slow = limited = redirects = large = false;
     active = maximumActive = 0;
     batches = [];
+    metadataCompleted = 0;
+    scalesAfterMetadata = [];
     const data = new Map();
     class RecordingVault extends FixtureVault {
       constructor(ctx: DurableObjectState, env: Env) {
@@ -33,6 +37,8 @@ describe("complete snapshot and cache integration", () => {
         this.upstream = async (req) => {
           requests++;
           const requestURL = new URL(req.url);
+          if (requestURL.pathname.endsWith("/grading_scales"))
+            scalesAfterMetadata.push(metadataCompleted);
           if (
             redirects &&
             Number(requestURL.searchParams.get("offset") ?? 0) < 3
@@ -60,6 +66,12 @@ describe("complete snapshot and cache integration", () => {
                 : await original(req);
           } finally {
             active--;
+            if (
+              /\/sections\/\d+(\/(grade_items|grading_categories|grading_periods))?$/.test(
+                requestURL.pathname,
+              )
+            )
+              metadataCompleted++;
           }
           const url = new URL(req.url);
           if (large && /^\/v1\/sections\/\d+$/.test(url.pathname))
@@ -163,6 +175,53 @@ describe("complete snapshot and cache integration", () => {
     );
     await api("scan/read", { scan, resource: "items", section: "100" });
     expect(requests).toBe(48);
+    await api("scan/cancel", { scan });
+  });
+  it("runs optional scale jobs only after all required metadata completes, retaining result order", async () => {
+    slow = true;
+    const { scan } = await api<{ scan: string }>("scan/start", {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    await api("scan/roots", { scan });
+    const result = await api<{
+      results: { ok: boolean; value: { data: unknown } }[];
+    }>("scan/read-batch", {
+      scan,
+      jobs: [
+        { resource: "scales", section: "100" },
+        ...["100", "101", "102", "103", "104"].flatMap((section) =>
+          ["section", "items", "categories", "periods"].map((resource) => ({
+            resource,
+            section,
+          })),
+        ),
+      ],
+    });
+    expect(result.results.every((r) => r.ok)).toBe(true);
+    expect(result.results[0].value.data).toEqual({ grading_scale: [] });
+    expect(scalesAfterMetadata).toEqual([20]);
+    await api("scan/commit", { scan });
+  });
+  it("defers optional scales when required reads are incomplete", async () => {
+    const { scan } = await api<{ scan: string }>("scan/start", {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    await api("scan/roots", { scan });
+    const count = requests;
+    const result = await api<{ results: { ok: boolean; error?: string }[] }>(
+      "scan/read-batch",
+      {
+        scan,
+        jobs: [{ resource: "scales", section: "100" }],
+      },
+    );
+    expect(result.results).toEqual([
+      { ok: false, error: "batchDeferred", status: 502 },
+    ]);
+    expect(requests).toBe(count);
+    expect(scalesAfterMetadata).toEqual([]);
     await api("scan/cancel", { scan });
   });
   it("limits aggregate batch response size and retries deferred reads without losing a snapshot", async () => {

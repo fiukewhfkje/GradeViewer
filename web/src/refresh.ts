@@ -191,7 +191,18 @@ export async function readSnapshot(
           );
         })
         .flatMap((section) =>
-          ["section", "items", "categories", "periods"].map((resource) => ({
+          [
+            "section",
+            "items",
+            "categories",
+            "periods",
+            ...(previous.courses.some(
+              (c) =>
+                c.fields.section_id === section && c.fields.reported_scale_id,
+            )
+              ? ["scales"]
+              : []),
+          ].map((resource) => ({
             resource,
             section,
           })),
