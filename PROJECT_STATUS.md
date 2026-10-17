@@ -1,6 +1,13 @@
 # Project status — October 16, 2026
 
-The active app is the React/TypeScript PWA in `web/`, on `pwa-migration` / [draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9). Native main `3447420` is unchanged as the comparison baseline. No migration merge, version tag or public PWA release has happened. The user requested a clean, pushed handoff to a new thread so a newly saved Cloudflare token can load; resume from [PWA_HANDOFF.md](docs/PWA_HANDOFF.md).
+The active app is the React/TypeScript PWA in `web/`, on `pwa-migration` / [draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9). Native main `3447420` is unchanged as the comparison baseline. No migration merge, version tag or public PWA release has happened. Work resumed from [PWA_HANDOFF.md](docs/PWA_HANDOFF.md) in the new cloud environment.
+
+## October 16 resumed Cloudflare Builds setup
+
+- The configured `CLOUDFLARE_API_TOKEN` is present. Cloudflare's `/user/tokens/verify` returned HTTP 200, success and active status. Runtime configuration observations still report unknown readiness; the actual API check establishes working authentication. No credential values were displayed.
+- The same token successfully reads Worker settings and administers Builds. Registered it as the preview deployment credential and created a trigger for the existing preview Worker's immutable tag: repository branch `pwa-migration`, root `web`, build `npm run build`, deploy `npm run deploy -- --name gradeviewer-preview`. Stored APP_PASSWORD as a secret build variable. A real push/build/deploy is the next check; creating a trigger alone does not establish automation success.
+- The replacement VM does not contain the old private preview password/OAuth files. A new random preview-only test password is held outside the repository and configured for the next build. Its deployment will require reconnecting the preview with the configured Schoology credentials. The existing Worker URL and Durable Object are retained; no production or unrelated Worker is targeted.
+- Fresh dependency install, production build and all **104 tests passed** at the saved implementation. Native sources remain unchanged. Remaining performance, novice onboarding, copied-repository update/rollback and physical-device gates still apply.
 
 ## Current implementation and evidence
 

@@ -1,6 +1,13 @@
 # GradeViewer PWA handoff — October 16, 2026
 
-The user requested a clean handoff to a new thread so its cloud environment can load a newly added `CLOUDFLARE_API_TOKEN`. Implementation is paused for that handoff. Resume the existing migration; do not restart the port or merge it immediately.
+The user requested a clean handoff to a new thread so its cloud environment can load a newly added `CLOUDFLARE_API_TOKEN`. The new environment has now loaded it and work has resumed. Resume the existing migration; do not restart the port or merge it immediately.
+
+## Resumed environment and Builds setup
+
+- The token is present and `/user/tokens/verify` returned HTTP 200/success/active. Runtime metadata still says unknown; actual Worker/Builds API calls succeed. Never print the token or request its value in chat.
+- Registered the token with Builds and created the existing-preview trigger `1d53640c-9634-4591-bde3-78b1d1b3a6ed`, targeting immutable Worker tag `79eabb0a21434d8f9c070284c6771647`. Branch `pwa-migration`, root `web`, build `npm run build`, deploy `npm run deploy -- --name gradeviewer-preview`. APP_PASSWORD is a secret build variable. A real push/deploy is still pending at this checkpoint.
+- This is a replacement VM. Old private local passwords and OAuth files are absent. The preview-only recovery password is stored outside the repository at `/workspace/.gradeviewer-private/preview-owner-password`, with private permissions. The next build applies it to the same preview Worker; reconnect with configured Schoology keys afterward. No production password has been selected.
+- Fresh install/build and 104 tests passed. The earlier implementation/CI evidence and all remaining release gates below still apply. Historical statements that the running environment lacks the Cloudflare token are superseded by this section.
 
 ## Start here
 

@@ -9,7 +9,8 @@
 - [x] Restore native colors/update/what-if labels and collapsed assignment groups with semester/quarter summaries; verify current Chromium interactions.
 - [x] Replace maintainer Ed25519 signing-secret setup with exact-identity GitHub OIDC/Sigstore provenance. Isolated template update/config/secret preservation/rollback passes; real cryptographic verification passes separately in CI.
 - [x] Measure actual metadata expiry: **3.367 s after 310 seconds**, steady **1.17–1.39 s**, empty-state/title traversal **6.547 s**. Record evidence without claiming the target met.
-- [ ] In the new thread, verify the newly saved CLOUDFLARE_API_TOKEN is actually applied; finish Builds credential, trigger and latest staging deploy. Current runtime lacked it. No secret values in chat.
+- [x] Verify the newly saved CLOUDFLARE_API_TOKEN with Cloudflare (active); register the Builds deployment credential and existing-preview trigger; store the preview password as a secret build variable. No secret values in chat.
+- [ ] Verify a real Git push starts a successful Cloudflare build/deployment, reconnect the preview after replacement-VM password recovery and confirm stored-credential reuse.
 - [ ] Improve expired-metadata/late-open performance to the user's couple-second target while retaining complete fresh reads/fixed TTL; measure browser/phone startup too.
 - [ ] Finish native UI/UX source/device audit, particularly assignment score/excused/ungraded/letter presentation, dropped rows, Categories route and course-sheet/back/graph interactions.
 - [ ] Verify beginner public template signup/permissions/Git dropdown/generated copy/Free-plan build/resources/password setup. CLI deployment alone is insufficient ease evidence; no terminal or manually created token for end users.
