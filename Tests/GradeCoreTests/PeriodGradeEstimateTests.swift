@@ -67,9 +67,11 @@ final class PeriodGradeEstimateTests: XCTestCase {
     func testActualRefreshReplacesEstimateWithoutWritingScoresOrHistory() throws {
         let input=sources(), courses=Reconciler.reconcile(input)
         let quarter=try XCTUnwrap(courses.first { $0.display.term.id == "Q2" })
-        let before=try JSONEncoder().encode(quarter)
+        let encoder=JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let before=try encoder.encode(quarter)
         XCTAssertNotNil(GradingPeriods.estimatedGrade(for:quarter,among:courses))
-        XCTAssertEqual(try JSONEncoder().encode(quarter),before)
+        XCTAssertEqual(try encoder.encode(quarter),before)
         XCTAssertTrue(quarter.history.isEmpty)
         XCTAssertTrue(quarter.assignments.allSatisfy { $0.display.score.earned == nil })
         var actual=input

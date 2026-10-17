@@ -19,6 +19,7 @@ describe("complete snapshot and cache integration", () => {
     batches: string[][] = [],
     metadataCompleted = 0,
     scalesAfterMetadata: number[] = [];
+  let cooldownDelivered: Promise<void>, resumeCooldownPeers: () => void;
   beforeEach(async () => {
     await repository.clear();
     requests = 0;
@@ -29,6 +30,9 @@ describe("complete snapshot and cache integration", () => {
     batches = [];
     metadataCompleted = 0;
     scalesAfterMetadata = [];
+    cooldownDelivered = new Promise((resolve) => {
+      resumeCooldownPeers = resolve;
+    });
     const data = new Map();
     class RecordingVault extends FixtureVault {
       constructor(ctx: DurableObjectState, env: Env) {
@@ -56,6 +60,11 @@ describe("complete snapshot and cache integration", () => {
           maximumActive = Math.max(maximumActive, active);
           let response: Response;
           try {
+            // Hold successful peers until the fixture's 429 has reached the
+            // transport. Otherwise crypto/timer scheduling can legitimately
+            // finish a peer and start a fifth read before the cooldown arrives.
+            if (limited && !requestURL.pathname.endsWith("/grade_items"))
+              await cooldownDelivered;
             if (slow) await new Promise((r) => setTimeout(r, 5));
             response =
               limited && new URL(req.url).pathname.endsWith("/grade_items")
@@ -64,6 +73,8 @@ describe("complete snapshot and cache integration", () => {
                     headers: { "Retry-After": "30" },
                   })
                 : await original(req);
+            if (limited && response.status === 429)
+              setTimeout(resumeCooldownPeers, 0);
           } finally {
             active--;
             if (
