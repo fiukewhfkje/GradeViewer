@@ -317,6 +317,30 @@ it("can repair a missing launcher even when the app is already on the latest ver
   expect(result.applied).toBe(true);
   expect(result.launcher.toString()).toBe(workflow);
 });
+it("defaults a repair to latest without treating the caller's repository argument as a version", async () => {
+  const cwd = await checkout(),
+    r = release();
+  const original = process.argv;
+  process.argv = ["node", "repair-copy.mjs", "owner/installation"];
+  try {
+    const result = await update(undefined, {
+      cwd,
+      force: true,
+      verify: async () => {},
+      get: async (url: string) => {
+        if (url.endsWith("manifest.json")) {
+          expect(url).toContain("releases/latest/download/");
+          return r.manifest;
+        }
+        return url.endsWith("provenance.json") ? Buffer.from("{}") : r.archive;
+      },
+    });
+    expect(result.applied).toBe(true);
+    expect(result.version).toBe("0.1.4");
+  } finally {
+    process.argv = original;
+  }
+});
 it("uses only actual Cloudflare checks and bounds deployment retries", async () => {
   expect(
     cloudflareBuildStatus({

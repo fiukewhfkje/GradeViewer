@@ -22,6 +22,10 @@ On October 17, 2026, a real **private template repository** was generated throug
 
 Both versions used the actual GitHub Sigstore verifier, exact official release tag/workflow/source digest and archive hashes. The personal Worker name and synthetic configuration remained intact. These private evidence links are accessible to the account owner. Fixtures are retained only as evidence and archived after verification to stop their schedules.
 
+The final asset-based v0.1.5 source was also copied directly from the official template: [its automatic initial run passed](https://github.com/fiukewhfkje/gradeviewer-final-template-probe-20261017/actions/runs/39006344618). A separate copied installation [verified and pushed signed v0.1.5](https://github.com/fiukewhfkje/gradeviewer-install-probe-20261017044121/actions/runs/39006151370). An older v0.1.4 template copy hit the REST download failure; the corrected no-version repair command successfully installed verified v0.1.5. That real invocation caught an argument-default defect, fixed with a regression for v0.1.6.
+
+The standard workflow token was also tested against the existing real production Git integration: [the bot push](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39005985578) automatically caused a successful [Cloudflare build/deployment](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ae60033a-bbfd-4cf0-8313-e11303c697f1). The real production PWA then installed 0.1.5 over 0.1.4 through Update now, retaining synthetic IndexedDB grade state and an unsaved second-tab form. This browser test used no real Schoology credentials; metadata checks confirmed the same Worker address, secret binding and vault namespace.
+
 This is **real GitHub integration evidence**, not a genuine independent-account Cloudflare deployment. `Hakabl/gradeviewer` returned 404 to both authenticated GitHub interfaces in this session. The available Cloudflare OAuth login lists only the maintainer's original account, and its Builds API request returned 403. No connected Cloudflare plugin was available. The original production Git integration can still deploy a normal main-branch push; that does not grant access to Hakabl or establish a fresh second-account setup. No claim of independent Cloudflare E2E or physical-phone acceptance is made.
 
 ## Daily behavior and trust boundary
@@ -55,7 +59,7 @@ This uses the maintainer's already authenticated `gh` CLI to enable/dispatch tha
 For a particular release or rollback:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --version 0.1.5
+npm run update:copy -- OWNER/REPOSITORY --version 0.1.6
 npm run update:copy -- OWNER/REPOSITORY --version 0.1.3
 ```
 
@@ -63,7 +67,7 @@ A rollback changes app source, not the existing URL, vault, secret or browser da
 
 ### Optional preview channel
 
-Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.6-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
+Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.7-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
 
 ```sh
 npm run update:copy -- OWNER/REPOSITORY --preview
@@ -72,7 +76,7 @@ npm run update:copy -- OWNER/REPOSITORY --preview
 Preview selection persists in that copy's non-secret receipt. It accepts only signed official releases and selects the highest valid stable/alpha/beta/rc version. The midnight schedule stays the same; run the command again for an immediate check. Return to stable with:
 
 ```sh
-npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.5
+npm run update:copy -- OWNER/REPOSITORY --stable --version 0.1.6
 ```
 
 No unsigned branch/main build is accepted as a release.
