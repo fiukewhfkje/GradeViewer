@@ -1,5 +1,10 @@
 # Next work
 
+## Repository presentation and eventual native retirement
+
+- [x] Correct GitHub's About description to the current Schoology-only browser/phone app and audit tracked Markdown for retired-provider references.
+- [ ] After several proven PWA releases and physical-device/independent-install update and rollback acceptance, archive the native baseline with a tag, retain useful regression coverage/reference fixtures in PWA-owned tests, replace the Swift release-CI dependency, and remove native source/build files. Preserve the current reference until those prerequisites are met.
+
 ## October 17 automatic updates
 
 - [x] Ship signed stable v0.1.7 with initial automatic README linking; verify real official-template activation/commit and signed rollback/upgrade preserving a customized README; archive the disposable test copy. Launcher permissions are unchanged.

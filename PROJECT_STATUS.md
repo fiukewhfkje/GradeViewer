@@ -2,6 +2,11 @@
 
 The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.7](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.7) is published and deployed. Native production sources and the Mac resigning setup remain unchanged.
 
+## Repository description and native retirement
+
+- Corrected GitHub's separate About description to **Personal Schoology grade viewer for your browser and phone, with automatic updates.** Verified the live repository metadata and audited tracked Markdown for retired-provider references; none remain. GitHub metadata is separate from the README. This is a repository/documentation correction, with no app or release change.
+- Keep Swift temporarily as a reference: release CI currently runs 119 Swift tests and 1,200 Swift/TypeScript calculation comparisons. After several proven PWA releases and physical-device/independent-install update and rollback acceptance, preserve an explicit native archive tag, retain useful reference fixtures/regression coverage in PWA-owned tests, and replace the Swift CI dependency before removing native sources/build files. Swift is not shipped in the PWA. No native files were removed in this follow-up.
+
 ## Personal-copy README / v0.1.7 — shipped
 
 - Added initial-template README configuration within the existing updater CLI. It uses the initial default-branch push, official GitHub template metadata, matching initial commit, clean README and full-repository layout as guards. It stages only that root README alongside normal app updates; ordinary source releases do not rewrite owner documentation. The official source guide, existing copies, manually customized READMEs and isolated app roots are skipped. No workflow YAML, permissions, Cloudflare resources, credentials or native behavior changes.
