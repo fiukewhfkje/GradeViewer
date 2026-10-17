@@ -2,7 +2,9 @@
 
 ## v0.1.5 live-lookup follow-up
 
-v0.1.4 shipped in PR #12 with green CI and automatic production deployment. Live verification then found GitHub REST HTTP 429 from Cloudflare; the asset route returned 200. The corrected reader was deployed to an isolated real Cloudflare probe and returned the stable version and Last-Modified timestamp. v0.1.5 removes the REST dependency for stable checks while retaining cryptographic source verification. The v0.1.5 production build, 139 tests, 26 flows per browser and standalone template checks pass locally. A real signed repair restored a deliberately removed fixture workflow and ran automatically. The real production PWA upgrade is being tested with synthetic local state and an unsaved second tab.
+v0.1.4 shipped in PR #12 with green CI and automatic production deployment. Live verification then found GitHub REST HTTP 429 from Cloudflare; the asset route returned 200. The corrected reader was deployed to an isolated real Cloudflare probe and returned the stable version and Last-Modified timestamp. v0.1.5 removes the REST dependency for stable checks while retaining cryptographic source verification. The v0.1.5 production build, 139 tests, 26 flows per browser and standalone template checks pass locally. A real signed repair restored a deliberately removed fixture workflow and ran automatically. The actual production PWA upgraded 0.1.4→0.1.5 through Update now, retained the identical synthetic IndexedDB grade-state hash and left an unsaved second-tab form intact. Official release discovery succeeded. [PR #13 CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39005721609) and [v0.1.5 release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39005928211) passed; the actual published signature/archive hashes were verified. No real owner credential or Schoology data was used.
+
+A built-in GITHUB_TOKEN bot push in [39005985578](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39005985578) caused a successful [real Cloudflare Git build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ae60033a-bbfd-4cf0-8313-e11303c697f1). This establishes that token’s external deployment trigger on the existing integration; independent-account Cloudflare setup remains unverified.
 
 ## v0.1.4 automatic-update verification
 
@@ -12,7 +14,7 @@ These results do **not** constitute independent-account Cloudflare E2E. Exact ru
 
 ## Prior released evidence
 
-Current release: [v0.1.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.3). [Release CI 39000465199](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000465199) passed all checks and published source/manifest/provenance. Production HTML and JavaScript/CSS/service-worker hashes match the tested build. Physical Home Screen containers remain unverified.
+Historical v0.1.3 release: [v0.1.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.3). [Release CI 39000465199](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000465199) passed all checks and published source/manifest/provenance. Production HTML and JavaScript/CSS/service-worker hashes match the tested build. Physical Home Screen containers remain unverified.
 
 [Production](https://gradeviewer.fiukewhfkje.workers.dev) is deployed and connected. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged once as `1b60b6f`, retaining native baseline `3447420`. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published; [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) is green. Final delivery evidence is in PROJECT_STATUS.md; historical staging measurements remain below.
 

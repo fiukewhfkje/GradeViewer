@@ -178,7 +178,7 @@ export async function applyRelease(
   return manifest;
 }
 export async function update(
-  requested = process.argv[2],
+  requested,
   {
     get = download,
     verify = verifyProvenance,
@@ -308,4 +308,4 @@ export async function update(
   return { applied, version, channel, launcher };
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  await update();
+  await update(process.argv[2]);
