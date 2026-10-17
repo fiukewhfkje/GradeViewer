@@ -4,27 +4,38 @@ Your personal Schoology grade viewer, in a browser or on your phone. Your own Cl
 
 ## Set up your copy
 
-1. **[Create your GradeViewer copy](https://github.com/new?template_owner=fiukewhfkje&template_name=GradeViewer&name=gradeviewer&visibility=private).** Sign in to GitHub, keep the name `gradeviewer`, choose **Private**, and create the repository. Keep **Include all branches** off. This includes the automatic updater; you do not create or edit any code.
-2. Open **[Cloudflare setup](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)** → **Continue with GitHub**. On **Select a repository**, choose your GitHub account, select the `gradeviewer` copy you just created, then click **Next**. If asked to authorize Cloudflare, include that copy. This link skips the empty projects page.
-3. On **Set up your application**, confirm the repository at the top is **your account / gradeviewer**, then use these settings:
+Follow these steps in order. Everything happens in your browser.
 
-   | Setting | Value |
+1. **Create your free accounts.** If you do not have GitHub, [sign up for GitHub](https://github.com/signup) and finish its email verification. Then [sign up for Cloudflare](https://dash.cloudflare.com/sign-up): enter your email and a password, click **Create Account**, and open Cloudflare's verification email. Stay signed in to both accounts. Use the **Free** plan if asked. You do not need to buy or add a domain.
+
+2. **Create your GradeViewer copy.** Open **[Create your GradeViewer copy](https://github.com/new?template_owner=fiukewhfkje&template_name=GradeViewer&name=gradeviewer&visibility=private)**. Keep the name `gradeviewer`, choose **Private**, leave **Include all branches** off, and create the repository. Your copy includes the automatic updater.
+
+3. **Connect your copy to Cloudflare.** Open **[Cloudflare setup](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)**. If Cloudflare shows a welcome or domain-setup page after signup, use this link to go to app setup. Select your Cloudflare account if asked, then click **Continue with GitHub**.
+
+   If asked to connect GitHub, sign in to the same GitHub account you used above and allow Cloudflare to access your new `gradeviewer` repository. Back in Cloudflare, on **Select a repository**, choose your GitHub account, select `gradeviewer`, then click **Next**.
+
+4. **Fill in the deployment form.** On **Set up your application**, check that the repository at the top is **your account / gradeviewer**. Enter these values:
+
+   | Field | What to enter |
    | --- | --- |
    | Project name | `gradeviewer` |
-   | Build command | Enter `npm run build` in the empty field. |
-   | Deploy command | Replace `npx wrangler deploy` with `npm run deploy`. |
-   | Preview command | Leave `npx wrangler preview`; it is unused with preview builds off. |
-   | Enable Preview builds | **Off** |
-   | Protect with Cloudflare Access | Leave **Off**; GradeViewer uses its own app password. |
+   | Build command | `npm run build` — enter this in the empty field. |
+   | Deploy command | `npm run deploy` — replace the existing `npx wrangler deploy`. |
+   | Preview command | Leave `npx wrangler preview` unchanged. |
+   | Enable Preview builds | Turn **Off**. The Preview command will not run. |
+   | Protect with Cloudflare Access | Leave **Off**. GradeViewer has its own app password. |
    | Advanced settings → Root directory | `web` |
-   | Advanced settings → Build variables and secrets | Add a **Secret** named `APP_PASSWORD`: a new password of at least 12 characters. Generate and save it with your password manager. |
+   | Advanced settings → Build variables and secrets | Add a **Secret** named `APP_PASSWORD`. Set its value to a new password of at least 12 characters, and save it in your password manager. |
 
-   Expand **Advanced settings** to enter the last two settings, then click **Deploy**. The empty build field and default deploy command must be changed as shown above.
+   Expand **Advanced settings** to enter the last two settings. The `APP_PASSWORD` is the password you will use to unlock GradeViewer; it can be different from your Cloudflare password.
 
-4. Open and bookmark your new **workers.dev** website. In **Profile**, unlock with your saved app password. Tap **Get my Schoology keys**, sign in to Schoology, and connect using your own personal API key and secret. Your school must allow personal API access.
-5. Use the website, or choose **Profile → Add to Home Screen** for phone installation instructions. Return through your personal website address.
+5. **Deploy and save your website.** Click **Deploy** and wait for a successful deployment. If Cloudflare asks you to choose a `workers.dev` subdomain, choose an available name. Open the website address Cloudflare gives you and bookmark it. It will look like `https://gradeviewer.your-name.workers.dev`.
 
-**Why create the GitHub copy first?** Cloudflare's public-repository import can omit GitHub Actions workflows. GitHub's template-copy path includes and enables the updater automatically. You do not need a token, a terminal, a manual workflow file, or an initial “Commit changes” step. The verified GitHub-copy/update results and the remaining independent Cloudflare verification limit are recorded in [the update guide](https://github.com/fiukewhfkje/GradeViewer/blob/main/docs/AUTOMATIC_UPDATES.md).
+6. **Connect Schoology.** On your new website, open **Profile** and unlock with the `APP_PASSWORD` you saved in step 4. Tap **Get my Schoology keys**, sign in to Schoology, and follow the instructions to connect your personal API key and secret. Your school must allow personal API access.
+
+You can now use GradeViewer at your bookmarked address. To install it on your phone, open **Profile → Add to Home Screen** and follow the instructions there. Future updates are automatic; you do not repeat setup.
+
+**Why create the GitHub copy first?** It includes automatic updates. The old **Deploy to Cloudflare** import can omit the updater. [Setup details and verification](https://github.com/fiukewhfkje/GradeViewer/blob/main/docs/AUTOMATIC_UPDATES.md).
 
 ## Updates
 

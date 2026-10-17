@@ -1,28 +1,6 @@
 # Set up your own GradeViewer
 
-Follow the five short [README steps](../README.md). The supported setup creates your GitHub copy **first**, then connects that existing copy to Cloudflare. This includes the updater without asking you to create or edit a workflow.
-
-You need your own free GitHub and Cloudflare accounts. Account signup, email verification and approving their connection are normal one-time account steps. You do not need Git commands or an API token.
-
-1. Use **Create your GradeViewer copy** in the README. Keep `gradeviewer`, choose **Private**, leave **Include all branches** off and create it.
-2. Open **[Cloudflare setup](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create)**. This skips the projects list. On **Make something new**, choose **Continue with GitHub**. On **Select a repository**, choose your GitHub account, select **your newly created `gradeviewer` copy**, then click **Next**. If Cloudflare asks for repository access, include that copy.
-3. On **Set up your application**, confirm the repository belongs to your account, then fill the form below. Click **Deploy** after completing **Advanced settings**.
-
-   | Field | What to enter |
-   | --- | --- |
-   | Project name | `gradeviewer` |
-   | Build command | Enter `npm run build`; the field starts empty. |
-   | Deploy command | Replace `npx wrangler deploy` with `npm run deploy`. |
-   | Preview command | Leave `npx wrangler preview`; it is unused while preview builds are off. |
-   | Enable Preview builds | Turn **Off**. |
-   | Protect with Cloudflare Access | Leave **Off**. GradeViewer has its own app password. |
-   | Advanced settings → Root directory | Set to `web`. |
-   | Advanced settings → Build variables and secrets | Add a **Secret** named `APP_PASSWORD`, with a new password of at least 12 characters. Save it in your password manager. |
-
-4. Open and bookmark the personal **workers.dev** website. The bare account subdomain is not the app; use the full `https://gradeviewer.<your-subdomain>.workers.dev` address.
-5. Open **Profile**, unlock with your saved password, then use **Get my Schoology keys** to obtain and connect your own personal key and secret. Your school must permit API access. **Add to Home Screen** provides phone installation instructions.
-
-Use your personal website thereafter. Creating another copy or deploying another Worker is not part of normal updates. You stay unlocked for up to 90 days per browser.
+The [README setup guide](../README.md#set-up-your-copy) starts with creating free GitHub and Cloudflare accounts, including email verification. It gives the complete browser-only sequence through Schoology connection and phone installation. Follow those six steps in order.
 
 ## Can the link open the final form directly?
 

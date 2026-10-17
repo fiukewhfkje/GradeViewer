@@ -2,6 +2,8 @@
 
 ## October 17 automatic updates
 
+- [x] Rewrite both READMEs for a user with no Cloudflare account: signup/email verification, free account/no domain, GitHub authorization, complete form values, deployment URL and Schoology connection in six ordered steps.
+
 - [x] Match README/onboarding to the actual existing-repository Cloudflare screens, correct build/deploy defaults and advanced settings, and shorten the setup link to Create application. Do not claim an unverified final-form shortcut.
 - [x] Verify Cloudflare/GitHub import constraints and replace the unsupported automatic-workflow claim with clear template-first setup.
 - [x] Include the canonical root launcher, midnight Eastern/DST schedule, automatic initial run, verified script updates, limited deployment retry and monthly check receipt.
