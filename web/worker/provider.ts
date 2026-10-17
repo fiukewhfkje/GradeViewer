@@ -111,13 +111,15 @@ export async function readProvider(
             : raw
               ? Math.ceil((Date.parse(raw) - Date.now()) / 1000)
               : 60;
+      await response.body?.cancel();
       throw new ApiError(
         429,
         "rateLimited",
         Math.max(1, Number.isFinite(seconds) ? seconds : 60),
       );
     }
-    if (!response.ok)
+    if (!response.ok) {
+      await response.body?.cancel();
       throw new ApiError(
         response.status === 401 || response.status === 403
           ? response.status
@@ -128,8 +130,11 @@ export async function readProvider(
             ? "schoologyAccessDenied"
             : "providerUnavailable",
       );
-    if (Number(response.headers.get("Content-Length")) > 4000000)
+    }
+    if (Number(response.headers.get("Content-Length")) > 4000000) {
+      await response.body?.cancel();
       throw new ApiError(502, "providerTooLarge");
+    }
     const reader = response.body?.getReader();
     if (!reader) throw new ApiError(502, "malformedProvider");
     let size = 0;

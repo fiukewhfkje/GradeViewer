@@ -608,7 +608,7 @@ export class CredentialVault {
               );
             let scheduled = required;
             // Keep a Free-plan invocation below 50 subrequests, including redirects.
-            // Four in-flight reads leave headroom under Cloudflare's six-connection limit.
+            // Five in-flight reads leave one slot under Cloudflare's six-connection limit.
             let cursor = 0,
               subrequests = 0,
               responseBytes = 0;
@@ -651,13 +651,13 @@ export class CredentialVault {
               }
             };
             await Promise.all(
-              Array.from({ length: Math.min(4, scheduled.length) }, run),
+              Array.from({ length: Math.min(5, scheduled.length) }, run),
             );
             if (snapshotReady(scan)) {
               scheduled = optional;
               cursor = 0;
               await Promise.all(
-                Array.from({ length: Math.min(4, scheduled.length) }, run),
+                Array.from({ length: Math.min(5, scheduled.length) }, run),
               );
             } else
               for (const index of optional)

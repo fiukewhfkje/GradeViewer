@@ -62,7 +62,7 @@ describe("complete snapshot and cache integration", () => {
           try {
             // Hold successful peers until the fixture's 429 has reached the
             // transport. Otherwise crypto/timer scheduling can legitimately
-            // finish a peer and start a fifth read before the cooldown arrives.
+            // finish a peer and start another read before the cooldown arrives.
             if (limited && !requestURL.pathname.endsWith("/grade_items"))
               await cooldownDelivered;
             if (slow) await new Promise((r) => setTimeout(r, 5));
@@ -132,13 +132,13 @@ describe("complete snapshot and cache integration", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
   const status = () => api<Status>("status");
-  it("bounds hosted batches to four provider reads and validates every job before any read", async () => {
+  it("bounds hosted batches to five provider reads and validates every job before any read", async () => {
     slow = true;
     await readSnapshot(emptyState(), await status(), {
       key: "fixture",
       secret: "fixture-secret",
     });
-    expect(maximumActive).toBe(4);
+    expect(maximumActive).toBe(5);
     const { scan } = await api<{ scan: string }>("scan/start", {});
     await api("scan/read", { scan, resource: "sections" });
     const count = requests;
@@ -265,10 +265,10 @@ describe("complete snapshot and cache integration", () => {
         ),
       },
     );
-    expect(requests).toBeLessThanOrEqual(4);
+    expect(requests).toBeLessThanOrEqual(5);
     expect(
       result.results.filter((r) => !r.ok && r.error === "rateLimited").length,
-    ).toBeGreaterThanOrEqual(9);
+    ).toBeGreaterThanOrEqual(8);
     await expect(
       api("scan/start", { key: "fixture", secret: "fixture-secret" }),
     ).rejects.toMatchObject({ code: "rateLimited" });
