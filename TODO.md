@@ -2,6 +2,7 @@
 
 ## Repository presentation and eventual native retirement
 
+- [x] Delete all five archived disposable GradeViewer probe repositories at the owner's request; verify the other eight repositories remain and mark historical probe run links as unavailable.
 - [x] Correct GitHub's About description to the current Schoology-only browser/phone app and audit tracked Markdown for retired-provider references.
 - [ ] After several proven PWA releases and physical-device/independent-install update and rollback acceptance, archive the native baseline with a tag, retain useful regression coverage/reference fixtures in PWA-owned tests, replace the Swift release-CI dependency, and remove native source/build files. Preserve the current reference until those prerequisites are met.
 

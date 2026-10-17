@@ -1,5 +1,7 @@
 # PWA verification — October 17, 2026
 
+Cleanup follow-up: all five disposable private GitHub probe repositories were deleted at the owner's request on October 17. Their run links below are historical and now unavailable; summaries record prior observations, not retained remote logs. Official GradeViewer CI/release links remain separate. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the verified cleanup scope.
+
 The latest release evidence is first. Version-specific and original staging records below are historical; current setup instructions are in [PWA_ONBOARDING.md](PWA_ONBOARDING.md).
 
 ## v0.1.7 template README verification
