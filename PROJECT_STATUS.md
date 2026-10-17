@@ -2,6 +2,13 @@
 
 The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published. Native production sources and the Mac resigning setup remain unchanged.
 
+## v0.1.1 onboarding follow-up — October 16, 2026
+
+- The user's new-account Cloudflare screenshot exposed remaining setup confusion. Both READMEs and the setup guide now explain the two accounts, use the exact **New GitHub connection** label, cover every visible field, and recommend disabling unnecessary preview builds. Update/privacy detail is collapsed below the setup instructions. The screenshot establishes the form, not successful novice completion.
+- Reduced APP_PASSWORD's minimum from 20 to 12 characters in both the deploy helper and runtime, with matching template/error/help text. A unique password-manager-generated password remains recommended. Existing passwords, encrypted vaults and sessions keep their behavior; this patch does not rotate the owner's password.
+- Unlock help explains password-manager saving and the existing 90-day session; the input has a password name/autocomplete hint. Production build and **113 tests passed**, including deployment rejection before mutation at 11 characters and successful deployment/runtime authentication at 12.
+- Package version is 0.1.1 for the standard keyless release/update workflow. Native production files and the one-migration-merge history are unchanged. Physical phone, completed novice signup and copied remote deployment/rollback limits below remain.
+
 ## Final delivery — October 16, 2026
 
 - Production `gradeviewer` and its SQLite vault were created in the owner's account. A generated private owner password is configured as the runtime secret and the production Builds secret. The login handoff is outside Git at `/workspace/.gradeviewer-private/GradeViewer-your-private-login.txt` (private permissions); no credential value is committed or displayed. The owner only needs to unlock once; Schoology keys are already configured and encrypted.

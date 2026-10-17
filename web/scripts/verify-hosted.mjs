@@ -31,7 +31,7 @@ const password =
         await readFile(process.env.GRADEVIEWER_TEST_PASSWORD_FILE, "utf8")
       ).trim()
     : "");
-if (password.length < 20)
+if (password.length < 12)
   throw new Error("A private test app password is required.");
 const credentials =
   mode === "connect"

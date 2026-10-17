@@ -2,6 +2,12 @@
 
 [Production](https://gradeviewer.fiukewhfkje.workers.dev) is deployed and connected. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged once as `1b60b6f`, retaining native baseline `3447420`. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published; [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) is green. Final delivery evidence is in PROJECT_STATUS.md; historical staging measurements remain below.
 
+## v0.1.1 setup follow-up
+
+The user's screenshot confirms the fresh-account Cloudflare form, with **New GitHub connection**, project/password/build/deploy fields and preview-build toggle. Both READMEs and the [setup guide](PWA_ONBOARDING.md) now use those exact labels and explain what to keep or select. This is observed setup friction, not evidence of a completed novice deployment.
+
+The password minimum is now 12 characters throughout the deployment/runtime and user-facing text. Build and **113 synthetic tests passed**, including an 11-character rejection before deployment changes and a 12-character successful deployment/unlock. Existing rotation/session/encrypted-credential lifecycle checks still pass. No extra live Schoology/performance runs were needed for this change. Earlier 111-test and v0.1.0 evidence below is historical.
+
 ## Implementation and parity evidence
 
 The self-contained `web/` app includes the React/TypeScript UI, Schoology ports, user-owned Worker/SQLite encrypted credential vault, browser-local grade/history/scenario persistence, atomic prepared-save recovery, fresh-on-open gate, controlled static-shell PWA updates, personal URL/installation help and bounded read-only provider transport. It includes native-style local grade edits/drop/add/reset/removal, semester summaries, dated quarters/exams, progression, estimates and final calculator. Latest UI corrections restore native colors/update labels/what-if delta and collapsible assignment groups with semester/quarter cards.
@@ -31,7 +37,7 @@ Opt-in live tests are excluded from CI. From `web/`, use `npm run verify:hosted 
 
 ## Credentials and privacy
 
-Deployment requires a private APP_PASSWORD of at least 20 characters. The deploy helper moves the build secret to the selected Worker's runtime via stdin; ordinary updates preserve it. Persistent sessions use hashed opaque IDs and 90-day Secure/HttpOnly/SameSite=Strict host cookies, origin checks and revocation. AES-GCM envelope encryption separates ciphertext from the Worker root secret. Cloudflare executes decryption/signing; this is not encryption from Cloudflare.
+Deployment requires a unique private APP_PASSWORD of at least 12 characters (reduced from 20 in v0.1.1). Password-manager generation is recommended. The deploy helper moves the build secret to the selected Worker's runtime via stdin; ordinary updates preserve it. Persistent sessions use hashed opaque IDs and 90-day Secure/HttpOnly/SameSite=Strict host cookies, origin checks and revocation. AES-GCM envelope encryption separates ciphertext from the Worker root secret. Cloudflare executes decryption/signing; this is not encryption from Cloudflare.
 
 Schoology identity is verified before student reads, account changes require disconnect, and staged credentials activate only after full parsing/prepared browser persistence. Failure retains the prior connection/snapshot. Grades/history/scenarios remain in versioned IndexedDB. Browser storage loss cannot recover local-only edits/history. Changing APP_PASSWORD revokes sessions and requires re-entering Schoology keys; native Keychain/history does not import.
 

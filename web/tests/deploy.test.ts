@@ -2,6 +2,18 @@ import { describe, it, expect } from "vitest";
 // @ts-expect-error Deployment helper intentionally uses plain JavaScript.
 import { deploy } from "../scripts/deploy.mjs";
 describe("no-terminal password setup", () => {
+  it("accepts a 12-character password and rejects 11 before changing deployment", async () => {
+    const calls: string[][] = [];
+    const run = async (args: string[]) => {
+      calls.push(args);
+    };
+    await expect(deploy({ APP_PASSWORD: "test-only12" }, run)).rejects.toThrow(
+      "at least 12 characters",
+    );
+    expect(calls).toHaveLength(0);
+    await deploy({ APP_PASSWORD: "test-only123" }, run);
+    expect(calls).toEqual([["secret", "bulk"], ["deploy"]]);
+  });
   it("sends the password only over stdin and retains Cloudflare authentication", async () => {
     const calls: {
       args: string[];

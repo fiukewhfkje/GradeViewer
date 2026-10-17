@@ -382,7 +382,7 @@ export class CredentialVault {
   private async handle(request: Request) {
     let vault: Vault | undefined;
     try {
-      if (!this.env.APP_PASSWORD || this.env.APP_PASSWORD.length < 20)
+      if (!this.env.APP_PASSWORD || this.env.APP_PASSWORD.length < 12)
         throw new ApiError(503, "deploymentPasswordRequired");
       vault = (await this.ctx.storage.get<Vault>("vault")) ?? initial();
       const now = Date.now(),

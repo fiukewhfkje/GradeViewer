@@ -49,7 +49,7 @@ const messages: Record<string, string> = {
   incorrectAppPassword: "That app password was not accepted.",
   loginLimited: "Too many attempts. Please wait before trying again.",
   deploymentPasswordRequired:
-    "Set an app password of at least 20 characters in your Cloudflare deployment.",
+    "Set an app password of at least 12 characters in your Cloudflare deployment.",
   schoologyCredentialsRejected:
     "Schoology did not accept these API keys. Get a new key and secret and try again.",
   schoologyAccessDenied:

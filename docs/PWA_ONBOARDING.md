@@ -1,51 +1,69 @@
-# GradeViewer setup check
+# Set up your own GradeViewer
 
-The migration is a release candidate. The normal README button will work from
-`main/web` after the final migration merge. To test the current candidate, use
-[Set up the candidate](https://deploy.workers.cloudflare.com/?url=https://github.com/fiukewhfkje/GradeViewer/tree/pwa-migration/web).
-This creates a separate copy in your accounts.
+Cloudflare runs your personal app. GitHub keeps a copy of its code so updates
+can deploy automatically. You need a free account on each; you do not need to
+use Git commands or a terminal.
 
-## Three entries to check
+1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/fiukewhfkje/GradeViewer/tree/main/web).
+2. Sign in to Cloudflare or create an account. Complete any email verification
+   it requests, and use the Free plan if asked.
+3. On **Set up your application**, follow the table below.
 
-| Entry | What to choose |
+| Field on Cloudflare's screen | What to do |
 | --- | --- |
-| Git account | Your **GitHub username**. This is where Cloudflare will create your source copy; it is separate from your Cloudflare account. If the list is empty, use the GitHub connection control beside it, approve Cloudflare on GitHub, then return and select your username. |
-| Project/repository name | Accept the suggested name, or choose a short personal name. Leave the suggested build and deploy commands in place. |
-| APP_PASSWORD | Generate a private password of at least 20 characters with your password manager and save it. This unlocks your app; it is separate from your school password and Schoology API secret. |
+| **Git account** | Tap **New GitHub connection**. Sign in to GitHub or create an account, approve Cloudflare's access, then return to Cloudflare and select your GitHub username. If your username is already listed, select it. GitHub is separate from your Cloudflare account. |
+| **Create private Git repository** | You can check this. It keeps your personal copy of the app's code private. A repository is simply where GitHub stores that code. |
+| **Project name** | Leave `gradeviewer`. |
+| **APP_PASSWORD** | Choose a unique GradeViewer unlock password of **at least 12 characters**. Have your password manager generate and save it. It protects your app and is separate from your school password and Schoology API secret. |
+| **Build command** | Leave `npm run build`. |
+| **Deploy command** | Leave `npm run deploy`. |
+| **Enable Preview builds** | Turn this off; you only need the main app. Leave Preview command alone. |
 
-Choose the Free plan when a plan choice appears. Cloudflare should create the
-Worker and its credential storage automatically. Open the resulting
-`https://<your-app>.<your-subdomain>.workers.dev` address; the bare
-`<your-subdomain>.workers.dev` address is not the app.
+4. Tap **Deploy**, wait for success, then open the website ending in
+   **workers.dev**. Cloudflare creates the app and its credential storage for
+   you. The address looks like
+   `https://gradeviewer.<your-subdomain>.workers.dev`; the bare
+   `<your-subdomain>.workers.dev` address is not your app.
+5. In **Profile**, enter your saved app password and tap **Unlock app**.
+   Accept your browser's Save Password offer, if shown. The browser stays
+   unlocked for up to 90 days. If no offer appears, add a password-manager
+   entry with your personal website address and app password.
+6. Tap **Get my Schoology keys**, sign in to your school account, then copy
+   your own API key and secret into GradeViewer and connect. Your school
+   must permit personal API access.
+7. Use the website or choose **Profile → Add to Home Screen**. Profile also
+   shows your personal website address with Copy/Open buttons. Save that
+   address so you can return to your own app.
 
-In Profile, unlock with the saved app password. Tap **Get my Schoology keys**,
-sign in to your school account, paste your own API key and secret, and connect.
-Your school must permit personal API access. Profile shows your personal app
-address with Copy/Open and Add to Home Screen instructions.
+If you already opened Cloudflare's setup form before the v0.1.1 update, it may
+still show the old 20-character description and source. Restart from the
+button before entering a shorter password. Already deployed apps keep their
+existing password; do not change it merely to update.
 
-There are three GradeViewer setup entries above. Cloudflare/GitHub account
-creation, their requested email verification, and GitHub authorization/app
-installation remain actions for the account owner. School sign-in and obtaining
-personal API keys are separate. The number of signup/verification prompts has
-**not** been counted in a fresh-account walkthrough; do not advertise a verified
-click count or one-click setup.
+Cloudflare/GitHub signup, email verification and authorizing their connection
+still require the account owner. School sign-in and obtaining personal API
+keys are separate. This is a personal deployment flow, not a verified
+one-click setup.
 
 ## Evidence still needed from a beginner
 
 Record whether a person with no Git or Cloudflare experience can finish using
-the three entries above. Record confusing labels, every unavoidable account or
+the screen-by-screen instructions above. Record confusing labels, every unavoidable account or
 verification action, whether Free is available without adding payment details,
 whether a repository and Worker appear automatically, and whether the app
 unlocks and connects. Do not record passwords, API keys, cookies or grade data.
-The user previously reached the prefilled build/password form but was confused
-by the Git account list; this guide clarifies that specific field.
+The user reached Cloudflare's fresh-account form and reported confusion about
+the Git connection and 20-character password requirement. The guide now uses
+the form's exact labels, explains both accounts, and recommends disabling
+unneeded preview builds. This screenshot is evidence of the form, not a
+completed beginner deployment.
 
 An authenticated Git push to the maintainer's preview now starts a real
 Cloudflare build/deployment. That proves the existing-account pipeline, not
 new-account signup. Creating a separate test repository through the current
 GitHub integration returned HTTP 403, `Resource not accessible by integration`.
-The account owner must create a copy through the setup flow (or supply an
-accessible existing copy) before the separate-repository chain can be checked.
+The separate-repository chain remains unverified; do not repeat the declined
+manual validation-copy request.
 
 ## Phone acceptance check
 

@@ -1,6 +1,6 @@
 {
   "name": "gradeviewer-pwa",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -40,7 +40,7 @@
   "cloudflare": {
     "bindings": {
       "APP_PASSWORD": {
-        "description": "Choose a private app password (at least 20 characters; your password manager can generate one). Keep it safe. You will use it once to unlock your app. This is NOT your school password."
+        "description": "Choose a new password just for GradeViewer (at least 12 characters). Generate and save it with your password manager. You will enter it to unlock your app after deployment."
       }
     }
   }

@@ -1294,11 +1294,14 @@ function Unlock({
       }}
     >
       <p>
-        Use the private app password you chose when setting up this website.
+        Use the private app password you chose when setting up this website.{" "}
+        Save it in your password manager to autofill it next time. This browser
+        stays unlocked for up to 90 days.
       </p>
       <label>
         App password
         <input
+          name="password"
           autoComplete="current-password"
           type="password"
           value={password}

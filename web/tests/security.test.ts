@@ -191,6 +191,21 @@ function harness() {
   };
 }
 describe("owner authentication and persistent lifecycle", () => {
+  it("unlocks with a 12-character deployment password and rejects shorter configuration", async () => {
+    const h = harness();
+    for (const value of ["", "test-only12"]) {
+      h.env.APP_PASSWORD = value;
+      expect((await h.send("login", { password: value })).status).toBe(503);
+      expect(h.calls).toBe(0);
+    }
+    h.env.APP_PASSWORD = "test-only123";
+    expect(
+      (await h.send("login", { password: h.env.APP_PASSWORD })).status,
+    ).toBe(200);
+    expect(((await (await h.send("status")).json()) as any).authenticated).toBe(
+      true,
+    );
+  });
   it("requires app owner unlock before any provider request", async () => {
     const h = harness();
     expect((await h.send("scan/start", {})).status).toBe(401);

@@ -1,5 +1,9 @@
 # GradeViewer PWA handoff — October 16, 2026
 
+## v0.1.1 setup follow-up
+
+The user reached Cloudflare's setup form from another account and reported confusion and an excessive 20-character password requirement. Both READMEs and PWA_ONBOARDING now explain each visible field, account connection and preview toggle. APP_PASSWORD's minimum is 12 in both deployment and runtime; template/error/help text agrees, with password-manager generation/saving guidance. Build and 113 tests passed. Version is 0.1.1 for the existing keyless patch-release workflow. Do not rotate the owner's existing production password or repeat the migration merge. Fresh-account completion is still unverified; the user's screenshot only confirms the form.
+
 ## Final delivery
 
 The migration is complete as a shipped v0.1.0 implementation. Do not repeat the migration merge, recreate production, or recreate the v0.1.0 tag.
