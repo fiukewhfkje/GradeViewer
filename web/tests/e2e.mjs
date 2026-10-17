@@ -1,12 +1,15 @@
-import { chromium } from "playwright-core";
+import { chromium, webkit } from "playwright-core";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 const port = 8901,
-  base = `http://127.0.0.1:${port}`,
-  directory = ".local-test/e2e";
+  base = `http://localhost:${port}`,
+  engine = process.env.GRADEVIEWER_BROWSER ?? "chromium",
+  directory =
+    engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e";
+assert.ok(["chromium", "webkit"].includes(engine));
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
 let server,
@@ -62,14 +65,17 @@ async function check(name, run) {
 }
 try {
   await start();
-  browser = await chromium.launch({
-    executablePath:
-      process.env.CHROMIUM_PATH ??
-      (existsSync("/usr/bin/chromium")
-        ? "/usr/bin/chromium"
-        : chromium.executablePath()),
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-  });
+  browser =
+    engine === "webkit"
+      ? await webkit.launch()
+      : await chromium.launch({
+          executablePath:
+            process.env.CHROMIUM_PATH ??
+            (existsSync("/usr/bin/chromium")
+              ? "/usr/bin/chromium"
+              : chromium.executablePath()),
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
+        });
   const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -83,7 +89,10 @@ try {
   });
   await check("private API and security headers", async () => {
     const shell = await fetch(base);
-    assert.match(shell.headers.get("Content-Security-Policy"), /default-src 'self'/);
+    assert.match(
+      shell.headers.get("Content-Security-Policy"),
+      /default-src 'self'/,
+    );
     assert.equal(shell.headers.get("Referrer-Policy"), "no-referrer");
     assert.equal(shell.headers.get("Cache-Control"), "no-cache");
     const r = await fetch(base + "/api/scan/start", {
@@ -119,7 +128,8 @@ try {
     "phone pull-to-refresh respects thresholds, cancellation, scrolling and manual refresh rules",
     async () => {
       assert.equal(await page.locator(".desktop-refresh").isVisible(), false);
-      const touch = await context.newCDPSession(page);
+      const touch =
+        engine === "chromium" ? await context.newCDPSession(page) : undefined;
       let scans = 0,
         manual = false;
       const request = (r) => {
@@ -130,11 +140,36 @@ try {
       };
       page.on("request", request);
       const send = (type, x = 30, y = 170) =>
-        touch.send("Input.dispatchTouchEvent", {
-          type,
-          touchPoints:
-            type === "touchEnd" || type === "touchCancel" ? [] : [{ x, y }],
-        });
+        touch
+          ? touch.send("Input.dispatchTouchEvent", {
+              type,
+              touchPoints:
+                type === "touchEnd" || type === "touchCancel" ? [] : [{ x, y }],
+            })
+          : page.evaluate(
+              ({ type, x, y }) => {
+                const kind = {
+                  touchStart: "touchstart",
+                  touchMove: "touchmove",
+                  touchEnd: "touchend",
+                  touchCancel: "touchcancel",
+                }[type];
+                const target = document.querySelector(".app"),
+                  point = { identifier: 1, clientX: x, clientY: y };
+                const event = new Event(kind, {
+                  bubbles: true,
+                  cancelable: true,
+                });
+                Object.defineProperty(event, "touches", {
+                  value:
+                    type === "touchEnd" || type === "touchCancel"
+                      ? []
+                      : [point],
+                });
+                target.dispatchEvent(event);
+              },
+              { type, x, y },
+            );
       try {
         await page.evaluate(() => scrollTo(0, 0));
         await send("touchStart");
@@ -149,20 +184,14 @@ try {
             ["touchmove", 300, 185],
             ["touchend", 300, 185],
           ]) {
-            const touch = new Touch({
-              identifier: 1,
-              target,
-              clientX: x,
-              clientY: y,
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperty(event, "touches", {
+              value:
+                type === "touchend"
+                  ? []
+                  : [{ identifier: 1, clientX: x, clientY: y }],
             });
-            target.dispatchEvent(
-              new TouchEvent(type, {
-                bubbles: true,
-                cancelable: true,
-                touches: type === "touchend" ? [] : [touch],
-                changedTouches: [touch],
-              }),
-            );
+            target.dispatchEvent(event);
           }
         });
         await send("touchStart");
@@ -206,7 +235,7 @@ try {
         await page.getByRole("button", { name: "Grades", exact: true }).click();
       } finally {
         page.off("request", request);
-        await touch.detach();
+        await touch?.detach();
       }
     },
   );
