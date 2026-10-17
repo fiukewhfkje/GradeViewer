@@ -307,6 +307,78 @@ export class CredentialVault {
       ...(resource === "grades" && !section ? { owners: scan.owners } : {}),
     };
   }
+  private async roots(
+    scan: Scan,
+    vault: Vault,
+    now: number,
+    verifiedCredentials?: Credentials,
+  ) {
+    if (now < vault.cooldown)
+      throw new ApiError(
+        429,
+        "rateLimited",
+        Math.ceil((vault.cooldown - now) / 1000),
+      );
+    const credentials =
+      verifiedCredentials ??
+      (await unseal<Credentials>(scan.credentials, this.env.APP_PASSWORD));
+    // Identity was verified by scan/start. Fetch independent discovery reads
+    // together, then process enrollment before resolving the fresh grade owners.
+    const [sectionResult, gradeResult] = await Promise.allSettled([
+      readProvider(
+        `users/${scan.account}/sections?limit=200`,
+        credentials,
+        this.upstream,
+      ),
+      readProvider(
+        `users/${scan.account}/grades?limit=200`,
+        credentials,
+        this.upstream,
+      ),
+    ]);
+    for (const r of [sectionResult, gradeResult])
+      if (
+        r.status === "rejected" &&
+        r.reason instanceof ApiError &&
+        r.reason.code === "rateLimited"
+      )
+        vault.cooldown = Date.now() + (r.reason.retryAfter ?? 60) * 1000;
+    if (sectionResult.status === "rejected") throw sectionResult.reason;
+    // Completed reads may be processed even if the other root hit a cooldown.
+    const sections = await this.read(
+      scan,
+      vault,
+      { resource: "sections" },
+      now,
+      this.upstream,
+      sectionResult.value,
+    );
+    let grades;
+    try {
+      if (gradeResult.status === "rejected") throw gradeResult.reason;
+      grades = {
+        ok: true,
+        value: await this.read(
+          scan,
+          vault,
+          { resource: "grades" },
+          now,
+          this.upstream,
+          gradeResult.value,
+        ),
+      };
+    } catch (error) {
+      const e =
+        error instanceof ApiError ? error : new ApiError(500, "requestFailed");
+      grades = {
+        ok: false,
+        error: e.code,
+        status: e.status,
+        retryAfter: e.retryAfter,
+      };
+    }
+    return { sections, grades };
+  }
   private async handle(request: Request) {
     let vault: Vault | undefined;
     try {
@@ -447,7 +519,21 @@ export class CredentialVault {
             freshMetadata: b.refreshMetadata === true || b.key !== undefined,
             cachedOwners: [],
           };
-          result = json({ scan: id, account });
+          result = json({
+            scan: id,
+            account,
+            revision: vault.revision,
+            ...(b.includeRoots === true
+              ? {
+                  roots: await this.roots(
+                    vault.scans[id],
+                    vault,
+                    Date.now(),
+                    credentials,
+                  ),
+                }
+              : {}),
+          });
         } else if (route === "scan/reuse" && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
@@ -487,74 +573,7 @@ export class CredentialVault {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
           if (!scan) throw new ApiError(409, "scanExpired");
-          if (now < vault.cooldown)
-            throw new ApiError(
-              429,
-              "rateLimited",
-              Math.ceil((vault.cooldown - now) / 1000),
-            );
-          const credentials = await unseal<Credentials>(
-            scan.credentials,
-            this.env.APP_PASSWORD,
-          );
-          // Identity was verified by scan/start. Fetch independent discovery reads
-          // together, then process enrollment before resolving the fresh grade owners.
-          const [sectionResult, gradeResult] = await Promise.allSettled([
-            readProvider(
-              `users/${scan.account}/sections?limit=200`,
-              credentials,
-              this.upstream,
-            ),
-            readProvider(
-              `users/${scan.account}/grades?limit=200`,
-              credentials,
-              this.upstream,
-            ),
-          ]);
-          for (const r of [sectionResult, gradeResult])
-            if (
-              r.status === "rejected" &&
-              r.reason instanceof ApiError &&
-              r.reason.code === "rateLimited"
-            )
-              vault.cooldown = Date.now() + (r.reason.retryAfter ?? 60) * 1000;
-          if (sectionResult.status === "rejected") throw sectionResult.reason;
-          // Completed reads may be processed even if the other root hit a cooldown.
-          const sections = await this.read(
-            scan,
-            vault,
-            { resource: "sections" },
-            now,
-            this.upstream,
-            sectionResult.value,
-          );
-          let grades;
-          try {
-            if (gradeResult.status === "rejected") throw gradeResult.reason;
-            grades = {
-              ok: true,
-              value: await this.read(
-                scan,
-                vault,
-                { resource: "grades" },
-                now,
-                this.upstream,
-                gradeResult.value,
-              ),
-            };
-          } catch (error) {
-            const e =
-              error instanceof ApiError
-                ? error
-                : new ApiError(500, "requestFailed");
-            grades = {
-              ok: false,
-              error: e.code,
-              status: e.status,
-              retryAfter: e.retryAfter,
-            };
-          }
-          result = json({ sections, grades });
+          result = json(await this.roots(scan, vault, now));
         } else if (["scan/read", "scan/read-batch"].includes(route) && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];

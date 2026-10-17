@@ -22,10 +22,13 @@ export async function readSnapshot(
   credentials?: { key: string; secret: string },
   refreshMetadata = false,
 ): Promise<SavedState> {
-  const { scan, account } = await api<{ scan: string; account: string }>(
-    "scan/start",
-    { ...credentials, refreshMetadata },
-  );
+  const started = await api<{
+    scan: string;
+    account: string;
+    revision?: string;
+    roots?: { sections: Page; grades: ReadResult };
+  }>("scan/start", { ...credentials, refreshMetadata, includeRoots: true });
+  const { scan, account } = started;
   async function fingerprintGrade(row: Row) {
     return btoa(
       String.fromCharCode(
@@ -152,10 +155,11 @@ export async function readSnapshot(
     return values;
   }
   try {
-    const roots = await api<{ sections: Page; grades: ReadResult }>(
-      "scan/roots",
-      { scan },
-    );
+    const roots =
+      started.roots ??
+      (await api<{ sections: Page; grades: ReadResult }>("scan/roots", {
+        scan,
+      }));
     prefetched.set("sections::", { ok: true, value: roots.sections });
     prefetched.set("grades::", roots.grades);
     const sections = await read("sections", "section"),
@@ -534,7 +538,7 @@ export async function readSnapshot(
     await repository.prepare({
       state: next,
       account,
-      previousRevision: status.revision,
+      previousRevision: started.revision ?? status.revision,
       scan,
     });
     await api("scan/commit", { scan });

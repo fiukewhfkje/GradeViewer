@@ -302,10 +302,10 @@ export default function App() {
           manual,
         );
         apply(next);
-        setStatus(await api<Status>("status"));
         setFresh(true);
         setDeadline(0);
         channel.current?.postMessage("saved");
+        setStatus(await api<Status>("status"));
       } catch (e) {
         setError(errorMessage(e));
         if (e instanceof RequestError && e.retryAfter)
