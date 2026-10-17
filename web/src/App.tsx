@@ -50,12 +50,8 @@ import {
   estimateQuarter,
   latestGradeUpdate,
 } from "./core/periods";
-import {
-  reliable,
-  hypothetical,
-  requiredFinal,
-  safelyCalculate,
-} from "./core/calculator";
+import { reliable, hypothetical, requiredFinal } from "./core/calculator";
+import { AssignmentScore } from "./AssignmentScore";
 import { progression, curve } from "./core/progression";
 import { demoCourses } from "./core/demo";
 import { usePullRefresh } from "./usePullRefresh";
@@ -475,10 +471,11 @@ export default function App() {
     });
   }
   const original = state.courses.find((c) => c.id === selected),
-    course =
-      (view !== "detail"
-        ? state.courses.find((c) => c.id === period)
-        : undefined) ?? original;
+    course = original
+      ? ((view !== "detail"
+          ? state.courses.find((c) => c.id === period)
+          : undefined) ?? original)
+      : undefined;
   const choose = (c: Course) => {
     setSelected(c.id);
     setPeriod(c.id);
@@ -542,20 +539,7 @@ export default function App() {
                 </small>
               </div>
               <div className={"score " + (modified ? "modified" : "")}>
-                <strong>
-                  {pointsText(s.scores[a.id] ?? a.score.earned)} /{" "}
-                  {pointsText(a.score.possible)}
-                </strong>
-                <small>
-                  {a.score.letter ??
-                    percentText(
-                      a.score.possible && a.score.earned !== undefined
-                        ? ((s.scores[a.id] ?? a.score.earned) /
-                            a.score.possible) *
-                            100
-                        : undefined,
-                    )}
-                </small>
+                <AssignmentScore score={a.score} override={s.scores[a.id]} />
               </div>
               {!readOnly && (
                 <Menu label={"Options for " + a.title}>
@@ -771,7 +755,14 @@ export default function App() {
             >
               Add Grade
             </button>
-            <button onClick={() => setView("categories")}>Categories</button>
+            <button
+              onClick={() => {
+                setView("categories");
+                setPeriod(c.id);
+              }}
+            >
+              Categories
+            </button>
             <button onClick={() => setView("final")}>
               Final Grade Calculator
             </button>
@@ -853,11 +844,9 @@ export default function App() {
                 : selected
                   ? view === "detail"
                     ? original?.title
-                    : view === "assignments"
+                    : view === "assignments" || view === "categories"
                       ? original?.title
-                      : view === "categories"
-                        ? "Categories"
-                        : "Final grade"
+                      : "Final grade"
                   : "My grades"}
             </h1>
           </div>
@@ -1155,49 +1144,7 @@ export default function App() {
             </>
           ) : view === "final" ? (
             <FinalCalculator course={overall(course, state.courses)} />
-          ) : view === "categories" ? (
-            <>
-              {course.categories.map((k) => {
-                const rows = calculationSource(course).assignments.filter(
-                    (a) => a.categoryID === k.id,
-                  ),
-                  value = safelyCalculate(
-                    {
-                      ...course,
-                      assignments: rows,
-                      categories: [{ ...k, weight: 1 }],
-                      method: "weightedCategories",
-                    },
-                    {
-                      ...scenario(course),
-                      added: scenario(course).added.filter(
-                        (a) => a.categoryID === k.id,
-                      ),
-                    },
-                  );
-                return (
-                  <section key={k.id}>
-                    <div className="section-heading">
-                      <h2>{k.name}</h2>
-                      <span>
-                        {k.weight !== undefined ? k.weight + "% weight" : ""}
-                      </span>
-                    </div>
-                    <p className="muted">
-                      {k.method === "points"
-                        ? "Total points"
-                        : "Average percentages"}
-                      {k.dropLowest ? ` · Drop lowest ${k.dropLowest}` : ""}
-                    </p>
-                    <Grade percent={value} />
-                  </section>
-                );
-              })}
-              {!course.categories.length && (
-                <p className="muted">No categories available.</p>
-              )}
-            </>
-          ) : view === "assignments" ? (
+          ) : view === "assignments" || view === "categories" ? (
             <>
               <div className="pills" aria-label="Assignment periods">
                 {assignmentPeriods(original!, state.courses).map((c) => (

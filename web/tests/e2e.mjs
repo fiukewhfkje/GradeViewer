@@ -391,6 +391,18 @@ try {
       .click();
     await page.locator(".dropped").waitFor();
     assert.equal(await page.locator(".dropped").count(), 1);
+    assert.equal(
+      await page
+        .locator(".dropped .row-text")
+        .evaluate((el) => getComputedStyle(el).textDecorationLine),
+      "none",
+    );
+    assert.equal(
+      await page
+        .locator(".dropped .score")
+        .evaluate((el) => getComputedStyle(el).textDecorationLine),
+      "line-through",
+    );
     await page
       .getByLabel("Options for " + assignmentTitle, { exact: true })
       .click();
@@ -445,6 +457,14 @@ try {
     await page.getByRole("button", { name: "Q1", exact: true }).click();
     await expandAssignmentGroups();
     await page.getByText("Upcoming assignment", { exact: true }).waitFor();
+    assert.equal(
+      await page
+        .locator(".assignment")
+        .filter({ has: page.getByText("Upcoming assignment", { exact: true }) })
+        .locator(".score")
+        .innerText(),
+      "—",
+    );
     assert.ok(
       (await page.locator(".rows").allInnerTexts())
         .join("\n")
@@ -464,10 +484,9 @@ try {
     await page.getByLabel("Back", { exact: true }).click();
     await page.getByLabel("Course options", { exact: true }).click();
     await page.getByRole("button", { name: "Categories", exact: true }).click();
-    await page
-      .getByRole("heading", { name: "Practice", exact: true })
-      .waitFor();
+    await page.getByLabel("Practice", { exact: true }).waitFor();
     await page.getByLabel("Close course", { exact: true }).click();
+    await page.getByRole("button", { name: /AP Biology/ }).waitFor();
   });
   await check(
     "phone layout, dark mode, personal URL and installation help",

@@ -252,22 +252,25 @@ main > section + section {
   font-weight: 600;
 }
 .score {
+  color: var(--grade);
   text-align: right;
   flex-shrink: 0;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 .score small {
+  color: inherit;
   justify-content: flex-end;
   margin-top: 6px;
 }
 .modified {
   color: var(--blue);
 }
-.dropped > .row-text,
 .dropped > .score {
   text-decoration: line-through;
-  opacity: 0.5;
+}
+.score-label {
+  color: var(--muted);
 }
 .muted {
   color: var(--muted);
