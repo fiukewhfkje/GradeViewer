@@ -6,7 +6,7 @@ The user reached Cloudflare's setup form from another account and reported confu
 
 ## v0.1.2 follow-up
 
-Current source restores the native filled chart, spinner-only phone refresh with an isolated scroll view, tighter grouped Profile rows and Check for updates / Update now. Version 0.1.2 uses the existing release/deployment pipeline. Local build, 121 tests and 25 Chromium browser flows pass. Standalone flags are emulated; physical Home Screen behavior is not claimed. See PROJECT_STATUS.md and PWA_VALIDATION.md for delivery evidence. Documentation is Schoology-only; earlier superseded research remains in Git history.
+Current source restores the native filled chart, spinner-only phone refresh with an isolated scroll view, tighter grouped Profile rows and Check for updates / Update now. Version 0.1.2 uses the existing release/deployment pipeline. Local build, 121 tests and 25 Chromium browser flows pass. [PR #10](https://github.com/fiukewhfkje/GradeViewer/pull/10) merged as `8478870`; final [CI 38999924488](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38999924488) passed Chromium/WebKit (25 flows each), native reference/calculation comparisons and real release provenance. Standalone flags are emulated; physical Home Screen behavior is not claimed. See PROJECT_STATUS.md and PWA_VALIDATION.md for delivery evidence. Documentation is Schoology-only; earlier superseded research remains in Git history.
 
 ## Final delivery
 
