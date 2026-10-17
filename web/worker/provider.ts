@@ -82,7 +82,9 @@ export async function readProvider(
           signal: AbortSignal.timeout(25000),
         }),
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "batchDeferred")
+        throw error;
       throw new ApiError(502, "providerUnavailable");
     }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -97,6 +99,7 @@ export async function readProvider(
         )
       )
         throw new ApiError(502, "invalidRedirect");
+      await response.body?.cancel();
       url = next;
       continue;
     }

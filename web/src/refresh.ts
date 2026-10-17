@@ -48,8 +48,8 @@ export async function readSnapshot(
   async function preload(
     jobs: { resource: string; section: string; extra?: string }[],
   ) {
-    for (let offset = 0; offset < jobs.length; offset += 4) {
-      const chunk = jobs.slice(offset, offset + 4);
+    for (let offset = 0; offset < jobs.length; offset += 32) {
+      const chunk = jobs.slice(offset, offset + 32);
       const { results } = await api<{ results: ReadResult[] }>(
         "scan/read-batch",
         { scan, jobs: chunk },
@@ -81,13 +81,21 @@ export async function readSnapshot(
           const cached = !next && prefetched.get(key);
           if (cached) {
             prefetched.delete(key);
-            if (!cached.ok)
+            if (!cached.ok && cached.error === "batchDeferred")
+              response = await api("scan/read", {
+                scan,
+                resource,
+                section,
+                extra,
+                next,
+              });
+            else if (!cached.ok)
               throw new RequestError(
                 cached.error,
                 cached.retryAfter,
                 cached.status,
               );
-            response = cached.value;
+            else response = cached.value;
           } else
             response = await api("scan/read", {
               scan,
@@ -211,43 +219,36 @@ export async function readSnapshot(
         await api("scan/reuse", { scan, sections });
         sections.forEach((id) => reused.add(id));
       } catch {
-        /* Check individual receipts below if one expired or changed. */
+        /* Renew all affected metadata when a receipt expired or changed. */
       }
     }
+    await preload(
+      selectedBatches
+        .filter(({ id }) => !reused.has(id))
+        .flatMap(({ id }) =>
+          ["section", "items", "categories", "periods"].map((resource) => ({
+            resource,
+            section: id,
+          })),
+        ),
+    );
     for (const { id, match, owner } of selectedBatches) {
       const fingerprint = fingerprints.get(id)!,
         cached = previous.metadata?.[id];
-      if (
-        !credentials &&
-        !refreshMetadata &&
-        cached?.account === account &&
-        cached.fingerprint === fingerprint &&
-        Date.now() - cached.fetched < 5 * 60000
-      ) {
-        try {
-          if (!reused.has(id)) await api("scan/reuse", { scan, section: id });
-          metadata[id] = cached;
-          payloads.push({
-            p: {
-              ...structuredClone(cached.payload),
-              grades: { section: [match] },
-              owner,
-              fetched: Date.now(),
-            },
-            enrollment: id,
-            cachedAt: cached.fetched,
-          });
-          continue;
-        } catch {
-          /* Renew metadata when the server receipt has expired. */
-        }
+      if (reused.has(id) && cached) {
+        metadata[id] = cached;
+        payloads.push({
+          p: {
+            ...structuredClone(cached.payload),
+            grades: { section: [match] },
+            owner,
+            fetched: Date.now(),
+          },
+          enrollment: id,
+          cachedAt: cached.fetched,
+        });
+        continue;
       }
-      await preload(
-        ["section", "items", "categories", "periods"].map((resource) => ({
-          resource,
-          section: id,
-        })),
-      );
       const [section] = await read("section", undefined, id),
         items = await read("items", "assignment", id),
         categories = await read("categories", "grading_category", id),

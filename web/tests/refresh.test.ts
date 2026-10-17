@@ -11,6 +11,8 @@ describe("complete snapshot and cache integration", () => {
     cookie = "",
     omitBulkOwner = false,
     slow = false,
+    redirects = false,
+    large = false,
     limited = false,
     active = 0,
     maximumActive = 0;
@@ -19,7 +21,7 @@ describe("complete snapshot and cache integration", () => {
     requests = 0;
     cookie = "";
     omitBulkOwner = false;
-    slow = limited = false;
+    slow = limited = redirects = large = false;
     active = maximumActive = 0;
     const data = new Map();
     class RecordingVault extends FixtureVault {
@@ -28,6 +30,20 @@ describe("complete snapshot and cache integration", () => {
         const original = this.upstream;
         this.upstream = async (req) => {
           requests++;
+          const requestURL = new URL(req.url);
+          if (
+            redirects &&
+            Number(requestURL.searchParams.get("offset") ?? 0) < 3
+          ) {
+            requestURL.searchParams.set(
+              "offset",
+              String(Number(requestURL.searchParams.get("offset") ?? 0) + 1),
+            );
+            return new Response(null, {
+              status: 302,
+              headers: { Location: requestURL.href },
+            });
+          }
           active++;
           maximumActive = Math.max(maximumActive, active);
           let response: Response;
@@ -44,6 +60,11 @@ describe("complete snapshot and cache integration", () => {
             active--;
           }
           const url = new URL(req.url);
+          if (large && /^\/v1\/sections\/\d+$/.test(url.pathname))
+            return Response.json({
+              ...((await response.json()) as Record<string, unknown>),
+              syntheticPadding: "x".repeat(1000000),
+            });
           if (
             omitBulkOwner &&
             url.pathname.endsWith("/grades") &&
@@ -80,19 +101,19 @@ describe("complete snapshot and cache integration", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
   const status = () => api<Status>("status");
-  it("bounds hosted batches to two provider reads and validates every job before any read", async () => {
+  it("bounds hosted batches to six provider reads and validates every job before any read", async () => {
     slow = true;
     await readSnapshot(emptyState(), await status(), {
       key: "fixture",
       secret: "fixture-secret",
     });
-    expect(maximumActive).toBe(2);
+    expect(maximumActive).toBe(6);
     const { scan } = await api<{ scan: string }>("scan/start", {});
     await api("scan/read", { scan, resource: "sections" });
     const count = requests;
     for (const jobs of [
       [],
-      Array.from({ length: 5 }, () => ({ resource: "items", section: "100" })),
+      Array.from({ length: 33 }, () => ({ resource: "items", section: "100" })),
       [
         { resource: "items", section: "100" },
         { resource: "items", section: "999" },
@@ -109,6 +130,43 @@ describe("complete snapshot and cache integration", () => {
     expect(requests).toBe(count);
     await api("scan/cancel", { scan });
   });
+  it("bounds all redirect subrequests and defers excess work to a new invocation", async () => {
+    const { scan } = await api<{ scan: string }>("scan/start", {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    await api("scan/read", { scan, resource: "sections" });
+    requests = 0;
+    redirects = true;
+    const { results } = await api<{
+      results: { ok: boolean; error?: string }[];
+    }>("scan/read-batch", {
+      scan,
+      jobs: ["100", "101", "102", "103", "104"].flatMap((section) =>
+        ["section", "items", "categories", "periods", "scales", "grades"].map(
+          (resource) => ({ resource, section }),
+        ),
+      ),
+    });
+    expect(requests).toBe(44);
+    expect(results.some((r) => r.error === "batchDeferred")).toBe(true);
+    expect(results.every((r) => r.ok || r.error === "batchDeferred")).toBe(
+      true,
+    );
+    await api("scan/read", { scan, resource: "items", section: "100" });
+    expect(requests).toBe(48);
+    await api("scan/cancel", { scan });
+  });
+  it("limits aggregate batch response size and retries deferred reads without losing a snapshot", async () => {
+    large = true;
+    const state = await readSnapshot(emptyState(), await status(), {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    expect(state.courses.length).toBeGreaterThan(0);
+    expect(requests).toBeGreaterThan(23);
+    expect((await status()).connected).toBe(true);
+  });
   it("stops queued batch reads when Schoology announces a cooldown", async () => {
     const { scan } = await api<{ scan: string }>("scan/start", {
       key: "fixture",
@@ -121,16 +179,18 @@ describe("complete snapshot and cache integration", () => {
       "scan/read-batch",
       {
         scan,
-        jobs: ["items", "section", "categories", "periods"].map((resource) => ({
-          resource,
-          section: "100",
-        })),
+        jobs: ["100", "101", "102"].flatMap((section) =>
+          ["items", "section", "categories", "periods"].map((resource) => ({
+            resource,
+            section,
+          })),
+        ),
       },
     );
-    expect(requests).toBeLessThanOrEqual(2);
+    expect(requests).toBeLessThanOrEqual(6);
     expect(
       result.results.filter((r) => !r.ok && r.error === "rateLimited").length,
-    ).toBeGreaterThanOrEqual(3);
+    ).toBeGreaterThanOrEqual(7);
     await expect(
       api("scan/start", { key: "fixture", secret: "fixture-secret" }),
     ).rejects.toMatchObject({ code: "rateLimited" });

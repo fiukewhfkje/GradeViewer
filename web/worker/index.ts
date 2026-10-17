@@ -134,6 +134,7 @@ export class CredentialVault {
     vault: Vault,
     b: Record<string, unknown>,
     now: number,
+    upstream: Fetcher = this.upstream,
   ) {
     const resource = String(b.resource),
       section = String(b.section ?? ""),
@@ -206,7 +207,7 @@ export class CredentialVault {
     );
     let data: Record<string, unknown>;
     try {
-      data = await readProvider(path, credentials, this.upstream);
+      data = await readProvider(path, credentials, upstream);
     } catch (e) {
       if (e instanceof ApiError && e.code === "rateLimited")
         vault.cooldown = Date.now() + (e.retryAfter ?? 60) * 1000;
@@ -465,7 +466,7 @@ export class CredentialVault {
             result = json(await this.read(scan, vault, b, now));
           else {
             ensure(
-              Array.isArray(b.jobs) && b.jobs.length > 0 && b.jobs.length <= 4,
+              Array.isArray(b.jobs) && b.jobs.length > 0 && b.jobs.length <= 32,
             );
             const jobs = b.jobs as Record<string, unknown>[];
             ensure(
@@ -499,15 +500,35 @@ export class CredentialVault {
               ).size === jobs.length,
             );
             const results: unknown[] = new Array(jobs.length);
-            let cursor = 0;
+            // Keep a Free-plan invocation below 50 subrequests, including redirects.
+            // Six in-flight reads is Cloudflare's documented connection limit.
+            let cursor = 0,
+              subrequests = 0,
+              responseBytes = 0;
+            const originalUpstream = this.upstream;
+            const upstream: Fetcher = (request) => {
+              if (subrequests >= 44) throw new ApiError(502, "batchDeferred");
+              subrequests++;
+              return originalUpstream(request);
+            };
             const run = async () => {
               while (cursor < jobs.length) {
                 const index = cursor++;
                 try {
-                  results[index] = {
-                    ok: true,
-                    value: await this.read(scan, vault!, jobs[index], now),
-                  };
+                  const value = await this.read(
+                    scan,
+                    vault!,
+                    jobs[index],
+                    now,
+                    upstream,
+                  );
+                  const bytes = new TextEncoder().encode(
+                    JSON.stringify(value),
+                  ).length;
+                  if (responseBytes + bytes > 4000000)
+                    throw new ApiError(502, "batchDeferred");
+                  responseBytes += bytes;
+                  results[index] = { ok: true, value };
                 } catch (error) {
                   const e =
                     error instanceof ApiError
@@ -522,7 +543,9 @@ export class CredentialVault {
                 }
               }
             };
-            await Promise.all([run(), run()]);
+            await Promise.all(
+              Array.from({ length: Math.min(6, jobs.length) }, run),
+            );
             result = json({ results });
           }
         } else if (route === "scan/commit" && post) {

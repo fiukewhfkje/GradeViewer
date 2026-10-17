@@ -60,7 +60,8 @@ const { readSnapshot, emptyState } = await import(
 );
 const nativeFetch = globalThis.fetch;
 let cookie = "",
-  requests = 0;
+  requests = 0,
+  coldMetrics;
 const timings = [];
 globalThis.fetch = async (path, init = {}) => {
   if (!String(path).startsWith("/api/"))
@@ -77,9 +78,24 @@ globalThis.fetch = async (path, init = {}) => {
     signal: AbortSignal.timeout(35000),
   });
   const resource = init.body ? JSON.parse(init.body).resource : undefined;
+  const batchErrors =
+    path === "/api/scan/read-batch"
+      ? ((await response.clone().json()).results ?? []).flatMap((r, i) =>
+          r.ok
+            ? []
+            : [
+                {
+                  resource: JSON.parse(init.body).jobs[i].resource,
+                  code: r.error,
+                  status: r.status,
+                },
+              ],
+        )
+      : undefined;
   timings.push({
     route: path + (resource ? ":" + resource : ""),
     ms: performance.now() - started,
+    ...(batchErrors?.length ? { batchErrors } : {}),
   });
   assert.equal(response.headers.get("Cache-Control"), "no-store");
   if (response.headers.has("Set-Cookie")) {
@@ -132,6 +148,7 @@ try {
       coldOffset = timings.length;
     const state = await readSnapshot(emptyState(), authenticated, credentials);
     const coldMs = performance.now() - coldStarted;
+    coldMetrics = {coldMs: Math.round(coldMs), coldRequests: timings.length - coldOffset};
     assert.ok(state.courses.every((c) => c.fields.user_id === state.account));
     const connected = await status();
     assert.equal(connected.connected, true);
@@ -193,6 +210,8 @@ try {
       code: e.code ?? "verificationFailed",
       status: e.status,
       requests,
+      ...(coldMetrics ?? {}),
+      timings: timings.map((t) => ({ ...t, ms: Math.round(t.ms) })),
     }),
   );
   process.exitCode = 1;
