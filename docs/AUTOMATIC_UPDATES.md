@@ -61,7 +61,7 @@ A rollback changes app source, not the existing URL, vault, secret or browser da
 
 ### Optional preview channel
 
-Publish a version such as `0.1.5-rc.1` using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
+Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.5-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:
 
 ```sh
 npm run update:copy -- OWNER/REPOSITORY --preview
