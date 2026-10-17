@@ -2,7 +2,7 @@
 
 ## v0.1.1 setup follow-up
 
-The user reached Cloudflare's setup form from another account and reported confusion and an excessive 20-character password requirement. Both READMEs and PWA_ONBOARDING now explain each visible field, account connection and preview toggle. APP_PASSWORD's minimum is 12 in both deployment and runtime; template/error/help text agrees, with password-manager generation/saving guidance. Build and 113 tests passed. Version is 0.1.1 for the existing keyless patch-release workflow. Do not rotate the owner's existing production password or repeat the migration merge. Fresh-account completion is still unverified; the user's screenshot only confirms the form.
+The user reached Cloudflare's setup form from another account and reported confusion and an excessive 20-character password requirement. Both READMEs and PWA_ONBOARDING now explain each visible field, account connection and preview toggle. APP_PASSWORD's minimum is 12 in both deployment and runtime; template/error/help text agrees, with password-manager generation/saving guidance. Build and 113 tests passed. Version is 0.1.1 for the existing keyless patch-release workflow. Do not rotate the owner's existing production password or repeat the migration merge. Fresh-account completion is still unverified; the user's screenshot only confirms the form. Production build `58b15b29-97c6-46d2-8bcd-9963cec33e8f` succeeded and live assets match. Copies using 12–19 characters must stay on v0.1.1 or later because v0.1.0 still requires 20; existing longer passwords work with both. Current environment revision 7 reports enforced unrestricted networking and all four configured runtime variables ready; actual Cloudflare access also succeeds.
 
 ## Final delivery
 

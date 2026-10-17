@@ -6,7 +6,7 @@
 
 The user's screenshot confirms the fresh-account Cloudflare form, with **New GitHub connection**, project/password/build/deploy fields and preview-build toggle. Both READMEs and the [setup guide](PWA_ONBOARDING.md) now use those exact labels and explain what to keep or select. This is observed setup friction, not evidence of a completed novice deployment.
 
-The password minimum is now 12 characters throughout the deployment/runtime and user-facing text. Build and **113 synthetic tests passed**, including an 11-character rejection before deployment changes and a 12-character successful deployment/unlock. Existing rotation/session/encrypted-credential lifecycle checks still pass. No extra live Schoology/performance runs were needed for this change. Earlier 111-test and v0.1.0 evidence below is historical.
+The password minimum is now 12 characters throughout the deployment/runtime and user-facing text. Build and **113 synthetic tests passed**, including an 11-character rejection before deployment changes and a 12-character successful deployment/unlock. Existing rotation/session/encrypted-credential lifecycle checks still pass. No extra live Schoology/performance runs were needed for this change. Earlier 111-test and v0.1.0 evidence below is historical. Rollback compatibility: v0.1.0 still requires a 20-character password; a new copy using 12–19 characters must remain on v0.1.1 or later. The patch does not change or migrate encryption keys.
 
 ## Implementation and parity evidence
 
