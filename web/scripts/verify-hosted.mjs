@@ -148,11 +148,22 @@ try {
       coldOffset = timings.length;
     const state = await readSnapshot(emptyState(), authenticated, credentials);
     const coldMs = performance.now() - coldStarted;
-    coldMetrics = {coldMs: Math.round(coldMs), coldRequests: timings.length - coldOffset};
+    coldMetrics = {
+      coldMs: Math.round(coldMs),
+      coldRequests: timings.length - coldOffset,
+    };
     assert.ok(state.courses.every((c) => c.fields.user_id === state.account));
     const connected = await status();
     assert.equal(connected.connected, true);
     const coldRequests = timings.length - coldOffset - 1;
+    // An optional title lookup can establish a real provider cooldown after
+    // fresh grades succeed. Respect it before starting benchmark-only repeats.
+    if (connected.cooldown > Date.now()) {
+      const remaining = connected.cooldown - Date.now();
+      if (remaining > 120000) throw new Error("Provider cooldown exceeds benchmark window.");
+      console.log(JSON.stringify({providerCooldownSeconds:Math.ceil(remaining/1000),coldMs:Math.round(coldMs)}));
+      while (Date.now() <= connected.cooldown) await new Promise(r=>setTimeout(r,Math.min(30000,connected.cooldown-Date.now()+50)));
+    }
     const samples = Number(process.env.GRADEVIEWER_BENCHMARK_RUNS ?? 3);
     assert.ok(Number.isInteger(samples) && samples >= 1 && samples <= 5);
     const warmRuns = [];
@@ -186,6 +197,26 @@ try {
       });
       previous = warm;
     }
+    let expiredRun;
+    if (process.env.GRADEVIEWER_BENCHMARK_EXPIRY === "1") {
+      const expiry = Date.now() + 310000;
+      console.log(
+        JSON.stringify({ waitingForMetadataExpiry: true, seconds: 310 }),
+      );
+      while (Date.now() < expiry)
+        await new Promise((r) =>
+          setTimeout(r, Math.min(30000, expiry - Date.now())),
+        );
+      requests = 0;
+      const started = performance.now();
+      const expired = await readSnapshot(previous, await status());
+      assert.equal(expired.courses.length, state.courses.length);
+      expiredRun = {
+        ms: Math.round(performance.now() - started),
+        requests,
+        completeSnapshot: true,
+      };
+    }
     console.log(
       JSON.stringify({
         hosted: true,
@@ -198,6 +229,7 @@ try {
         coldRequests,
         coldMs: Math.round(coldMs),
         warmRuns,
+        expiredRun,
       }),
     );
   }

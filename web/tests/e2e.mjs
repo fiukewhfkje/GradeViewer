@@ -547,7 +547,7 @@ try {
         .click();
       await page.getByLabel("Score", { exact: true }).fill("102.25");
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page.getByText("Local change", { exact: true }).first().waitFor();
+      await page.getByLabel("What-If grade", { exact: true }).waitFor();
       await page.reload();
       await page.getByRole("button", { name: /AP Biology/ }).waitFor();
       await page.getByRole("button", { name: /AP Biology/ }).click();
