@@ -1,5 +1,11 @@
 # Next work
 
+## v0.1.3 update follow-up
+
+- [x] Fix Update now after the first service-worker installation without requiring an earlier page reload.
+- [x] Verify a genuinely fresh browser context and returning visits both install the new shell through Profile; retain existing scenarios.
+- [x] Preserve the published v0.1.2 tag and advance the correction to 0.1.3.
+
 ## v0.1.2 UI follow-up
 
 - [x] Restore native chart frame/fill/selection and remove the visible scrubber.

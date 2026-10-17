@@ -2,6 +2,13 @@
 
 The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published. Native production sources and the Mac resigning setup remain unchanged.
 
+## v0.1.3 first-visit update activation — October 16, 2026
+
+- The update reload listener now skips only the first service-worker claim, rather than permanently remembering an uncontrolled startup. Check for updates → Update now also reloads correctly in the same session as the app's first installation.
+- The controlled-update browser flow opens a genuinely fresh browser context before its first worker exists, then installs a changed app shell through Profile without any intervening reload. The returning-page flow still verifies saved scenarios survive. Offline assertions wait for the error state rather than racing the startup spinner.
+- Production build and all 25 local Chromium flows pass. The new native chart, spinner-only refresh, Profile layout, update controls and Schoology-only documentation are retained.
+- The preceding [v0.1.2 release](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.2) and [release CI 39000083606](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39000083606) passed. Its production HTML/JavaScript/CSS/service-worker hashes matched the tested build. The first-visit correction advances to 0.1.3 without changing the published tag.
+
 ## v0.1.2 UI and refresh follow-up — October 16, 2026
 
 - [PR #10](https://github.com/fiukewhfkje/GradeViewer/pull/10) merged as `8478870`. Final implementation [CI 38999924488](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38999924488) passed **121 tests, 25 Chromium flows, 25 WebKit flows, 119 Swift tests, 1,200 Swift/JavaScript comparisons and real GitHub provenance verification**. This includes the second-finger cancellation regression. Version 0.1.2 follows the existing main-branch production build and signed tag-release workflows.
