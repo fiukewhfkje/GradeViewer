@@ -53,6 +53,7 @@ const manifest = Buffer.from(
     verification: "github-attestation",
     version,
     localSchema: 1,
+    updaterProtocol: 1,
     sourceCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       encoding: "utf8",
     }).trim(),

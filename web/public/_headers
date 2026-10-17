@@ -11,3 +11,5 @@
   Cache-Control: no-cache
 /sw.js
   Cache-Control: no-cache
+/installation.json
+  Cache-Control: no-store

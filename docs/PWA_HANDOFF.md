@@ -1,3 +1,9 @@
+# Current handoff — October 17, 2026
+
+v0.1.4 update work supersedes earlier setup/update instructions below. Read [AUTOMATIC_UPDATES.md](AUTOMATIC_UPDATES.md), PROJECT_STATUS.md and TODO.md for actual delivery evidence. The supported setup is GitHub template-first followed by connecting that existing copy to Cloudflare with root `web`; do not restore the unsupported Deploy-button automatic-workflow claim. Keep the same Worker/vault/password, native sources and signed-verification boundary. No additional user authentication questions are authorized/expected in this overnight run. Exact unavailable independent-account checks must remain explicit.
+
+## Historical handoff
+
 # GradeViewer PWA handoff — October 16, 2026
 
 ## v0.1.1 setup follow-up

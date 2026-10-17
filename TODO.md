@@ -1,5 +1,17 @@
 # Next work
 
+## October 17 automatic updates
+
+- [x] Verify Cloudflare/GitHub import constraints and replace the unsupported automatic-workflow claim with clear template-first setup.
+- [x] Include the canonical root launcher, midnight Eastern/DST schedule, automatic initial run, verified script updates, limited deployment retry and monthly check receipt.
+- [x] Distinguish official/deployed/ready/stalled/failed update states; preserve unsaved forms and saved data across per-tab service-worker activation.
+- [x] Add immediate development updates, opt-in verified previews and a signed one-time repair helper.
+- [x] Verify a real generated private GitHub copy, automatic first run, real signed v0.1.2/v0.1.3 pushes and rollback; reject a tampered real manifest.
+- [x] Pass 137 tests, 26 Chromium + 26 WebKit flows, isolated template build/test/update/rollback and a Worker dry-run; resolve the pre-existing dependency audit findings.
+- [ ] Finish remote CI, merge, publish signed v0.1.4, verify the existing production Git deployment, enable official template metadata and clean the delivery branch.
+- [ ] Complete genuine independent-account Cloudflare setup/update/rollback and real credential/local-state retention acceptance when that account is accessible. Hakabl is 404 to available GitHub access; the sole local Cloudflare account's Builds API is 403. This is not a completed E2E check.
+
+
 ## v0.1.3 update follow-up
 
 - [x] Publish signed v0.1.3 after full release CI, verify deployed asset hashes and clean merged branches.
