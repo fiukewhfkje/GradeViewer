@@ -19,15 +19,25 @@ Follow these steps in order. Everything happens in your browser.
    | Field | What to enter |
    | --- | --- |
    | Project name | `gradeviewer` |
-   | Build command | `npm run build` — enter this in the empty field. |
-   | Deploy command | `npm run deploy` — replace the existing `npx wrangler deploy`. |
+   | Build command | `npm run build` |
+   | Deploy command | `npm run deploy` |
    | Preview command | Leave `npx wrangler preview` unchanged. |
    | Enable Preview builds | Turn **Off**. The Preview command will not run. |
    | Protect with Cloudflare Access | Leave **Off**. GradeViewer has its own app password. |
-   | Advanced settings → Root directory | `web` |
-   | Advanced settings → Build variables and secrets | Add a **Secret** named `APP_PASSWORD`. Set its value to a new password of at least 12 characters, and save it in your password manager. |
 
-   Expand **Advanced settings** to enter the last two settings. The `APP_PASSWORD` is the password you will use to unlock GradeViewer; it can be different from your Cloudflare password.
+   Copy the commands exactly. Replace Cloudflare's default Deploy command with `npm run deploy`.
+
+   Open **Advanced settings**, then fill in these fields:
+
+   | Field | What to enter |
+   | --- | --- |
+   | Path | Replace `/` with `web`. |
+   | API token | Keep Cloudflare's default selection. |
+   | Variable name | `APP_PASSWORD` |
+   | Variable value | Choose a new GradeViewer password of at least 12 characters. Save it in your password manager. |
+   | Encrypt | Leave checked. |
+
+   The password in **Variable value** is what you will enter to unlock GradeViewer in step 6.
 
 5. **Deploy and save your website.** Click **Deploy** and wait for a successful deployment. If Cloudflare asks you to choose a `workers.dev` subdomain, choose an available name. Open the website address Cloudflare gives you and bookmark it. It will look like `https://gradeviewer.your-name.workers.dev`.
 

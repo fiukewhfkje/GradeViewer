@@ -2,6 +2,8 @@
 
 ## October 17 automatic updates
 
+- [x] Use the expanded form’s exact labels in both READMEs: Path, API token, Variable name, Variable value and Encrypt; spell out exact commands and retain manual custom-command entry without an unverified autofill promise.
+
 - [x] Rewrite both READMEs for a user with no Cloudflare account: signup/email verification, free account/no domain, GitHub authorization, complete form values, deployment URL and Schoology connection in six ordered steps.
 
 - [x] Match README/onboarding to the actual existing-repository Cloudflare screens, correct build/deploy defaults and advanced settings, and shorten the setup link to Create application. Do not claim an unverified final-form shortcut.

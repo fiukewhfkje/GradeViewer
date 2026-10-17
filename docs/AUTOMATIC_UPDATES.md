@@ -2,7 +2,7 @@
 
 ## Initial setup
 
-Use the short [README steps](../README.md): create a private GitHub copy using **Use this template**, then connect that **existing repository** to Cloudflare with root directory `web`. Keep the default branch and turn preview builds off. Set a private `APP_PASSWORD` build secret once.
+Use the short [README steps](../README.md): create a private GitHub copy using **Use this template**, then connect that **existing repository** to Cloudflare with **Advanced settings → Path** set to `web`. Keep the default branch and turn preview builds off. Set a private `APP_PASSWORD` build secret once.
 
 The repository contains `.github/workflows/gradeviewer-update.yml` at its actual root. GitHub template generation copies it, enables Actions and starts its initial push run. No file editing, token setup, initial Commit changes step or manual workflow trigger is needed for ordinary users. The full native/PWA verification workflow is restricted to the official source repository, so copied installations do not spend runner time on the maintainer's macOS/browser CI.
 

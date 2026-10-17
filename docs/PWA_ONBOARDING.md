@@ -8,6 +8,8 @@ The setup link above opens **Create an app** directly. Choosing **Continue with 
 
 The old **Deploy to Cloudflare** button imports a public repository into a new copy. That import can omit the automatic updater, so it is not the supported shortcut. See Cloudflare's [deploy-button documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/) and [build configuration reference](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/) for the two setup flows and field meanings.
 
+Cloudflare normally pre-fills `npx wrangler deploy`. GradeViewer needs `npm run deploy` to run its password setup and deployment script. Copy the exact command from the README. Prefilling custom scripts is documented for the public-import Deploy button, but has not been verified for the existing-private-repository flow.
+
 ## If you already used the old Cloudflare button
 
 Keep the existing Worker, address, password and connection. A copy missing its automatic updater needs a [one-time verified repair](AUTOMATIC_UPDATES.md#existing-installations), not a recreated Worker. The old public-repository import can omit GitHub workflows; the GitHub-template-first path avoids that import.
