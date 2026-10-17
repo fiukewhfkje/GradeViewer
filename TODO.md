@@ -11,7 +11,8 @@
 - [x] Finish remote CI, merge PR #12, publish signed v0.1.4, verify the existing production Git deployment, enable official template metadata and clean the first delivery branch.
 - [x] Ship v0.1.5: verify the asset route on real Cloudflare, same-version repair, complete CI and actual production PWA upgrade with synthetic state/unsaved-tab retention.
 - [x] Prove a built-in GITHUB_TOKEN push triggers a successful actual Cloudflare deployment.
-- [ ] Finish the reproduced no-version repair argument fix as v0.1.6, verify the real documented command, publish and complete cleanup.
+- [x] Ship the reproduced no-version repair fix as signed v0.1.6 after full CI (140 tests); verify the real documented command, two signed copied-repository updates and actual production PWA 0.1.5→0.1.6 state/form retention.
+- [x] Archive four disposable private test repositories, delete the isolated diagnostic Worker and temporary deployment probe, and remove all delivery/test branches.
 - [ ] Complete genuine independent-account Cloudflare setup/update/rollback and real credential/local-state retention acceptance when that account is accessible. Hakabl is 404 to available GitHub access; the sole local Cloudflare account's Builds API is 403. This is not a completed E2E check.
 
 
@@ -51,9 +52,9 @@
 - [x] Clarify Git account selection in both READMEs and write the [setup guide](docs/PWA_ONBOARDING.md).
 - [x] Follow up on the user's new-account screenshot: exact setup-screen labels, GitHub connection instructions, preview toggle guidance, password-manager help, and a 12-character minimum consistent across deployment/runtime (v0.1.1; build and 113 tests passed).
 - [x] Record user-reported deployment completion on a different account; explain skipped/Back-accessible Cloudflare wizard pages and using the personal app URL after deployment. Defer the reported app UI work as requested.
-- [ ] Finish beginner public template signup/permissions/generated copy/Free-plan resources/password setup verification; another-account deployment is user-reported, but fresh signup/Schoology connection/updater completion was not inspected. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
+- [ ] Finish beginner Cloudflare signup/permissions/Free-plan resources/password setup verification. Real GitHub template generation and automatic updater activation now pass; fresh independent Cloudflare setup/Schoology connection remains uninspected. No novice-success claim.
 - [x] Verify the real published v0.1.0 updater with actual cryptographic provenance/hashes and personal-config/secret preservation in an isolated copy.
-- [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
+- [ ] Complete the full copied-installation chain in an independent Cloudflare account, including real credential retention and rollback. Signed copied-repository updates/rollback, a real standard-token production Cloudflare deployment, and production PWA synthetic-state retention now pass separately; these do not establish the full independent chain.
 - [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
 - [x] Check final implementation/release CI, source/package secret scans and PR description; securely configure the production owner password and encrypted Schoology connection.
 - [x] Perform exactly **one migration merge** (`1b60b6f`), publish keyless-signed **v0.1.0** and deploy the configured production instance. Native baseline `3447420` is preserved. Device/new-account/remote-copy limitations remain explicit; they are not claimed as passed.

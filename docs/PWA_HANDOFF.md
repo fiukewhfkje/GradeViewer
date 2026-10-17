@@ -1,6 +1,8 @@
 # Current handoff — October 17, 2026
 
-Released v0.1.5 update work and the v0.1.6 repair follow-up supersede earlier setup/update instructions below. Read [AUTOMATIC_UPDATES.md](AUTOMATIC_UPDATES.md), PROJECT_STATUS.md and TODO.md for actual delivery evidence. The supported setup is GitHub template-first followed by connecting that existing copy to Cloudflare with root `web`; do not restore the unsupported Deploy-button automatic-workflow claim. Keep the same Worker/vault/password, native sources and signed-verification boundary. No additional user authentication questions are authorized/expected in this overnight run. Exact unavailable independent-account checks must remain explicit.
+Signed [v0.1.6](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.6) is merged and deployed; [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39006571854) passed 140 tests, 26 Chromium + 26 WebKit flows, 119 Swift tests and 1,200 comparisons. Actual private-template updater activation, signed updates/rollback/repair, a built-in-token production Cloudflare deployment and real production PWA updates with synthetic state/form retention passed. Temporary infrastructure is cleaned up, test repositories archived and only main remains.
+
+The supported initial setup is **GitHub template first → connect that existing copy to Cloudflare, root `web`**. No manual workflow or Commit changes step. Read [AUTOMATIC_UPDATES.md](AUTOMATIC_UPDATES.md), [PROJECT_STATUS.md](../PROJECT_STATUS.md) and [TODO.md](../TODO.md) for commands and exact evidence. Preserve the existing Worker/vault/password, native sources and signed-verification boundary. Hakabl/independent Cloudflare setup/full-chain rollback, real credential retention and physical Home Screen acceptance remain unverified; do not convert those limits into success claims. Older instructions below are historical.
 
 ## Historical handoff
 

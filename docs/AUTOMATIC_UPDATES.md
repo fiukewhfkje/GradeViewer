@@ -26,11 +26,13 @@ The final asset-based v0.1.5 source was also copied directly from the official t
 
 The standard workflow token was also tested against the existing real production Git integration: [the bot push](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39005985578) automatically caused a successful [Cloudflare build/deployment](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ae60033a-bbfd-4cf0-8313-e11303c697f1). The real production PWA then installed 0.1.5 over 0.1.4 through Update now, retaining synthetic IndexedDB grade state and an unsaved second-tab form. This browser test used no real Schoology credentials; metadata checks confirmed the same Worker address, secret binding and vault namespace.
 
+Final signed [v0.1.6](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.6) also passed [latest-stable update verification/push](https://github.com/fiukewhfkje/gradeviewer-install-probe-20261017044121/actions/runs/39006699282) and [explicit immediate update verification/push](https://github.com/fiukewhfkje/gradeviewer-final-template-probe-20261017/actions/runs/39006743091). The documented no-version repair command installed v0.1.6 on the older full template copy. The real production PWA separately upgraded 0.1.5→0.1.6 with identical synthetic grade-state retention and second-tab form protection; deployed file hashes match the tested build. All four disposable private test repositories are archived and the isolated diagnostic Worker is deleted.
+
 This is **real GitHub integration evidence**, not a genuine independent-account Cloudflare deployment. `Hakabl/gradeviewer` returned 404 to both authenticated GitHub interfaces in this session. The available Cloudflare OAuth login lists only the maintainer's original account, and its Builds API request returned 403. No connected Cloudflare plugin was available. The original production Git integration can still deploy a normal main-branch push; that does not grant access to Hakabl or establish a fresh second-account setup. No claim of independent Cloudflare E2E or physical-phone acceptance is made.
 
 ## Daily behavior and trust boundary
 
-The workflow schedules `0 0 * * *` with `timezone: America/New_York`. GitHub handles daylight saving time. This is one daily scheduled check, not an exact deployment-time guarantee. Runs use the default branch, a concurrency lock and that installation's standard `GITHUB_TOKEN`, with only contents write and checks read. No maintainer Cloudflare credential, shared proxy or personal quota is involved.
+The workflow schedules `0 0 * * *` with `timezone: America/New_York`. GitHub handles daylight saving time. This is one daily scheduled check, not an exact deployment-time guarantee. The enabled workflow and schedule configuration were verified; an actual midnight-triggered run has not yet been observed in this delivery session. Runs use the default branch, a concurrency lock and that installation's standard `GITHUB_TOKEN`, with only contents write and checks read. No maintainer Cloudflare credential, shared proxy or personal quota is involved.
 
 Before changing source, the installed updater verifies GitHub keyless provenance for the **exact** `fiukewhfkje/GradeViewer/.github/workflows/pwa.yml` identity, release tag, source commit and hosted runner. It then validates archive/file SHA-256 hashes, schema, package version and safe paths. Secrets, local settings and credential namespace/migration history are preserved. Writes are staged, and an interrupted application restores original files before any push.
 
@@ -56,7 +58,7 @@ npm run update:copy -- OWNER/REPOSITORY
 
 This uses the maintainer's already authenticated `gh` CLI to enable/dispatch that copy's existing updater. The authenticated account must have access to that repository. It does not distribute a maintainer token or require ordinary app users to use GitHub.
 
-For a particular release or rollback:
+For a just-published release, include its version to select it directly while GitHub’s latest-release redirect settles. This brief propagation delay was observed during the real v0.1.6 checks. For a particular release or rollback:
 
 ```sh
 npm run update:copy -- OWNER/REPOSITORY --version 0.1.6
@@ -83,7 +85,7 @@ No unsigned branch/main build is accepted as a release.
 
 ## Existing installations
 
-Do **not** delete or recreate the Worker, change its password or rotate credentials to install the updater. A maintainer with authorized GitHub workflow-write access can make one verified repair:
+Do **not** delete or recreate the Worker, change its password or rotate credentials to install the updater. From an up-to-date checkout of the official GradeViewer repository, a maintainer with authorized GitHub workflow-write access can make one verified repair:
 
 ```sh
 cd web
