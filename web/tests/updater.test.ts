@@ -236,27 +236,12 @@ it("restores originals when a checkout write fails midway", async () => {
 it("does not mutate the checkout or fetch source until provenance has been verified", async () => {
   const cwd = await checkout(),
     r = release();
-  const assets = [
-    "manifest.json",
-    "provenance.json",
-    "gradeviewer-source.json",
-  ];
-  const metadata = {
-    tag_name: "v0.1.4",
-    draft: false,
-    prerelease: false,
-    assets: assets.map((name) => ({
-      name,
-      browser_download_url: `https://github.com/fiukewhfkje/GradeViewer/releases/download/v0.1.4/${name}`,
-    })),
-  };
   let sourceReads = 0;
   await expect(
     update(undefined, {
       cwd,
       get: async (url: string) => {
-        if (url.endsWith("/latest"))
-          return Buffer.from(JSON.stringify(metadata));
+        expect(url.startsWith("https://api.github.com/")).toBe(false);
         if (url.endsWith("manifest.json")) return r.manifest;
         if (url.endsWith("provenance.json")) return Buffer.from("{}");
         sourceReads++;
@@ -276,10 +261,7 @@ it("commits a monthly keepalive without rebuilding every unchanged day", async (
   const cwd = await checkout();
   const options = {
     cwd,
-    get: async () =>
-      Buffer.from(
-        JSON.stringify({ tag_name: "v0.1.3", draft: false, prerelease: false }),
-      ),
+    get: async () => release({}, "0.1.3").manifest,
   };
   await update(undefined, {
     ...options,
@@ -315,6 +297,26 @@ it("refuses a conflicting credential namespace or migration history", () => {
     }),
   ).toThrow("namespace");
 });
+it("can repair a missing launcher even when the app is already on the latest version", async () => {
+  const cwd = await checkout(),
+    r = release(
+      { ".github/workflows/gradeviewer-update.yml": workflow },
+      "0.1.3",
+    );
+  const result = await update(undefined, {
+    cwd,
+    force: true,
+    verify: async () => {},
+    get: async (url: string) =>
+      url.endsWith("manifest.json")
+        ? r.manifest
+        : url.endsWith("provenance.json")
+          ? Buffer.from("{}")
+          : r.archive,
+  });
+  expect(result.applied).toBe(true);
+  expect(result.launcher.toString()).toBe(workflow);
+});
 it("uses only actual Cloudflare checks and bounds deployment retries", async () => {
   expect(
     cloudflareBuildStatus({
@@ -341,10 +343,7 @@ it("uses only actual Cloudflare checks and bounds deployment retries", async () 
   const cwd = await checkout();
   const options = {
     cwd,
-    get: async () =>
-      Buffer.from(
-        JSON.stringify({ tag_name: "v0.1.3", draft: false, prerelease: false }),
-      ),
+    get: async () => release({}, "0.1.3").manifest,
     deployment: () => "failed",
   };
   for (let i = 1; i <= 3; i++) {

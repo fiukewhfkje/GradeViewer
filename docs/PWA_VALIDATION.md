@@ -1,6 +1,10 @@
 # PWA verification — October 17, 2026
 
-## v0.1.4 automatic-update candidate
+## v0.1.5 live-lookup follow-up
+
+v0.1.4 shipped in PR #12 with green CI and automatic production deployment. Live verification then found GitHub REST HTTP 429 from Cloudflare; the asset route returned 200. The corrected reader was deployed to an isolated real Cloudflare probe and returned the stable version and Last-Modified timestamp. v0.1.5 removes the REST dependency for stable checks while retaining cryptographic source verification. The v0.1.5 production build, 139 tests, 26 flows per browser and standalone template checks pass locally. A real signed repair restored a deliberately removed fixture workflow and ran automatically. The real production PWA upgrade is being tested with synthetic local state and an unsaved second tab.
+
+## v0.1.4 automatic-update verification
 
 The production build, **137 unit/security/integration tests**, **26 Chromium + 26 WebKit** flows and the standalone template install/build/test/dry-run/update/rollback pass locally. The update browser flow covers two tabs sharing one service worker, unsaved connection-form retention, explicit activation in each tab and a separate same-session first-visit context. Profile distinguishes pending/stalled/failed official-release checks. Actual GitHub template generation, an active root updater, automatic initial execution, signed v0.1.2/v0.1.3 verification/push and rollback passed on real private repositories. Tampered real provenance was rejected by the actual GitHub verifier. `npm audit`: zero findings.
 

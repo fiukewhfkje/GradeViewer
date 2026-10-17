@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { update } from "./update.mjs";
 import { workflow } from "./updater-workflow.mjs";
 import { releaseVersion } from "../src/release.ts";
-const [repo, requested = "0.1.4"] = process.argv.slice(2);
+const [repo, requested] = process.argv.slice(2);
 if (
   !repo ||
   !/^[\w-]+\/[\w.-]+$/.test(repo) ||
-  !releaseVersion.test(requested.replace(/^v/, ""))
+  (requested && !releaseVersion.test(requested.replace(/^v/, "")))
 )
   throw new Error(
     "Use: npm run repair:copy -- owner/repository [verified-version]",
@@ -28,7 +28,7 @@ try {
   } catch {
     app = join(cwd, "web");
   }
-  const result = await update(requested, { cwd: app });
+  const result = await update(requested, { cwd: app, force: true });
   if (!result.launcher || result.launcher.toString() !== workflow)
     throw new Error(
       "The verified release does not contain this reviewed updater launcher. No changes were pushed.",
