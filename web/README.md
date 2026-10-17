@@ -7,7 +7,7 @@ Cloudflare runs your personal copy; GitHub stores its code. You need a free acco
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/fiukewhfkje/GradeViewer/tree/main/web)
 
 1. Tap **Deploy to Cloudflare** above and sign in to Cloudflare, or create an account. Choose the Free plan if asked.
-2. On **Set up your application**, use these settings:
+2. The button normally opens **Set up your application**, the last Cloudflare setup step, with GradeViewer already selected. Earlier pages can appear if you tap **Back**: **Make something new** → **Connect GitHub**; then **Select a repository** → keep the prefilled public GradeViewer URL and tap **Next**. You do not need to choose an existing repository. On the final page, use these settings:
 
    | What you see | What to do |
    | --- | --- |
@@ -19,7 +19,7 @@ Cloudflare runs your personal copy; GitHub stores its code. You need a free acco
    | **Deploy command** | Keep `npm run deploy`. |
    | **Enable Preview builds** | Turn this off. You only need your main app. Leave Preview command alone. |
 
-3. Tap **Deploy** and wait for it to finish. Open the website address ending in **workers.dev** that Cloudflare gives you.
+3. Tap **Deploy** and wait for it to finish. Open and bookmark the website address ending in **workers.dev** that Cloudflare gives you. Setup is finished; use that address to return to your app. The Deploy to Cloudflare button starts another setup.
 4. In **Profile**, unlock with the app password you saved. Tap **Get my Schoology keys**, sign in to your school account, then copy your personal API key and secret into GradeViewer and connect. Your school must allow personal API access.
 5. Use the website, or open **Profile → Add to Home Screen** for phone installation instructions. Save your website address; Profile also has a Copy button.
 

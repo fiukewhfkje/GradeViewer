@@ -7,7 +7,9 @@ use Git commands or a terminal.
 1. Open [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/fiukewhfkje/GradeViewer/tree/main/web).
 2. Sign in to Cloudflare or create an account. Complete any email verification
    it requests, and use the Free plan if asked.
-3. On **Set up your application**, follow the table below.
+3. The setup button normally opens **Set up your application** (the last
+   step) with GradeViewer already selected. Follow the table below. You do not
+   need to go back through the earlier steps.
 
 | Field on Cloudflare's screen | What to do |
 | --- | --- |
@@ -24,6 +26,9 @@ use Git commands or a terminal.
    you. The address looks like
    `https://gradeviewer.<your-subdomain>.workers.dev`; the bare
    `<your-subdomain>.workers.dev` address is not your app.
+   Once deployment finishes, bookmark that personal website and use it to
+   return to GradeViewer. The Deploy to Cloudflare button starts another
+   setup; the Cloudflare wizard is not part of the GradeViewer app.
 5. In **Profile**, enter your saved app password and tap **Unlock app**.
    Accept your browser's Save Password offer, if shown. The browser stays
    unlocked for up to 90 days. If no offer appears, add a password-manager
@@ -45,6 +50,23 @@ still require the account owner. School sign-in and obtaining personal API
 keys are separate. This is a personal deployment flow, not a verified
 one-click setup.
 
+## If Back shows a different setup page
+
+These are earlier steps in Cloudflare's app-creation wizard. Seeing them does
+not, by itself, indicate that your GradeViewer deployment failed.
+
+| Page | What to do if it appears |
+| --- | --- |
+| **Make something new** | Choose **Connect GitHub** and finish the account connection if asked. |
+| **Select a repository** | Under **Clone a public repository via Git URL**, keep `https://github.com/fiukewhfkje/GradeViewer/tree/main/web` and tap **Next**. You do not need to select an unrelated repository from the list above it. |
+| **Set up your application** | This is the final page described above. It is expected for the setup button to open here directly. |
+
+The user's screenshots show the earlier pages and they reported sometimes
+reaching the final page directly. The exact earlier navigation/account state
+was not reproduced, so this guide does not claim to identify its cause. After
+a successful deployment, leave this wizard and open your personal workers.dev
+website; do not deploy another copy merely to revisit setup screens.
+
 ## Evidence still needed from a beginner
 
 Record whether a person with no Git or Cloudflare experience can finish using
@@ -55,8 +77,12 @@ unlocks and connects. Do not record passwords, API keys, cookies or grade data.
 The user reached Cloudflare's fresh-account form and reported confusion about
 the Git connection and 20-character password requirement. The guide now uses
 the form's exact labels, explains both accounts, and recommends disabling
-unneeded preview builds. This screenshot is evidence of the form, not a
-completed beginner deployment.
+unneeded preview builds. The user subsequently reported that **Deploy
+finished successfully on a different account and the app appeared set up**.
+That is user-reported deployment completion, not a directly inspected
+new-account signup or proof of Schoology unlock/connection, automatic updates,
+rollback, or physical installation. They still found the wizard confusing and
+reported poor app UI; they explicitly deferred the UI work until later.
 
 An authenticated Git push to the maintainer's preview now starts a real
 Cloudflare build/deployment. That proves the existing-account pipeline, not

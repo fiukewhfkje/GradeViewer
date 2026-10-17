@@ -17,7 +17,8 @@
 - [ ] Finish physical course-sheet/back/graph/keyboard and installation checks; headless source/navigation checks do not establish phone behavior.
 - [x] Clarify Git account selection in both READMEs and write the [setup guide](docs/PWA_ONBOARDING.md).
 - [x] Follow up on the user's new-account screenshot: exact setup-screen labels, GitHub connection instructions, preview toggle guidance, password-manager help, and a 12-character minimum consistent across deployment/runtime (v0.1.1; build and 113 tests passed).
-- [ ] Verify beginner public template signup/permissions/generated copy/Free-plan resources/password setup. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
+- [x] Record user-reported deployment completion on a different account; explain skipped/Back-accessible Cloudflare wizard pages and using the personal app URL after deployment. Defer the reported app UI work as requested.
+- [ ] Finish beginner public template signup/permissions/generated copy/Free-plan resources/password setup verification; another-account deployment is user-reported, but fresh signup/Schoology connection/updater completion was not inspected. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
 - [x] Verify the real published v0.1.0 updater with actual cryptographic provenance/hashes and personal-config/secret preservation in an isolated copy.
 - [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
 - [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
