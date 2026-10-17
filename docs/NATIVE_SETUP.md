@@ -36,7 +36,6 @@ After verifying an extra untitled provider row, its assignment menu can remove i
 
 The graph includes available earlier grading periods even on a first connection halfway through the year. It reconstructs progression from Schoology scores and actual update/due dates, combined with preserved local history. Each period keeps its own rules. Reconstructed graph values align with nearby rounded observations only within the same assignment interval; genuine small observed/assignment changes stay visible. Calculations remain separate from observed provider history; missing dates and overwritten past scores cannot be recovered.
 
-[The assignment audit](docs/PROVIDER_PARITY_AUDIT.md) found every IC assignment represented in Schoology for the original student's five current classes. IC is removed from login, settings, networking, refresh and matching. Existing installations migrate compatible history/local edits and clear retired connections on their next update; keep your same team/bundle ID and install over the existing app. This account's snapshot agreement does not guarantee future or district-wide parity.
 
 ## Develop or install with CLI / an AI assistant
 

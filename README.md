@@ -28,7 +28,7 @@ You stay unlocked for up to 90 days per browser. Your password manager can autof
 <details>
 <summary>Updates and rollback</summary>
 
-Official fixes are checked daily by the **Update GradeViewer** workflow in your GitHub copy; Cloudflare builds the resulting update automatically. To update now or roll back, open your GitHub copy → **Actions → Update GradeViewer → Run workflow**. Leave Version blank for the latest release, or enter an earlier release such as `0.1.0`. Keep GitHub Actions and the Cloudflare Git connection enabled. GitHub can pause schedules in inactive repositories; Run workflow restarts a paused schedule. Reload when the app offers an update.
+Official fixes are checked daily by the **Update GradeViewer** workflow in your GitHub copy; Cloudflare builds the resulting update automatically. To update now or roll back, open your GitHub copy → **Actions → Update GradeViewer → Run workflow**. Leave Version blank for the latest release, or enter an earlier release such as `0.1.0`. Keep GitHub Actions and the Cloudflare Git connection enabled. GitHub can pause schedules in inactive repositories; Run workflow restarts a paused schedule. In **Profile → Check for updates**, check for a version already deployed to your website, then tap **Update now**. Your installed Home Screen app uses the same control. This does not start the GitHub source-update workflow; run that first if your copy has not deployed the release.
 
 Deployment preserves your address and secrets. Keep your app password unchanged during updates; changing it revokes sessions and requires entering Schoology keys again. Version 0.1.0 required 20 characters, so copies set up with a shorter password should stay on 0.1.1 or later.
 
