@@ -237,7 +237,7 @@ try {
                   touchEnd: "touchend",
                   touchCancel: "touchcancel",
                 }[type];
-                const target = document.querySelector(".app"),
+                const target = document.querySelector(".app-scroll"),
                   point = { identifier: 1, clientX: x, clientY: y };
                 const event = new Event(kind, {
                   bubbles: true,
@@ -254,7 +254,9 @@ try {
               { type, x, y },
             );
       try {
-        await page.evaluate(() => scrollTo(0, 0));
+        await page.evaluate(() =>
+          document.querySelector(".app-scroll").scrollTo(0, 0),
+        );
         await send("touchStart");
         await send("touchMove", 30, 195);
         await send("touchEnd");
@@ -283,25 +285,53 @@ try {
         await page.waitForTimeout(100);
         assert.equal(scans, 0);
         await page.setViewportSize({ width: 390, height: 500 });
-        await page.evaluate(() => scrollTo(0, 100));
-        assert.ok(await page.evaluate(() => scrollY > 0));
+        await page.evaluate(() =>
+          document.querySelector(".app-scroll").scrollTo(0, 100),
+        );
+        assert.ok(
+          await page.evaluate(
+            () => document.querySelector(".app-scroll").scrollTop > 0,
+          ),
+        );
         await send("touchStart");
         await send("touchMove", 30, 330);
         await send("touchEnd");
         assert.equal(scans, 0);
         await page.setViewportSize({ width: 390, height: 844 });
-        await page.evaluate(() => scrollTo(0, 0));
+        await page.evaluate(() =>
+          document.querySelector(".app-scroll").scrollTo(0, 0),
+        );
         await send("touchStart");
         await send("touchMove", 30, 250);
         await send("touchMove", 30, 330);
-        await page.getByText("Release to refresh", { exact: true }).waitFor();
+        await page
+          .locator('.pull-refresh[data-phase="pulling"][data-visible="true"]')
+          .waitFor();
+        assert.equal(await page.locator(".pull-refresh").innerText(), "");
+        assert.equal(await page.evaluate(() => scrollY), 0);
+        await page.route("**/api/scan/roots", async (route) => {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          await route.continue();
+        });
         const committed = page.waitForResponse(
           (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
         );
         await send("touchEnd");
+        await page.locator('.pull-refresh[data-phase="refreshing"]').waitFor();
+        await send("touchStart");
+        await send("touchMove", 30, 330);
+        await send("touchEnd");
         await committed;
+        await page.unroute("**/api/scan/roots");
         await page.waitForFunction(
           () => !document.querySelector(".desktop-refresh")?.disabled,
+        );
+        await page.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(
+          await page
+            .locator(".refresh-content")
+            .evaluate((el) => getComputedStyle(el).transform),
+          "matrix(1, 0, 0, 1, 0, 0)",
         );
         assert.equal(scans, 1);
         assert.equal(manual, true);
@@ -335,13 +365,55 @@ try {
       .innerText();
     await page.getByRole("button", { name: /AP Biology/ }).click();
     assert.equal(await page.locator(".summary .grade").innerText(), homeGrade);
-    assert.ok(await page.locator(".chart path").getAttribute("d"));
+    assert.ok(await page.locator(".chart-line").first().getAttribute("d"));
+    assert.equal(
+      await page.locator(".chart svg").getAttribute("preserveAspectRatio"),
+      "none",
+    );
+    assert.equal((await page.locator(".chart").boundingBox()).height, 154);
     assignmentTitle = await page
       .locator(".assignment strong")
       .first()
       .innerText();
     await page.screenshot({ path: directory + "/detail-light.png" });
   });
+  await check(
+    "native graph selection shows grade/date and clears on release",
+    async () => {
+      const chart = page.getByRole("slider", { name: "Explore grade history" });
+      await chart.focus();
+      await chart.press("Home");
+      assert.equal(await chart.getAttribute("aria-valuenow"), "0");
+      assert.match(
+        await page.locator(".chart-tooltip strong").innerText(),
+        /^-?\d+\.\d{2}$/,
+      );
+      await chart.press("ArrowRight");
+      assert.equal(await chart.getAttribute("aria-valuenow"), "1");
+      await page.screenshot({ path: directory + "/chart-selection-light.png" });
+      await chart.press("Escape");
+      assert.equal(await page.locator(".chart-tooltip").count(), 0);
+      if (engine === "chromium") {
+        const touch = await context.newCDPSession(page),
+          box = await chart.boundingBox();
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
+        });
+        await page.locator(".chart-marker").waitFor();
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [{ x: box.x + box.width - 30, y: box.y + 70 }],
+        });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        });
+        await touch.detach();
+        assert.equal(await page.locator(".chart-tooltip").count(), 0);
+      }
+    },
+  );
   await check(
     "signed decimal local edit shared by assignment views",
     async () => {
@@ -517,6 +589,25 @@ try {
       );
       await page.screenshot({ path: directory + "/profile-small-dark.png" });
       await page.setViewportSize({ width: 390, height: 844 });
+    },
+  );
+  await check(
+    "Profile update check reports current version and offline state",
+    async () => {
+      await page
+        .getByRole("button", { name: "Check for updates", exact: true })
+        .click();
+      await page.getByText("You’re up to date.", { exact: true }).waitFor();
+      await context.setOffline(true);
+      await page
+        .getByRole("button", { name: "Check for updates", exact: true })
+        .click();
+      await page
+        .getByText("You’re offline. Connect to check for updates.", {
+          exact: true,
+        })
+        .waitFor();
+      await context.setOffline(false);
     },
   );
   await check(
@@ -725,18 +816,21 @@ try {
         );
         execFileSync("node", ["scripts/service-worker.mjs"]);
         await page.waitForTimeout(500);
-        await page.evaluate(async () => {
-          const reg = await navigator.serviceWorker.ready;
-          await reg.update();
-        });
+        await page
+          .getByRole("button", { name: "Profile", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Check for updates", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Update now", exact: true })
+          .waitFor();
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
         await Promise.all([
           page.waitForNavigation({ waitUntil: "load" }),
-          page
-            .getByRole("button", { name: "Reload to update", exact: true })
-            .click(),
+          page.getByRole("button", { name: "Update now", exact: true }).click(),
         ]);
         assert.equal(
           await page
@@ -831,6 +925,129 @@ try {
         );
       } finally {
         await second.close();
+      }
+    },
+  );
+  await check(
+    "emulated Home Screen refresh settles after success, cancellation and failure",
+    async () => {
+      // Standalone flags are fixtures, not a physical iOS/Android install claim.
+      const installed = await browser.newContext({
+        viewport: { width: 390, height: 700 },
+        isMobile: true,
+        hasTouch: true,
+        ignoreHTTPSErrors: true,
+        storageState: await context.storageState(),
+      });
+      await installed.addInitScript(() => {
+        Object.defineProperty(navigator, "standalone", { value: true });
+        const original = window.matchMedia.bind(window);
+        window.matchMedia = (query) =>
+          query === "(display-mode: standalone)"
+            ? new Proxy(original(query), {
+                get: (target, property) =>
+                  property === "matches"
+                    ? true
+                    : Reflect.get(target, property, target),
+              })
+            : original(query);
+      });
+      const appPage = await installed.newPage();
+      let touch;
+      try {
+        await appPage.goto(base);
+        await appPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        assert.equal(await appPage.evaluate(() => navigator.standalone), true);
+        touch =
+          engine === "chromium"
+            ? await installed.newCDPSession(appPage)
+            : undefined;
+        const send = async (type, y = 180) => {
+          if (touch)
+            return touch.send("Input.dispatchTouchEvent", {
+              type,
+              touchPoints:
+                type === "touchEnd" || type === "touchCancel"
+                  ? []
+                  : [{ x: 100, y }],
+            });
+          await appPage.evaluate(
+            ({ type, y }) => {
+              const event = new Event(
+                {
+                  touchStart: "touchstart",
+                  touchMove: "touchmove",
+                  touchEnd: "touchend",
+                  touchCancel: "touchcancel",
+                }[type],
+                { bubbles: true, cancelable: true },
+              );
+              Object.defineProperty(event, "touches", {
+                value:
+                  type === "touchEnd" || type === "touchCancel"
+                    ? []
+                    : [{ identifier: 1, clientX: 100, clientY: y }],
+              });
+              document.querySelector(".app-scroll").dispatchEvent(event);
+            },
+            { type, y },
+          );
+        };
+        let scans = 0;
+        appPage.on("request", (r) => {
+          if (r.url().endsWith("/api/scan/start")) scans++;
+        });
+        const pull = async () => {
+          await appPage
+            .locator(".app-scroll")
+            .evaluate((el) => el.scrollTo(0, 0));
+          await send("touchStart");
+          await send("touchMove", 260);
+          await send("touchMove", 350);
+        };
+        await pull();
+        await send("touchMove", 190); // Reversing below the threshold disarms it.
+        await send("touchEnd");
+        await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(scans, 0);
+        await pull();
+        await send("touchCancel");
+        await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(scans, 0);
+        await pull();
+        await appPage.screenshot({
+          path: directory + "/standalone-spinner.png",
+        });
+        const committed = appPage.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await send("touchEnd");
+        await committed;
+        await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(scans, 1);
+        assert.equal(await appPage.evaluate(() => scrollY), 0);
+        assert.equal(await appPage.locator(".course").count(), 5);
+        await installed.request.post(base + "/api/fixture/failure", {
+          data: { enabled: true },
+        });
+        await pull();
+        await send("touchEnd");
+        await appPage.getByRole("alert").waitFor();
+        await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        assert.equal(scans, 2);
+        assert.equal(await appPage.locator(".course").count(), 5);
+        assert.equal(
+          await appPage
+            .locator(".refresh-content")
+            .evaluate((el) => getComputedStyle(el).transform),
+          "matrix(1, 0, 0, 1, 0, 0)",
+        );
+      } finally {
+        await context.request.post(base + "/api/fixture/failure", {
+          data: { enabled: false },
+        });
+        await touch?.detach();
+        await installed.close();
       }
     },
   );

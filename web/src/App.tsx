@@ -2,7 +2,6 @@ import {
   useState,
   useEffect,
   useRef,
-  useMemo,
   type ReactNode,
   type FormEvent,
 } from "react";
@@ -20,6 +19,9 @@ import {
   Copy,
   ExternalLink,
   Download,
+  SunMoon,
+  Globe,
+  LockKeyhole,
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
@@ -52,7 +54,9 @@ import {
 } from "./core/periods";
 import { reliable, hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
-import { progression, curve } from "./core/progression";
+import { GradeGraph } from "./GradeGraph";
+import { version } from "../package.json";
+import { checkForAppUpdate } from "./updates";
 import { demoCourses } from "./core/demo";
 import { usePullRefresh } from "./usePullRefresh";
 type InstallEvent = Event & {
@@ -134,70 +138,6 @@ function Dialog({
     </dialog>
   );
 }
-function Graph({ course, all }: { course: Course; all: Course[] }) {
-  const points = useMemo(() => progression(course, all), [course, all]),
-    [selection, setSelection] = useState<number>();
-  const selected = selection === undefined ? undefined : points[selection];
-  return (
-    <section>
-      <h2>Grade Progression</h2>
-      {points.length ? (
-        <>
-          <div
-            className="chart"
-            onPointerMove={(e) => {
-              if (e.buttons || e.pointerType === "mouse") {
-                const bounds = e.currentTarget.getBoundingClientRect();
-                setSelection(
-                  Math.min(
-                    points.length - 1,
-                    Math.max(
-                      0,
-                      Math.round(
-                        ((e.clientX - bounds.left) / bounds.width) *
-                          (points.length - 1),
-                      ),
-                    ),
-                  ),
-                );
-              }
-            }}
-            onPointerLeave={() => setSelection(undefined)}
-          >
-            <svg
-              viewBox="0 0 1000 160"
-              role="img"
-              aria-label="Grade progression"
-            >
-              <path d={curve(points)} />
-            </svg>
-            <output className="chart-tooltip">
-              {selected
-                ? `${percentText(selected.percent)} · ${new Date(selected.date).toLocaleDateString()}`
-                : " "}
-            </output>
-          </div>
-          <input
-            className="chart-scrubber"
-            type="range"
-            min="0"
-            max={points.length - 1}
-            value={selection ?? points.length - 1}
-            aria-label="Explore grade history"
-            aria-valuetext={
-              selected
-                ? `${percentText(selected.percent)} on ${new Date(selected.date).toLocaleDateString()}`
-                : undefined
-            }
-            onChange={(e) => setSelection(Number(e.target.value))}
-          />
-        </>
-      ) : (
-        <p className="muted">No dated grades available.</p>
-      )}
-    </section>
-  );
-}
 export default function App() {
   const [state, setState] = useState<SavedState>(emptyState),
     stateRef = useRef(state),
@@ -218,6 +158,8 @@ export default function App() {
     [prompt, setPrompt] = useState<InstallEvent>(),
     [copied, setCopied] = useState(false),
     [update, setUpdate] = useState<ServiceWorker>(),
+    [checkingUpdate, setCheckingUpdate] = useState(false),
+    [updateMessage, setUpdateMessage] = useState(""),
     [theme, setTheme] = useState(() => {
       try {
         return localStorage.getItem("theme") ?? "system";
@@ -393,7 +335,7 @@ export default function App() {
     if ("serviceWorker" in navigator) {
       const hadController = !!navigator.serviceWorker.controller;
       void navigator.serviceWorker
-        .register("/sw.js")
+        .register("/sw.js", { updateViaCache: "none" })
         .then((reg) => {
           if (reg.waiting) setUpdate(reg.waiting);
           reg.addEventListener("updatefound", () => {
@@ -717,7 +659,7 @@ export default function App() {
             </small>
             {age && (
               <small className={age.fresh ? "updated fresh" : "updated"}>
-                {age.text}
+                <span>{age.text}</span>
                 {age.fresh ? <CheckCircle2 size={14} /> : <Clock size={14} />}
               </small>
             )}
@@ -790,6 +732,41 @@ export default function App() {
       </>
     );
   }
+  function activateUpdate() {
+    if (!update || busy || modal) return;
+    setBusy(true);
+    setFresh(false);
+    update.postMessage({ type: "ACTIVATE" });
+  }
+  async function checkUpdates() {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    setUpdateMessage("");
+    try {
+      if (!("serviceWorker" in navigator)) {
+        setUpdateMessage("Reopen your website to get the latest version.");
+        return;
+      }
+      if (!navigator.onLine) throw new Error("offline");
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) throw new Error("unavailable");
+      const worker = await checkForAppUpdate(registration);
+      if (worker) {
+        setUpdate(worker);
+        setUpdateMessage("An update is ready.");
+      } else {
+        setUpdateMessage("You’re up to date.");
+      }
+    } catch {
+      setUpdateMessage(
+        navigator.onLine
+          ? "Couldn’t check for updates. Try again."
+          : "You’re offline. Connect to check for updates.",
+      );
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
   async function disconnect() {
     try {
       await api("disconnect", {});
@@ -804,416 +781,527 @@ export default function App() {
       setError(errorMessage(e));
     }
   }
+  useEffect(() => {
+    app.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [tab, selected, view]);
   const locked = !demo && !status?.authenticated;
   const canRefresh =
     !busy && !locked && !demo && !!status?.connected && deadline <= Date.now();
   const pull = usePullRefresh(
     app,
     canRefresh && tab === "grades" && fresh && !modal && !install,
-    () => void refresh(undefined, true).catch(() => {}),
+    () => refresh(undefined, true),
   );
   return (
     <>
-      <div
-        className={
-          "app" +
-          (tab === "grades" && selected && fresh ? " course-screen" : "")
-        }
-        ref={app}
-      >
-        <header>
-          <div>
-            {selected ? (
-              <button
-                className="back"
-                aria-label="Back"
-                onClick={() => {
-                  if (view !== "detail") setView("detail");
-                  else setSelected(undefined);
-                }}
-              >
-                <ChevronLeft />
-                {view === "detail" ? "My grades" : original?.title}
-              </button>
-            ) : (
-              <span className="brand">GradeViewer</span>
-            )}
-            <h1>
-              {tab === "profile"
-                ? "Profile"
-                : selected
-                  ? view === "detail"
-                    ? original?.title
-                    : view === "assignments" || view === "categories"
-                      ? original?.title
-                      : "Final grade"
-                  : "My grades"}
-            </h1>
-          </div>
-          {selected ? (
-            <button
-              className="icon"
-              aria-label="Close course"
-              onClick={() => setSelected(undefined)}
-            >
-              <X />
-            </button>
-          ) : (
-            <button
-              className={"icon desktop-refresh " + (busy ? "spinning" : "")}
-              aria-label="Refresh grades"
-              disabled={!canRefresh}
-              onClick={() => void refresh(undefined, true).catch(() => {})}
-            >
-              <RefreshCw size={21} />
-            </button>
-          )}
-        </header>
-        {update && (
-          <aside className="update">
-            An update is ready.
-            <button
-              disabled={busy || !!modal}
-              onClick={() => {
-                setBusy(true);
-                setFresh(false);
-                update.postMessage({ type: "ACTIVATE" });
-              }}
-            >
-              Reload to update
-            </button>
-          </aside>
-        )}
-        {demo && (
-          <aside className="notice demo">
-            Sample grades · synthetic data
-            <button
-              onClick={() => {
-                demoRef.current = false;
-                setFresh(false);
-                setDemo(false);
-                setSelected(undefined);
-                void repository
-                  .load()
-                  .then(apply)
-                  .then(() => refresh())
-                  .catch(() => {});
-              }}
-            >
-              Exit demo
-            </button>
-          </aside>
-        )}
-        {error && (
-          <p role="alert" className="notice error">
-            {error}
-          </p>
-        )}
-        {pull.distance > 0 && (
+      <div className="app-scroll" ref={app}>
+        <div
+          className={
+            "app" +
+            (tab === "grades" && selected && fresh ? " course-screen" : "")
+          }
+        >
           <div
             className="pull-refresh"
             role="status"
-            style={{ height: Math.min(64, pull.distance) }}
+            aria-live="polite"
+            data-visible={pull.distance > 0}
+            data-phase={pull.phase}
+            style={{ transform: `translateY(${pull.distance - 50}px)` }}
           >
-            <RefreshCw
-              size={18}
-              style={{ transform: `rotate(${pull.distance * 3}deg)` }}
-            />
-            {pull.ready ? "Release to refresh" : "Pull to refresh"}
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className={pull.phase === "refreshing" ? "spinning" : ""}
+              style={
+                pull.phase === "refreshing"
+                  ? undefined
+                  : { transform: `rotate(${pull.distance * 4}deg)` }
+              }
+            >
+              {Array.from({ length: 12 }, (_, i) => (
+                <line
+                  key={i}
+                  x1="12"
+                  y1="3"
+                  x2="12"
+                  y2="6"
+                  transform={`rotate(${i * 30} 12 12)`}
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  opacity={(i + 1) / 12}
+                />
+              ))}
+            </svg>
+            <span className="sr-only">
+              {pull.phase === "refreshing" ? "Refreshing grades" : ""}
+            </span>
           </div>
-        )}
-        <main>
-          {tab === "profile" ? (
-            <>
-              <section>
-                <h2>Schoology</h2>
-                {locked ? (
-                  <Unlock
-                    onUnlock={async (password) => {
-                      await api("login", { password });
-                      await refresh();
-                    }}
-                  />
-                ) : (
-                  <>
-                    <p className="connection">
-                      <span className="status-dot" />
-                      {demo
-                        ? "Sample connection"
-                        : status?.connected
-                          ? "Connected"
-                          : "Not connected"}
-                    </p>
-                    <Connection
-                      connected={!!status?.connected || demo}
-                      busy={busy}
-                      connect={async (credentials) => {
-                        await refresh(credentials);
-                        setTab("grades");
-                      }}
-                      disconnect={disconnect}
-                      demo={demo}
-                    />
-                  </>
-                )}
-              </section>
-              <section>
-                <h2>Appearance</h2>
-                <label className="row">
-                  Theme
-                  <select
-                    aria-label="Theme"
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                  >
-                    <option value="system">System</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
-                </label>
-              </section>
-              <section className="personal-site">
-                <h2>Your personal website</h2>
-                <p>
-                  Open this address on any phone or computer. Save it as a
-                  bookmark to find your app again.
-                </p>
-                <label>
-                  Website address
-                  <input
-                    readOnly
-                    value={location.origin}
-                    onFocus={(e) => e.target.select()}
-                  />
-                </label>
-                <div className="button-row">
+          <div
+            className="refresh-content"
+            data-pulling={pull.phase === "pulling"}
+            style={{ transform: `translateY(${pull.distance}px)` }}
+          >
+            <header>
+              <div>
+                {selected ? (
                   <button
-                    className="secondary"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(location.origin);
-                        setCopied(true);
-                      } catch {
-                        setCopied(false);
-                        setError(
-                          "Select the website address above and copy it.",
-                        );
-                      }
+                    className="back"
+                    aria-label="Back"
+                    onClick={() => {
+                      if (view !== "detail") setView("detail");
+                      else setSelected(undefined);
                     }}
                   >
-                    {copied ? <Check size={17} /> : <Copy size={17} />}{" "}
-                    {copied ? "Copied" : "Copy address"}
+                    <ChevronLeft />
+                    {view === "detail" ? "My grades" : original?.title}
                   </button>
-                  <a
-                    className="secondary"
-                    href={location.origin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Open <ExternalLink size={16} />
-                  </a>
-                </div>
+                ) : (
+                  <span className="brand">GradeViewer</span>
+                )}
+                <h1>
+                  {tab === "profile"
+                    ? "Profile"
+                    : selected
+                      ? view === "detail"
+                        ? original?.title
+                        : view === "assignments" || view === "categories"
+                          ? original?.title
+                          : "Final grade"
+                      : "My grades"}
+                </h1>
+              </div>
+              {selected ? (
                 <button
-                  className="secondary full"
-                  onClick={() => setInstall(true)}
+                  className="icon"
+                  aria-label="Close course"
+                  onClick={() => setSelected(undefined)}
                 >
-                  <Download size={18} /> Add to Home Screen
+                  <X />
                 </button>
-              </section>
-              {!demo && status?.authenticated && (
+              ) : (
                 <button
-                  className="secondary full"
+                  className={"icon desktop-refresh " + (busy ? "spinning" : "")}
+                  aria-label="Refresh grades"
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <RefreshCw size={18} /> Refresh grades
+                  <RefreshCw size={21} />
                 </button>
               )}
-              {!demo && status?.authenticated && (
+            </header>
+            {update && (
+              <aside className="update">
+                An update is ready.
+                <button disabled={busy || !!modal} onClick={activateUpdate}>
+                  Reload to update
+                </button>
+              </aside>
+            )}
+            {demo && (
+              <aside className="notice demo">
+                Sample grades · synthetic data
                 <button
-                  className="secondary"
-                  onClick={async () => {
-                    try {
-                      await api("logout", {});
-                      setFresh(false);
-                      setStatus(await api<Status>("status"));
-                      channel.current?.postMessage("locked");
-                    } catch (e) {
-                      setError(errorMessage(e));
-                    }
+                  onClick={() => {
+                    demoRef.current = false;
+                    setFresh(false);
+                    setDemo(false);
+                    setSelected(undefined);
+                    void repository
+                      .load()
+                      .then(apply)
+                      .then(() => refresh())
+                      .catch(() => {});
                   }}
                 >
-                  Lock app
+                  Exit demo
                 </button>
-              )}
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => {
-                  demoRef.current = true;
-                  setDemo(true);
-                  apply({ schema: 1, courses: demoCourses(), scenarios: {} });
-                  setFresh(true);
-                  setBusy(false);
-                  setError("");
-                  setTab("grades");
-                }}
-              >
-                Try sample grades
-              </button>
-            </>
-          ) : !fresh && !demo ? (
-            <div className="gate">
-              {busy ? (
+              </aside>
+            )}
+            {error && (
+              <p role="alert" className="notice error">
+                {error}
+              </p>
+            )}
+            <main className={tab === "profile" ? "profile" : undefined}>
+              {tab === "profile" ? (
                 <>
-                  <RefreshCw className="spinning" />
-                  <h2>Refreshing grades…</h2>
+                  <section className="settings-group">
+                    <h2>Connection</h2>
+                    <div className="settings-card">
+                      <div className="connection-heading">
+                        <span className="settings-icon">
+                          <User size={20} />
+                        </span>
+                        <strong>Schoology</strong>
+                        <span
+                          className="connection"
+                          data-connected={
+                            !locked && (status?.connected || demo)
+                          }
+                        >
+                          <span className="status-dot" />
+                          {locked
+                            ? "Locked"
+                            : demo
+                              ? "Sample"
+                              : status?.connected
+                                ? "Connected"
+                                : "Not connected"}
+                        </span>
+                      </div>
+                      {locked ? (
+                        <Unlock
+                          onUnlock={async (password) => {
+                            await api("login", { password });
+                            await refresh();
+                          }}
+                        />
+                      ) : (
+                        <>
+                          <Connection
+                            connected={!!status?.connected || demo}
+                            busy={busy}
+                            connect={async (credentials) => {
+                              await refresh(credentials);
+                              setTab("grades");
+                            }}
+                            disconnect={disconnect}
+                            demo={demo}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </section>
+                  <section className="settings-group">
+                    <h2>Appearance</h2>
+                    <label className="settings-card settings-row">
+                      <span className="settings-icon">
+                        <SunMoon size={20} />
+                      </span>
+                      <span className="settings-label">Theme</span>
+                      <select
+                        aria-label="Theme"
+                        value={theme}
+                        onChange={(e) => setTheme(e.target.value)}
+                      >
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                      </select>
+                    </label>
+                  </section>
+                  <section className="settings-group personal-site">
+                    <h2>Your personal website</h2>
+                    <div className="settings-card site-card">
+                      <div className="site-heading">
+                        <span className="settings-icon">
+                          <Globe size={20} />
+                        </span>
+                        <strong>GradeViewer</strong>
+                      </div>
+                      <label>
+                        Website address
+                        <input
+                          readOnly
+                          value={location.origin}
+                          onFocus={(e) => e.target.select()}
+                        />
+                      </label>
+                      <div className="button-row">
+                        <button
+                          className="secondary"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(
+                                location.origin,
+                              );
+                              setCopied(true);
+                            } catch {
+                              setCopied(false);
+                              setError(
+                                "Select the website address above and copy it.",
+                              );
+                            }
+                          }}
+                        >
+                          {copied ? <Check size={17} /> : <Copy size={17} />}{" "}
+                          {copied ? "Copied" : "Copy address"}
+                        </button>
+                        <a
+                          className="secondary"
+                          href={location.origin}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open <ExternalLink size={16} />
+                        </a>
+                      </div>
+                      <button
+                        className="secondary full"
+                        onClick={() => setInstall(true)}
+                      >
+                        <Download size={18} /> Add to Home Screen{" "}
+                        <ChevronRight size={17} />
+                      </button>
+                    </div>
+                    <p className="settings-note">
+                      Your private app. Open this address on any device.
+                    </p>
+                  </section>
+                  <section className="settings-group app-actions">
+                    <h2>App</h2>
+                    <div className="settings-card">
+                      <button
+                        disabled={checkingUpdate || busy || !!modal}
+                        onClick={() => void checkUpdates()}
+                      >
+                        <Download
+                          size={18}
+                          className={checkingUpdate ? "spinning" : ""}
+                        />
+                        {checkingUpdate
+                          ? "Checking for updates…"
+                          : "Check for updates"}
+                      </button>
+                      {update && (
+                        <button
+                          disabled={busy || !!modal}
+                          onClick={activateUpdate}
+                        >
+                          <RefreshCw size={18} /> Update now
+                        </button>
+                      )}
+                      {!demo && status?.authenticated && (
+                        <button
+                          className="secondary full"
+                          disabled={!canRefresh}
+                          onClick={() =>
+                            void refresh(undefined, true).catch(() => {})
+                          }
+                        >
+                          <RefreshCw
+                            size={18}
+                            className={busy ? "spinning" : ""}
+                          />{" "}
+                          Refresh grades
+                        </button>
+                      )}
+                      {!demo && status?.authenticated && (
+                        <button
+                          className="secondary"
+                          onClick={async () => {
+                            try {
+                              await api("logout", {});
+                              setFresh(false);
+                              setStatus(await api<Status>("status"));
+                              channel.current?.postMessage("locked");
+                            } catch (e) {
+                              setError(errorMessage(e));
+                            }
+                          }}
+                        >
+                          <LockKeyhole size={18} /> Lock app
+                        </button>
+                      )}
+                      <button
+                        className="text-button"
+                        disabled={busy}
+                        onClick={() => {
+                          demoRef.current = true;
+                          setDemo(true);
+                          apply({
+                            schema: 1,
+                            courses: demoCourses(),
+                            scenarios: {},
+                          });
+                          setFresh(true);
+                          setBusy(false);
+                          setError("");
+                          setTab("grades");
+                        }}
+                      >
+                        Try sample grades
+                      </button>
+                    </div>
+                  </section>
+                  {updateMessage && (
+                    <p className="update-result" role="status">
+                      {updateMessage}
+                    </p>
+                  )}
+                  <p className="profile-footnote">
+                    GradeViewer {version}
+                    <br />
+                    Grades and local changes stay in this browser.
+                  </p>
+                </>
+              ) : !fresh && !demo ? (
+                <div className="gate">
+                  {busy ? (
+                    <>
+                      <RefreshCw className="spinning" />
+                      <h2>Refreshing grades…</h2>
+                    </>
+                  ) : (
+                    <>
+                      <h2>
+                        {locked && status
+                          ? "Unlock GradeViewer"
+                          : "Fresh grades unavailable"}
+                      </h2>
+                      <p>
+                        Your saved data is retained. Retry or check your
+                        connection in Profile.
+                      </p>
+                      {deadline > Date.now() && (
+                        <p>
+                          Retrying in{" "}
+                          {Math.max(0, Math.ceil((deadline - tick) / 1000))}s
+                        </p>
+                      )}
+                      <button
+                        className="primary"
+                        disabled={deadline > Date.now()}
+                        onClick={() =>
+                          locked && status
+                            ? setTab("profile")
+                            : void refresh().catch(() => {})
+                        }
+                      >
+                        {locked && status ? "Open Profile" : "Retry"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : !course ? (
+                <>
+                  <div className="courses">
+                    {visibleCourses(state.courses).map((c) => {
+                      const grade = overall(c, state.courses).grade,
+                        age = updateAge(latestGradeUpdate(c, state.courses));
+                      return (
+                        <button
+                          className="course row"
+                          key={c.id}
+                          onClick={() => choose(c)}
+                        >
+                          <div className="row-text">
+                            <strong>{c.title}</strong>
+                            {age && (
+                              <small
+                                className={
+                                  age.fresh ? "updated fresh" : "updated"
+                                }
+                              >
+                                <span>{age.text}</span>
+                                {age.fresh ? (
+                                  <CheckCircle2 size={14} />
+                                ) : (
+                                  <Clock size={14} />
+                                )}
+                              </small>
+                            )}
+                          </div>
+                          <Grade {...grade} />
+                          <ChevronRight size={22} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {!state.courses.length && (
+                    <div className="gate">
+                      <h2>No grades yet</h2>
+                      <button
+                        className="primary"
+                        onClick={() => setTab("profile")}
+                      >
+                        Connect Schoology
+                      </button>
+                    </div>
+                  )}
+                </>
+              ) : view === "final" ? (
+                <FinalCalculator course={overall(course, state.courses)} />
+              ) : view === "assignments" || view === "categories" ? (
+                <>
+                  <div className="pills" aria-label="Assignment periods">
+                    {assignmentPeriods(original!, state.courses).map((c) => (
+                      <button
+                        key={c.id}
+                        aria-pressed={c.id === course.id}
+                        onClick={() => setPeriod(c.id)}
+                      >
+                        {descriptor(c).label}
+                      </button>
+                    ))}
+                  </div>
+                  {summary(course, true)}
+                  {quarterSummary(course)}
+                  {groupedAssignments(course)}
+                  {exams(course, state.courses).map((exam) => (
+                    <section key={exam.id}>
+                      <div className="section-heading">
+                        <h2>Exam</h2>
+                        {(exam.grade.percent !== undefined ||
+                          exam.grade.letter) && <Grade {...exam.grade} />}
+                      </div>
+                      {list(exam, true, true)}
+                    </section>
+                  ))}
                 </>
               ) : (
                 <>
-                  <h2>
-                    {locked && status
-                      ? "Unlock GradeViewer"
-                      : "Fresh grades unavailable"}
-                  </h2>
-                  <p>
-                    Your saved data is retained. Retry or check your connection
-                    in Profile.
-                  </p>
-                  {deadline > Date.now() && (
-                    <p>
-                      Retrying in{" "}
-                      {Math.max(0, Math.ceil((deadline - tick) / 1000))}s
-                    </p>
-                  )}
+                  {summary(course, true)}
+                  <GradeGraph
+                    key={course.id}
+                    course={course}
+                    all={state.courses}
+                  />
+                  <section>
+                    <h2>Recently Graded Assignments</h2>
+                    {list(course)}
+                  </section>
                   <button
-                    className="primary"
-                    disabled={deadline > Date.now()}
-                    onClick={() =>
-                      locked && status
-                        ? setTab("profile")
-                        : void refresh().catch(() => {})
-                    }
+                    className="primary full view-all"
+                    onClick={() => {
+                      setView("assignments");
+                      setPeriod(course.id);
+                    }}
                   >
-                    {locked && status ? "Open Profile" : "Retry"}
+                    View All Assignments <ArrowRight size={20} />
                   </button>
                 </>
               )}
-            </div>
-          ) : !course ? (
-            <>
-              <div className="courses">
-                {visibleCourses(state.courses).map((c) => {
-                  const grade = overall(c, state.courses).grade,
-                    age = updateAge(latestGradeUpdate(c, state.courses));
-                  return (
-                    <button
-                      className="course row"
-                      key={c.id}
-                      onClick={() => choose(c)}
-                    >
-                      <div className="row-text">
-                        <strong>{c.title}</strong>
-                        {age && (
-                          <small
-                            className={age.fresh ? "updated fresh" : "updated"}
-                          >
-                            {age.text}
-                            {age.fresh ? (
-                              <CheckCircle2 size={14} />
-                            ) : (
-                              <Clock size={14} />
-                            )}
-                          </small>
-                        )}
-                      </div>
-                      <Grade {...grade} />
-                      <ChevronRight size={22} />
-                    </button>
-                  );
-                })}
-              </div>
-              {!state.courses.length && (
-                <div className="gate">
-                  <h2>No grades yet</h2>
-                  <button className="primary" onClick={() => setTab("profile")}>
-                    Connect Schoology
-                  </button>
-                </div>
-              )}
-            </>
-          ) : view === "final" ? (
-            <FinalCalculator course={overall(course, state.courses)} />
-          ) : view === "assignments" || view === "categories" ? (
-            <>
-              <div className="pills" aria-label="Assignment periods">
-                {assignmentPeriods(original!, state.courses).map((c) => (
-                  <button
-                    key={c.id}
-                    aria-pressed={c.id === course.id}
-                    onClick={() => setPeriod(c.id)}
-                  >
-                    {descriptor(c).label}
-                  </button>
-                ))}
-              </div>
-              {summary(course, true)}
-              {quarterSummary(course)}
-              {groupedAssignments(course)}
-              {exams(course, state.courses).map((exam) => (
-                <section key={exam.id}>
-                  <div className="section-heading">
-                    <h2>Exam</h2>
-                    {(exam.grade.percent !== undefined ||
-                      exam.grade.letter) && <Grade {...exam.grade} />}
-                  </div>
-                  {list(exam, true, true)}
-                </section>
-              ))}
-            </>
-          ) : (
-            <>
-              {summary(course, true)}
-              <Graph key={course.id} course={course} all={state.courses} />
-              <section>
-                <h2>Recently Graded Assignments</h2>
-                {list(course)}
-              </section>
-              <button
-                className="primary full view-all"
-                onClick={() => {
-                  setView("assignments");
-                  setPeriod(course.id);
-                }}
-              >
-                View All Assignments <ArrowRight size={20} />
-              </button>
-            </>
-          )}
-        </main>
-        <footer>
-          <button
-            className={tab === "grades" ? "active" : ""}
-            aria-label="Grades"
-            aria-pressed={tab === "grades"}
-            onClick={() => setTab("grades")}
-          >
-            <span className="tab-grade">A+</span>
-            <span>grades</span>
-          </button>
-          <button
-            className={tab === "profile" ? "active" : ""}
-            aria-label="Profile"
-            aria-pressed={tab === "profile"}
-            onClick={() => {
-              setTab("profile");
-              setSelected(undefined);
-            }}
-          >
-            <User strokeWidth={1.4} />
-            <span>profile</span>
-          </button>
-        </footer>
+            </main>
+          </div>
+          <footer>
+            <button
+              className={tab === "grades" ? "active" : ""}
+              aria-label="Grades"
+              aria-pressed={tab === "grades"}
+              onClick={() => setTab("grades")}
+            >
+              <span className="tab-grade">A+</span>
+              <span>grades</span>
+            </button>
+            <button
+              className={tab === "profile" ? "active" : ""}
+              aria-label="Profile"
+              aria-pressed={tab === "profile"}
+              onClick={() => {
+                setTab("profile");
+                setSelected(undefined);
+              }}
+            >
+              <User strokeWidth={1.4} />
+              <span>profile</span>
+            </button>
+          </footer>
+        </div>
       </div>
       {modal && course && (
         <ScoreDialog
@@ -1416,14 +1504,14 @@ function Connection({
       ) : connected ? (
         <>
           <button
-            className="secondary full"
+            className="settings-action"
             disabled={busy || demo}
             onClick={() => setEditing(true)}
           >
-            Update connection
+            Update connection <ChevronRight size={17} />
           </button>
           <button
-            className="text-button danger"
+            className="settings-action danger"
             disabled={busy || demo}
             onClick={() => setConfirm(true)}
           >
