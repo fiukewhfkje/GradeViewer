@@ -1,6 +1,6 @@
 # Next work
 
-## PWA migration — handoff, release candidate 0.1.0
+## PWA migration — shipped 0.1.0
 
 - [x] Restore checkpoint; implement PWA/core/Worker/vault/sessions/local persistence/scenarios/installation/update UI with fixed read-only provider routes and staged recovery.
 - [x] Verify live OAuth/complete hosted snapshots/credential reuse/redeploy/rollback without exporting real records. Repo is public; staging exists.
@@ -17,12 +17,13 @@
 - [ ] Finish physical course-sheet/back/graph/keyboard and installation checks; headless source/navigation checks do not establish phone behavior.
 - [x] Clarify Git account selection in both READMEs and write the three-entry [setup guide](docs/PWA_ONBOARDING.md).
 - [ ] Verify beginner public template signup/permissions/generated copy/Free-plan resources/password setup. GitHub integration cannot create a separate repo (403); user requested no more manual setup tasks during this engineering pass. No novice-success claim.
+- [x] Verify the real published v0.1.0 updater with actual cryptographic provenance/hashes and personal-config/secret preservation in an isolated copy.
 - [ ] Verify actual copied GitHub updater push → Cloudflare build/deploy → rollback, preserving stable URL/vault/secrets/browser state.
 - [ ] Complete physical iPhone Safari/Home Screen and Android install/foreground/storage/update checks. Keep native installed until PWA validated.
-- [ ] Check newest remote CI, source/package secret scans and PR description. Choose/set the owner's production app password securely.
-- [ ] Only after gates pass, perform **one migration merge**, publish signed **v0.1.0** and deploy production. Preserve native baseline `3447420`; no merge/release claimed yet.
+- [x] Check final implementation/release CI, source/package secret scans and PR description; securely configure the production owner password and encrypted Schoology connection.
+- [x] Perform exactly **one migration merge** (`1b60b6f`), publish keyless-signed **v0.1.0** and deploy the configured production instance. Native baseline `3447420` is preserved. Device/new-account/remote-copy limitations remain explicit; they are not claimed as passed.
 
-Read [PWA_HANDOFF.md](docs/PWA_HANDOFF.md) first in the new thread. Rough overall progress: **80%**. Historical native work follows.
+Read the final delivery section in [PWA_HANDOFF.md](docs/PWA_HANDOFF.md). Production: https://gradeviewer.fiukewhfkje.workers.dev. The previous 80% estimate is historical; release implementation is shipped, with the unchecked validation/performance follow-ups above. Historical native work follows.
 
 ## October 15 precision follow-up
 

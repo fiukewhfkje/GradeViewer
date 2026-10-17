@@ -1,6 +1,17 @@
 # Project status — October 16, 2026
 
-The active app is the React/TypeScript PWA in `web/`, on `pwa-migration` / [draft PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9). Native main `3447420` is unchanged as the comparison baseline. No migration merge, version tag or public PWA release has happened. Work resumed from [PWA_HANDOFF.md](docs/PWA_HANDOFF.md) in the new cloud environment.
+The PWA is deployed at **https://gradeviewer.fiukewhfkje.workers.dev** and already connected to the owner's Schoology account. [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9) merged exactly once as `1b60b6f`, retaining native baseline `3447420` and every focused migration commit. [Signed v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published. Native production sources and the Mac resigning setup remain unchanged.
+
+## Final delivery — October 16, 2026
+
+- Production `gradeviewer` and its SQLite vault were created in the owner's account. A generated private owner password is configured as the runtime secret and the production Builds secret. The login handoff is outside Git at `/workspace/.gradeviewer-private/GradeViewer-your-private-login.txt` (private permissions); no credential value is committed or displayed. The owner only needs to unlock once; Schoology keys are already configured and encrypted.
+- Real `main` merge push → Cloudflare build `ef0a181d-3aad-416f-8de6-8110ad146bcd` → production version `d87f8c7b-1e0d-45e6-9a5a-77ec9ad0e4c4` passed. A fresh owner login after deployment reused the stored Schoology connection and completed all 45 account-bound course-period records. Latest warm control: **1.417 s / five API calls**. An empty browser with optional title recovery took 6.515 s; the initial production connection took 3.274 s and retained fresh grades through an optional provider cooldown.
+- Final implementation [CI 38989768644](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38989768644) and [release CI 38990029814](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) passed: build, 111 tests, 22 Chromium and 22 WebKit flows, 119 Swift tests and 1,200 Swift/JS comparisons. The release workflow generated and published real GitHub keyless provenance.
+- The real updater fetched the published v0.1.0 assets, verified exact official provenance and source hashes using checksum-verified official gh 2.102.0, and applied the release in an isolated source copy while preserving its personal Worker configuration and synthetic secret. This used the actual cryptographic verifier, replacing the earlier fixture verifier for this check. It does not establish a copied remote repository's push/build chain or a downgrade between two published releases.
+- Native score/category/navigation fixes, bounded five-read batches, deferred-scale retry scheduling and combined identity-verified startup/discovery are shipped. Grade screens open after the complete snapshot is committed and activated, without waiting for an auxiliary status call. Native history/local scenarios do not import; keep native installed during phone acceptance.
+- The user requested a finished configured instance and URL without more manual setup tasks. Physical iPhone/Android installs and a genuinely new user's signup remain unverified. GitHub integration cannot create a separate validation repo (403). The last natural-expiry measurement was **3.043 s / six calls before the final startup/discovery consolidation**; a two-second expired-open guarantee and phone startup timing are not claimed. These remain follow-up limitations, not passed checks.
+
+## Earlier checkpoint notes — historical
 
 ## October 16 resumed Cloudflare Builds setup
 
@@ -27,7 +38,7 @@ The active app is the React/TypeScript PWA in `web/`, on `pwa-migration` / [draf
 - The new environment contains the active Cloudflare token, and real push-triggered Builds deployments now work. The previous OAuth/token-loading blocker is resolved. GitHub integration still rejects creating a separate repository (403); do not repeat device login or bypass its identity.
 - Remaining gates: improve the remaining 3.043-second expired-open latency, physical phone checks, observed novice/new-account setup and the real copied update/rollback chain, then one final merge/release/deploy. Builds automation and the identified native assignment/navigation gaps are resolved. No new percentage estimate is claimed.
 
-The sections below preserve earlier history and are superseded by this current section. Detailed evidence and resumption steps are in PWA_VALIDATION and PWA_HANDOFF.
+The following checkpoint sections preserve earlier history; the final delivery record at the top supersedes their pending-release statements. Detailed evidence and resumption steps are in PWA_VALIDATION and PWA_HANDOFF.
 
 ## October 16 PWA implementation checkpoint — paused by user
 

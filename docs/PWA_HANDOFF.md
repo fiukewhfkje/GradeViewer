@@ -1,5 +1,21 @@
 # GradeViewer PWA handoff — October 16, 2026
 
+## Final delivery
+
+The migration is complete as a shipped v0.1.0 implementation. Do not repeat the migration merge, recreate production, or recreate the v0.1.0 tag.
+
+- Owner's connected production app: **https://gradeviewer.fiukewhfkje.workers.dev**. Schoology is already configured; the owner unlocks once with the private password handoff file `/workspace/.gradeviewer-private/GradeViewer-your-private-login.txt`. Never print its contents or include it in source/archive uploads.
+- Exactly one migration merge: [PR #9](https://github.com/fiukewhfkje/GradeViewer/pull/9), merge `1b60b6fc91c8de57c66f3acc666bfed44afe6417`. Native baseline `3447420` and focused history are preserved; native production Sources/GradeViewer files are unchanged.
+- [Signed release v0.1.0](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.0) is published with source, manifest and GitHub keyless provenance. [Release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/38990029814) passed. Actual published-release updater verification and personal-config/secret preservation passed in an isolated source copy using the real gh verifier.
+- Production Builds trigger `5cbb41f5-53d3-48ce-ab05-8e08e5b27c3e`, Worker tag `f4b2eeb230fe46289a94c228de57d937`, branch `main`, root `web`, deploy `npm run deploy -- --name gradeviewer`. Production password is a secret build variable; do not replace it with the preview password. Production merge-push build `ef0a181d-3aad-416f-8de6-8110ad146bcd` deployed version `d87f8c7b-1e0d-45e6-9a5a-77ec9ad0e4c4` and retained encrypted credentials.
+- Post-deployment real owner verification completed 45 account-bound course-period records using stored keys. Warm refresh: 1.417 s / five calls. Initial production connect: 3.274 s; new-browser optional title recovery: 6.515 s. Last naturally expired sample, before final round-trip consolidation: 3.043 s. No two-second or physical-phone guarantee.
+- The user explicitly asked to finish their configured deployment and receive a brief/URL, without more manual setup requests or unrelated testing. Physical phone installs, novice fresh-account signup and copied-remote-repo push/deploy/true published-version rollback remain unverified; GitHub repo creation returned 403. Do not repeat the declined copied-repo request or claim those checks passed. See PROJECT_STATUS.md for final evidence.
+
+## Original checkpoint and recovery history
+
+The sections below preserve earlier migration checkpoints. Their paused/no-release statements describe history and are superseded by the final delivery above.
+
+
 The user requested a clean handoff to a new thread so its cloud environment can load a newly added `CLOUDFLARE_API_TOKEN`. The new environment has now loaded it and work has resumed. Resume the existing migration; do not restart the port or merge it immediately.
 
 ## Resumed environment and Builds setup
