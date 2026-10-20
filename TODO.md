@@ -8,8 +8,9 @@
 - [x] Replace quarter-to-quarter graph jumps with guarded weighted semester progression and authoritative semester observations.
 - [x] Separate update activation/loading state, wait for controller takeover and avoid offering the running shell again.
 - [x] Preserve open courses/forms across another tab's refresh and merge local edits saved during a refresh.
-- [ ] Finish local browser/template checks, remote release gates, signed stable v0.1.8 publication and immediate deployment to the existing owner URL.
-- [ ] Verify the retained real production v0.1.7 PWA installs v0.1.8 with identical synthetic local state and second-tab form retention. Physical phone acceptance and real account latency remain unmeasured.
+- [x] Finish local browser/template checks, remote release gates, signed stable v0.1.8 publication and immediate deployment to the existing owner URL. Final CI passes 152 tests, 28 flows per browser, 119 Swift tests and 1,200 calculation comparisons; live assets and real published provenance verify.
+- [x] Verify the retained real production v0.1.7 PWA installs v0.1.8 with identical synthetic local state and second-tab form retention, explicit activation in both tabs, and no repeated update notice.
+- [ ] Complete physical iPhone/Android acceptance and measure real account latency; synthetic startup/gesture/browser evidence does not establish those results.
 
 ## Repository presentation and eventual native retirement
 
