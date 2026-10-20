@@ -59,6 +59,7 @@ import { version } from "../package.json";
 import {
   checkForAppUpdate,
   activateAppUpdate,
+  isNewAppShell,
   readInstallation,
   updateMessage as describeUpdate,
   type Installation,
@@ -166,6 +167,7 @@ export default function App() {
     [copied, setCopied] = useState(false),
     [update, setUpdate] = useState<ServiceWorker>(),
     [checkingUpdate, setCheckingUpdate] = useState(false),
+    [applyingUpdate, setApplyingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
     [installation, setInstallation] = useState<Installation>(),
     [theme, setTheme] = useState(() => {
@@ -204,7 +206,11 @@ export default function App() {
       setBusy(true);
       setError("");
       try {
-        const s = await api<Status>("status");
+        const [s, latest, recovered] = await Promise.all([
+          api<Status>("status"),
+          repository.load(),
+          repository.pending(),
+        ]);
         setStatus(s);
         if (!s.authenticated) {
           setFresh(false);
@@ -212,7 +218,7 @@ export default function App() {
           return;
         }
         if (!s.connected && !credentials) {
-          if (stateRef.current.account) {
+          if (latest.account || stateRef.current.account) {
             await repository.clear();
             apply(emptyState());
           }
@@ -220,9 +226,13 @@ export default function App() {
           setFresh(true);
           return;
         }
-        const latest = await repository.load();
-        if (latest.account === s.account) apply(latest);
-        const recovered = await repository.pending();
+        if (latest.account === s.account) {
+          apply(latest);
+          // Keep the last complete snapshot usable while Schoology refreshes.
+          setFresh(latest.courses.length > 0);
+        } else {
+          setFresh(false);
+        }
         if (
           recovered &&
           s.connected &&
@@ -231,6 +241,7 @@ export default function App() {
         ) {
           await repository.activate(recovered.state);
           apply(recovered.state);
+          setFresh(recovered.state.courses.length > 0);
         }
         if (
           !credentials &&
@@ -257,7 +268,12 @@ export default function App() {
         setFresh(true);
         setDeadline(0);
         channel.current?.postMessage("saved");
-        setStatus(await api<Status>("status"));
+        setStatus({
+          ...s,
+          connected: true,
+          account: next.account,
+          cooldown: undefined,
+        });
       } catch (e) {
         setError(errorMessage(e));
         if (e instanceof RequestError && e.retryAfter)
@@ -279,51 +295,36 @@ export default function App() {
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
-    void (async () => {
-      try {
-        const loaded = await repository.load();
-        apply(loaded);
-        const s = await api<Status>("status"),
-          p = await repository.pending();
-        setStatus(s);
-        if (
-          s.authenticated &&
-          p &&
-          s.connected &&
-          s.account === p.account &&
-          s.revision !== p.previousRevision
-        ) {
-          await repository.activate(p.state);
-          apply(p.state);
-        }
-        await refresh();
-      } catch (e) {
-        setError(errorMessage(e));
-        setBusy(false);
-      }
-    })();
+    void refresh().catch(() => {});
     const bc = new BroadcastChannel("gradeviewer");
     channel.current = bc;
     bc.onmessage = (event) => {
       if (!demoRef.current) {
-        setSelected(undefined);
-        setModal(undefined);
         void (async () => {
           const remote = await api<Status>("status");
           setStatus(remote);
           if (!remote.authenticated) {
+            setSelected(undefined);
+            setModal(undefined);
             setFresh(false);
             setTab("profile");
             return;
           }
-          apply(await repository.load());
-          if (event.data === "saved") setFresh(remote.connected);
+          const saved = await repository.load();
+          if (remote.connected && saved.account === remote.account) {
+            apply(saved);
+            if (event.data === "saved") setFresh(true);
+          } else {
+            setSelected(undefined);
+            setModal(undefined);
+            setFresh(false);
+            setTab("profile");
+          }
         })().catch((e) => setError(errorMessage(e)));
       }
     };
     const visibility = () => {
       if (document.visibilityState === "visible" && !demoRef.current) {
-        setFresh(false);
         void refresh().catch(() => {});
       }
       if (
@@ -358,26 +359,35 @@ export default function App() {
       .catch(() => {});
     if ("serviceWorker" in navigator) {
       let hadController = !!navigator.serviceWorker.controller;
+      const offer = (worker: ServiceWorker) => {
+        void isNewAppShell(worker)
+          .then((changed) => {
+            if (changed) setUpdate(worker);
+          })
+          .catch(() => {});
+      };
       void navigator.serviceWorker
         .register("/sw.js", { updateViaCache: "none" })
         .then((reg) => {
-          if (reg.waiting) setUpdate(reg.waiting);
-          reg.addEventListener("updatefound", () => {
+          if (reg.waiting) offer(reg.waiting);
+          const observe = () => {
             const worker = reg.installing;
             worker?.addEventListener("statechange", () => {
               if (
                 worker.state === "installed" &&
                 navigator.serviceWorker.controller
               )
-                setUpdate(worker);
+                offer(worker);
             });
-          });
+          };
+          observe();
+          reg.addEventListener("updatefound", observe);
         })
         .catch(() => {});
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         // Another tab can accept an update without interrupting this tab's forms.
         if (hadController && navigator.serviceWorker.controller)
-          setUpdate(navigator.serviceWorker.controller);
+          offer(navigator.serviceWorker.controller);
         hadController = true;
       });
     }
@@ -412,6 +422,37 @@ export default function App() {
   async function persist(next: SavedState) {
     pendingSaves.current++;
     try {
+      if (flight.current && !demoRef.current) {
+        const before = stateRef.current;
+        await flight.current.catch(() => {});
+        const current = stateRef.current;
+        if (current.account !== before.account)
+          throw new Error("storageFailed");
+        // A form can stay open during refresh. Apply only its local changes to
+        // the new snapshot instead of saving the older provider data over it.
+        const scenarios = { ...current.scenarios };
+        for (const [id, value] of Object.entries(next.scenarios))
+          if (value !== before.scenarios[id]) scenarios[id] = value;
+        const local = new Map(next.courses.map((c) => [c.id, c]));
+        const previous = new Map(before.courses.map((c) => [c.id, c]));
+        next = {
+          ...current,
+          scenarios,
+          courses: current.courses.map((c) => {
+            const edit = local.get(c.id),
+              old = previous.get(c.id);
+            return edit && old
+              ? {
+                  ...c,
+                  removed:
+                    edit.removed !== old.removed ? edit.removed : c.removed,
+                  hidden: edit.hidden !== old.hidden ? edit.hidden : c.hidden,
+                  order: edit.order !== old.order ? edit.order : c.order,
+                }
+              : c;
+          }),
+        };
+      }
       if (!demoRef.current) await repository.save(next);
       apply(next);
       channel.current?.postMessage("local");
@@ -480,7 +521,12 @@ export default function App() {
                     a.id.localeCompare(b.id),
                 ),
             ]
-          : recent(rows).slice(0, 5);
+          : [
+              ...[...s.added].reverse(),
+              ...recent(
+                rows.filter((a) => !s.added.some((added) => added.id === a.id)),
+              ),
+            ].slice(0, 5);
     return items.length ? (
       <div className="rows">
         {items.map((a) => {
@@ -761,23 +807,28 @@ export default function App() {
     );
   }
   async function activateUpdate() {
-    if (!update || busy || modal) return;
+    if (!update || applyingUpdate || modal) return;
     if (
+      flight.current ||
       pendingSaves.current ||
       saveFailed.current ||
       document.querySelector("form[data-dirty='true']")
     ) {
-      setUpdateMessage("Save or close your open changes before updating.");
+      setUpdateMessage(
+        flight.current
+          ? "Finishing your grade refresh. Try Update now in a moment."
+          : "Save or close your open changes before updating.",
+      );
       return;
     }
-    setBusy(true);
+    setApplyingUpdate(true);
     try {
       await activateAppUpdate(update, () => location.reload());
     } catch {
       setUpdateMessage(
         "The update could not activate. Your data is retained. Check again and retry.",
       );
-      setBusy(false);
+      setApplyingUpdate(false);
     }
   }
   async function checkUpdates() {
@@ -800,11 +851,13 @@ export default function App() {
       let worker = shell.status === "fulfilled" ? shell.value : undefined;
       if (deployed.status === "fulfilled") {
         setInstallation(deployed.value);
-        if (!worker && deployed.value.version !== version)
-          worker = registration?.active ?? undefined;
       }
       if (worker) {
         setUpdate(worker);
+        setUpdateMessage(
+          "Update ready. Save any open changes, then choose Update now.",
+        );
+      } else if (update && update.state !== "redundant") {
         setUpdateMessage(
           "Update ready. Save any open changes, then choose Update now.",
         );
@@ -962,9 +1015,12 @@ export default function App() {
             </header>
             {update && (
               <aside className="update">
-                An update is ready.
-                <button disabled={busy || !!modal} onClick={activateUpdate}>
-                  Reload to update
+                {applyingUpdate ? "Installing update…" : "An update is ready."}
+                <button
+                  disabled={busy || applyingUpdate || !!modal}
+                  onClick={activateUpdate}
+                >
+                  {applyingUpdate ? "Updating…" : "Reload to update"}
                 </button>
               </aside>
             )}
@@ -993,7 +1049,35 @@ export default function App() {
                 {error}
               </p>
             )}
-            <main className={tab === "profile" ? "profile" : undefined}>
+            {fresh && !demo && tab === "grades" && (
+              <div className="refresh-status" role="status" aria-live="polite">
+                {busy ? (
+                  <>
+                    <RefreshCw size={14} className="spinning" /> Updating
+                    grades…
+                  </>
+                ) : error ? (
+                  <>
+                    Showing saved grades.{" "}
+                    <button
+                      disabled={!canRefresh}
+                      onClick={() => void refresh().catch(() => {})}
+                    >
+                      Retry
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            )}
+            <main
+              className={
+                tab === "profile"
+                  ? "profile"
+                  : course && view === "detail"
+                    ? "course-detail"
+                    : undefined
+              }
+            >
               {tab === "profile" ? (
                 <>
                   <section className="settings-group">
@@ -1123,7 +1207,7 @@ export default function App() {
                     <h2>App</h2>
                     <div className="settings-card">
                       <button
-                        disabled={checkingUpdate || busy || !!modal}
+                        disabled={checkingUpdate || applyingUpdate || !!modal}
                         onClick={() => void checkUpdates()}
                       >
                         <Download
@@ -1136,10 +1220,11 @@ export default function App() {
                       </button>
                       {update && (
                         <button
-                          disabled={busy || !!modal}
+                          disabled={busy || applyingUpdate || !!modal}
                           onClick={activateUpdate}
                         >
-                          <RefreshCw size={18} /> Update now
+                          <RefreshCw size={18} />{" "}
+                          {applyingUpdate ? "Updating…" : "Update now"}
                         </button>
                       )}
                       {!demo && status?.authenticated && (
@@ -1334,35 +1419,43 @@ export default function App() {
                 </>
               ) : (
                 <>
-                  {summary(course, true)}
-                  <GradeGraph
-                    key={course.id}
-                    course={course}
-                    all={state.courses}
-                  />
-                  <section>
+                  <div className="course-overview">
+                    {summary(course, true)}
+                    <GradeGraph
+                      key={course.id}
+                      course={course}
+                      all={state.courses}
+                    />
+                  </div>
+                  <section className="recent-assignments">
                     <h2>Recently Graded Assignments</h2>
                     {list(course)}
+                    <button
+                      className="primary full view-all"
+                      onClick={() => {
+                        setView("assignments");
+                        setPeriod(course.id);
+                      }}
+                    >
+                      View All Assignments <ArrowRight size={20} />
+                    </button>
                   </section>
-                  <button
-                    className="primary full view-all"
-                    onClick={() => {
-                      setView("assignments");
-                      setPeriod(course.id);
-                    }}
-                  >
-                    View All Assignments <ArrowRight size={20} />
-                  </button>
                 </>
               )}
             </main>
           </div>
           <footer>
+            <div className="sidebar-brand">
+              <span className="sidebar-mark">G</span>GradeViewer
+            </div>
             <button
               className={tab === "grades" ? "active" : ""}
               aria-label="Grades"
               aria-pressed={tab === "grades"}
-              onClick={() => setTab("grades")}
+              onClick={() => {
+                setTab("grades");
+                setSelected(undefined);
+              }}
             >
               <span className="tab-grade">A+</span>
               <span>grades</span>
@@ -1379,6 +1472,32 @@ export default function App() {
               <User strokeWidth={1.4} />
               <span>profile</span>
             </button>
+            <div className="sidebar-courses">
+              <span className="sidebar-label">Your courses</span>
+              {fresh &&
+                visibleCourses(state.courses).map((c) => (
+                  <button
+                    key={c.id}
+                    aria-current={
+                      tab === "grades" && selected === c.id ? "page" : undefined
+                    }
+                    onClick={() => {
+                      setTab("grades");
+                      choose(c);
+                    }}
+                  >
+                    <span>{c.title}</span>
+                    <span className="sidebar-percent">
+                      {percentText(overall(c, state.courses).grade.percent)}
+                    </span>
+                  </button>
+                ))}
+            </div>
+            <div className="sidebar-footnote">
+              GradeViewer {version}
+              <br />
+              Your grades, at a glance.
+            </div>
           </footer>
         </div>
       </div>
