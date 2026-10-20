@@ -1003,6 +1003,11 @@ try {
         await navigator.serviceWorker.register("/sw.js");
         await navigator.serviceWorker.ready;
       });
+      // Saved cards now appear before background refresh finishes. This case
+      // tests an offline launch, not cutting a live scan's connection in WebKit.
+      await page.waitForFunction(
+        () => !document.querySelector(".desktop-refresh")?.disabled,
+      );
       await context.setOffline(true);
       await page.reload();
       await page
