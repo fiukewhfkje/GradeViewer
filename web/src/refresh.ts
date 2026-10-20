@@ -431,7 +431,13 @@ export async function readSnapshot(
           if (valid.length === 1) Object.assign(a, valid[0]);
         }
       };
-      if (unresolved.length && !optionalCooldown) {
+      // Returning opens prioritize complete grades. Expensive optional title
+      // discovery remains available on connect, a new browser or manual refresh.
+      if (
+        unresolved.length &&
+        !optionalCooldown &&
+        (credentials || refreshMetadata || !previous.courses.length)
+      ) {
         for (const { a } of unresolved) attemptedTitles.add(a.id);
         try {
           const lookups = [

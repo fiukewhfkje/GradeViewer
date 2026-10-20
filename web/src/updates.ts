@@ -68,31 +68,74 @@ export async function readInstallation(): Promise<Installation> {
 export async function activateAppUpdate(
   worker: ServiceWorker,
   reload: () => void,
+  container = typeof navigator !== "undefined"
+    ? navigator.serviceWorker
+    : undefined,
 ) {
-  if (worker.state === "activated") {
-    reload();
-    return;
-  }
-  await new Promise<void>((resolve, reject) => {
-    const finish = (error?: Error) => {
-      clearTimeout(timer);
-      worker.removeEventListener("statechange", changed);
-      error ? reject(error) : resolve();
-    };
-    const changed = () => {
-      if (worker.state === "activated") finish();
-      if (worker.state === "redundant")
-        finish(new Error("Update activation failed."));
-    };
-    const timer = setTimeout(
-      () => finish(new Error("Update activation timed out.")),
-      20000,
-    );
-    worker.addEventListener("statechange", changed);
-    worker.postMessage({ type: "ACTIVATE" });
-    changed();
-  });
+  if (worker.state !== "activated")
+    await new Promise<void>((resolve, reject) => {
+      const finish = (error?: Error) => {
+        clearTimeout(timer);
+        worker.removeEventListener("statechange", changed);
+        error ? reject(error) : resolve();
+      };
+      const changed = () => {
+        if (worker.state === "activated") finish();
+        if (worker.state === "redundant")
+          finish(new Error("Update activation failed."));
+      };
+      const timer = setTimeout(
+        () => finish(new Error("Update activation timed out.")),
+        20000,
+      );
+      worker.addEventListener("statechange", changed);
+      worker.postMessage({ type: "ACTIVATE" });
+      changed();
+    });
+  // Activation can finish before clients.claim(). Reloading earlier can serve
+  // the previous cached page and leave the user looking at the same update.
+  if (container && container.controller !== worker)
+    await new Promise<void>((resolve, reject) => {
+      const finish = (error?: Error) => {
+        clearTimeout(timer);
+        container.removeEventListener("controllerchange", changed);
+        error ? reject(error) : resolve();
+      };
+      const changed = () => {
+        if (container.controller === worker) finish();
+      };
+      const timer = setTimeout(
+        () => finish(new Error("Update takeover timed out.")),
+        20000,
+      );
+      container.addEventListener("controllerchange", changed);
+      changed();
+    });
   reload();
+}
+/** Compare content identity, including same-version deployments and rollbacks. */
+export async function isNewAppShell(worker: ServiceWorker) {
+  if (!["installed", "activating", "activated"].includes(worker.state))
+    return false;
+  const current = document.querySelector<HTMLMetaElement>(
+    'meta[name="gradeviewer-build"]',
+  )?.content;
+  if (!current) return true;
+  return new Promise<boolean>((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (changed: boolean) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      channel.port2.close();
+      resolve(changed);
+    };
+    const timer = setTimeout(() => finish(false), 3000);
+    channel.port1.onmessage = (event) =>
+      finish(
+        typeof event.data?.build === "string" && event.data.build !== current,
+      );
+    worker.postMessage({ type: "SHELL_INFO" }, [channel.port2]);
+  });
 }
 /** Wait for the new app shell to finish caching before offering a reload. */
 export async function checkForAppUpdate(

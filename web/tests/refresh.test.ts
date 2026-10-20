@@ -19,6 +19,8 @@ describe("complete snapshot and cache integration", () => {
     batches: string[][] = [],
     metadataCompleted = 0,
     scalesAfterMetadata: number[] = [];
+  let missingTitles = false,
+    optionalTitleReads = 0;
   let cooldownDelivered: Promise<void>, resumeCooldownPeers: () => void;
   beforeEach(async () => {
     await repository.clear();
@@ -30,6 +32,8 @@ describe("complete snapshot and cache integration", () => {
     batches = [];
     metadataCompleted = 0;
     scalesAfterMetadata = [];
+    missingTitles = false;
+    optionalTitleReads = 0;
     cooldownDelivered = new Promise((resolve) => {
       resumeCooldownPeers = resolve;
     });
@@ -41,6 +45,8 @@ describe("complete snapshot and cache integration", () => {
         this.upstream = async (req) => {
           requests++;
           const requestURL = new URL(req.url);
+          if (/\/assignments(?:\/|$)|\/folder\//.test(requestURL.pathname))
+            optionalTitleReads++;
           if (requestURL.pathname.endsWith("/grading_scales"))
             scalesAfterMetadata.push(metadataCompleted);
           if (
@@ -85,6 +91,14 @@ describe("complete snapshot and cache integration", () => {
               metadataCompleted++;
           }
           const url = new URL(req.url);
+          if (missingTitles && url.pathname.endsWith("/grade_items")) {
+            const value = (await response.json()) as {
+              assignment: Record<string, unknown>[];
+            };
+            return Response.json({
+              assignment: value.assignment.map(({ title, ...item }) => item),
+            });
+          }
           if (large && /^\/v1\/sections\/\d+$/.test(url.pathname))
             return Response.json({
               ...((await response.json()) as Record<string, unknown>),
@@ -288,6 +302,26 @@ describe("complete snapshot and cache integration", () => {
     requests = 0;
     await readSnapshot(warm, await status(), undefined, true);
     expect(requests).toBe(23);
+  });
+  it("defers optional title traversal on returning opens and retries it on manual refresh", async () => {
+    const cold = await readSnapshot(emptyState(), await status(), {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    missingTitles = true;
+    const previous = structuredClone(cold);
+    // Remove one unresolved name from both the saved snapshot and cached catalog.
+    for (const c of previous.courses)
+      for (const a of c.assignments) a.title = "Untitled assignment";
+    for (const m of Object.values(previous.metadata!))
+      for (const item of m.payload.items) delete item.title;
+    await repository.save(previous);
+    optionalTitleReads = 0;
+    const returning = await readSnapshot(previous, await status());
+    expect(optionalTitleReads).toBe(0);
+    expect(returning.courses).toHaveLength(cold.courses.length);
+    await readSnapshot(returning, await status(), undefined, true);
+    expect(optionalTitleReads).toBeGreaterThan(0);
   });
   it("retains the active account/snapshot after malformed credential replacement", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {

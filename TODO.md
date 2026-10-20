@@ -1,5 +1,16 @@
 # Next work
 
+## October 20 responsiveness and stable release
+
+- [x] Add a desktop sidebar/course grid and wider course/Profile layouts; inspect synthetic screenshots.
+- [x] Show authenticated account-matched saved grades during background refresh, remove duplicate startup status reads and defer optional returning-open title traversal.
+- [x] Keep held graph selection during vertical drift, follow display frames and scale the tracing marker to the desktop plot.
+- [x] Replace quarter-to-quarter graph jumps with guarded weighted semester progression and authoritative semester observations.
+- [x] Separate update activation/loading state, wait for controller takeover and avoid offering the running shell again.
+- [x] Preserve open courses/forms across another tab's refresh and merge local edits saved during a refresh.
+- [ ] Finish local browser/template checks, remote release gates, signed stable v0.1.8 publication and immediate deployment to the existing owner URL.
+- [ ] Verify the retained real production v0.1.7 PWA installs v0.1.8 with identical synthetic local state and second-tab form retention. Physical phone acceptance and real account latency remain unmeasured.
+
 ## Repository presentation and eventual native retirement
 
 - [x] Delete all five archived disposable GradeViewer probe repositories at the owner's request; verify the other eight repositories remain and mark historical probe run links as unavailable.

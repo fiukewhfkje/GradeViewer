@@ -1,4 +1,6 @@
-# Current handoff — October 17, 2026
+# Current handoff — October 20, 2026
+
+v0.1.8 is being prepared for the owner's requested immediate stable update. See the newest PROJECT_STATUS/TODO/PWA_VALIDATION sections for desktop, authenticated cached startup, semester graph/touch performance and update-activation changes. The user explicitly authorized release and immediate deployment without questions. Finish the existing gates and production upgrade verification; preserve the Worker/address/password/vault and do not create another installation. Earlier v0.1.7 delivery/historical descriptions follow.
 
 Cleanup follow-up: the owner requested deletion of all five archived disposable GitHub probe repositories. They are now deleted; historical probe run links are unavailable. Recorded test results remain historical, and the official repository/releases and Cloudflare resources were preserved. See PROJECT_STATUS.md for the verified inventory. References to archived probes below describe their earlier state.
 

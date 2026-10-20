@@ -4,6 +4,8 @@ The active PWA lives in `web/`; see [PWA architecture and validation](docs/PWA_V
 
 ## Native reference
 
+PWA v0.1.8 intentionally updates two presentation behaviors at the owner's request: authenticated returning opens show saved grades while a complete refresh runs, and course graphs follow their associated semester total. Weighted historical reconstruction is withheld unless the component baseline reproduces that semester; observed history remains unchanged. Desktop has a responsive sidebar/grid workspace. The native reference descriptions below retain the older fresh-screen gate and per-quarter progression behavior.
+
 GradeViewer is one native local SwiftUI iPhone app, using Apple frameworks and the local GradeCore package. Schoology is its sole provider. There is no server, analytics, advertising, Muse dependency, widget, extension, App Group, or background polling.
 
 `SchoologyProvider` → GradeCore source courses/calculations → stable canonical courses → protected SwiftData cache → SwiftUI.

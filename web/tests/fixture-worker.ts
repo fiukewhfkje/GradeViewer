@@ -16,6 +16,17 @@ export class FixtureVault extends CredentialVault {
   }
   override async fetch(request: Request): Promise<Response> {
     if (
+      new URL(request.url).pathname === "/api/fixture/delay" &&
+      request.method === "POST"
+    ) {
+      const { ms } = (await request.json()) as { ms: number };
+      await this.fixtureState.storage.put(
+        "synthetic-provider-delay",
+        Math.max(0, Math.min(5000, ms || 0)),
+      );
+      return Response.json({ ok: true });
+    }
+    if (
       new URL(request.url).pathname === "/api/fixture/failure" &&
       request.method === "POST"
     ) {
@@ -29,6 +40,12 @@ export class FixtureVault extends CredentialVault {
     return super.fetch(request);
   }
   protected upstream = async (request: Request): Promise<Response> => {
+    if (new URL(request.url).pathname.endsWith("/users/me")) {
+      const delay = await this.fixtureState.storage.get<number>(
+        "synthetic-provider-delay",
+      );
+      if (delay) await new Promise((r) => setTimeout(r, delay));
+    }
     if (await this.fixtureState.storage.get("synthetic-provider-failure"))
       return Response.json({}, { status: 502 });
     const auth = request.headers.get("Authorization") ?? "",

@@ -13,17 +13,19 @@ GradeViewer is a simple, personal Schoology grade viewer. The active product is 
 
 Show current courses, reported grades and available letter grades, assignments, categories, recent grading activity and progression. Reported interpretable totals take priority; use canonical calculations only where supported. Never invent missing scores, dates, teacher rules or provider history.
 
-Preserve semester summaries, quarter assignment scopes and read-only exam placement. Calculators must use one canonical Schoology contribution per assignment. Local edit, drop, restore, reset, removal and Add Grade actions never write to Schoology. The final calculator uses the entered syllabus weight. Keep calculated graph points separate from observed history; the tooltip contains only the actual selected event's grade and date.
+Preserve semester summaries, quarter assignment scopes and read-only exam placement. The course graph tracks that same uniquely associated semester, rather than joining raw quarter percentages. Reconstruct weighted semester events only when the declared component weights reproduce the semester baseline; preserve actual semester observations and withhold unsupported reconstruction. Calculators must use one canonical Schoology contribution per assignment. Local edit, drop, restore, reset, removal and Add Grade actions never write to Schoology. The final calculator uses the entered syllabus weight. Keep calculated graph points separate from observed history; the tooltip contains only the selected event's grade and date.
 
 ## Presentation
 
 Use the native app's warm light/dark palette, green grades, course cards, compact course navigation, neutral filled progression chart and collapsible assignment groups. Support system, light and dark appearance. Profile uses grouped connection, appearance, personal website and app controls. Provide a copyable/openable personal address, Home Screen installation help and a Check for updates action that installs a ready app-shell update without losing local data.
 
+Desktop uses a persistent navigation/course sidebar, a course-card grid and side-by-side grade/graph and recent-assignment panels. Phone navigation stays compact. A held chart owns its touch gesture, including vertical finger drift; selection follows display frames and clears on release or cancellation.
+
 On phones, pull down from the top to reveal a spinner, release past the threshold to refresh, hold the indicator until completion and settle smoothly. There are no pull/release text prompts. A cancelled or short gesture must not refresh. Normal scrolling, chart gestures and form controls keep their interactions. Browser refresh and app refresh must not compete. Desktop and accessible Profile controls provide manual refresh too.
 
 ## Refresh and persistence
 
-Refresh on launch, actual foreground return and active checks, coalescing in-flight requests. Preserve the last successful snapshot on failure. Foreground grade screens wait for a complete fresh snapshot while Profile and Retry remain accessible. Honor server cooldowns and bounded retries; optional title recovery must not invalidate otherwise fresh grades. Updates preserve the user's URL, vault, sessions and browser-local data.
+Refresh on launch, actual foreground return and active checks, coalescing in-flight requests. After checking the authenticated session and matching account, show the last complete saved snapshot immediately with a quiet refresh indicator. Keep it visible on provider failure with a saved-data notice and Retry. An offline launch without session verification retains the authentication gate. First connection still waits for complete verified grades. Preserve open forms and merge local edits into a refreshed snapshot. Honor server cooldowns and bounded retries; returning opens defer optional title traversal to manual refresh. Updates preserve the user's URL, vault, sessions and browser-local data, compare cached shell identity and wait for service-worker takeover before reload.
 
 ## Verification and delivery
 
