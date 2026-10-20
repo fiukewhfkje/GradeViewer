@@ -1,4 +1,10 @@
-# PWA verification — October 17, 2026
+# PWA verification — October 20, 2026
+
+## v0.1.8 responsiveness candidate
+
+Production build and **152 unit/security/integration tests** pass. All **28 Chromium HTTPS/Worker flows** pass, including the desktop sidebar/grid/two-column course layout, exact semester endpoint, chart vertical finger drift without scroll/cancellation, returning opens with one status check and saved grades visible in **110 ms** despite an artificial **2.5-second** provider delay, saved edits retaining the new snapshot during foreground refresh, open-dialog retention during another tab's refresh, fresh-cache recovery, offline authentication gating, failure retention and per-tab service-worker activation. Desktop dark/light and phone screenshots are synthetic; the new desktop screenshots are inspected. Local WebKit downloaded but reports missing system libraries; remote CI will provide WebKit/native/provenance gates. No physical-device or new real-provider timing claim is made.
+
+The owner requested faster returning opens and semester graphs, intentionally superseding the older PWA fresh-screen gate and concatenated quarter graph described below. Data remains account-bound; complete new snapshots still commit atomically, observed history stays unchanged, and unsupported weighted reconstruction is withheld. A real production v0.1.7 shell is retained in headless Chromium with synthetic IndexedDB state and a second-tab unsaved form to test the actual upcoming deployment. Publication/deployment evidence is pending.
 
 Cleanup follow-up: all five disposable private GitHub probe repositories were deleted at the owner's request on October 17. Their run links below are historical and now unavailable; summaries record prior observations, not retained remote logs. Official GradeViewer CI/release links remain separate. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the verified cleanup scope.
 
