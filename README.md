@@ -68,4 +68,4 @@ Schoology keys are encrypted in your own Cloudflare account. Grades, history and
 
 There are no subscriptions, ads, analytics, provider grade writes or shared maintainer grade servers. The PWA does not import the native app's local history or edits.
 
-For maintainers: [immediate development updates, preview releases and rollback](docs/AUTOMATIC_UPDATES.md#immediate-development-updates). [Validation evidence](docs/PWA_VALIDATION.md) · [current status](PROJECT_STATUS.md) · [archived native setup](docs/NATIVE_SETUP.md).
+For maintainers: [immediate development updates, preview releases and rollback](docs/AUTOMATIC_UPDATES.md#immediate-development-updates). [Validation evidence](docs/PWA_VALIDATION.md) · [current status](PROJECT_STATUS.md). The retired native app and its setup are preserved in Git history.

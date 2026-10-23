@@ -1,4 +1,6 @@
-# GradeViewer PWA plan — October 16, 2026
+# Historical GradeViewer PWA plan — October 16, 2026
+
+Native retirement note — October 23: the migration is complete and the owner has authorized removal of all Swift/native tooling and comparison CI. This plan preserves the original investigation, not active retention or release instructions. Current architecture, commands and limits are in [PWA_HANDOFF.md](PWA_HANDOFF.md). Native links below point to the historical implementation.
 
 Status: resumed and implemented as release candidate 0.1.0. The application, security/persistence layer, installation assets, signed release/update machinery and synthetic suites now exist. Live OAuth identity and a full snapshot succeeded. See [PWA_VALIDATION.md](PWA_VALIDATION.md) for current evidence and the external Cloudflare/public-release/physical-phone gates. The investigation below preserves the original design rationale; its old network/checkpoint observations are historical.
 
@@ -23,7 +25,7 @@ Cloud development is supported here: Node 24.19.0 and npm 11.9.0 are installed, 
 | Unauthenticated network probes | HEAD and OPTIONS to the API failed with proxy tunnel HTTP 403 before reaching Schoology. | This is an environment access failure, not a Schoology 403, CORS failure or invalid-key result. No credentials or student reads were involved. |
 | Official documentation | Schoology supports personal two-legged OAuth; users/me can redirect and requires a new signature. Cloudflare supports full-stack Workers and deployment templates. | Documentation establishes a viable design, not a successful deployment or district compatibility. |
 
-Relevant implementation references: [OAuth and transport](../Sources/GradeCore/Networking.swift), [connection settings](../GradeViewer/Settings.swift), [activation and refresh](../GradeViewer/AppStore.swift), [secure native storage](../GradeViewer/Keychain.swift), and [current behavior](../ARCHITECTURE.md).
+Relevant implementation references: [OAuth and transport](https://github.com/fiukewhfkje/GradeViewer/blob/4100e615130b407a4dc5b2901f936d39c789482a/Sources/GradeCore/Networking.swift), [connection settings](https://github.com/fiukewhfkje/GradeViewer/blob/4100e615130b407a4dc5b2901f936d39c789482a/GradeViewer/Settings.swift), [activation and refresh](https://github.com/fiukewhfkje/GradeViewer/blob/4100e615130b407a4dc5b2901f936d39c789482a/GradeViewer/AppStore.swift), [secure native storage](https://github.com/fiukewhfkje/GradeViewer/blob/4100e615130b407a4dc5b2901f936d39c789482a/GradeViewer/Keychain.swift), and [current behavior](../ARCHITECTURE.md).
 
 ## Browser feasibility and authentication
 

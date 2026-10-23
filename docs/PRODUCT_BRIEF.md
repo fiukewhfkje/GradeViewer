@@ -1,6 +1,6 @@
 # GradeViewer product brief
 
-GradeViewer is a simple, personal Schoology grade viewer. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The retained SwiftUI app and GradeCore define reference behavior. Earlier superseded requirements remain in Git history.
+GradeViewer is a simple, personal Schoology grade viewer. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
 
 ## Product and ownership
 
@@ -27,6 +27,6 @@ Refresh on launch, actual foreground return and active checks, coalescing in-fli
 
 ## Verification and delivery
 
-Use synthetic fixtures and headless CLI browsers, including small phones, desktop, light/dark, offline/failure, touch cancellation, held chart selection and installed-mode assumptions. Inspect screenshots. No connected-browser or desktop GUI automation. Never print credentials, real student records, cookies or raw provider responses. Keep native history for reference and avoid changing native production code during PWA fixes.
+Use synthetic fixtures and headless CLI browsers, including small phones, desktop, light/dark, offline/failure, touch cancellation, held chart selection and installed-mode assumptions. Inspect screenshots. No connected-browser or desktop GUI automation. Never print credentials, real student records, cookies or raw provider responses. Keep native history in Git; do not restore Swift tooling or migration-only parity checks.
 
 Run relevant build, unit, browser and release checks; use focused commits, reviewed delivery and the existing signed source-release/update workflow. Update PROJECT_STATUS.md, TODO.md and PWA validation with actual evidence and limits. Physical iPhone/Android installation cannot be claimed from desktop browser emulation.

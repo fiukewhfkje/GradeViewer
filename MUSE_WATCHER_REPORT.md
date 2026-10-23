@@ -39,7 +39,7 @@ Use HMAC-SHA1 per OAuth 1.0, a fresh nonce and current Unix timestamp, correct e
 **Lifetime: unknown.** No expiration/revocation interval was measured. There is no verified silent renewal endpoint. Re-signing a new request refreshes its nonce/signature, not the underlying authorization. If keys are revoked or rejected, reconnect with the supported credential flow. Treat 401 as authentication rejection; diagnose 403 as access denial rather than automatically assuming expiry. The observed owner-ID 403 was a permission/routing issue and was fixed without new keys.
 
 
-The active PWA stores encrypted Schoology keys in each user's Cloudflare Worker; the native Keychain evidence above describes the preserved native reference. A separate watcher must manage its own authorized secret storage and verify users/me before student reads. Do not reuse browser owner sessions as provider credentials.
+The active PWA stores encrypted Schoology keys in each user's Cloudflare Worker; the native Keychain evidence above describes the retired native app in Git history. A separate watcher must manage its own authorized secret storage and verify users/me before student reads. Do not reuse browser owner sessions as provider credentials.
 
 ## Rate limits and incremental evidence
 
