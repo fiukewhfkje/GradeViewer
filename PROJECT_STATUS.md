@@ -1,3 +1,17 @@
+# Project status — October 23, 2026
+
+GradeViewer is web-only at the owner’s request. Removed the SwiftUI app, GradeCore package, Xcode project, native signing/build configuration, assets, tests, fixtures, helper scripts and native setup guide. Removed project-local native build caches/signing overrides; protected captures under ignored `artifacts/` were retained. Native source remains in Git history at `4100e615130b407a4dc5b2901f936d39c789482a` and earlier.
+
+The final 1,200 synthetic Swift/TypeScript calculator comparisons passed before removal. The owner then explicitly requested removing comparison/CI overhead; the exporter, comparator, macOS CI job and proposed frozen corpus are gone. Focused web calculator tests remain. Releases now depend on the web verification job; signed provenance and the copied updater’s verification boundary are retained. No package dependencies or grade algorithms changed.
+
+PWA development instructions and architecture now describe the TypeScript core, Worker vault and browser-local storage. README links no longer offer the removed native setup. Historical evidence below describes the repository at its recorded time and does not require preserving native sources or claim current validation.
+
+After integrating the existing v0.1.8 main-branch changes, validation passed locally: production build/type check, all **152 web tests**, **28 Chromium + 28 WebKit browser/integration flows**, Worker deployment dry-run, release-source packaging and the isolated-template install/build/test/dry-run/update/configuration/secret-retention/rollback check. No tracked Swift files, Xcode/signing/package configuration or active native CI references remain. The final reference run was synthetic; no live Schoology reads or real-record captures were needed.
+
+Delivery uses a focused cleanup branch and the existing web-only PR/merge pipeline. The stable package version remains 0.1.8; no new tag/release is needed. Existing main-branch Cloudflare Builds deploys the merge. See [PR #17](https://github.com/fiukewhfkje/GradeViewer/pull/17) for remote CI, merge and deployment results. Physical phone, independent-account and performance acceptance limits remain open.
+
+## Earlier delivery records — historical
+
 # Project status — October 20, 2026
 
 ## v0.1.8 desktop, startup, graph and updates — shipped

@@ -224,7 +224,7 @@ export function progression(c: Course, all: Course[]): GraphPoint[] {
   }
   return sortedPoints(reconstructed.concat(own));
 }
-/** GradeCurve.swift geometry: evenly spaced real events, monotone interpolation.
+/** Progression geometry: evenly spaced real events, monotone interpolation.
  * A tracing marker follows the curve; the tooltip always selects an actual event.
  */
 export function gradeCurve(input: GraphPoint[]) {

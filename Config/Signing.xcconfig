@@ -1,4 +1,0 @@
-// Shared defaults. Personal signing settings belong in the ignored local file.
-GRADEVIEWER_BUNDLE_ID = org.gradeviewer.GradeViewer
-DEVELOPMENT_TEAM =
-#include? "../Signing.local.xcconfig"

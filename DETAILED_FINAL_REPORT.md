@@ -1,6 +1,6 @@
 # GradeViewer implementation report
 
-The active application is a Schoology-only PWA in `web/`. Production is [GradeViewer](https://gradeviewer.fiukewhfkje.workers.dev). The original native app remains in the repository as the behavior reference. Current release and verification evidence is maintained in [PROJECT_STATUS.md](PROJECT_STATUS.md) and [PWA validation](docs/PWA_VALIDATION.md).
+The active application is a Schoology-only PWA in `web/`. Production is [GradeViewer](https://gradeviewer.fiukewhfkje.workers.dev). The original native app was retired on October 23, 2026 and remains in Git history. Current release and verification evidence is maintained in [PROJECT_STATUS.md](PROJECT_STATUS.md) and [PWA validation](docs/PWA_VALIDATION.md).
 
 ## Grades and local scenarios
 
@@ -18,6 +18,6 @@ Profile groups the Schoology connection, appearance, personal website and app ac
 
 ## Storage and security
 
-The user's Worker stores encrypted API credentials and hashed owner sessions. Browser-local IndexedDB holds grades, history and scenarios. The service worker caches only the app shell. Native reference storage uses SwiftData and installation-scoped Keychain. These are distinct storage models; the PWA does not import native history or edits.
+The user's Worker stores encrypted API credentials and hashed owner sessions. Browser-local IndexedDB holds grades, history and scenarios. The service worker caches only the app shell. The retired native app used SwiftData and installation-scoped Keychain. These are distinct storage models; the PWA does not import native history or edits.
 
 Build, fixture, browser and release evidence must be read with its recorded scope. Headless browser checks do not establish physical Home Screen behavior or a universal refresh latency guarantee. No Muse watcher is implemented or deployed.

@@ -1,8 +1,4 @@
 .DS_Store
-.build/
-DerivedData/
-*.xcuserstate
-xcuserdata/
 .env
 .env.*
 *.p12
@@ -11,12 +7,8 @@ xcuserdata/
 Secrets/
 artifacts/
 
-DeviceDerivedData/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
 *.har
 __pycache__/
-
-# Personal device signing; never shared with other clones.
-Signing.local.xcconfig

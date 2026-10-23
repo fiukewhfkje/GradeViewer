@@ -1,19 +1,18 @@
 # GradeViewer development instructions
 
-Current PWA scope supersedes the native-only/framework-only/no-backend/Keychain-only rules below for `web/`. Read `docs/PWA_HANDOFF.md`, `docs/PWA_PLAN.md`, and `docs/PWA_VALIDATION.md`. The active app is React/TypeScript plus a user-owned Cloudflare Worker, with encrypted credentials and browser-local grade data. Native sources remain the behavior reference. Use synthetic tests and headless CLI browsers; never print credentials or real records. Use focused commits on the migration branch and one final merge only after release gates pass. No connected-browser/computer-use automation. `web/` must build as an isolated template root.
+GradeViewer is a Schoology-only React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The Swift app, GradeCore, Xcode project, native tests and migration-only calculator comparisons were retired on October 23, 2026 at the owner’s request. Their sources remain in Git history; do not restore native tooling or parity CI.
 
+Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/PWA_HANDOFF.md and docs/PWA_VALIDATION.md before continuing. docs/PRODUCT_BRIEF.md defines the product scope. docs/PWA_PLAN.md preserves historical migration rationale.
 
-Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, and RESEARCH.md before continuing. docs/PRODUCT_BRIEF.md preserves the user's detailed scope.
-
-- Keep the native app fast, simple, local, Schoology-only, and independent of Muse. No paid tiers, analytics, ads, backend, alternate icons, planner, or speculative features.
-- Use Apple frameworks; GradeCore is the canonical implementation for parsing, reconciliation, and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
-- Never invent provider data or assume a hypothetical provider failure occurred in this student's account. Distinguish official docs, public-client evidence, fixture tests, and student-verified behavior.
-- Store credentials and session cookies only in Keychain. Never log raw responses, cookies, keys, or student grades. Source fixtures must stay synthetic.
-- Preserve last successful data on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
-- Use CLI tooling and XCTest for simulator/device work. The user explicitly prohibits computer use and mouse/keyboard GUI automation.
-- Modify project.yml and regenerate the committed Xcode project for target/build changes. Simulator Keychain tests require ad-hoc signing, not CODE_SIGNING_ALLOWED=NO. Run swift test for GradeCore changes and relevant hosted/UI tests for app changes.
-- Keep calculated graph points separate from observed history, describe their basis in the project docs, and never invent missing dates. The tooltip shows grade/date only, per the user’s explicit preference.
-- Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, device trust, district verification, and validation limits.
-
-- Widgets are intentionally removed. Do not restore WidgetKit, an extension, App Groups, or widget routes.
-- Personal signing belongs in ignored Signing.local.xcconfig. Never hardcode a team or district in project.yml; preserve an existing installation's team and bundle ID when updating it. New clones use their own Apple and school accounts.
+- Keep the app fast, simple, Schoology-only and independent of Muse. No paid tiers, analytics, ads, shared maintainer backend, widgets, planner or speculative features.
+- `web/src/core/` is the canonical implementation for parsing, reconciliation and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
+- Each user owns the Worker and encrypted Schoology credentials. Grade snapshots, history and hypothetical changes stay in browser-local IndexedDB. Never log credentials, cookies, keys, raw provider responses or student grades. Committed fixtures must be synthetic.
+- Never invent provider data or assume a hypothetical provider failure occurred in a student’s account. Distinguish official docs, fixture tests and student-verified behavior.
+- Preserve the last successful snapshot on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
+- Keep calculated graph points separate from observed history and never invent missing dates. The tooltip shows grade/date only, per the user’s preference.
+- Use synthetic tests and headless CLI browsers. No connected-browser/computer-use or mouse/keyboard GUI automation.
+- Keep `web/` buildable as an isolated template root. Run appropriate `npm run build`, `npm test`, browser and release-package checks from `web/`; keep CI proportional and do not reintroduce cross-language comparisons.
+- Preserve the existing Worker, URL, vault, password, sessions and signed source-update verification boundary during updates. Use existing merge/deployment workflows; repository cleanup alone does not require a new stable tag.
+- Use focused commits and preserve Git history. The PWA migration is already merged; do not repeat its merge or recreate published tags.
+- Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, district access, physical-device acceptance, deployment and validation limits.
+- Widgets are intentionally removed. Do not restore widget routes or native extensions.

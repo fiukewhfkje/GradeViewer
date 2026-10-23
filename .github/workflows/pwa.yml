@@ -11,19 +11,6 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  native-reference:
-    if: github.repository == 'fiukewhfkje/GradeViewer'
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - run: swift test
-        env:
-          PWA_PARITY_OUTPUT: web/.local-test/native-parity.json
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - run: npm ci && node scripts/verify-native-parity.mjs
-        working-directory: web
   verify:
     if: github.repository == 'fiukewhfkje/GradeViewer'
     strategy:
@@ -88,7 +75,7 @@ jobs:
           --deny-self-hosted-runners
   release:
     if: startsWith(github.ref, 'refs/tags/v0.') && github.repository == 'fiukewhfkje/GradeViewer'
-    needs: [verify, native-reference]
+    needs: [verify]
     runs-on: ubuntu-latest
     permissions:
       contents: write

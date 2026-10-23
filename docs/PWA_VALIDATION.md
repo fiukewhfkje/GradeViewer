@@ -1,3 +1,22 @@
+# PWA verification — October 23, 2026
+
+## Native retirement / web-only verification
+
+At the owner’s request, removed Swift/GradeCore, Xcode/signing/native fixtures/tests/helpers and all migration-only calculator comparisons. A final freshly generated **1,200-case synthetic Swift/TypeScript comparison passed** before retirement. The proposed frozen corpus was also removed at the owner’s explicit direction. Focused calculator regression tests remain in the ordinary web suite; this is no longer a cross-language CI gate.
+
+After removal and integration of the existing remote v0.1.8 changes, the following passed locally:
+
+- `npm run build` (TypeScript and production assets).
+- `npm test`: **152 tests** across 12 files.
+- `npm run test:e2e`: **28 Chromium HTTPS/Worker flows**.
+- `GRADEVIEWER_BROWSER=webkit npm run test:e2e`: **28 WebKit HTTPS/Worker flows**.
+- `wrangler deploy --dry-run`, release-source packaging and the isolated-template install/build/tests/dry-run/update/configuration/secret-retention/rollback check.
+- Git whitespace and active-source/native-dependency checks; no tracked Swift or Xcode/signing/package files remain.
+
+The release workflow now waits only for web verification, with the existing signed provenance and updater verification retained. Isolated updater tests use a scoped verifier fixture; real provenance verification remains a separate CI check. No live Schoology requests, real credentials, physical-device checks or new latency measurements were part of this cleanup. Stable version 0.1.8 is unchanged; the normal main-branch deployment follows the merge. See [PR #17](https://github.com/fiukewhfkje/GradeViewer/pull/17) for remote CI, merge and deployment results.
+
+## Earlier release evidence — historical
+
 # PWA verification — October 20, 2026
 
 ## v0.1.8 stable responsiveness release
