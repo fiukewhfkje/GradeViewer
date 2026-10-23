@@ -4,20 +4,30 @@
 
 At the owner’s request, removed Swift/GradeCore, Xcode/signing/native fixtures/tests/helpers and all migration-only calculator comparisons. A final freshly generated **1,200-case synthetic Swift/TypeScript comparison passed** before retirement. The proposed frozen corpus was also removed at the owner’s explicit direction. Focused calculator regression tests remain in the ordinary web suite; this is no longer a cross-language CI gate.
 
-After removal, the following passed locally:
+After removal and integration of the existing remote v0.1.8 changes, the following passed locally:
 
 - `npm run build` (TypeScript and production assets).
-- `npm test`: **145 tests** across 12 files.
-- `npm run test:e2e`: **26 Chromium HTTPS/Worker flows**.
-- `GRADEVIEWER_BROWSER=webkit npm run test:e2e`: **26 WebKit HTTPS/Worker flows**.
+- `npm test`: **152 tests** across 12 files.
+- `npm run test:e2e`: **28 Chromium HTTPS/Worker flows**.
+- `GRADEVIEWER_BROWSER=webkit npm run test:e2e`: **28 WebKit HTTPS/Worker flows**.
 - `wrangler deploy --dry-run`, release-source packaging and the isolated-template install/build/tests/dry-run/update/configuration/secret-retention/rollback check.
 - Git whitespace and active-source/native-dependency checks; no tracked Swift or Xcode/signing/package files remain.
 
-The release workflow now waits only for web verification, with the existing signed provenance and updater verification retained. Isolated updater tests use a scoped verifier fixture; real provenance verification remains a separate CI check. No live Schoology requests, real credentials, physical-device checks or new latency measurements were part of this cleanup. Stable version 0.1.7 is unchanged; the normal main-branch deployment follows the merge. Remote results belong to the associated PR.
+The release workflow now waits only for web verification, with the existing signed provenance and updater verification retained. Isolated updater tests use a scoped verifier fixture; real provenance verification remains a separate CI check. No live Schoology requests, real credentials, physical-device checks or new latency measurements were part of this cleanup. Stable version 0.1.8 is unchanged; the normal main-branch deployment follows the merge. See [PR #17](https://github.com/fiukewhfkje/GradeViewer/pull/17) for remote CI, merge and deployment results.
 
 ## Earlier release evidence — historical
 
-# PWA verification — October 17, 2026
+# PWA verification — October 20, 2026
+
+## v0.1.8 stable responsiveness release
+
+Production build, **152 unit/security/integration tests, 28 Chromium + 28 WebKit HTTPS/Worker flows, 119 Swift tests and 1,200 calculation comparisons** pass in [final PR CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39485906742) and [release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/39486231820). Coverage includes the desktop sidebar/grid/two-column course layout, exact semester endpoint, chart vertical finger drift without scroll/cancellation, returning opens with one status check and saved grades visible in **110 ms** despite an artificial **2.5-second** provider delay, saved edits retaining the new snapshot during foreground refresh, open-dialog retention during another tab's refresh, fresh-cache recovery, offline authentication gating, failure retention and per-tab service-worker activation. The offline-launch fixture now waits for background refresh to settle; the first WebKit CI run caught that timing assumption. Final browser runs report no page errors. Isolated template installation/build/test/Worker dry-run, source update/rollback and configuration/secret preservation pass locally. Local WebKit system libraries remain unavailable; the reported WebKit pass is remote CI. Desktop light/dark and phone screenshots are synthetic and inspected. No physical-device or new real-provider timing claim is made.
+
+The owner requested faster returning opens and semester graphs, intentionally superseding the older PWA fresh-screen gate and concatenated quarter graph described below. Data remains account-bound; complete new snapshots still commit atomically, observed history stays unchanged, and unsupported weighted reconstruction is withheld.
+
+[PR #16](https://github.com/fiukewhfkje/GradeViewer/pull/16) merged as `c3ab3b8`; signed [v0.1.8](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.8) is latest stable. The existing [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/d15e2a9d-edae-4af0-ae20-9979d1495357) succeeded. All five live HTML/JS/CSS/SW/installation file hashes match the tested build. Live installation and official stable metadata both return 0.1.8; actual published provenance and archive/file hashes verify with the real current GitHub CLI and exact source/tag/workflow identity.
+
+Retained real production **v0.1.7 → v0.1.8** PWA activation passed through Profile, preserving the identical synthetic IndexedDB state hash and the second tab's unsaved form/old shell. Dirty-form activation was blocked; that tab then updated explicitly. The new shell checked current without a repeated update banner. The production light desktop screenshot was inspected. The test used no owner login/password, provider reads or real grade records. Physical phone and real credential acceptance remain unverified; the existing Worker/address/password/vault configuration was preserved.
 
 Cleanup follow-up: all five disposable private GitHub probe repositories were deleted at the owner's request on October 17. Their run links below are historical and now unavailable; summaries record prior observations, not retained remote logs. Official GradeViewer CI/release links remain separate. See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for the verified cleanup scope.
 

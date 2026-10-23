@@ -1,20 +1,56 @@
-import { useId, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Course } from "./core/model";
 import { gradeCurve, progression } from "./core/progression";
+import { descriptor, overall } from "./core/periods";
 
-export function GradeGraph({ course, all }: { course: Course; all: Course[] }) {
+export const GradeGraph = memo(function GradeGraph({
+  course,
+  all,
+}: {
+  course: Course;
+  all: Course[];
+}) {
   const curve = useMemo(
     () => gradeCurve(progression(course, all)),
     [course, all],
   );
   const [selection, setSelection] = useState<number>();
+  const pointer = useRef<{ id: number; rect: DOMRect } | undefined>(undefined),
+    frame = useRef<number | undefined>(undefined),
+    pending = useRef(1);
+  const labels = useMemo(
+    () =>
+      curve.points.map((point) => ({
+        value: point.percent.toFixed(2),
+        date: new Date(point.date).toLocaleDateString(),
+      })),
+    [curve],
+  );
+  function clearSelection() {
+    if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    frame.current = undefined;
+    pointer.current = undefined;
+    setSelection(undefined);
+  }
+  useEffect(
+    () => () => {
+      if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    },
+    [],
+  );
   const id = useId().replaceAll(":", "");
-  const event = curve.event(selection ?? 1);
-  const date = event && new Date(event.date).toLocaleDateString();
-  const value = event?.percent.toFixed(2);
+  const index = Math.round((selection ?? 1) * (curve.points.length - 1)),
+    { date, value } = labels[index] ?? {},
+    basis = overall(course, all);
   return (
     <section className="graph-section">
-      <h2>Grade Progression</h2>
+      <div className="section-heading">
+        <h2>Grade Progression</h2>
+        <span>
+          {descriptor(basis).label}
+          {descriptor(basis).kind === "semester" ? " overall" : ""}
+        </span>
+      </div>
       {curve.points.length ? (
         <div
           className="chart"
@@ -29,24 +65,39 @@ export function GradeGraph({ course, all }: { course: Course; all: Course[] }) {
           )}
           aria-valuetext={`${value}% on ${date}`}
           onPointerDown={(e) => {
-            if (e.button !== 0) return;
+            if (e.button !== 0 || pointer.current) return;
+            e.preventDefault();
             e.currentTarget.setPointerCapture(e.pointerId);
             const rect = e.currentTarget.getBoundingClientRect();
+            pointer.current = { id: e.pointerId, rect };
             setSelection(
               Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
             );
           }}
           onPointerMove={(e) => {
-            if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            setSelection(
-              Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+            if (pointer.current?.id !== e.pointerId) return;
+            const rect = pointer.current.rect;
+            pending.current = Math.max(
+              0,
+              Math.min(1, (e.clientX - rect.left) / rect.width),
             );
+            // Match the display's frame rate and avoid layout reads per input sample.
+            if (frame.current === undefined)
+              frame.current = requestAnimationFrame(() => {
+                frame.current = undefined;
+                setSelection(pending.current);
+              });
           }}
-          onPointerUp={() => setSelection(undefined)}
-          onPointerCancel={() => setSelection(undefined)}
-          onLostPointerCapture={() => setSelection(undefined)}
-          onBlur={() => setSelection(undefined)}
+          onPointerUp={(e) => {
+            if (pointer.current?.id === e.pointerId) clearSelection();
+          }}
+          onPointerCancel={(e) => {
+            if (pointer.current?.id === e.pointerId) clearSelection();
+          }}
+          onLostPointerCapture={(e) => {
+            if (pointer.current?.id === e.pointerId) clearSelection();
+          }}
+          onBlur={clearSelection}
           onKeyDown={(e) => {
             const step = 1 / Math.max(1, curve.points.length - 1);
             let next = selection ?? 1;
@@ -111,7 +162,7 @@ export function GradeGraph({ course, all }: { course: Course; all: Course[] }) {
                 className="chart-marker"
                 style={{
                   left: `${selection * 100}%`,
-                  top: curve.trace(selection),
+                  top: `${((curve.trace(selection) ?? 77) / 154) * 100}%`,
                 }}
               />
               <output
@@ -131,4 +182,4 @@ export function GradeGraph({ course, all }: { course: Course; all: Course[] }) {
       )}
     </section>
   );
-}
+});

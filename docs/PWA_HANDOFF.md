@@ -8,7 +8,7 @@ Read [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md), [current sta
 
 The supported setup is GitHub template first, then connect that existing repository to Cloudflare with root `web`. Follow [onboarding](PWA_ONBOARDING.md) and [automatic updates](AUTOMATIC_UPDATES.md). Preserve the existing Worker, URL, vault, APP_PASSWORD, sessions and exact signed-source verification boundary. Do not recreate published tags or repeat the completed migration merge. Existing main-branch Cloudflare Builds deploys merged changes; this cleanup does not require a new stable tag.
 
-Last recorded release/deployment evidence is signed v0.1.7 from October 17. Its initial-template README behavior, signed rollback/upgrade and production build passed at that time. The October 18 natural scheduled acceptance was not observed in the recorded session. Current cleanup evidence belongs in PROJECT_STATUS.md and PWA_VALIDATION.md; do not treat older test counts as new runs.
+Last recorded release/deployment evidence is signed v0.1.8 from October 20. It adds the desktop workspace, authenticated account-matched cached startup, guarded semester graph reconstruction and safer per-tab update activation. Its production upgrade, synthetic-state/form preservation and live-asset/provenance checks passed at that time. The October 18 natural scheduled acceptance was not observed in the recorded session. Current cleanup evidence belongs in PROJECT_STATUS.md and PWA_VALIDATION.md; do not treat older test counts as new runs.
 
 ## Local verification
 

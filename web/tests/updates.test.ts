@@ -3,6 +3,7 @@ import {
   checkForAppUpdate,
   activateAppUpdate,
   updateMessage,
+  isNewAppShell,
 } from "../src/updates";
 
 function fixture() {
@@ -23,6 +24,43 @@ it("offers a cached update without another network check", async () => {
   Object.assign(reg, { waiting: worker });
   expect(await checkForAppUpdate(registration)).toBe(worker);
   expect(reg.update).not.toHaveBeenCalled();
+});
+it("waits for controller takeover before reloading an activated shell", async () => {
+  const worker = Object.assign(new EventTarget(), { state: "activated" });
+  const container = Object.assign(new EventTarget(), {
+    controller: null as unknown,
+  });
+  const reload = vi.fn();
+  const result = activateAppUpdate(
+    worker as ServiceWorker,
+    reload,
+    container as ServiceWorkerContainer,
+  );
+  expect(reload).not.toHaveBeenCalled();
+  container.controller = worker;
+  container.dispatchEvent(new Event("controllerchange"));
+  await result;
+  expect(reload).toHaveBeenCalledOnce();
+});
+it("compares shell content identity without offering the running build again", async () => {
+  vi.stubGlobal("document", {
+    querySelector: () => ({ content: "current-build" }),
+  });
+  try {
+    const worker = (build: string) =>
+      ({
+        state: "activated",
+        postMessage: (_: unknown, ports: MessagePort[]) =>
+          ports[0].postMessage({ build }),
+      }) as unknown as ServiceWorker;
+    expect(await isNewAppShell(worker("current-build"))).toBe(false);
+    expect(await isNewAppShell(worker("new-build"))).toBe(true);
+    expect(await isNewAppShell({ state: "redundant" } as ServiceWorker)).toBe(
+      false,
+    );
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
 it("distinguishes official releases, pending deployments, ready shells, missing automation and stalls", () => {
   const installed = { version: "0.1.3", automation: "installed" as const };

@@ -5,7 +5,17 @@ import {
   graded,
 } from "./model";
 import { calculate, reliable } from "./calculator";
-import { assignmentPeriods, includesHistory } from "./periods";
+import {
+  assignmentPeriods,
+  includesHistory,
+  overall,
+  descriptor,
+  related,
+  semester,
+  ordered,
+  contains,
+  boundary,
+} from "./periods";
 export interface GraphPoint {
   id: string;
   date: number;
@@ -61,45 +71,52 @@ export function calculatedPoints(
   }
   return result.concat(current);
 }
-export function progression(c: Course, all: Course[]): GraphPoint[] {
-  const periods = assignmentPeriods(c, all),
-    populated = (periods.length ? periods : [c]).filter(
-      (p) => p.assignments.some(graded) || p.history.length,
-    ),
-    latest = populated.at(-1);
-  if (!latest) return [];
-  const points = populated.flatMap((p) => {
-    const history = p.history
-      .filter((h) => p.id === latest.id || includesHistory(p, h.date))
-      .filter((h) => h.grade.percent !== undefined)
-      .map((h) => ({
-        id: h.id,
-        date: h.date,
-        percent: h.grade.percent!,
-        calculated: false,
-      }));
-    const calculated = calculatedPoints(
-        calculationSource(p),
-        p.id === latest.id,
-      ),
-      dates = [...new Set(calculated.map((x) => x.date))].sort((a, b) => a - b);
-    return calculated
-      .map((point) => {
-        const next = dates[dates.indexOf(point.date) + 1] ?? Infinity,
-          anchor = [...history]
-            .sort((a, b) => a.date - b.date || a.id.localeCompare(b.id))
-            .find(
-              (h) =>
-                h.date >= point.date &&
-                h.date < next &&
-                Math.abs(h.percent - point.percent) <= 0.01 + 1e-9,
-            );
-        return anchor && !point.id.startsWith("calculated:snapshot:")
-          ? { ...point, percent: anchor.percent }
-          : point;
-      })
-      .concat(history);
-  });
+function periodPoints(p: Course, current: boolean): GraphPoint[] {
+  const history = p.history
+    .filter((h) => current || includesHistory(p, h.date))
+    .filter((h) => h.grade.percent !== undefined)
+    .map((h) => ({
+      id: h.id,
+      date: h.date,
+      percent: h.grade.percent!,
+      calculated: false,
+    }))
+    .sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
+  const calculated = calculatedPoints(calculationSource(p), current),
+    dates = [...new Set(calculated.map((x) => x.date))].sort((a, b) => a - b),
+    nextDates = new Map(
+      dates.map((date, i) => [date, dates[i + 1] ?? Infinity]),
+    );
+  let firstHistory = 0;
+  return calculated
+    .map((point) => {
+      const next = nextDates.get(point.date) ?? Infinity;
+      while (
+        firstHistory < history.length &&
+        history[firstHistory].date < point.date
+      )
+        firstHistory++;
+      let anchor: GraphPoint | undefined;
+      for (
+        let i = firstHistory;
+        i < history.length && history[i].date < next;
+        i++
+      ) {
+        if (Math.abs(history[i].percent - point.percent) <= 0.01 + 1e-9) {
+          anchor = history[i];
+          break;
+        }
+      }
+      return anchor && !point.id.startsWith("calculated:snapshot:")
+        ? { ...point, percent: anchor.percent }
+        : point;
+    })
+    .concat(history);
+}
+function sortedPoints(points: GraphPoint[]) {
+  const observedDates = new Set(
+    points.filter((p) => !p.calculated).map((p) => p.date),
+  );
   return points
     .sort(
       (a, b) =>
@@ -107,11 +124,105 @@ export function progression(c: Course, all: Course[]): GraphPoint[] {
         Number(b.calculated) - Number(a.calculated) ||
         a.id.localeCompare(b.id),
     )
-    .filter((p, i, rows) =>
-      p.calculated
-        ? !rows.some((q) => !q.calculated && q.date === p.date)
-        : true,
+    .filter((p) => !p.calculated || !observedDates.has(p.date));
+}
+
+/** Semester observations stay authoritative. Reconstructed events combine the
+ * explicitly weighted components available at each real event date, only when
+ * their complete baseline reproduces the reported semester total. */
+export function progression(c: Course, all: Course[]): GraphPoint[] {
+  const basis = overall(c, all);
+  if (descriptor(basis).kind !== "semester") {
+    const periods = assignmentPeriods(c, all),
+      populated = (periods.length ? periods : [c]).filter(
+        (p) => p.assignments.some(graded) || p.history.length,
+      );
+    return sortedPoints(
+      populated.flatMap((p, i) => periodPoints(p, i === populated.length - 1)),
     );
+  }
+  const own = periodPoints(basis, true);
+  if (
+    basis.grade.percent !== undefined &&
+    Number.isFinite(basis.grade.percent) &&
+    !own.some(
+      (p) => p.date === basis.fetched && p.percent === basis.grade.percent,
+    )
+  )
+    own.push({
+      id: "calculated:semester:snapshot:" + basis.id,
+      date: basis.fetched,
+      percent: basis.grade.percent,
+      calculated: true,
+    });
+  const children = ordered(
+    related(basis, all).filter(
+      (p) =>
+        ["quarter", "exam"].includes(descriptor(p).kind) &&
+        semester(p, all)?.id === basis.id &&
+        p.term.weight !== 0 &&
+        (p.grade.percent !== undefined ||
+          !!p.grade.letter ||
+          p.assignments.some(graded)),
+    ),
+  );
+  if (
+    !children.length ||
+    basis.assignments.some(graded) ||
+    basis.grade.percent === undefined ||
+    basis.fields.overall_override === "true" ||
+    children.some(
+      (p) =>
+        p.grade.percent === undefined ||
+        !Number.isFinite(p.grade.percent) ||
+        !Number.isFinite(p.term.weight) ||
+        (p.term.weight ?? 0) <= 0 ||
+        p.fields.overall_override === "true",
+    )
+  )
+    return sortedPoints(own);
+  const total = children.reduce((n, p) => n + p.term.weight!, 0),
+    baseline =
+      children.reduce((n, p) => n + p.grade.percent! * p.term.weight!, 0) /
+      total;
+  if (Math.abs(baseline - basis.grade.percent) > 0.15) return sortedPoints(own);
+  const events = children
+    .flatMap((period) =>
+      sortedPoints(periodPoints(period, false))
+        .filter((point) => contains(period, point.date))
+        .map((point) => ({ period, point })),
+    )
+    .sort(
+      (a, b) =>
+        a.point.date - b.point.date || a.point.id.localeCompare(b.point.id),
+    );
+  const values = new Map<string, number>();
+  const reconstructed: GraphPoint[] = [];
+  for (const { period, point } of events) {
+    values.set(period.id, point.percent);
+    let sum = 0,
+      weight = 0;
+    for (const p of children) {
+      // A completed component uses its complete baseline at a later event;
+      // a future component contributes nothing before its first dated event.
+      const percent =
+        (boundary(p, true) ?? Infinity) < point.date
+          ? p.grade.percent
+          : values.get(p.id);
+      if (percent !== undefined) {
+        sum += percent * p.term.weight!;
+        weight += p.term.weight!;
+      }
+    }
+    if (weight > 0)
+      reconstructed.push({
+        ...point,
+        id: "calculated:semester:" + basis.id + ":" + point.id,
+        percent: sum / weight,
+        calculated: true,
+      });
+  }
+  return sortedPoints(reconstructed.concat(own));
 }
 /** Progression geometry: evenly spaced real events, monotone interpolation.
  * A tracing marker follows the curve; the tooltip always selects an actual event.

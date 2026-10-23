@@ -178,7 +178,9 @@ try {
     );
     assert.equal(shell.headers.get("Referrer-Policy"), "no-referrer");
     assert.equal(shell.headers.get("Cache-Control"), "no-cache");
-    const installation = await (await fetch(base + "/installation.json")).json();
+    const installation = await (
+      await fetch(base + "/installation.json")
+    ).json();
     assert.equal("repository" in installation, false);
     assert.equal("branch" in installation, false);
     const r = await fetch(base + "/api/scan/start", {
@@ -206,10 +208,69 @@ try {
     await page
       .getByRole("button", { name: "Connect Schoology", exact: true })
       .click();
-    await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+    await page
+      .locator(".courses")
+      .getByRole("button", { name: /AP Biology/ })
+      .waitFor();
     assert.equal(await page.locator(".course").count(), 5);
     await page.screenshot({ path: directory + "/home-light.png" });
   });
+  await check(
+    "returning startup shows saved grades during a slow refresh with one status check",
+    async () => {
+      await page.waitForFunction(
+        () => !document.querySelector(".desktop-refresh")?.disabled,
+      );
+      await context.request.post(base + "/api/fixture/delay", {
+        data: { ms: 2500 },
+      });
+      let statuses = 0,
+        scans = 0;
+      const count = (request) => {
+        if (request.url().endsWith("/api/status")) statuses++;
+        if (request.url().endsWith("/api/scan/start")) scans++;
+      };
+      page.on("request", count);
+      try {
+        const started = performance.now();
+        await page.reload();
+        await page
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor({ timeout: 1800 });
+        const visibleMs = Math.round(performance.now() - started);
+        assert.equal(await page.locator(".gate").count(), 0);
+        assert.match(
+          await page.locator(".refresh-status").innerText(),
+          /Updating grades/,
+        );
+        await page
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .click();
+        await page.getByRole("slider").press("End");
+        await page.waitForFunction(
+          () =>
+            !document
+              .querySelector(".refresh-status")
+              ?.textContent.includes("Updating grades"),
+        );
+        assert.equal(await page.locator(".chart-tooltip").count(), 1);
+        assert.equal(statuses, 1);
+        assert.equal(scans, 1);
+        console.log(
+          `Synthetic returning startup: saved grades visible in ${visibleMs} ms while provider delayed 2500 ms.`,
+        );
+        await page.getByRole("slider").press("Escape");
+        await page.getByLabel("Close course", { exact: true }).click();
+      } finally {
+        page.off("request", count);
+        await context.request.post(base + "/api/fixture/delay", {
+          data: { ms: 0 },
+        });
+      }
+    },
+  );
   await check(
     "phone pull-to-refresh respects thresholds, cancellation, scrolling and manual refresh rules",
     async () => {
@@ -392,10 +453,14 @@ try {
   let cId, assignmentTitle;
   await check("same home/detail overall and graph", async () => {
     const homeGrade = await page
+      .locator(".courses")
       .getByRole("button", { name: /AP Biology/ })
       .locator(".grade")
       .innerText();
-    await page.getByRole("button", { name: /AP Biology/ }).click();
+    await page
+      .locator(".courses")
+      .getByRole("button", { name: /AP Biology/ })
+      .click();
     assert.equal(await page.locator(".summary .grade").innerText(), homeGrade);
     assert.ok(await page.locator(".chart-line").first().getAttribute("d"));
     assert.equal(
@@ -433,6 +498,20 @@ try {
           touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
         });
         await page.locator(".chart-marker").waitFor();
+        const scrollTop = await page
+          .locator(".app-scroll")
+          .evaluate((node) => node.scrollTop);
+        for (const dy of [18, -24, 32, -15]) {
+          await touch.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x: box.x + 80, y: box.y + 70 + dy }],
+          });
+          assert.equal(await page.locator(".chart-tooltip").count(), 1);
+        }
+        assert.equal(
+          await page.locator(".app-scroll").evaluate((node) => node.scrollTop),
+          scrollTop,
+        );
         await touch.send("Input.dispatchTouchEvent", {
           type: "touchMove",
           touchPoints: [{ x: box.x + box.width - 30, y: box.y + 70 }],
@@ -443,6 +522,74 @@ try {
         });
         await touch.detach();
         assert.equal(await page.locator(".chart-tooltip").count(), 0);
+      }
+    },
+  );
+  await check(
+    "a grade saved during foreground refresh retains both the edit and new snapshot",
+    async () => {
+      await page.getByLabel("Course options", { exact: true }).click();
+      await page
+        .getByRole("button", { name: "Add Grade", exact: true })
+        .click();
+      await page
+        .getByLabel("Name", { exact: true })
+        .fill("Saved while refreshing");
+      await page.getByLabel("Score", { exact: true }).fill("12");
+      await page.getByLabel("Total points", { exact: true }).fill("10");
+      await context.request.post(base + "/api/fixture/delay", {
+        data: { ms: 1500 },
+      });
+      const started = Date.now();
+      try {
+        await page.evaluate(() =>
+          document.dispatchEvent(new Event("visibilitychange")),
+        );
+        await page.waitForFunction(() =>
+          document
+            .querySelector(".refresh-status")
+            ?.textContent.includes("Updating grades"),
+        );
+        assert.equal(
+          await page.getByLabel("Name", { exact: true }).inputValue(),
+          "Saved while refreshing",
+        );
+        await page.getByRole("button", { name: "Add", exact: true }).click();
+        await page
+          .getByText("Saved while refreshing", { exact: true })
+          .waitFor();
+        const fetched = await page.evaluate(
+          () =>
+            new Promise((resolve) => {
+              const request = indexedDB.open("gradeviewer");
+              request.onsuccess = () => {
+                const read = request.result
+                  .transaction("state")
+                  .objectStore("state")
+                  .get("active");
+                read.onsuccess = () => {
+                  resolve(
+                    Math.max(...read.result.courses.map((c) => c.fetched)),
+                  );
+                  request.result.close();
+                };
+              };
+            }),
+        );
+        assert.ok(fetched >= started);
+        await page
+          .getByLabel("Options for Saved while refreshing", { exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "Remove Grade", exact: true })
+          .click();
+        await page
+          .getByText("Saved while refreshing", { exact: true })
+          .waitFor({ state: "hidden" });
+      } finally {
+        await context.request.post(base + "/api/fixture/delay", {
+          data: { ms: 0 },
+        });
       }
     },
   );
@@ -590,7 +737,10 @@ try {
     await page.getByRole("button", { name: "Categories", exact: true }).click();
     await page.getByLabel("Practice", { exact: true }).waitFor();
     await page.getByLabel("Close course", { exact: true }).click();
-    await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+    await page
+      .locator(".courses")
+      .getByRole("button", { name: /AP Biology/ })
+      .waitFor();
   });
   await check(
     "phone layout, dark mode, personal URL and installation help",
@@ -736,8 +886,14 @@ try {
     "reload keeps session, connection and local scenarios",
     async () => {
       await page.reload();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
-      await page.getByRole("button", { name: /AP Biology/ }).click();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .click();
       await page
         .getByLabel("Options for " + assignmentTitle, { exact: true })
         .click();
@@ -748,8 +904,14 @@ try {
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByLabel("What-If grade", { exact: true }).waitFor();
       await page.reload();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
-      await page.getByRole("button", { name: /AP Biology/ }).click();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .click();
       assert.match(await page.locator(".rows").first().innerText(), /102.25/);
       await page.getByLabel("Close course", { exact: true }).click();
     },
@@ -805,8 +967,14 @@ try {
       });
       assert.equal(pending, true);
       await page.reload();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
-      await page.getByRole("button", { name: /AP Biology/ }).click();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .click();
       assert.match(await page.locator(".rows").first().innerText(), /102.25/);
       await page.getByLabel("Close course", { exact: true }).click();
     },
@@ -817,7 +985,10 @@ try {
       await stop();
       await start();
       await page.reload();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .connected,
@@ -832,6 +1003,11 @@ try {
         await navigator.serviceWorker.register("/sw.js");
         await navigator.serviceWorker.ready;
       });
+      // Saved cards now appear before background refresh finishes. This case
+      // tests an offline launch, not cutting a live scan's connection in WebKit.
+      await page.waitForFunction(
+        () => !document.querySelector(".desktop-refresh")?.disabled,
+      );
       await context.setOffline(true);
       await page.reload();
       await page
@@ -845,7 +1021,10 @@ try {
       );
       await context.setOffline(false);
       await page.reload();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
     },
   );
   await check("service worker caches shell only", async () => {
@@ -881,7 +1060,10 @@ try {
         .fill("fixture-unsaved");
       const otherTab = await context.newPage();
       await otherTab.goto(base);
-      await otherTab.getByRole("button", { name: /AP Biology/ }).waitFor();
+      await otherTab
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
       const firstVisit = await browser.newContext({
         ignoreHTTPSErrors: true,
         storageState: await context.storageState(),
@@ -891,7 +1073,10 @@ try {
         // This page mounts before its first worker claims it; it is never reloaded
         // until Update now is clicked. A captured startup-controller flag fails here.
         await freshPage.goto(base);
-        await freshPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        await freshPage
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor();
         await freshPage.waitForFunction(
           () => !!navigator.serviceWorker.controller,
         );
@@ -927,7 +1112,10 @@ try {
             .getAttribute("content"),
           "verified",
         );
-        await freshPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        await freshPage
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor();
         // This page shares the original tab's worker and really changes its controller.
         await otherTab
           .getByRole("button", { name: "Profile", exact: true })
@@ -998,8 +1186,14 @@ try {
             .getAttribute("content"),
           "verified",
         );
-        await page.getByRole("button", { name: /AP Biology/ }).waitFor();
-        await page.getByRole("button", { name: /AP Biology/ }).click();
+        await page
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor();
+        await page
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .click();
         assert.match(await page.locator(".rows").first().innerText(), /102.25/);
         await page.getByLabel("Close course", { exact: true }).click();
       } finally {
@@ -1030,9 +1224,8 @@ try {
       assert.equal(await page.locator(".course").count(), 5);
       await page.reload();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
-      await page
-        .getByRole("heading", { name: "Fresh grades unavailable", exact: true })
-        .waitFor();
+      await page.getByText("Showing saved grades.", { exact: false }).waitFor();
+      assert.equal(await page.locator(".course").count(), 5);
       await page.getByRole("button", { name: "Profile", exact: true }).click();
       await page
         .getByRole("heading", { name: "Your personal website", exact: true })
@@ -1042,16 +1235,39 @@ try {
       });
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.getByRole("button", { name: "Retry", exact: true }).click();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
     },
   );
   await check(
-    "a second tab synchronizes local changes without refresh loops",
+    "a second tab refresh preserves the open course and unsaved grade form",
     async () => {
+      await page.locator(".courses .course").first().click();
+      await page.getByLabel("Course options", { exact: true }).click();
+      await page
+        .getByRole("button", { name: "Add Grade", exact: true })
+        .click();
+      await page
+        .getByLabel("Name", { exact: true })
+        .fill("Keep this unsaved form");
       const other = await context.newPage();
       await other.goto(base);
-      await other.getByRole("button", { name: /AP Biology/ }).waitFor();
-      await page.waitForTimeout(250);
+      await other
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      await other.waitForFunction(
+        () => !document.querySelector(".desktop-refresh")?.disabled,
+      );
+      await page.waitForTimeout(100);
+      assert.equal(
+        await page.getByLabel("Name", { exact: true }).inputValue(),
+        "Keep this unsaved form",
+      );
+      await page.getByLabel("Close dialog", { exact: true }).click();
+      await page.getByLabel("Close course", { exact: true }).click();
       await other.close();
     },
   );
@@ -1074,7 +1290,10 @@ try {
         await secondPage
           .getByRole("button", { name: "Grades", exact: true })
           .click();
-        await secondPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        await secondPage
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor();
         assert.equal(await secondPage.locator(".course").count(), 5);
         assert.equal(
           await secondPage.locator(".desktop-refresh").isVisible(),
@@ -1119,7 +1338,10 @@ try {
       let touch;
       try {
         await appPage.goto(base);
-        await appPage.getByRole("button", { name: /AP Biology/ }).waitFor();
+        await appPage
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor();
         assert.equal(await appPage.evaluate(() => navigator.standalone), true);
         touch =
           engine === "chromium"
@@ -1244,8 +1466,48 @@ try {
       await page
         .getByRole("button", { name: "Try sample grades", exact: true })
         .click();
-      await page.getByRole("button", { name: /AP Biology/ }).waitFor();
+      await page
+        .locator(".courses .course")
+        .filter({ hasText: "AP Biology" })
+        .waitFor();
       await page.screenshot({ path: directory + "/desktop-demo.png" });
+      const cards = await page.locator(".courses .course").all();
+      const first = await cards[0].boundingBox(),
+        second = await cards[1].boundingBox();
+      assert.equal(first.y, second.y);
+      assert.ok(second.x > first.x);
+      assert.ok((await page.locator(".app").boundingBox()).width > 900);
+      assert.equal(await page.locator(".sidebar-courses").isVisible(), true);
+      await cards[0].click();
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Profile", exact: true })
+          .isVisible(),
+        true,
+      );
+      const graphBox = await page.locator(".graph-section").boundingBox(),
+        recentBox = await page.locator(".recent-assignments").boundingBox();
+      assert.ok(recentBox.x > graphBox.x + graphBox.width);
+      const chart = page.getByRole("slider");
+      await chart.press("End");
+      const expected = (
+        await page.locator(".summary .grade").innerText()
+      ).replace(/[%()\s]/g, "");
+      assert.equal(
+        Number(await page.locator(".chart-tooltip strong").innerText()),
+        Number(expected),
+      );
+      const marker = await page.locator(".chart-marker").boundingBox(),
+        plot = await chart.boundingBox();
+      assert.ok(marker.y >= plot.y && marker.y < plot.y + plot.height);
+      await page.screenshot({ path: directory + "/desktop-detail.png" });
+      await page
+        .locator(".sidebar-courses button")
+        .filter({ hasText: "AP Physics 1" })
+        .click();
+      assert.match(await page.locator("header h1").innerText(), /AP Physics 1/);
+      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.screenshot({ path: directory + "/desktop-profile.png" });
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,

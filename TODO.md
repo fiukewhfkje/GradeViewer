@@ -6,7 +6,19 @@
 - [x] Remove native build caches and project-local signing overrides.
 - [x] Remove the macOS/Swift CI job and all cross-language calculator comparison machinery. The final 1,200 synthetic comparisons passed; the owner requested removing them rather than maintaining a frozen corpus. Keep focused web calculator regressions.
 - [x] Replace native development instructions and architecture with the active PWA model; remove obsolete native setup instructions and links.
-- [x] Verify the web-only production build, 145 tests, 26 flows per browser, Worker dry-run, source packaging and isolated-template update/rollback; record actual local evidence.
+- [x] Verify the integrated v0.1.8 web-only production build, 152 tests, 28 flows per browser, Worker dry-run, source packaging and isolated-template update/rollback; record actual local evidence.
+
+## October 20 responsiveness and stable release (completed)
+
+- [x] Add a desktop sidebar/course grid and wider course/Profile layouts; inspect synthetic screenshots.
+- [x] Show authenticated account-matched saved grades during background refresh, remove duplicate startup status reads and defer optional returning-open title traversal.
+- [x] Keep held graph selection during vertical drift, follow display frames and scale the tracing marker to the desktop plot.
+- [x] Replace quarter-to-quarter graph jumps with guarded weighted semester progression and authoritative semester observations.
+- [x] Separate update activation/loading state, wait for controller takeover and avoid offering the running shell again.
+- [x] Preserve open courses/forms across another tab's refresh and merge local edits saved during a refresh.
+- [x] Finish local browser/template checks, remote release gates, signed stable v0.1.8 publication and immediate deployment to the existing owner URL. Final CI passes 152 tests, 28 flows per browser, 119 Swift tests and 1,200 calculation comparisons; live assets and real published provenance verify.
+- [x] Verify the retained real production v0.1.7 PWA installs v0.1.8 with identical synthetic local state and second-tab form retention, explicit activation in both tabs, and no repeated update notice.
+- [ ] Complete physical iPhone/Android acceptance and measure real account latency; synthetic startup/gesture/browser evidence does not establish those results.
 
 ## Remaining PWA follow-ups
 

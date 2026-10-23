@@ -6,12 +6,23 @@ export interface Pending {
   previousRevision?: string;
   scan: string;
 }
+let connection: ReturnType<typeof openDB> | undefined;
 const db = () =>
-  openDB("gradeviewer", 1, {
+  (connection ??= openDB("gradeviewer", 1, {
     upgrade(db) {
       db.createObjectStore("state");
     },
-  });
+    blocking() {
+      void connection?.then((d) => d.close());
+      connection = undefined;
+    },
+    terminated() {
+      connection = undefined;
+    },
+  }).catch((error) => {
+    connection = undefined;
+    throw error;
+  }));
 export async function load(): Promise<SavedState> {
   const d = await db(),
     s = await d.get("state", "active");
