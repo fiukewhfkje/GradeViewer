@@ -1,5 +1,11 @@
 # Project status — November 1, 2026
 
+## Owner clarification — automatic reconnect and GitHub-only release hold
+
+The owner selected silent automatic Carmen reconnect during active refresh, with authenticated/account-matched saved grades visible immediately and usable through renewal/retrieval. A Reconnect button is the fallback only when OSU actually requires password/MFA input. Slow work must not block the cached view, and temporary errors/quota cooldowns must not launch repeated renewal attempts. [Updated behavior and separate grade-retrieval measurements](docs/CARMEN_SESSION_BENCHMARK.md). No automatic Carmen connection/UI is implemented; no account is available to measure full grade retrieval. The 2.46–3.30-second public-login measurement does not establish authenticated renewal or time to complete fresh grades. Existing opt-in diagnostics already time first-page course totals separately, with their completeness limit explicit.
+
+**GPA/Carmen work stays on the owner's GitHub development branch.** The owner has not authorized a stable release; the repository instructions now preserve the hold across future work: no main merge, tag/release publication, stable-installation update or production deployment until explicitly lifted. This follow-up changes instructions/research/status/backlog only. Documentation links and whitespace are checked; no application test rerun or new live account/performance verification is claimed.
+
 ## Carmen renewal latency and session-lifetime test preparation
 
 Added sanitized phase timings to the isolated browser diagnostic and opt-in `--timing` to the private-file identity/course diagnostic. Three real public-only browser samples took **2.458–3.304 seconds (median 2.696)** from CLI credential setup through Carmen→OSU public sign-in navigation; all three browsers were closed. These numbers exclude authenticated SSO/password/MFA and are not production Worker or billed-runtime measurements. No student session is available, so actual cookie lifetime, automatic renewal time and manual-login frequency remain unmeasured. One extra immediate launch was rejected before creation; its exact provider error was not retained, so no cause is claimed. Later diagnostics classify known quota/rate-limit errors without raw output.

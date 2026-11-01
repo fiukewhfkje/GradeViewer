@@ -1,5 +1,9 @@
 # PWA verification — November 1, 2026
 
+## Automatic reconnect preference and release hold — documentation only
+
+Recorded silent renewal as the default during active refresh, with usable authenticated/account-matched saved grades and human-only reconnect fallback. Expanded the benchmark contract to distinguish first-page totals from complete grade retrieval and warm/cold/expired-session timing. No Carmen UI/provider/renewal implementation or new performance result is claimed. Added the owner's branch-only GPA/Carmen release hold to repository instructions; no main merge, tag, release or production deployment occurred. Local-document links and Git whitespace checks cover this instructions/documentation-only follow-up; application suites were not rerun, with the preceding 160-test/build results remaining the code baseline.
+
 ## Renewal timing instrumentation and controlled-test preparation
 
 Three `--public-login` runs with phase timing all reached OSU's public sign-in host with HTTP 200 and closed their owned browsers. Through initial sign-in navigation, including Cloudflare credential CLI setup, totals were 3,304 / 2,696 / 2,458 ms. This does not measure authenticated renewal, full page interactivity, production Worker latency or billed browser time. One immediate extra launch failed before browser creation with its exact provider category unavailable; the later diagnostic safely labels known quota/rate-limit messages. No student account/cookies were used or SSO renewal attempted. [Full interpretation and actual-account test protocol](CARMEN_SESSION_BENCHMARK.md).

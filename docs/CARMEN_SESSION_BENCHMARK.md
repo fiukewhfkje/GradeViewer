@@ -2,6 +2,8 @@
 
 This is the next real-account test protocol, not a completed Carmen integration. The owner wants infrequent manual sign-in, normal phone/desktop PWA operation and saved grades during renewal. No student account/session is available to the operator, so authenticated lifetime and renewal timing cannot currently be measured. Public-login/platform timings are recorded below separately.
 
+Owner clarification: **automatic silent reconnect is the default** after a confirmed expired Carmen session during normal active use. Show authenticated, account-matched saved grades immediately and keep them usable during both renewal and grade retrieval. The manual Reconnect button is the fallback for verified password/MFA input, not a prerequisite for trying silent SSO. All GPA/Carmen work remains GitHub-development-branch-only under the owner's release hold; do not merge to main, publish tags/releases or deploy to production.
+
 ## What actually runs
 
 Renewal would be deterministic headless Playwright/Puppeteer code invoked by the personal Worker: restore encrypted browser state, navigate to Carmen, allow normal SSO redirects, verify the same account, export updated session state and close Chrome. There is no AI screenshot/click loop, and the student runs no terminal command. [Cloudflare supports programmatic Playwright control](https://developers.cloudflare.com/browser-run/cdp/playwright/). If normal SSO requires user input, the code stops and offers Cloudflare's [interactive login handoff](https://developers.cloudflare.com/browser-run/features/human-in-the-loop/); it must not fill a stored OSU password or bypass MFA.
@@ -48,6 +50,14 @@ node scripts/verify-carmen-session.mjs /absolute/private/carmen-cookie.txt --con
 
 It reports `timingsMs.identity` and `timingsMs.total` without identity/grade values. Optional `--grades` times the separate first-page course-total read. It neither saves rotated cookies nor restores SSO, so a stale exported header alone cannot establish the true renewable session lifetime. Do not run it repeatedly throughout an intended idle interval. No authenticated benchmark is claimed from the synthetic timing regression.
 
+## Grade retrieval is a separate measurement
+
+The measured 2.46–3.30 seconds is **not** time to fresh grades. Existing `--grades --timing` reports `timingsMs.courseTotals` separately from identity verification, but reads only the first course-total page. It does not fetch every assignment, category or page, build a complete snapshot or measure phone rendering. A quick first-page total response cannot establish the speed of the complete grade viewer.
+
+For actual-account acceptance, record these three cases separately: an ordinary refresh with a valid session; a cold complete snapshot with required metadata; and expired-session recovery followed by a complete refresh. Measure identity verification, ordinary API retrieval, any browser renewal, parsing/reconciliation, IndexedDB persistence and UI activation independently, plus total time to the fresh complete snapshot. Record sanitized phase durations/request counts only. Include pagination and whatever assignment/category metadata the implementation actually needs; do not extrapolate from Schoology timings or unauthenticated Carmen navigation. A first-screen total and a fully loaded course detail may have different completion times and must not be presented as the same result.
+
+The saved snapshot should become visible before that work starts once app authentication/account matching permits it. A slow renewal or retrieval keeps the existing quiet Updating grades state and usable cached courses; it must not turn into a blocking login/loading screen or a forced browser popup. Complete verified snapshots still activate atomically. No speed threshold, end-to-end Carmen timing or complete retrieval implementation is established yet.
+
 ## PWA behavior to implement with the Carmen connection
 
 The current Schoology app already restores an authenticated, account-matched complete snapshot before fetching and keeps it visible on provider failure with Showing saved grades / Retry. Reuse that behavior for Carmen, keeping the PWA's own password/session lock separate from Carmen authentication. This document does not claim a Carmen button exists today.
@@ -55,6 +65,7 @@ The current Schoology app already restores an authenticated, account-matched com
 | Observed connection state | PWA response |
 | --- | --- |
 | Ordinary refresh or automatic renewal | Keep courses, history, what-if edits and open forms visible; show a quiet Updating grades indicator. |
+| Confirmed expired Carmen session, no cooldown | Automatically attempt one coalesced silent renewal, then resume ordinary grade retrieval. Keep the saved snapshot visible; no manual reconnect click or interactive popup is required for this attempt. |
 | Verified human sign-in required | Show **Carmen needs you to sign in. Showing saved grades.** with **Reconnect to Carmen**. Open the interactive login only after the button is pressed. |
 | Network/provider failure or quota cooldown | Keep saved grades, show Retry or the cooldown; do not prompt for a new login or spend browser quota repeatedly. |
 | Same-account reconnect and complete new snapshot | Close the login view, resume normal reads and atomically reconcile the snapshot. |

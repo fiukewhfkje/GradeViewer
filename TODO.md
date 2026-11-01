@@ -2,6 +2,10 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] Record the owner's release hold in AGENTS.md: retain GPA/Carmen work on the GitHub development branch; no main merge, release tag/publication, stable-installation update or production deploy until explicitly lifted.
+- [x] Make silent automatic Carmen reconnect the default intended active-refresh behavior, with usable account-matched cached grades throughout; show manual Reconnect only for verified human sign-in. Separate API grade-retrieval timing from browser/login timing and mark the current totals probe as partial.
+- [ ] Implement and validate that automatic reconnect once actual-account session portability/renewal is proven. Keep one coalesced bounded renewal across devices, distinct provider-session/disconnection states, saved-data retention through slow/error/quota paths, and separate warm/cold/expired-session full-snapshot timing. This remains branch-only under the release hold.
+
 - [x] Investigate weighted/unweighted Schoology GPA and OSU Carmen feasibility using current source and official documentation; record [findings, policy gaps and implementation path](docs/GPA_AND_CARMEN_RESEARCH.md). No feature implementation or live student reads were part of this work.
 - [x] Use the privately supplied transcript as a comparison and verify the public Dublin table: plus/minus 3.33/3.67-style values, no difficulty bonus for D+ and below, conditional CCP weighting and non-GPA credit exclusions. Retain public rules only, with no personal image/rows/totals in source or fixtures.
 - [ ] Implement estimated semester GPA when requested: use the documented Dublin point/bonus table, local level/inclusion/credit overrides including eligible CCP/CTAG, confirmed percentage rounding/provider representation and semester credits, one contribution per physical course-semester, visible partial results and baseline/scenario separation. Distinguish GPA attempted credit from earned/graduation credit. Add focused core/persistence/browser coverage.
