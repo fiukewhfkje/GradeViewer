@@ -114,6 +114,52 @@ export function shouldRenew(result, enabled = true) {
   );
 }
 
+export function newRenewalStages(carmenSessionRejected = false) {
+  return {
+    carmenSessionRejected,
+    browserLaunched: false,
+    osuSignIn: "notObserved",
+    duoPageObserved: false,
+    duoChallenge: "notObserved",
+    credentialsScreenObserved: false,
+    humanAction: "notObserved",
+    renewalSucceeded: false,
+  };
+}
+
+// Each confirmed HTTP rejection authorizes at most one explicit recovery.
+// Claim before launch so a technical failure/crash cannot cause an auto retry.
+export async function claimRenewal(directory, saved, key, now = Date.now()) {
+  const lock = join(directory, ".renewal-claim");
+  try {
+    await mkdir(lock, { mode: 0o700 });
+  } catch (error) {
+    if (error.code === "EEXIST") throw fault("renewalAlreadyAttempted");
+    throw error;
+  }
+  try {
+    const current = (await loadSession(directory)).saved;
+    if (
+      current.identity !== saved.identity ||
+      current.lastAuthFailure?.at !== saved.lastAuthFailure?.at ||
+      !Number.isFinite(current.lastAuthFailure?.at) ||
+      current.lastAuthFailure.at > now ||
+      current.lastAuthFailure.at < (current.verifiedAt ?? 0)
+    )
+      throw fault("confirmedAuthenticationFailureRequired");
+    if (current.lastAuthFailure.renewalAttemptedAt !== undefined)
+      throw fault("renewalAlreadyAttempted");
+    const claimed = {
+      ...saved,
+      lastAuthFailure: { ...current.lastAuthFailure, renewalAttemptedAt: now },
+    };
+    await saveSession(directory, claimed, key);
+    return claimed;
+  } finally {
+    await rm(lock, { recursive: true, force: true });
+  }
+}
+
 export async function recordObservation(directory, observation) {
   const file = await open(
     join(directory, "observations.jsonl"),
@@ -319,6 +365,22 @@ export async function humanGate(page) {
       (await page.locator('input[type="password"]').first().isVisible())
     )
       return "credentials";
+    if (
+      ["webauth.service.ohio-state.edu", "osu.instructure.com"].includes(
+        url.hostname,
+      ) &&
+      (await page
+        .getByRole("heading", {
+          name: /terms of use|terms and conditions|additional verification|action required|change your password/i,
+        })
+        .first()
+        .isVisible()) &&
+      (await page
+        .locator('button[type="submit"], input[type="submit"]')
+        .first()
+        .isVisible())
+    )
+      return "other";
   } catch {
     /* Unsupported/changed page or navigation: inconclusive, not Duo. */
   }
@@ -337,8 +399,11 @@ export async function attemptRenewal({
   signal,
   createRequest = (state) => request.newContext({ storageState: state }),
   onPendingState = async () => {},
+  stages = newRenewalStages(),
+  clock = () => performance.now(),
+  pause = () => new Promise((done) => setTimeout(done, 1000)),
 }) {
-  const began = performance.now();
+  const began = clock();
   if (signal?.aborted) throw fault("cancelled");
   onStage("restoreBrowserState");
   // Initial handoff uses only this newly created browser's fresh default context;
@@ -348,12 +413,28 @@ export async function attemptRenewal({
       ? browser.contexts()[0]
       : await browser.newContext(saved ? { storageState: saved.state } : {});
   const page = await context.newPage();
-  const cutoff = performance.now() + deadlineMs;
+  const observeURL = (value) => {
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:") return;
+      if (
+        url.hostname === "webauth.service.ohio-state.edu" &&
+        stages.osuSignIn === "notObserved"
+      )
+        stages.osuSignIn = "reached";
+      if (/^[a-z0-9-]+\.duosecurity\.com$/.test(url.hostname))
+        stages.duoPageObserved = true;
+    } catch {
+      /* Never persist a URL or exception. */
+    }
+  };
+  page.on?.("framenavigated", (frame) => observeURL(frame.url()));
+  const cutoff = clock() + deadlineMs;
   // Only normal navigation and fixed human-gate checks. Never fill or click.
   onStage("normalSignInNavigation");
   await page.goto(origin + "/", {
     waitUntil: "domcontentloaded",
-    timeout: Math.max(1, Math.min(20_000, cutoff - performance.now())),
+    timeout: Math.max(1, Math.min(20_000, cutoff - clock())),
   });
   let handoffState = interactive ? "pending" : "done";
   if (interactive) {
@@ -376,33 +457,50 @@ export async function attemptRenewal({
     await cdp.send("Cloudflare.handoff", {
       instructions:
         "Complete OSU sign-in and any first-use screens yourself. Review any policy yourself. Select Done only when Carmen is ready; select Failed to stop. The test will then perform only the agreed read-only check.",
-      timeout: Math.max(1, Math.round(cutoff - performance.now())),
+      timeout: Math.max(1, Math.round(cutoff - clock())),
     });
     await handoff(live.href);
   }
   onStage("awaitVerifiedAccount");
-  while (performance.now() < cutoff && !signal?.aborted) {
+  let gateCandidate, gateSeenAt;
+  while (clock() < cutoff && !signal?.aborted) {
     if (handoffState === "failed")
       return {
         report: { authenticated: false, error: "humanSignInRequired" },
-        renewalMs: Math.round(performance.now() - began),
+        renewalMs: Math.round(clock() - began),
       };
     // Human interaction happens only in Cloudflare Live View. URL checks keep
     // the short handoff browser alive, without periodic Carmen HTTP traffic.
     const url = new URL(page.url());
-    if (!interactive) {
-      const reason = await humanGate(page);
-      if (reason)
+    observeURL(url.href);
+    const reason = await humanGate(page);
+    if (reason === "duo") stages.duoChallenge = "observed";
+    if (reason === "credentials") stages.credentialsScreenObserved = true;
+    if (reason) {
+      if (gateCandidate !== reason) {
+        gateCandidate = reason;
+        gateSeenAt = clock();
+      }
+      // Give ordinary SSO redirects a chance to leave a transient gate. A
+      // stable prompt is evidence; a timeout or merely visiting Duo is not.
+      if (
+        (!interactive || handoffState === "done") &&
+        clock() - gateSeenAt >= 1000
+      ) {
+        stages.humanAction = reason;
+        if (reason === "credentials") stages.osuSignIn = "credentialsRequested";
         return {
           report: {
             authenticated: false,
             error: "humanSignInRequired",
             humanReason: reason,
           },
-          renewalMs: Math.round(performance.now() - began),
+          renewalMs: Math.round(clock() - began),
         };
-    }
+      }
+    } else gateCandidate = undefined;
     if (
+      !reason &&
       handoffState === "done" &&
       url.origin === origin &&
       !/^\/(?:login|logout)(?:\/|$)/.test(url.pathname)
@@ -415,24 +513,23 @@ export async function attemptRenewal({
       await onPendingState(state);
       const api = await createRequest(state);
       try {
-        const result = await read(
-          api,
-          saved,
-          grades,
-          cutoff - performance.now(),
-        );
-        if (result.report.authenticated && !result.report.error)
+        const result = await read(api, saved, grades, cutoff - clock());
+        if (result.report.authenticated && !result.report.error) {
+          stages.renewalSucceeded = true;
+          if (!interactive && stages.osuSignIn === "reached")
+            stages.osuSignIn = "continuedSilently";
           return {
             ...result,
             state: scopeState({
               ...state,
               cookies: (await api.storageState()).cookies,
             }),
-            renewalMs: Math.round(performance.now() - began),
+            renewalMs: Math.round(clock() - began),
           };
+        }
         return {
           report: result.report,
-          renewalMs: Math.round(performance.now() - began),
+          renewalMs: Math.round(clock() - began),
         };
       } finally {
         await api.dispose();
@@ -445,7 +542,7 @@ export async function attemptRenewal({
     } finally {
       await cdp.detach();
     }
-    await new Promise((done) => setTimeout(done, 1000));
+    await pause();
   }
   return {
     report: {
@@ -456,7 +553,7 @@ export async function attemptRenewal({
           ? "humanSignInRequired"
           : "renewalInconclusive",
     },
-    renewalMs: Math.round(performance.now() - began),
+    renewalMs: Math.round(clock() - began),
   };
 }
 
@@ -470,6 +567,8 @@ const safeErrors = new Set([
   "invalidLiveView",
   "gradePermissionRequired",
   "labAlreadyExists",
+  "confirmedAuthenticationFailureRequired",
+  "renewalAlreadyAttempted",
 ]);
 const htmlEscape = (value) =>
   value
@@ -486,7 +585,7 @@ async function main() {
   }
   const [mode, path, ...flags] = args;
   if (
-    !["start", "check", "reconnect", "authorize"].includes(mode) ||
+    !["start", "check", "renew", "reconnect", "authorize"].includes(mode) ||
     !path ||
     flags.some(
       (flag) =>
@@ -500,7 +599,9 @@ async function main() {
     ) ||
     (["start", "reconnect"].includes(mode) &&
       (flags.includes("--no-renew") || flags.includes("--local-browser"))) ||
-    (["check", "reconnect"].includes(mode) && flags.includes("--week")) ||
+    (["check", "renew", "reconnect"].includes(mode) &&
+      flags.includes("--week")) ||
+    (mode === "renew" && flags.includes("--no-renew")) ||
     (mode === "authorize" &&
       flags.some((f) => !["--consent", "--week", "--grades"].includes(f)))
   ) {
@@ -599,6 +700,7 @@ async function main() {
               cookies: (await api.storageState()).cookies,
             }),
             verifiedAt: Date.now(),
+            lastAuthFailure: undefined,
             courseTotalsVerifiedAt: flags.includes("--grades")
               ? Date.now()
               : saved.courseTotalsVerifiedAt,
@@ -608,6 +710,10 @@ async function main() {
         await rm(join(directory, "pending.json"), { force: true });
         report.success = true;
         return;
+      }
+      if (shouldRenew(result.report)) {
+        saved = { ...saved, lastAuthFailure: { at: observedAt } };
+        await saveSession(directory, saved, key);
       }
       if (!shouldRenew(result.report, !flags.includes("--no-renew"))) {
         if (flags.includes("--no-renew")) report.renewalDeferred = true;
@@ -620,6 +726,11 @@ async function main() {
         cookies: (await api.storageState()).cookies,
       });
     }
+    if (mode === "renew" || mode === "check")
+      saved = await claimRenewal(directory, saved, key);
+    report.renewalStages = newRenewalStages(
+      mode === "renew" || mode === "check",
+    );
     recoveryBegan = performance.now();
     report.browserRuntime = flags.includes("--local-browser")
       ? "vm-local"
@@ -629,12 +740,15 @@ async function main() {
       : createBrowserClient(directory, timed);
     stage = "cloudBrowserLaunch";
     const { browser } = await client.open();
+    report.renewalStages.browserLaunched = true;
+    const interactive = ["start", "reconnect"].includes(mode);
     const result = await attemptRenewal({
       browser,
       saved,
       grades: flags.includes("--grades"),
-      interactive: mode !== "check",
-      deadlineMs: mode !== "check" ? 240_000 : 25_000,
+      interactive,
+      deadlineMs: interactive ? 240_000 : 25_000,
+      stages: report.renewalStages,
       signal: controller.signal,
       onPendingState: async (state) => {
         await savePending(
@@ -705,13 +819,17 @@ async function main() {
       String(error?.stdout ?? "");
     report.error = safeErrors.has(error?.code)
       ? error.code
-      : error?.code === "EEXIST"
-        ? "labAlreadyExists"
-        : /Browser time limit exceeded for today/i.test(details)
-          ? "dailyBrowserBudgetExceeded"
-          : /\b429\b|too many requests/i.test(details)
-            ? "cloudflareRateLimited"
-            : "labFailed";
+      : error?.code === "ENOENT" &&
+          stage === "privateLabSetup" &&
+          mode !== "start"
+        ? "privateLabStateMissing"
+        : error?.code === "EEXIST"
+          ? "labAlreadyExists"
+          : /Browser time limit exceeded for today/i.test(details)
+            ? "dailyBrowserBudgetExceeded"
+            : /\b429\b|too many requests/i.test(details)
+              ? "cloudflareRateLimited"
+              : "labFailed";
   } finally {
     if (client && !(await client.cleanup())) report.cleanupFailed = true;
     if (recoveryBegan !== undefined)
@@ -731,6 +849,22 @@ async function main() {
           report.observationLogSaved = false;
         }
         report.observation = observation;
+      }
+      if (mode === "renew" && report.renewalStages) {
+        try {
+          await recordObservation(directory, {
+            version: 1,
+            event: "separateRenewal",
+            observedAtUTC: new Date().toISOString(),
+            stages: report.renewalStages,
+            error: report.error ?? report.renewal?.error ?? null,
+            success: report.success === true,
+            timingsMs: report.timingsMs,
+          });
+          report.observationLogSaved = true;
+        } catch {
+          report.observationLogSaved = false;
+        }
       }
     }
     console.log(JSON.stringify(report));

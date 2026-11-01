@@ -1,8 +1,8 @@
 # Carmen lifetime, renewal latency and reconnect acceptance
 
-This is the next real-account test protocol, not a completed Carmen integration. The owner wants infrequent manual sign-in, normal phone/desktop PWA operation and saved grades during renewal. The owner provided their own interactive sign-in; its encrypted session is available privately. Saved-session identity and course-total HTTP reads have passed. Actual idle lifetime, successful silent renewal timing and Duo frequency remain unmeasured. Public-login/platform timings are recorded below separately.
+This is the next real-account test protocol, not a completed Carmen integration. The owner wants infrequent manual sign-in, normal phone/desktop PWA operation and saved grades during renewal. The owner’s original interactive sign-in passed saved-session identity and course-total HTTP reads. That private state and its temporary archive were missing on the evening return; a fresh persistent capture was blocked at Cloudflare launch. The [current handoff](CARMEN_HANDOFF.md) records exact locations/status for a fresh thread. Actual idle lifetime, successful silent renewal timing and Duo frequency remain unmeasured. Public-login/platform timings are recorded below separately.
 
-Owner clarification: **automatic silent reconnect is the default** after a confirmed expired Carmen session during normal active use. Show authenticated, account-matched saved grades immediately and keep them usable during both renewal and grade retrieval. The manual Reconnect button is the fallback for verified password/MFA input, not a prerequisite for trying silent SSO. All GPA/Carmen work remains GitHub-development-branch-only under the owner's release hold; do not merge to main, publish tags/releases or deploy to production.
+Owner clarification: **automatic silent reconnect is the intended PWA default** after a confirmed expired Carmen session during normal active use. The isolated measurement experiment below now disables renewal during scheduled checks and invokes recovery separately; it does not change the intended PWA behavior. Show authenticated, account-matched saved grades immediately and keep them usable during both renewal and grade retrieval. The manual Reconnect button is the fallback for verified password/MFA input, not a prerequisite for trying silent SSO. All GPA/Carmen work remains GitHub-development-branch-only under the owner's release hold; do not merge to main, publish tags/releases or deploy to production.
 
 ## What actually runs
 
@@ -32,22 +32,24 @@ The [friend-login lab and short consent instructions](CARMEN_FRIEND_TEST.md) now
 
 ## Original-account baseline
 
-The owner's supervised identity-only sign-in was verified in 254 ms after the human selected Done; a later ordinary HTTP saved-session read took 269 ms with no Chrome launch. The roughly 64-second initial browser interval included waiting for human login/MFA/first-use handling and is **not** silent renewal latency. No grades were requested, so there is still no complete grade-retrieval measurement. Two warm-SSO attempts were blocked at cloud-browser launch, with the later error classified as 429/rate limited; no expired-session renewal was observed. Leave the saved session idle before the next lifetime trial instead of polling it or retrying browser launch repeatedly.
+The owner's supervised identity-only sign-in was verified in 254 ms after the human selected Done; a later ordinary HTTP saved-session read took 269 ms with no Chrome launch. The roughly 64-second initial browser interval included waiting for human login/MFA/first-use handling and is **not** silent renewal latency. That initial test requested identity only; the later course-total probes below passed. Complete grade retrieval remains unmeasured. Two warm-SSO attempts were blocked at cloud-browser launch, with the later error classified as 429/rate limited; no expired-session renewal was observed. The old temporary state is now missing; do not treat that loss as Carmen expiry. Future captures use persistent storage.
 
 Initial live-test failures were lab bugs rather than measured OSU expiry. The human handoff now requires explicit Done before profile verification, preserving time for first-use screens; no policy is accepted automatically. Multiple response-cookie headers are preserved individually. Completed sign-in state is encrypted as pending before verification so diagnostic failures can be retried without throwing away the human login; only a verified profile activates the bound account.
 
 ## Canonical experiment — two independently authenticated profiles
 
-The owner’s November 1 specification supersedes the earlier two quiet checks and identity-only 48-hour plan. Use two separate human-completed sign-ins for the same account, each from a fresh browser profile. Copies of one cookie jar are not independent sessions. The coordinator rejects identical authentication IDs, shared Carmen session-cookie values, different accounts and profiles without verified course-total access. These are accidental-copy guards; they cannot prove independence after arbitrary manual editing.
+The owner’s November 1 specification supersedes the earlier two quiet checks and identity-only 48-hour plan. Use two separate human-completed sign-ins for the same account, each from a fresh browser profile. Copies of one cookie jar are not independent sessions. The coordinator rejects identical authentication IDs, shared Carmen session-cookie values, different accounts and profiles without verified course-total access. These are accidental-copy guards; they cannot prove independence after arbitrary manual editing. Status output explicitly reports `independenceProven: false` and requires independent sign-ins.
 
 | Probe | Requests | What it measures |
 | --- | --- | --- |
 | Active | One HTTP check every five minutes for up to seven days | Survival under active API use; confirmed failures bound expiry between the last success and the failed check. |
 | Idle | Wait 2h, then 4h, 8h, 16h, 24h and finally 48h, each from the preceding successful verification | Survival after each actual quiet gap. The waits total 102 hours, not 48 hours. A successful check may reset the idle timer. |
 
-Every check verifies the same-account self-profile and then `GET /api/v1/courses?enrollment_type=student&include[]=total_scores&per_page=100`. Success requires both checks and schema-valid course data. `[]` is success with no visible totals, not an error. HTML, malformed JSON/schema, 403, 429 and network failures are inconclusive, never expiry. Only 401 or a recognized sign-in redirect confirms an authentication failure. The courses request is the documented [Canvas courses/total-scores path](https://developerdocs.instructure.com/services/canvas/resources/courses); it reads the first page only and does not validate every assignment or per-course grade parsing for an unenrolled account.
+Every check verifies the same-account self-profile and then `GET /api/v1/courses?enrollment_type=student&include[]=total_scores&per_page=100`. Success requires both checks and schema-valid course data. Output includes the first-page course count and whether score fields exist (even if null), never course names or score values. `[]` is success with no visible totals, not an error. HTML, malformed JSON/schema, 403, 429 and network failures are inconclusive, never expiry. Only 401 or a recognized sign-in redirect confirms an authentication failure. The courses request is the documented [Canvas courses/total-scores path](https://developerdocs.instructure.com/services/canvas/resources/courses); it reads the first page only and does not validate every assignment or per-course grade parsing for an unenrolled account.
 
-Normal checks use Playwright’s standalone HTTP client, not Chromium. At a confirmed auth failure, the checker attempts one bounded normal headless SSO recovery, verifies the same account and course path, persists rotated state and closes the browser. A visible recognized Duo, policy or password prompt is logged separately. An unrecognized page, navigation timeout or browser quota failure is inconclusive, not proof that Duo was required. Gate recognition is deliberately narrow and may need adjustment for OSU page changes; it never reads values, fills passwords or clicks MFA/policy controls.
+Scheduled checks use Playwright’s standalone HTTP client with `--no-renew`, never Chromium. A confirmed auth failure records the last-success-to-rejection time range and pauses that probe. It cannot launch a browser or silently renew during measurement. Inconclusive/network/rate-limit/server failures also pause and are separately classified; they do not become expiry observations or automatic minute retries.
+
+A separately invoked `renew` operation requires that recorded confirmed rejection, claims one attempt before launch (including concurrent-call protection), then performs normal headless SSO recovery. It verifies the same account and course path, persists rotated state and closes the browser. The stage record distinguishes browser launch, reaching OSU, observed silent OSU continuation, a stable credential prompt, a Duo page versus an observed challenge, policy/other human prompts and verified renewal. A generic timeout, missing local file or Cloudflare 429 is technical/inconclusive, not proof of Duo or OSU expiry. A visible password screen records what OSU requested, not the exact cause or timing of an SSO expiration. Gate recognition is deliberately narrow and may need adjustment for OSU page changes; it never reads values, fills passwords or clicks MFA/policy controls. Transient prompts get a one-second navigation grace period before being classified as a human stop.
 
 Renewal frequency comes from repeated expiry/recovery episodes across the trial, not from idle checks alone. `renewalMs` measures navigation/verification; `recoveryTotalMs` also includes browser launch, state persistence and explicit closure. These are elapsed diagnostic wall times, not billed Cloudflare browser usage. Logs and status keep silent renewals, human Duo, policy, credentials, unclassified human input and inconclusive attempts separate. A zero-sample Duo fraction is `null`. Recorded-attempt Duo bounds include unknown outcomes: password/policy stops can hide a later Duo challenge, and an inconclusive recovery cannot prove Duo was unnecessary. These bounds describe the recorded sample, not a population confidence interval. Do not infer a weekly human-login rate from one success.
 
@@ -55,11 +57,11 @@ The five-minute schedule keeps a fixed cadence, skipping missed slots rather tha
 
 ## Provision and schedule without model calls
 
-Commands below run from `web/`; replace `/PRIVATE` with an absolute owner-only directory **outside the repository**. Node 24+ is required. The browser sign-ins happen only when the account holder is ready and normal browser acquisition is available. No passwords or session files belong in prompts, Git or cron arguments.
+Commands below run from `web/`; replace `/PRIVATE` with a persistent absolute owner-only directory **outside the repository**, not an OS temporary directory. On the owner’s Mac, use the exact root in [CARMEN_HANDOFF.md](CARMEN_HANDOFF.md); on a VM, `$HOME/.local/share/gradeviewer-carmen` is suitable. Create the parent with mode 700 first; profile directories must not already exist. Node 24+ is required. The browser sign-ins happen only when the account holder is ready and normal browser acquisition is available. No passwords or session files belong in prompts, Git or cron arguments.
 
 ```sh
-node scripts/carmen-login-lab.mjs start /PRIVATE/active --consent --grades --week
-node scripts/carmen-login-lab.mjs start /PRIVATE/idle --consent --grades --week
+node scripts/carmen-login-lab.mjs start "/PRIVATE/active" --consent --grades --week
+node scripts/carmen-login-lab.mjs start "/PRIVATE/idle" --consent --grades --week
 ```
 
 Each command creates a fresh private directory and prints the path of a private login HTML file. The human completes OSU/Duo/first-use screens and selects Done. Each verified capture has its own authentication ID. Do not use `check`, browse, or poll the idle profile after capture. Its first due time is two hours after its course verification, even if coordinator setup happens later. A late setup must be reported as a longer actual gap.
@@ -67,8 +69,8 @@ Each command creates a fresh private directory and prints the path of a private 
 The default lab limit remains 48 hours. Explicit `start --week` authorizes at most seven days from capture. To use an already authenticated **unexpired** original profile as the active probe, the owner can explicitly extend its local authorization and grant course-read scope, then verify once:
 
 ```sh
-node scripts/carmen-login-lab.mjs authorize /PRIVATE/active --consent --grades --week
-node scripts/carmen-login-lab.mjs check /PRIVATE/active --consent --grades --no-renew
+node scripts/carmen-login-lab.mjs authorize "/PRIVATE/active" --consent --grades --week
+node scripts/carmen-login-lab.mjs check "/PRIVATE/active" --consent --grades --no-renew
 ```
 
 This is an authorization limit in the lab, not an extension of OSU’s session. It never resurrects expired local state. Reconnects preserve the original limit; the checker refuses state after it. Expiration does not delete private files automatically.
@@ -76,35 +78,49 @@ This is an authorization limit in the lab, not an extension of OSU’s session. 
 Initialize only after both profiles have independently signed in and verified the course path:
 
 ```sh
-node scripts/carmen-benchmark.mjs init /PRIVATE/benchmark /PRIVATE/active /PRIVATE/idle --consent
-node scripts/carmen-benchmark.mjs tick /PRIVATE/benchmark --consent
-node scripts/carmen-benchmark.mjs status /PRIVATE/benchmark --consent
+node scripts/carmen-benchmark.mjs init "/PRIVATE/benchmark" "/PRIVATE/active" "/PRIVATE/idle" --consent --hours=168
+node scripts/carmen-benchmark.mjs tick "/PRIVATE/benchmark" --consent
+node scripts/carmen-benchmark.mjs status "/PRIVATE/benchmark" --consent
 ```
 
-For Muse’s separate VM, use `init ... --consent --local-browser` to select that VM’s own headless Chromium for recovery. It needs Playwright/Chromium but no Cloudflare credentials or quota. HTTP-only ticks do not start a browser. VM/IP/device migration may itself trigger authentication and is a separate confound; VM renewal latency cannot establish Cloudflare Worker latency or billed usage. See [portable VM scope](CARMEN_VM_TEST.md).
+The `--hours=N` initialization option accepts 1–168 hours (default 168); shorter trials may finish before all idle phases, which must remain marked incomplete. For Muse’s separate VM, use `init ... --consent --hours=168 --local-browser` to select that VM’s own headless Chromium for recovery. It needs Playwright/Chromium but no Cloudflare credentials or quota. HTTP-only ticks do not start a browser. VM/IP/device migration may itself trigger authentication and is a separate confound; VM renewal latency cannot establish Cloudflare Worker latency or billed usage. See [portable VM scope](CARMEN_VM_TEST.md).
 
 An ordinary OS cron can invoke the following every minute, with absolute Node/repository/private paths. This is a code-only tick, not an LLM task:
 
 ```cron
-* * * * * cd /ABS/GradeViewer/web && /ABS/node scripts/carmen-benchmark.mjs tick /PRIVATE/benchmark --consent >> /PRIVATE/benchmark/cron.log 2>&1
+* * * * * cd "/ABS/GradeViewer/web" && /ABS/node scripts/carmen-benchmark.mjs tick "/PRIVATE/benchmark" --consent >> "/PRIVATE/benchmark/cron.log" 2>&1
 ```
 
 Create `cron.log` with mode 600 first. Ticks only read local due times until a probe is due, use a lock, persist an in-flight marker before requesting, and stop provider/browser access at the earliest profile authorization deadline or seven-day trial end. A stale crash lock must be reviewed and removed only after confirming no tick process is running. An interrupted in-flight check then requires a fresh verified check and explicit `resume`; it is never automatically repeated. Remove the cron entry after completion. No cron or recurring model job has been installed here; the previous two Codex schedules were deleted before running.
 
-On a verified human prompt, failed cleanup or inconclusive response, that probe pauses rather than retrying every minute. Keep notifications quiet on ordinary success; report a pause, cleanup failure or trial completion. For a human-required pause:
+A confirmed expiry stops the HTTP-only measurement. Observe one recovery explicitly; this is **not** part of the cron:
 
 ```sh
-node scripts/carmen-login-lab.mjs reconnect /PRIVATE/idle --consent --grades
-node scripts/carmen-benchmark.mjs resume /PRIVATE/benchmark idle --consent
+node scripts/carmen-benchmark.mjs renew "/PRIVATE/benchmark" active --consent
+# Or use idle after that probe has a confirmed rejection:
+node scripts/carmen-benchmark.mjs renew "/PRIVATE/benchmark" idle --consent
 ```
 
-For a transient error, make an explicit normal `check --consent --grades` after investigating/cooldown, then `resume`. A new successful course verification is required. The resumed timestamp is recorded as an external intervention. A confirmed-expiry idle phase advances to its next wait after recovery; an inconclusive phase repeats its same wait from the new successful baseline. Other use of a captured profile contaminates quiet intervals. The coordinator detects changed local verification timestamps, but cannot detect every use elsewhere; report such interventions.
+The coordinator uses the runtime selected at initialization. A successful silent recovery establishes the next baseline and resumes the schedule, beginning a new active-use segment or advancing to the next idle wait. Recovery does not count as another measured expiry. If it stops for a human prompt, fails technically or cannot close its browser, the probe stays paused. There is only one recorded recovery attempt for that failure; do not repeat it every minute. The standalone equivalent is `node scripts/carmen-login-lab.mjs renew "/PRIVATE/active" --consent --grades` (add `--local-browser` on a VM). It also requires a prior `check --no-renew` rejection and records sanitized stages privately.
+
+For a verified human-required pause, the owner completes a separate handoff, then explicitly resumes:
+
+```sh
+node scripts/carmen-login-lab.mjs reconnect "/PRIVATE/idle" --consent --grades
+node scripts/carmen-benchmark.mjs resume "/PRIVATE/benchmark" idle --consent
+```
+
+For a transient measurement error, make an explicit `check "/PRIVATE/idle" --consent --grades --no-renew` after investigating/cooldown, then `resume`. A new successful course verification is required. The resumed timestamp is an external intervention. A confirmed-expiry idle phase advances after recovery; an inconclusive phase repeats its same wait from the new successful baseline. Other use of a captured profile contaminates quiet intervals. Changed local verification timestamps are detected; not every use elsewhere can be detected. Keep notifications quiet on ordinary success; report a pause, cleanup failure or trial completion.
+
+For a scheduled one-off HTTP-only read, use `node scripts/carmen-login-lab.mjs check "/PRIVATE/idle" --consent --grades --no-renew` only at its agreed due time. The coordinator normally handles due times to prevent accidental extra reads.
+
+**A full quiet week is a separate experiment.** Passing 2/4/8/16/24/48h gaps demonstrates those individual observed gaps, with a maximum scheduled quiet gap of 48h. It does not demonstrate seven days without requests. A later single probe after 168 quiet hours would need its own baseline and explicit retention authorization that extends beyond that quiet interval; the current seven-day-from-capture cap starts before verification and cannot accommodate a full quiet week plus capture time. No such extension or weekly quiet probe is scheduled. Output explicitly says `idleProtocol: sequentialGaps` and `fullWeekQuietTest: false`.
 
 ## Evidence as of November 1
 
 At the owner’s request, the existing original session passed HTTP identity verification at **19:11:45.934Z (2:11 PM EST)** in **288 ms**, after 37m19.126s since its previous successful check. At **19:17:05.139Z (2:17 PM EST)** it passed identity plus the real course-total endpoint in **409 ms total** (identity 285 ms; courses 125 ms; rounded phases). A further check at **19:21:01.940Z (2:21 PM EST)** took **404 ms** and explicitly confirmed the schema-valid empty course list (`[]`). No browser/relogin was needed. This resets the original profile’s activity baseline; it does not establish a long idle lifetime. Account data was not printed.
 
-The owner then requested a fresh independent idle sign-in. Both a first launch and a spaced retry returned sanitized Cloudflare 429 before OSU navigation; an inventory read confirmed zero active cloud browsers. This is a browser-provider failure, not a Carmen expiry. No second authenticated profile or running two-probe trial is claimed until the human sign-in succeeds. The original session’s explicit local authorization has been extended to seven days with course-read permission; the old single-session VM archive is superseded for this experiment.
+The owner then requested a fresh independent idle sign-in. Both a first launch and a spaced retry returned sanitized Cloudflare 429 before OSU navigation; an inventory read confirmed zero active cloud browsers. This is a browser-provider failure, not a Carmen expiry. No second authenticated profile or running two-probe trial is claimed until the human sign-in succeeds. The original session had explicit seven-day local authorization and course-read permission. On the evening return its temporary files/archive were missing, so no multi-hour HTTP check reached Carmen. The owner did not retain the ZIP. A fresh attempt at about 6:14 PM EST used persistent Mac storage but again received Cloudflare 429 before OSU. No current authenticated profile exists; see the [self-contained handoff](CARMEN_HANDOFF.md).
 
 OSU documents [two-hour Carmen inactivity logout](https://it.osu.edu/news/2025/08/18/technology-updates-autumn-2025) and [24-hour BuckeyePass browser trust separately](https://it.osu.edu/security/services/buckeyepass). Neither proves an absolute OSU SSO lifetime or weeks of unattended renewal. The [support email draft](CARMEN_SUPPORT_EMAIL.md) asks the Carmen team for exact configuration and permitted student access methods; it has not been sent.
 

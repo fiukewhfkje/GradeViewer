@@ -4,6 +4,8 @@ GradeViewer is now a web-only React/TypeScript PWA in `web/`, backed by each use
 
 Read [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md), [current status](../PROJECT_STATUS.md), [TODO](../TODO.md), [validation](PWA_VALIDATION.md) and the [product brief](PRODUCT_BRIEF.md). [PWA_PLAN.md](PWA_PLAN.md) is historical migration rationale, not active instructions to keep native sources or repeat the migration.
 
+The development-only Carmen investigation has a separate [self-contained handoff](CARMEN_HANDOFF.md), including the exact persistent Mac storage path, missing original state, capture blockers and resume commands. Read it before continuing diagnostics; the production provider remains Schoology only.
+
 ## Setup and release boundaries
 
 The supported setup is GitHub template first, then connect that existing repository to Cloudflare with root `web`. Follow [onboarding](PWA_ONBOARDING.md) and [automatic updates](AUTOMATIC_UPDATES.md). Preserve the existing Worker, URL, vault, APP_PASSWORD, sessions and exact signed-source verification boundary. Do not recreate published tags or repeat the completed migration merge. Existing main-branch Cloudflare Builds deploys merged changes; this cleanup does not require a new stable tag.

@@ -248,8 +248,19 @@ export async function probeCarmen({
       )
         throw failure("invalidCourseList");
       report.courseTotalsChecked = true;
+      report.courseCount = data.length; // First-page count only; never names/grades.
       report.courseListEmpty = data.length === 0;
       report.courseListHasMorePages = morePages;
+      report.scoreFieldsPresent = data.some((c) =>
+        c.enrollments?.some((e) =>
+          [
+            "computed_current_score",
+            "computed_final_score",
+            "computed_current_grade",
+            "computed_final_grade",
+          ].some((name) => Object.hasOwn(e, name)),
+        ),
+      );
       report.visibleTotalsPresent = data.some((c) =>
         c.enrollments?.some(
           (e) =>

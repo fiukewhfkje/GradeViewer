@@ -19,7 +19,6 @@ export const activeInterval = 5 * 60_000;
 export const idleIntervals = [2, 4, 8, 16, 24, 48].map(
   (hours) => hours * 3600_000,
 );
-const week = 7 * 24 * 3600_000;
 const roles = ["active", "idle"];
 const fault = (code) => Object.assign(new Error(code), { code });
 const accepted = (probe) =>
@@ -46,6 +45,9 @@ const errorLabels = new Set([
   "dailyBrowserBudgetExceeded",
   "cloudflareRateLimited",
   "labFailed",
+  "privateLabStateMissing",
+  "confirmedAuthenticationFailureRequired",
+  "renewalAlreadyAttempted",
 ]);
 const safeError = (error) =>
   errorLabels.has(error) ? error : error ? "unclassified" : null;
@@ -88,20 +90,34 @@ export function newBenchmark(
   directories,
   now = Date.now(),
   localBrowser = false,
+  durationHours = 168,
 ) {
+  if (
+    !Number.isInteger(durationHours) ||
+    durationHours < 1 ||
+    durationHours > 168
+  )
+    throw fault("durationMustBeOneTo168Hours");
   validateProfiles(active, idle);
   const endsAt = Math.min(
-    now + week,
+    now + durationHours * 3600_000,
     active.authorizedUntil ?? 0,
     idle.authorizedUntil ?? 0,
   );
-  if (endsAt - now < idleIntervals.reduce((a, b) => a + b, 0))
+  if (
+    endsAt - now <
+    Math.min(
+      durationHours * 3600_000,
+      idleIntervals.reduce((a, b) => a + b, 0),
+    )
+  )
     throw fault("weekAuthorizationRequired");
   return {
     version: 1,
     startedAt: now,
     endsAt,
     localBrowser,
+    measurementMode: "httpOnlyNoRenewal",
     probes: Object.fromEntries(
       roles.map((role, index) => {
         const saved = [active, idle][index];
@@ -159,35 +175,19 @@ export function applyResult(probe, role, report, began, ended) {
   const previousSuccess = probe.lastSuccessAt;
   const http = report.httpCheck;
   const expired = !!http && shouldRenew(http);
-  const ordinarySuccess = accepted(http) && report.success === true;
-  const silentSuccess =
-    expired && accepted(report.renewal) && report.success === true;
-  const attempted = expired && report.browserRuntime !== undefined;
-  const reasons = {
-    duo: "humanDuo",
-    policy: "humanPolicy",
-    credentials: "humanCredentials",
-  };
-  const outcome = silentSuccess
-    ? "silent"
-    : !attempted
-      ? "notAttempted"
-      : report.renewal?.error === "humanSignInRequired"
-        ? (reasons[report.renewal.humanReason] ?? "humanUnclassified")
-        : "inconclusive";
+  const unexpectedBrowser = report.browserRuntime !== undefined;
+  const ordinarySuccess =
+    accepted(http) && report.success === true && !unexpectedBrowser;
   probe.stats.checks++;
   if (ordinarySuccess) probe.stats.httpAccepted++;
   else if (expired) probe.stats.confirmedExpiries++;
   else probe.stats.httpInconclusive++;
-  if (attempted) probe.stats.renewalAttempts++;
-  if (outcome === "silent") probe.stats.silentRenewals++;
-  else if (outcome === "inconclusive") probe.stats.renewalInconclusive++;
-  else if (outcome.startsWith("human")) probe.stats[outcome]++;
   const observed = Date.parse(report.observation?.observedAtUTC);
   const httpObservedAt =
     Number.isFinite(observed) && observed >= began && observed <= ended
       ? observed
       : ended;
+  if (expired) probe.authFailureAt = httpObservedAt;
   const event = {
     version: 1,
     probe: role,
@@ -202,7 +202,6 @@ export function applyResult(probe, role, report, began, ended) {
       : expired
         ? "confirmedAuthFailure"
         : "inconclusive",
-    // Actual window, not a promise of five-minute precision after missed ticks.
     ...(expired
       ? {
           expiryWindowUpperMs: Math.max(0, httpObservedAt - previousSuccess),
@@ -217,27 +216,31 @@ export function applyResult(probe, role, report, began, ended) {
       Number.isInteger(http?.status) && http.status >= 100 && http.status <= 599
         ? http.status
         : null,
-    recoveryError: safeError(report.renewal?.error ?? report.error),
+    setupError: safeError(report.error),
     checkWallMs: Math.max(0, ended - began),
-    renewalOutcome: outcome,
-    renewalMs: report.timingsMs?.renewal?.[0] ?? null,
-    recoveryTotalMs: report.timingsMs?.browserRecoveryTotal?.[0] ?? null,
-    browserRuntime: attempted
-      ? report.browserRuntime === "vm-local"
-        ? "vm-local"
-        : "cloudflare"
-      : "none",
+    renewalOutcome: "notAttempted",
+    unexpectedBrowser,
     cleanupFailed: report.cleanupFailed === true,
-    courseTotalsChecked: ordinarySuccess || silentSuccess,
+    courseTotalsChecked: ordinarySuccess,
     courseListEmpty:
-      (ordinarySuccess ? http : silentSuccess ? report.renewal : {})
-        ?.courseListEmpty ?? null,
+      ordinarySuccess && typeof http.courseListEmpty === "boolean"
+        ? http.courseListEmpty
+        : null,
+    courseCount:
+      ordinarySuccess &&
+      Number.isSafeInteger(http?.courseCount) &&
+      http.courseCount >= 0
+        ? http.courseCount
+        : null,
+    scoreFieldsPresent:
+      ordinarySuccess && typeof http?.scoreFieldsPresent === "boolean"
+        ? http.scoreFieldsPresent
+        : null,
   };
-  if ((ordinarySuccess || silentSuccess) && !report.cleanupFailed)
+  if (ordinarySuccess && !report.cleanupFailed)
     scheduleNext(probe, role, ended);
   else {
-    // No automatic retries on network errors, 429s, human prompts or uncertain
-    // recovery. An explicit verified resume establishes the next baseline.
+    // Measurement stops here. Recovery is a separately invoked operation.
     probe.phase = "paused";
     probe.pausedAt = ended;
     probe.confirmedExpiry = expired;
@@ -246,11 +249,95 @@ export function applyResult(probe, role, report, began, ended) {
   return event;
 }
 
+export function sanitizedRenewalStages(stages = {}) {
+  if (!stages || typeof stages !== "object") stages = {};
+  return {
+    carmenSessionRejected: stages.carmenSessionRejected === true,
+    browserLaunched: stages.browserLaunched === true,
+    osuSignIn: [
+      "reached",
+      "continuedSilently",
+      "credentialsRequested",
+    ].includes(stages.osuSignIn)
+      ? stages.osuSignIn
+      : "notObserved",
+    duoPageObserved: stages.duoPageObserved === true,
+    duoChallenge:
+      stages.duoChallenge === "observed" ? "observed" : "notObserved",
+    credentialsScreenObserved: stages.credentialsScreenObserved === true,
+    humanAction: ["duo", "policy", "credentials", "other"].includes(
+      stages.humanAction,
+    )
+      ? stages.humanAction
+      : "notObserved",
+    renewalSucceeded: stages.renewalSucceeded === true,
+  };
+}
+
+export function applyRenewalResult(probe, role, report, began, ended) {
+  const stages = sanitizedRenewalStages(report.renewalStages);
+  stages.carmenSessionRejected = true; // This operation follows a recorded rejection.
+  const succeeded =
+    report.success === true &&
+    accepted(report.renewal) &&
+    stages.browserLaunched &&
+    stages.renewalSucceeded;
+  const attempted = report.browserRuntime !== undefined;
+  const outcomes = {
+    duo: "humanDuo",
+    policy: "humanPolicy",
+    credentials: "humanCredentials",
+  };
+  const outcome = succeeded
+    ? "silent"
+    : report.renewal?.error === "humanSignInRequired"
+      ? (outcomes[stages.humanAction] ?? "humanUnclassified")
+      : "inconclusive";
+  if (attempted) probe.stats.renewalAttempts++;
+  if (outcome === "silent") probe.stats.silentRenewals++;
+  else if (attempted && outcome === "inconclusive")
+    probe.stats.renewalInconclusive++;
+  else if (outcome.startsWith("human")) probe.stats[outcome]++;
+  if (succeeded && !report.cleanupFailed) scheduleNext(probe, role, ended);
+  else {
+    probe.phase = "paused";
+    probe.pausedAt = ended;
+    probe.nextAt = null;
+  }
+  return {
+    version: 1,
+    event: "separateRenewal",
+    probe: role,
+    startedAtUTC: new Date(began).toISOString(),
+    observedAtUTC: new Date(ended).toISOString(),
+    renewalOutcome: outcome,
+    stages,
+    recoveryError: safeError(report.renewal?.error ?? report.error),
+    renewalMs: report.timingsMs?.renewal?.[0] ?? null,
+    recoveryTotalMs: report.timingsMs?.browserRecoveryTotal?.[0] ?? null,
+    cleanupFailed: report.cleanupFailed === true,
+    courseTotalsChecked: succeeded,
+    courseCount:
+      succeeded && Number.isSafeInteger(report.renewal.courseCount)
+        ? report.renewal.courseCount
+        : null,
+    scoreFieldsPresent:
+      succeeded && typeof report.renewal.scoreFieldsPresent === "boolean"
+        ? report.renewal.scoreFieldsPresent
+        : null,
+  };
+}
+
 export function benchmarkSummary(state) {
   return {
     startedAtUTC: new Date(state.startedAt).toISOString(),
     endsAtUTC: new Date(state.endsAt).toISOString(),
     stopped: state.stopped === true,
+    measurementMode: "httpOnlyNoRenewal",
+    independenceProven: false,
+    independentSignInsRequired: true,
+    idleProtocol: "sequentialGaps",
+    fullWeekQuietTest: false,
     probes: Object.fromEntries(
       roles.map((role) => {
         const p = state.probes[role];
@@ -300,9 +387,16 @@ async function saveState(directory, state) {
   }
 }
 
-async function runCheck(directory, localBrowser) {
-  const args = [labPath, "check", directory, "--consent", "--grades"];
+export function labArguments(directory, localBrowser, mode = "check") {
+  if (!["check", "renew"].includes(mode)) throw fault("invalidLabMode");
+  const args = [labPath, mode, directory, "--consent", "--grades"];
+  if (mode === "check") args.push("--no-renew");
   if (localBrowser) args.push("--local-browser");
+  return args;
+}
+
+async function runLab(directory, localBrowser, mode = "check") {
+  const args = labArguments(directory, localBrowser, mode);
   let output;
   try {
     output = (
@@ -348,6 +442,9 @@ const safeErrors = new Set([
   "verifiedResumeRequired",
   "outsideRequestDetected",
   "interruptedCheckRequiresReview",
+  "confirmedAuthenticationFailureRequired",
+  "renewalAlreadyAttempted",
+  "durationMustBeOneTo168Hours",
 ]);
 
 async function main() {
@@ -360,12 +457,16 @@ async function main() {
   const positional = args.filter((arg) => !arg.startsWith("--"));
   const flags = args.filter((arg) => arg.startsWith("--"));
   if (
-    !["init", "tick", "status", "resume"].includes(mode) ||
+    !["init", "tick", "status", "resume", "renew"].includes(mode) ||
     !path ||
-    flags.some((flag) => !["--consent", "--local-browser"].includes(flag)) ||
+    flags.some(
+      (flag) =>
+        !["--consent", "--local-browser"].includes(flag) &&
+        !(mode === "init" && /^--hours=[1-9]\d{0,2}$/.test(flag)),
+    ) ||
     (mode === "init"
       ? positional.length !== 2
-      : mode === "resume"
+      : ["resume", "renew"].includes(mode)
         ? positional.length !== 1 || !roles.includes(positional[0])
         : positional.length !== 0)
   ) {
@@ -392,6 +493,7 @@ async function main() {
         directories,
         Date.now(),
         flags.includes("--local-browser"),
+        Number(flags.find((f) => f.startsWith("--hours="))?.slice(8) ?? 168),
       );
       await saveState(directory, state);
       console.log(JSON.stringify(benchmarkSummary(state)));
@@ -419,14 +521,44 @@ async function main() {
       return;
     }
     const saved = await profilesFor(state); // Local reads only; no idle traffic.
+    if (mode === "renew") {
+      const role = positional[0],
+        probe = state.probes[role];
+      if (probe.phase !== "paused" || !probe.confirmedExpiry)
+        throw fault("confirmedAuthenticationFailureRequired");
+      if (probe.renewalAttemptedAt !== undefined)
+        throw fault("renewalAlreadyAttempted");
+      const began = Date.now();
+      probe.renewalAttemptedAt = began;
+      probe.phase = "renewing";
+      await saveState(directory, state);
+      const report = await runLab(probe.directory, state.localBrowser, "renew");
+      const event = applyRenewalResult(probe, role, report, began, Date.now());
+      if (probe.phase === "waiting" || probe.phase === "complete") {
+        probe.lastSuccessAt = (
+          await loadSession(probe.directory)
+        ).saved.courseTotalsVerifiedAt;
+        if (probe.phase === "waiting" && role === "idle")
+          probe.nextAt =
+            probe.lastSuccessAt + idleIntervals[probe.intervalIndex];
+      }
+      await recordObservation(directory, event);
+      await saveState(directory, state);
+      console.log(JSON.stringify(event));
+      return;
+    }
     if (mode === "resume") {
       const role = positional[0],
         probe = state.probes[role];
       const verifiedAt = saved[roles.indexOf(role)].courseTotalsVerifiedAt;
       const boundary =
-        probe.phase === "checking" ? probe.attemptStartedAt : probe.pausedAt;
+        probe.phase === "checking"
+          ? probe.attemptStartedAt
+          : probe.phase === "renewing"
+            ? probe.renewalAttemptedAt
+            : probe.pausedAt;
       if (
-        !["paused", "checking"].includes(probe.phase) ||
+        !["paused", "checking", "renewing"].includes(probe.phase) ||
         !Number.isFinite(boundary) ||
         verifiedAt <= boundary
       )
@@ -446,7 +578,7 @@ async function main() {
     let checked = 0;
     for (const role of roles) {
       const probe = state.probes[role];
-      if (probe.phase === "checking")
+      if (["checking", "renewing"].includes(probe.phase))
         throw fault("interruptedCheckRequiresReview");
       if (probe.phase !== "waiting" || Date.now() < probe.nextAt) continue;
       // Another invocation of the lab changes its private baseline. Pause rather
@@ -464,8 +596,9 @@ async function main() {
       const began = Date.now();
       probe.phase = "checking";
       probe.attemptStartedAt = began;
+      delete probe.renewalAttemptedAt;
       await saveState(directory, state); // A crashed tick cannot repeat a request.
-      const report = await runCheck(probe.directory, state.localBrowser);
+      const report = await runLab(probe.directory, state.localBrowser);
       const event = applyResult(probe, role, report, began, Date.now());
       // Use the actual successful HTTP verification time, excluding CLI/browser
       // cleanup, as the next successful baseline.
@@ -485,7 +618,12 @@ async function main() {
   } catch (error) {
     console.log(
       JSON.stringify({
-        error: safeErrors.has(error?.code) ? error.code : "benchmarkFailed",
+        error:
+          error?.code === "ENOENT"
+            ? "privateLabStateMissing"
+            : safeErrors.has(error?.code)
+              ? error.code
+              : "benchmarkFailed",
       }),
     );
     process.exitCode = 1;

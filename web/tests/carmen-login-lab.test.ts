@@ -58,6 +58,175 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
 }
 
 describe("isolated direct-sign-in Carmen lab", () => {
+  it("claims exactly one recovery per recorded failure, including concurrent invocations", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "synthetic-carmen-claim-"));
+    try {
+      const now = Date.now(),
+        key = "synthetic-private-key";
+      await writeFile(join(parent, "key"), key, { mode: 0o600 });
+      const saved = {
+        version: 1,
+        identity,
+        createdAt: now - 1000,
+        verifiedAt: now - 100,
+        state: { cookies: [], origins: [] },
+      };
+      await lab.saveSession(parent, saved, key);
+      await expect(lab.claimRenewal(parent, saved, key)).rejects.toThrow(
+        "confirmedAuthenticationFailureRequired",
+      );
+      const failed = { ...saved, lastAuthFailure: { at: now } };
+      await lab.saveSession(parent, failed, key);
+      const results = await Promise.allSettled([
+        lab.claimRenewal(parent, failed, key),
+        lab.claimRenewal(parent, failed, key),
+      ]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+      await expect(lab.claimRenewal(parent, failed, key)).rejects.toThrow(
+        "renewalAlreadyAttempted",
+      );
+      expect(
+        (await lab.loadSession(parent)).saved.lastAuthFailure
+          .renewalAttemptedAt,
+      ).toBeGreaterThanOrEqual(now);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  });
+
+  it("reports missing private state as a local setup failure before provider access", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(
+          new URL("../scripts/carmen-login-lab.mjs", import.meta.url),
+        ),
+        "check",
+        join(tmpdir(), "synthetic-missing-carmen-state"),
+        "--consent",
+        "--grades",
+        "--no-renew",
+      ],
+      { encoding: "utf8", timeout: 5000 },
+    );
+    expect(result.status).toBe(1);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      error: "privateLabStateMissing",
+      failedStage: "privateLabSetup",
+      timingsMs: {},
+    });
+    expect(result.stderr).toBe("");
+  });
+
+  it("separates silent OSU SSO, stable human gates, merely visiting Duo and unknown timeouts", async () => {
+    for (const scenario of [
+      "silent",
+      "credentials",
+      "duo",
+      "policy",
+      "other",
+      "duoVisitOnly",
+      "unknown",
+    ]) {
+      let clock = 0;
+      let navigation: ((frame: { url: () => string }) => void) | undefined;
+      const url =
+        scenario === "silent" || scenario === "policy" || scenario === "other"
+          ? "https://osu.instructure.com/"
+          : scenario.startsWith("duo")
+            ? "https://synthetic.duosecurity.com/"
+            : "https://webauth.service.ohio-state.edu/login";
+      const visible = (value: boolean) => ({
+        first: () => ({ isVisible: async () => value }),
+      });
+      const page = {
+        on: (_event: string, fn: typeof navigation) => {
+          navigation = fn;
+        },
+        url: () => url,
+        goto: async () => {
+          navigation?.({
+            url: () =>
+              "https://webauth.service.ohio-state.edu/?secret=private-url-token",
+          });
+          navigation?.({ url: () => url });
+        },
+        getByRole: (_role: string, options: { name: RegExp }) =>
+          visible(
+            options.name.source.includes("acceptable")
+              ? scenario === "policy"
+              : scenario === "other",
+          ),
+        locator: (selector: string) =>
+          visible(
+            selector.includes('type="password"')
+              ? scenario === "credentials"
+              : scenario === "other",
+          ),
+        frames: () => [
+          { url: () => url, getByText: () => visible(scenario === "duo") },
+        ],
+      };
+      const context = {
+        newPage: async () => page,
+        storageState: async () => ({ cookies: [], origins: [] }),
+        newCDPSession: async () => ({
+          send: async () => ({}),
+          detach: async () => {},
+        }),
+      };
+      const stages = lab.newRenewalStages(true);
+      stages.browserLaunched = true;
+      let gradeReads = 0;
+      const result = await lab.attemptRenewal({
+        browser: { newContext: async () => context },
+        saved: { identity, state: { cookies: [], origins: [] } },
+        grades: true,
+        stages,
+        clock: () => clock,
+        pause: async () => {
+          clock += 1000;
+        },
+        deadlineMs: 3000,
+        createRequest: async () => ({
+          storageState: async () => ({ cookies: [] }),
+          dispose: async () => {},
+        }),
+        read: async () => {
+          gradeReads++;
+          return {
+            identity,
+            report: { authenticated: true, courseTotalsChecked: true },
+          };
+        },
+      });
+      if (scenario === "silent") {
+        expect(stages).toMatchObject({
+          osuSignIn: "continuedSilently",
+          humanAction: "notObserved",
+          renewalSucceeded: true,
+        });
+        expect(gradeReads).toBe(1);
+      } else if (["duoVisitOnly", "unknown"].includes(scenario)) {
+        expect(result.report.error).toBe("renewalInconclusive");
+        expect(stages.duoChallenge).toBe("notObserved");
+        expect(stages.humanAction).toBe("notObserved");
+        expect(stages.duoPageObserved).toBe(scenario === "duoVisitOnly");
+      } else {
+        expect(result.report).toMatchObject({
+          error: "humanSignInRequired",
+          humanReason: scenario,
+        });
+        expect(stages.humanAction).toBe(scenario);
+        expect(gradeReads).toBe(0);
+        expect(clock).toBe(1000); // Stable twice, rather than an intermediate redirect.
+      }
+      expect(JSON.stringify(stages)).not.toContain("private-url-token");
+      expect(JSON.stringify(stages)).not.toContain(identity);
+    }
+  });
+
   it("runs the consent guard even when the CLI entry path is a symlink", async () => {
     const directory = await mkdtemp(join(tmpdir(), "synthetic-carmen-cli-"));
     try {

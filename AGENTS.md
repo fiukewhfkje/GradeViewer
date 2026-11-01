@@ -15,5 +15,6 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Preserve the existing Worker, URL, vault, password, sessions and signed source-update verification boundary during updates. Use existing merge/deployment workflows; repository cleanup alone does not require a new stable tag.
 - Use focused commits and preserve Git history. The PWA migration is already merged; do not repeat its merge or recreate published tags.
 - GPA/Carmen work stays on the owner's GitHub development branch until the owner explicitly lifts the release hold. Do not merge it to `main`, create release tags or GitHub releases (including prereleases), update stable installations or deploy it to production. Branch pushes and local validation remain authorized.
+- Before continuing isolated Carmen diagnostics, read `docs/CARMEN_HANDOFF.md` for the persistent private storage path, actual capture status, evidence, commands and blockers. Never assume a session exists from a directory/key alone; keep private state outside Git.
 - Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, district access, physical-device acceptance, deployment and validation limits.
 - Widgets are intentionally removed. Do not restore widget routes or native extensions.

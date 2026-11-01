@@ -82,6 +82,8 @@ describe("opt-in Carmen cookie diagnostic", () => {
     expect(report).toEqual({
       authenticated: true,
       courseTotalsChecked: true,
+      courseCount: 1,
+      scoreFieldsPresent: true,
       courseListEmpty: false,
       visibleTotalsPresent: true,
       courseListHasMorePages: true,
@@ -163,6 +165,8 @@ describe("opt-in Carmen cookie diagnostic", () => {
     });
     expect(report.courseTotalsChecked).toBe(true);
     expect(report.courseListEmpty).toBe(true);
+    expect(report.courseCount).toBe(0);
+    expect(report.scoreFieldsPresent).toBe(false);
     expect(report.visibleTotalsPresent).toBe(false);
     expect(report.courseListHasMorePages).toBe(false);
   });
@@ -185,6 +189,76 @@ describe("opt-in Carmen cookie diagnostic", () => {
       });
       expect(result.error).toBe("invalidCourseList");
       expect(result.courseTotalsChecked).toBe(false);
+    }
+  });
+
+  it("keeps course-route auth, permission, throttling, server and malformed responses separate", async () => {
+    for (const [location, signInRedirect] of [
+      ["https://osu.instructure.com/login?secret=synthetic", true],
+      ["https://other.invalid/login?secret=synthetic", false],
+    ] as const) {
+      let calls = 0;
+      const r = await probeCarmen({
+        managedCookies: true,
+        consent: true,
+        grades: true,
+        fetcher: async () =>
+          ++calls === 1
+            ? json({ id: 1 })
+            : new Response(null, {
+                status: 302,
+                headers: { Location: location },
+              }),
+      });
+      expect(r).toMatchObject({
+        error: "redirectRequiresReview",
+        stage: "courseTotals",
+        signInRedirect,
+      });
+      expect(JSON.stringify(r)).not.toContain("secret=synthetic");
+    }
+    for (const [status, error] of [
+      [401, "authenticationRejected"],
+      [403, "permissionDenied"],
+      [429, "rateLimited"],
+      [500, "providerUnavailable"],
+      [503, "providerUnavailable"],
+    ] as const) {
+      let calls = 0;
+      const r = await probeCarmen({
+        cookie,
+        consent: true,
+        grades: true,
+        fetcher: async () =>
+          ++calls === 1 ? json({ id: 1 }) : new Response(null, { status }),
+      });
+      expect(r).toMatchObject({
+        authenticated: true,
+        courseTotalsChecked: false,
+        stage: "courseTotals",
+        error,
+        status,
+      });
+      expect(r.courseListEmpty).toBeUndefined();
+    }
+    for (const response of [
+      new Response("<html>login</html>", {
+        headers: { "Content-Type": "text/html" },
+      }),
+      new Response("{bad JSON", {
+        headers: { "Content-Type": "application/json" },
+      }),
+    ]) {
+      let calls = 0;
+      const r = await probeCarmen({
+        cookie,
+        consent: true,
+        grades: true,
+        fetcher: async () => (++calls === 1 ? json({ id: 1 }) : response),
+      });
+      expect(r.courseTotalsChecked).toBe(false);
+      expect(["nonJSONResponse", "invalidJSON"]).toContain(r.error);
+      expect(r.courseListEmpty).toBeUndefined();
     }
   });
 

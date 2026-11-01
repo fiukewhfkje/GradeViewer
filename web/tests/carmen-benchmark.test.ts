@@ -44,6 +44,115 @@ const success = {
 };
 
 describe("finite active and sequential idle Carmen benchmark", () => {
+  it("sends scheduled measurement checks with renewal disabled and reports provenance limits", () => {
+    for (const local of [false, true]) {
+      const args = bench.labArguments("/synthetic/private", local);
+      expect(args).toContain("--no-renew");
+      expect(args[1]).toBe("check");
+      expect(
+        bench.labArguments("/synthetic/private", local, "renew"),
+      ).not.toContain("--no-renew");
+    }
+    const summary = bench.benchmarkSummary(state());
+    expect(summary).toMatchObject({
+      measurementMode: "httpOnlyNoRenewal",
+      independenceProven: false,
+      independentSignInsRequired: true,
+      fullWeekQuietTest: false,
+      idleProtocol: "sequentialGaps",
+    });
+    const short = bench.newBenchmark(
+      profile("one"),
+      profile("two"),
+      ["a", "b"],
+      began,
+      false,
+      24,
+    );
+    expect(short.endsAt).toBe(began + 24 * hour);
+    expect(() =>
+      bench.newBenchmark(
+        profile("one"),
+        profile("two"),
+        ["a", "b"],
+        began,
+        false,
+        169,
+      ),
+    ).toThrow("durationMustBeOneTo168Hours");
+  });
+
+  it("records a separate recovery without counting another measurement or expiry", () => {
+    const p = state().probes.active;
+    bench.applyResult(
+      p,
+      "active",
+      { httpCheck: { error: "authenticationRejected" } },
+      began,
+      began + 100,
+    );
+    expect(p.phase).toBe("paused");
+    expect(p.stats.renewalAttempts).toBe(0);
+    const event = bench.applyRenewalResult(
+      p,
+      "active",
+      {
+        browserRuntime: "cloudflare",
+        error: "cloudflareRateLimited",
+        renewalStages: lab.newRenewalStages(true),
+      },
+      began + 200,
+      began + 500,
+    );
+    expect(p.stats).toMatchObject({
+      checks: 1,
+      confirmedExpiries: 1,
+      renewalAttempts: 1,
+      renewalInconclusive: 1,
+    });
+    expect(event).toMatchObject({
+      event: "separateRenewal",
+      recoveryError: "cloudflareRateLimited",
+      stages: {
+        carmenSessionRejected: true,
+        browserLaunched: false,
+        osuSignIn: "notObserved",
+        duoChallenge: "notObserved",
+      },
+    });
+    expect(p.phase).toBe("paused");
+    const other = state().probes.idle;
+    bench.applyResult(
+      other,
+      "idle",
+      { httpCheck: { error: "authenticationRejected" } },
+      other.nextAt,
+      other.nextAt + 100,
+    );
+    bench.applyRenewalResult(
+      other,
+      "idle",
+      {
+        browserRuntime: "vm-local",
+        renewal: success,
+        success: true,
+        renewalStages: {
+          ...lab.newRenewalStages(true),
+          browserLaunched: true,
+          osuSignIn: "continuedSilently",
+          renewalSucceeded: true,
+        },
+      },
+      other.pausedAt,
+      other.pausedAt + 500,
+    );
+    expect(other.stats).toMatchObject({
+      checks: 1,
+      confirmedExpiries: 1,
+      silentRenewals: 1,
+    });
+    expect(other.intervalIndex).toBe(1);
+  });
   it("requires separate authentications, same account and verified grade-path scope", () => {
     expect(() =>
       bench.validateProfiles(profile("one"), profile("one")),
@@ -113,19 +222,16 @@ describe("finite active and sequential idle Carmen benchmark", () => {
       "active",
       {
         httpCheck: { authenticated: false, error: "authenticationRejected" },
-        browserRuntime: "vm-local",
-        renewal: success,
-        success: true,
         observation: { observedAtUTC: new Date(started + 300).toISOString() },
-        timingsMs: { renewal: [1200] },
       },
       started,
       started + 1500,
     );
     expect(event.expiryWindowUpperMs).toBe(started + 300 - (began + 60_300));
     expect(event.expiryWindowUpperMs).toBeGreaterThan(5 * 60_000);
-    expect(event.renewalOutcome).toBe("silent");
-    expect(p.nextAt).toBe(began + 25 * 60_000);
+    expect(event.renewalOutcome).toBe("notAttempted");
+    expect(p.nextAt).toBeNull();
+    expect(p.phase).toBe("paused");
     expect(p.stats.confirmedExpiries).toBe(1);
   });
 
@@ -170,9 +276,19 @@ describe("finite active and sequential idle Carmen benchmark", () => {
       bench.applyResult(
         p,
         "active",
+        { httpCheck: { error: "authenticationRejected" } },
+        began,
+        began + 100,
+      );
+      bench.applyRenewalResult(
+        p,
+        "active",
         {
-          httpCheck: { error: "authenticationRejected" },
           browserRuntime: "cloudflare",
+          renewalStages: {
+            ...lab.newRenewalStages(true),
+            humanAction: humanReason,
+          },
           renewal: humanReason
             ? { error: "humanSignInRequired", humanReason }
             : { error: "renewalInconclusive" },
@@ -223,6 +339,21 @@ describe("finite active and sequential idle Carmen benchmark", () => {
       "private-error-with-password",
     ])
       expect(JSON.stringify(event)).not.toContain(secret);
+  });
+
+  it("pauses a contaminated measurement instead of accepting unexpected browser renewal", () => {
+    const p = state().probes.active;
+    const event = bench.applyResult(
+      p,
+      "active",
+      { httpCheck: success, success: true, browserRuntime: "cloudflare" },
+      began,
+      began + 100,
+    );
+    expect(event.unexpectedBrowser).toBe(true);
+    expect(event.http).toBe("inconclusive");
+    expect(p.phase).toBe("paused");
+    expect(p.stats.renewalAttempts).toBe(0);
   });
 
   it("rejects CLI calls without consent before touching state or running a check", () => {
@@ -286,6 +417,9 @@ describe("finite active and sequential idle Carmen benchmark", () => {
       s.probes.active.nextAt = now + hour;
       await writeFile(path, JSON.stringify(s));
       expect(cli(["tick", root]).output).toEqual({ action: "notDue" });
+      expect(cli(["renew", root, "active"]).output).toEqual({
+        error: "confirmedAuthenticationFailureRequired",
+      });
       s.probes.active.phase = "checking";
       s.probes.active.attemptStartedAt = Date.now();
       await writeFile(path, JSON.stringify(s));
