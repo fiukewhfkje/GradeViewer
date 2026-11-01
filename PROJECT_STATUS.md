@@ -1,5 +1,9 @@
 # Project status — November 1, 2026
 
+## Owner-requested follow-up session observation
+
+An explicitly requested HTTP-only/no-renew check accepted the saved owner session after **24 minutes 31.615 seconds** since the previous verified read, taking **349 ms**, with cookie rotation and a private sanitized observation recorded. No browser, renewal or grade request occurred. This establishes current account access after that interval, not a two-hour/overnight lifetime or full grade speed. The successful request may reset idle activity; the private Muse handoff now uses the new baseline and adjusted observation targets. No Codex schedules or system cron were created/re-enabled. Production and the release hold remain unchanged.
+
 ## Lightweight idle observations and Muse handoff
 
 Added `check --consent --no-renew` to the operator lab so an idle observation never launches Chrome or renews SSO, even after authentication rejection. Checks now append owner-only sanitized timestamped observations with the actual gap since last verification; they do not log identity/cookies/keys/grades. Synthetic regressions cover renewal suppression and private observation output/permissions. Build/type check, **171 tests** and 79-file packaging pass; no additional Carmen requests were made while preparing the test.

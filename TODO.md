@@ -2,6 +2,8 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] At the owner's request, perform one additional HTTP-only saved-session check: accepted after 24m31.615s idle in 349 ms, no Chrome/renewal/grades. Log actual timing privately and update the Muse handoff baseline; no scheduled AI checks were re-enabled.
+
 - [x] Add HTTP-only/no-renew observations and private timestamped logging; validate with 171 tests/build/package. Prepare a private Muse handoff for deterministic cron with no recurring model use.
 - [x] Delete both newly created Codex follow-up schedules at the owner's request before either ran. No Codex session-check automation remains; Muse/system cron has not been installed by this task.
 - [ ] Have Muse set up the chosen lightweight experiment: minute ticks gate local due times; sparse HTTP-only checks measure idle behavior. Frequent HTTP polling is a separate active-use experiment and must not be labeled idle expiry. Log actual timing, stop after the finite 48-hour test, and retain branch-only/no-release scope.
