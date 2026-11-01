@@ -1,6 +1,6 @@
 # Carmen lifetime, renewal latency and reconnect acceptance
 
-This is the next real-account test protocol, not a completed Carmen integration. The owner wants infrequent manual sign-in, normal phone/desktop PWA operation and saved grades during renewal. No student account/session is available to the operator, so authenticated lifetime and renewal timing cannot currently be measured. Public-login/platform timings are recorded below separately.
+This is the next real-account test protocol, not a completed Carmen integration. The owner wants infrequent manual sign-in, normal phone/desktop PWA operation and saved grades during renewal. The owner subsequently provided their own interactive sign-in for identity-only testing; its encrypted session is available privately. Initial/saved-session reads passed, while actual idle lifetime and renewal timing remain unmeasured. Public-login/platform timings are recorded below separately.
 
 Owner clarification: **automatic silent reconnect is the default** after a confirmed expired Carmen session during normal active use. Show authenticated, account-matched saved grades immediately and keep them usable during both renewal and grade retrieval. The manual Reconnect button is the fallback for verified password/MFA input, not a prerequisite for trying silent SSO. All GPA/Carmen work remains GitHub-development-branch-only under the owner's release hold; do not merge to main, publish tags/releases or deploy to production.
 
@@ -28,7 +28,13 @@ Every sample reached the public OSU sign-in host with HTTP 200 and closed its br
 
 The diagnostic now reports fixed-label `timingsMs` for public navigation and synthetic state handling. Its synthetic mode separately verifies encrypt/close/restore across distinct browsers: one timed successful run took 264 ms to export/encrypt state and 772 ms to decrypt/create a restored browser context. These are exploratory synthetic values, not Carmen renewal latency; both browsers were explicitly closed. One extra immediate launch was rejected before a browser was created; that sanitized run did not preserve an exact provider error, so no cause is claimed. The diagnostic now identifies known quota/rate-limit messages without exposing raw errors. Space separate invocations by at least 20 seconds, follow any reported cooldown and close owned browsers explicitly. No retry loop or keepalive is used.
 
-The [friend-login lab and short consent instructions](CARMEN_FRIEND_TEST.md) now implement the operator handoff, encrypted test-state storage, ordinary Node HTTP checks and bounded browser renewal attempt. They have not been used with a real account. Their Node transport is not the isolated Worker proof required below.
+The [friend-login lab and short consent instructions](CARMEN_FRIEND_TEST.md) now implement the operator handoff, encrypted test-state storage, ordinary Node HTTP checks and bounded browser renewal attempt. The owner has now used them for explicitly permitted identity-only sign-in and saved-session reads. Their Node transport is not the isolated Worker proof required below.
+
+## Original-account baseline
+
+The owner's supervised identity-only sign-in was verified in 254 ms after the human selected Done; a later ordinary HTTP saved-session read took 269 ms with no Chrome launch. The roughly 64-second initial browser interval included waiting for human login/MFA/first-use handling and is **not** silent renewal latency. No grades were requested, so there is still no complete grade-retrieval measurement. Two warm-SSO attempts were blocked at cloud-browser launch, with the later error classified as 429/rate limited; no expired-session renewal was observed. Leave the saved session idle before the next lifetime trial instead of polling it or retrying browser launch repeatedly.
+
+Initial live-test failures were lab bugs rather than measured OSU expiry. The human handoff now requires explicit Done before profile verification, preserving time for first-use screens; no policy is accepted automatically. Multiple response-cookie headers are preserved individually. Completed sign-in state is encrypted as pending before verification so diagnostic failures can be retried without throwing away the human login; only a verified profile activates the bound account.
 
 ## How to measure the real lifecycle
 

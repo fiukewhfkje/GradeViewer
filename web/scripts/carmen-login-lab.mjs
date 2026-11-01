@@ -65,27 +65,37 @@ async function privateRead(directory, name) {
 }
 
 export async function saveSession(directory, value, key) {
+  return saveEncrypted(directory, "session.json", value, key);
+}
+
+export async function savePending(directory, value, key) {
+  return saveEncrypted(directory, "pending.json", value, key);
+}
+
+async function saveEncrypted(directory, name, value, key) {
   const temporary = join(directory, "pending-" + random());
   try {
     await writeFile(temporary, JSON.stringify(await seal(value, key)), {
       mode: 0o600,
       flag: "wx",
     });
-    await rename(temporary, join(directory, "session.json"));
+    await rename(temporary, join(directory, name));
   } finally {
     await rm(temporary, { force: true });
   }
 }
 
-export async function loadSession(directory) {
+export async function loadSession(directory, pending = false) {
   const key = await privateRead(directory, "key");
   const saved = await unseal(
-    JSON.parse(await privateRead(directory, "session.json")),
+    JSON.parse(
+      await privateRead(directory, pending ? "pending.json" : "session.json"),
+    ),
     key,
   );
   if (
     saved.version !== 1 ||
-    typeof saved.identity !== "string" ||
+    (!pending && typeof saved.identity !== "string") ||
     !saved.createdAt ||
     Date.now() - saved.createdAt > maxAge ||
     !Array.isArray(saved.state?.cookies) ||
@@ -134,15 +144,39 @@ export function managedFetcher(api, timeoutMs = 15_000) {
       ].includes(url)
     )
       throw fault("unexpectedLabRequest");
-    const response = await api.get(url, {
-      headers: { Accept: "application/json" },
-      maxRedirects: 0,
-      maxRetries: 0,
-      timeout: Math.max(1, Math.min(15_000, timeoutMs)),
-      failOnStatusCode: false,
-    });
+    let response;
     try {
-      const headers = new Headers(response.headers());
+      response = await api.get(url, {
+        headers: { Accept: "application/json" },
+        maxRedirects: 0,
+        maxRetries: 0,
+        timeout: Math.max(1, Math.min(15_000, timeoutMs)),
+        failOnStatusCode: false,
+      });
+    } catch (error) {
+      // Playwright errors can contain cookies in their call logs. Only retain a
+      // fixed category; never print/store the message or raw exception.
+      const message = String(error?.message ?? "");
+      throw Object.assign(fault("networkUnavailable"), {
+        networkReason: /closed|disposed|destroyed/i.test(message)
+          ? "contextClosed"
+          : /timeout|ETIMEDOUT/i.test(message)
+            ? "timeout"
+            : /certificate|CERT_/i.test(message)
+              ? "tls"
+              : /ENOTFOUND|EAI_AGAIN/i.test(message)
+                ? "dns"
+                : /ECONNRESET|ECONNREFUSED|socket/i.test(message)
+                  ? "connection"
+                  : "unclassified",
+      });
+    }
+    try {
+      // headers() folds multiple Set-Cookie fields with newlines, which Fetch
+      // Headers correctly rejects. Preserve the individual header fields.
+      const headers = new Headers(
+        response.headersArray().map(({ name, value }) => [name, value]),
+      );
       if (Number(headers.get("content-length")) > maxBytes)
         throw fault("responseTooLarge");
       const body = await response.body();
@@ -183,6 +217,8 @@ export async function attemptRenewal({
   read = readAccount,
   onStage = () => {},
   signal,
+  createRequest = (state) => request.newContext({ storageState: state }),
+  onPendingState = async () => {},
 }) {
   const began = performance.now();
   if (signal?.aborted) throw fault("cancelled");
@@ -201,6 +237,7 @@ export async function attemptRenewal({
     waitUntil: "domcontentloaded",
     timeout: Math.max(1, Math.min(20_000, cutoff - performance.now())),
   });
+  let handoffState = interactive ? "pending" : "done";
   if (interactive) {
     onStage("generatePrivateHandoff");
     const cdp = await context.newCDPSession(page);
@@ -215,33 +252,61 @@ export async function attemptRenewal({
       live.searchParams.get("mode") !== "tab"
     )
       throw fault("invalidLiveView");
+    cdp.once("Cloudflare.handoffComplete", (event) => {
+      handoffState = event.success === true ? "done" : "failed";
+    });
+    await cdp.send("Cloudflare.handoff", {
+      instructions:
+        "Complete OSU sign-in and any first-use screens yourself. Review any policy yourself. Select Done only when Carmen is ready; select Failed to stop. The test will then perform only the agreed read-only check.",
+      timeout: Math.max(1, Math.round(cutoff - performance.now())),
+    });
     await handoff(live.href);
   }
   onStage("awaitVerifiedAccount");
   while (performance.now() < cutoff && !signal?.aborted) {
+    if (handoffState === "failed")
+      return {
+        report: { authenticated: false, error: "humanSignInRequired" },
+        renewalMs: Math.round(performance.now() - began),
+      };
     // Human interaction happens only in Cloudflare Live View. URL checks keep
     // the short handoff browser alive, without periodic Carmen HTTP traffic.
     const url = new URL(page.url());
     if (
+      handoffState === "done" &&
       url.origin === origin &&
       !/^\/(?:login|logout)(?:\/|$)/.test(url.pathname)
     ) {
-      const result = await read(
-        context.request,
-        saved,
-        grades,
-        cutoff - performance.now(),
-      );
-      if (result.report.authenticated && !result.report.error)
+      // Verify with the same ordinary HTTP client used by later checks, rather
+      // than coupling the identity request to a navigating browser context.
+      const state = scopeState(await context.storageState());
+      // Preserve the human-completed login privately even if the subsequent
+      // diagnostic transport fails. This is not an activated/verified account.
+      await onPendingState(state);
+      const api = await createRequest(state);
+      try {
+        const result = await read(
+          api,
+          saved,
+          grades,
+          cutoff - performance.now(),
+        );
+        if (result.report.authenticated && !result.report.error)
+          return {
+            ...result,
+            state: scopeState({
+              ...state,
+              cookies: (await api.storageState()).cookies,
+            }),
+            renewalMs: Math.round(performance.now() - began),
+          };
         return {
-          ...result,
-          state: scopeState(await context.storageState()),
+          report: result.report,
           renewalMs: Math.round(performance.now() - began),
         };
-      return {
-        report: result.report,
-        renewalMs: Math.round(performance.now() - began),
-      };
+      } finally {
+        await api.dispose();
+      }
     }
     // CDP is cloud-browser activity, not Carmen keepalive or OSU idle evasion.
     const cdp = await context.newCDPSession(page);
@@ -328,7 +393,13 @@ async function main() {
       key = random();
       await writeFile(join(directory, "key"), key, { mode: 0o600, flag: "wx" });
     } else {
-      ({ key, saved } = await loadSession(directory));
+      try {
+        ({ key, saved } = await loadSession(directory));
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        ({ key, saved } = await loadSession(directory, true));
+        report.resumedPendingSession = true;
+      }
       if (flags.includes("--grades") && !saved.gradesPermitted)
         throw fault("gradePermissionRequired");
       api = await request.newContext({ storageState: saved.state });
@@ -339,6 +410,7 @@ async function main() {
           directory,
           {
             ...saved,
+            identity: result.identity,
             state: scopeState({
               ...saved.state,
               cookies: (await api.storageState()).cookies,
@@ -347,6 +419,7 @@ async function main() {
           },
           key,
         );
+        await rm(join(directory, "pending.json"), { force: true });
         report.success = true;
         return;
       }
@@ -376,6 +449,21 @@ async function main() {
       interactive: mode === "start",
       deadlineMs: mode === "start" ? 240_000 : 25_000,
       signal: controller.signal,
+      onPendingState: async (state) => {
+        await savePending(
+          directory,
+          {
+            version: 1,
+            identity: saved?.identity,
+            state,
+            createdAt: saved?.createdAt ?? Date.now(),
+            gradesPermitted:
+              saved?.gradesPermitted ?? flags.includes("--grades"),
+          },
+          key,
+        );
+        report.encryptedPendingStateSaved = true;
+      },
       onStage: (next) => {
         stage = next;
       },
@@ -383,7 +471,7 @@ async function main() {
         const file = join(directory, "login.html");
         await writeFile(
           file,
-          '<!doctype html><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'"><title>Private Carmen test</title><h1>Private Carmen session test</h1><p>The account holder signs in directly, including MFA. This link grants access to the test browser; keep it private.</p><p><a rel="noreferrer" href="' +
+          '<!doctype html><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'"><title>Private Carmen test</title><h1>Private Carmen session test</h1><p>The account holder signs in directly, including MFA and any first-use policy decision. Select Done in the browser view only after Carmen is ready. The script waits for Done before checking the profile. This link grants access to the test browser; keep it private.</p><p><a rel="noreferrer" href="' +
             htmlEscape(url) +
             '">Open private OSU sign-in</a></p><p>The session closes after four minutes. No password is saved. Only agreed self-account reads and encrypted OSU/Carmen/Duo state are retained for a 48-hour test. Later checks refuse expired state. Delete the private directory after testing; expiration does not erase the files automatically.</p>',
           { mode: 0o600, flag: "wx" },
@@ -413,6 +501,7 @@ async function main() {
         key,
       );
       report.encryptedStateSaved = true;
+      await rm(join(directory, "pending.json"), { force: true });
       report.success = true;
     } else report.success = false;
   } catch (error) {

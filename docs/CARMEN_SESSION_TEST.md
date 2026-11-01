@@ -1,6 +1,6 @@
 # Optional Carmen session test — November 1, 2026
 
-This is a local diagnostic, not a GradeViewer connection feature. It does not change the Schoology app, Worker, vault or deployment. No live Carmen session has been tested. A successful local result would not establish Cloudflare portability, automatic renewal or general OSU integration approval.
+This is a local diagnostic, not a GradeViewer connection feature. It does not change the Schoology app, Worker, vault or deployment. The separate managed-session lab has now verified the owner's own profile and a saved-session Node HTTP read; this static exported-header diagnostic has not been run with a real cookie file. A successful local result would not establish Cloudflare portability, automatic renewal or general OSU integration approval.
 
 ## Required product experience — owner clarification
 
@@ -8,7 +8,7 @@ The owner requires **no institutional app approval, seamless independent phone/d
 
 The current candidate is an **on-demand cloud browser in the user's own Cloudflare account**: normal interactive OSU sign-in, encrypted session state in the personal Worker, ordinary read-only HTTP grade refreshes when its cookie session works, and browser launch only for sign-in/renewal. Either PWA would use that same connection with the other device off. Existing browser-local history/what-if behavior remains; no cloud grade-history service is requested. See [cloud-browser findings, actual platform proof and quota analysis](CARMEN_BROWSER_RESEARCH.md).
 
-The remote-browser primitives and public OSU login reachability have now been tested. **Actual student sign-in, Worker cookie portability, renewal frequency, ten-minute free-budget sufficiency and physical-phone acceptance have not.** No implementation should promise low maintenance before these tests. This alternative uses browser-session cookies internally, but avoids routine user cookie copying; it does not create access without normal account authorization. Production remains Schoology-only and no account has been accessed.
+Remote-browser primitives, public OSU login reachability and the owner's own interactive sign-in/saved-session Node HTTP profile reads have now passed. **Worker cookie portability, actual idle lifetime, renewal frequency, free-budget sufficiency and physical-phone acceptance have not.** No implementation should promise low maintenance before these tests. This alternative uses browser-session cookies internally, but avoids routine user cookie copying; it does not create access without normal account authorization. Production remains Schoology-only; the owner explicitly permitted identity-only access in the isolated lab. No course/grade requests were made.
 
 The private-file test below remains an optional narrow diagnostic. It cannot establish automatic renewal or the required phone/desktop workflow. It does not export identity-provider cookies; a future cloud-browser proof needs a separate, explicit account-holder permission scope before retaining any SSO state.
 

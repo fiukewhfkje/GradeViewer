@@ -23,6 +23,8 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
   let disposed = 0;
   return {
     calls,
+    storageState: async () => ({ cookies: [], origins: [] }),
+    dispose: async () => {},
     get disposed() {
       return disposed;
     },
@@ -33,6 +35,15 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
           "content-type": "application/json",
           ...extraHeaders,
         }),
+        headersArray: () =>
+          Object.entries({
+            "content-type": "application/json",
+            ...extraHeaders,
+          }).flatMap(([name, value]) =>
+            String(value)
+              .split("\n")
+              .map((item) => ({ name, value: item })),
+          ),
         body: async () => Buffer.from(JSON.stringify(data)),
         status: () => status,
         dispose: async () => {
@@ -142,6 +153,20 @@ describe("isolated direct-sign-in Carmen lab", () => {
       await writeFile(join(directory, "key"), "synthetic-root-key", {
         mode: 0o600,
       });
+      await lab.savePending(
+        directory,
+        { ...saved, identity: undefined },
+        "synthetic-root-key",
+      );
+      expect(
+        (await lab.loadSession(directory, true)).saved.identity,
+      ).toBeUndefined();
+      await expect(lab.loadSession(directory)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(
+        await readFile(join(directory, "pending.json"), "utf8"),
+      ).not.toContain("private-cookie");
       await lab.saveSession(directory, saved, "synthetic-root-key");
       const encrypted = await readFile(join(directory, "session.json"), "utf8");
       for (const value of ["private-cookie", "private-sso", identity])
@@ -184,39 +209,108 @@ describe("isolated direct-sign-in Carmen lab", () => {
     expect(api.disposed).toBe(1);
   });
 
-  it("generates a private handoff with a supported expiry without reporting the URL", async () => {
-    let handedOff = false;
-    const context = {
-      request: apiFor(),
-      newPage: async () => ({
-        goto: async () => {},
-        url: () => "https://osu.instructure.com/",
-      }),
-      storageState: async () => ({ cookies: [], origins: [] }),
-      newCDPSession: async () => ({
-        send: async (method: string, options: Record<string, unknown>) => {
-          expect(method).toBe("Cloudflare.getLiveView");
-          expect(options).toEqual({ mode: "tab", expiresInMs: 300000 });
-          return {
-            devtoolsFrontendUrl:
-              "https://live.browser.run/ui/view?mode=tab&wss=synthetic-private-token",
-          };
-        },
-      }),
-    };
-    const result = await lab.attemptRenewal({
-      browser: { contexts: () => [context] },
-      interactive: true,
-      handoff: async (url: string) => {
-        expect(url).toContain("synthetic-private-token");
-        handedOff = true;
-      },
+  it("accepts separate Set-Cookie headers instead of interpreting rotation as a network failure", async () => {
+    const api = apiFor(profile, 200, {
+      "set-cookie":
+        "synthetic-a=private-a; Path=/\nsynthetic-b=private-b; Path=/",
     });
-    expect(handedOff).toBe(true);
+    const result = await lab.readAccount(api, undefined, false);
     expect(result.report.authenticated).toBe(true);
-    expect(JSON.stringify(result.report)).not.toContain(
-      "synthetic-private-token",
+    expect(result.report.error).toBeUndefined();
+    expect(result.report.cookieRotationOffered).toBe(true);
+    for (const value of ["private-a", "private-b"])
+      expect(JSON.stringify(result.report)).not.toContain(value);
+  });
+
+  it("reports a fixed transport category without leaking Playwright error call logs", async () => {
+    const result = await lab.readAccount(
+      {
+        get: async () => {
+          throw new Error(
+            "Target page context closed. Cookie: synthetic-private-cookie https://private.invalid/?jwt=synthetic-token",
+          );
+        },
+      },
+      undefined,
+      false,
     );
+    expect(result.report).toMatchObject({
+      authenticated: false,
+      error: "networkUnavailable",
+      networkFailure: "contextClosed",
+    });
+    for (const value of [
+      "synthetic-private-cookie",
+      "synthetic-token",
+      "private.invalid",
+    ])
+      expect(JSON.stringify(result.report)).not.toContain(value);
+  });
+
+  it("waits for explicit Done before reading a Canvas page that may still require first-use policy", async () => {
+    for (const done of [false, true]) {
+      let handedOff = false;
+      let pendingSaved = false;
+      let complete: ((event: { success: boolean }) => void) | undefined;
+      const api = apiFor();
+      const cdp = {
+        once: (
+          event: string,
+          callback: (result: { success: boolean }) => void,
+        ) => {
+          expect(event).toBe("Cloudflare.handoffComplete");
+          complete = callback;
+        },
+        detach: async () => {},
+        send: async (method: string, options: Record<string, unknown>) => {
+          if (method === "Cloudflare.getLiveView") {
+            expect(options).toEqual({ mode: "tab", expiresInMs: 300000 });
+            return {
+              devtoolsFrontendUrl:
+                "https://live.browser.run/ui/view?mode=tab&wss=synthetic-private-token",
+            };
+          }
+          if (method === "Cloudflare.handoff") {
+            expect(Number(options.timeout)).toBeGreaterThan(0);
+            expect(api.calls).toHaveLength(0);
+            return { handoffId: "synthetic-handoff" };
+          }
+          expect(method).toBe("Browser.getVersion");
+          return {};
+        },
+      };
+      const context = {
+        request: api,
+        newPage: async () => ({
+          goto: async () => {},
+          url: () => "https://osu.instructure.com/",
+        }),
+        storageState: async () => ({ cookies: [], origins: [] }),
+        newCDPSession: async () => cdp,
+      };
+      const result = await lab.attemptRenewal({
+        browser: { contexts: () => [context] },
+        createRequest: async () => api,
+        interactive: true,
+        deadlineMs: done ? 1000 : 25,
+        onPendingState: async () => {
+          pendingSaved = true;
+        },
+        handoff: async (url: string) => {
+          expect(url).toContain("synthetic-private-token");
+          expect(api.calls).toHaveLength(0);
+          handedOff = true;
+          if (done) complete?.({ success: true });
+        },
+      });
+      expect(handedOff).toBe(true);
+      expect(pendingSaved).toBe(done);
+      expect(api.calls).toHaveLength(done ? 1 : 0);
+      expect(result.report.authenticated).toBe(done);
+      expect(JSON.stringify(result.report)).not.toContain(
+        "synthetic-private-token",
+      );
+    }
   });
 
   it("performs a silent restoration with headless Chrome and synthetic data only", async () => {

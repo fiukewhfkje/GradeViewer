@@ -58,7 +58,7 @@ Neither command signs into an account or tests actual cookies, API access or ren
 
 ## Direct sign-in experiment
 
-An [operator-only friend-login lab](CARMEN_FRIEND_TEST.md) now provides the missing private human handoff and encrypted test-state capture/check path. Synthetic/headless validation and public-only handoff/cleanup pass; no person has signed in through it yet. Ordinary checks use a managed HTTP jar in Node, not a deployed Worker, so a successful result would still leave Worker portability and the actual PWA unverified. The lab is not a production provider feature or a stable release.
+An [operator-only friend-login lab](CARMEN_FRIEND_TEST.md) now provides the missing private human handoff and encrypted test-state capture/check path. Synthetic/headless validation and public-only handoff/cleanup pass. The owner has since signed in directly for an identity-only test: the profile and subsequent saved-session ordinary Node HTTP read passed in 254 ms and 269 ms, with encrypted private state retained. No course/grade requests, Worker portability or idle-lifetime measurement is established. Warm-SSO attempts were blocked at browser launch by rate limiting; automatic renewal timing remains open. Ordinary checks use a managed HTTP jar in Node, not a deployed Worker, so a successful result would still leave Worker portability and the actual PWA unverified. The lab is not a production provider feature or a stable release.
 
 ## Gate before choosing this for the product
 

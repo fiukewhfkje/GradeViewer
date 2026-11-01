@@ -111,6 +111,17 @@ export async function probeCarmen({
         });
       } catch (error) {
         if (error?.code === "responseTooLarge") throw error;
+        if (
+          [
+            "contextClosed",
+            "timeout",
+            "tls",
+            "dns",
+            "connection",
+            "unclassified",
+          ].includes(error?.networkReason)
+        )
+          report.networkFailure = error.networkReason;
         throw failure("networkUnavailable");
       }
       report.cookieRotationOffered ||= response.headers.has("set-cookie");
