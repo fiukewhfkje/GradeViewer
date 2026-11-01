@@ -1,5 +1,11 @@
 # Project status — November 1, 2026
 
+## Carmen lifetime, alternatives and optional test preparation
+
+Found OTDI's documented two-hour inactivity timeout (August 2025) and BuckeyePass's distinct 24-hour Trust Browser option. No 30-day Carmen-session guarantee is established. [Test instructions and reconnect design](docs/CARMEN_SESSION_TEST.md) describe normal sign-in/resume, saved-data retention and the separate approved-OAuth, companion and manual-import choices. QR login is documented for the official Canvas Student app, not a generic GradeViewer authorization path. A phone PWA cannot automatically read another origin's cookies; a companion may simplify personal desktop use, with actual phone/policy/access behavior still unverified.
+
+Added an opt-in local diagnostic under `web/scripts/verify-carmen-session.mjs`: explicit account-holder permission, a private external cookie file, fixed-host self-profile GET and optional first-page own-enrollment grade-total GET, bounded responses/timeouts, no redirect following/retries, and sanitized boolean/error/status results. It prints/saves no cookies, identity, course names or grades and changes no app/vault/Worker data. It reports offered rotation without implementing or claiming renewal. Production build/type check, **159 tests** including seven diagnostic regressions, source packaging (75 files), document links and whitespace checks passed; exact scope is recorded in PWA_VALIDATION. No real cookie has been supplied, account accessed, lifetime measured, refresh UI implemented or deployment performed. Released support remains Schoology-only.
+
 ## Transcript and Carmen-cookie follow-up
 
 The owner's supplied portal transcript image was compared privately with the public Dublin 2026–2027 course guide (page 76 rendered and visually inspected). The guide confirms the 3.33/3.67-style plus/minus table, Honors +0.5 and AP-family +1.0 only through C-; D+ and below receive no bonus. Eligible CCP/CTAG courses need explicit classification, and earned/graduation credit is distinct from GPA denominator credit. The private comparison agrees at the printed precision, but does not establish internal extra precision or percentage rounding. No transcript image, personal rows, totals or GPA values were saved in the repository or fixtures. [Updated findings](docs/GPA_AND_CARMEN_RESEARCH.md).

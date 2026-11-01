@@ -1,6 +1,14 @@
 # PWA verification — November 1, 2026
 
-## GPA/Carmen investigation — documentation only
+## Optional Carmen diagnostic and reconnect research
+
+Added `web/scripts/verify-carmen-session.mjs` for explicitly permitted local self-profile and optional first-page course-total reads. No application provider/UI/vault code changed. Seven synthetic regressions cover missing consent with zero requests, cookie/header validation, fixed-host GET-only requests, sensitive-output exclusion, refused redirects, distinct 401/403/429/network outcomes, invalid/oversized bodies, valid empty data and private external file/permission/symlink handling. Actual CLI invocation without consent exits with a fixed label before reading a file or requesting the provider.
+
+Local validation passed: `npm run build` (TypeScript/production assets), `npm test` (**159 tests across 13 files**), focused diagnostic tests, `npm run release:package` (**75 source files**, packaging only), local-document link checks and `git diff --check`. No browser/Worker behavior changed, so browser, deployment-dry-run and isolated-template suites were not rerun. No source release was published or deployment made. The probe does not follow pagination or persist rotated cookies; it does not establish complete snapshots, Worker portability or renewal.
+
+Official OTDI documentation establishes two-hour Carmen inactivity logout, and BuckeyePass separately describes 24-hour browser trust. This is documented policy, not a measured student-cookie TTL. The [test/reconnect guide](CARMEN_SESSION_TEST.md) describes a proposed normal-login/resume flow and compares OAuth, browser-companion and manual-import routes; none is implemented as a Carmen app connection. No real cookie, student account, live request, consented friend test, idle-duration experiment or physical-device result is claimed.
+
+## Earlier GPA/Carmen investigation — documentation only
 
 Follow-up evidence: privately compared the owner's supplied transcript image without retaining its rows, totals or GPA values; rendered and visually inspected page 76 of the public district guide to verify the full point/bonus table. Read-only Git inspection confirmed retired Campus cookie capture/persistence/renewal; current upstream Canvas source confirms validated browser-session authentication and GET/HEAD CSRF exemption. This establishes technical plausibility, not a working OSU connection. No cookie was captured/imported, no live provider request made and no native tooling restored. Documentation link/whitespace checks passed again; application suites were not rerun for documentation-only changes.
 
