@@ -1,5 +1,9 @@
 # PWA verification — November 1, 2026
 
+## Independent phone/desktop requirement — documentation clarification
+
+Recorded the owner's required normal PWA experience and existing local history/what-if behavior in the [connection requirements](CARMEN_SESSION_TEST.md). Reviewed current Canvas OAuth/client documentation and OSU's OTDI integration route; approved OAuth through the existing personal Worker is the selected product direction. Actual OSU approval, registered callbacks/client ownership, token refresh and independent physical-phone access are not verified. No API access was requested, cookie supplied or account read. Documentation links and whitespace checks pass; app sources did not change after the preceding build/159-test/package validation, so those checks were not rerun.
+
 ## Optional Carmen diagnostic and reconnect research
 
 Added `web/scripts/verify-carmen-session.mjs` for explicitly permitted local self-profile and optional first-page course-total reads. No application provider/UI/vault code changed. Seven synthetic regressions cover missing consent with zero requests, cookie/header validation, fixed-host GET-only requests, sensitive-output exclusion, refused redirects, distinct 401/403/429/network outcomes, invalid/oversized bodies, valid empty data and private external file/permission/symlink handling. Actual CLI invocation without consent exits with a fixed label before reading a file or requesting the provider.

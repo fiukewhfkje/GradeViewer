@@ -1,5 +1,11 @@
 # Project status — November 1, 2026
 
+## Carmen product constraint — normal phone and desktop use
+
+The owner clarified that access must be seamless and low-maintenance in the phone and desktop PWA, following existing GradeViewer behavior. Current provider grades must refresh independently on either device; retain existing local history/what-if behavior rather than introducing a separate cloud synchronization feature. Manual cookie renewal or a running desktop companion does not satisfy the required product experience. The selected documented design is one institution-approved Canvas OAuth connection in the user's existing Worker, with encrypted refresh credentials and access-token renewal serving both devices at the same address. [Connection requirements and acceptance](docs/CARMEN_SESSION_TEST.md).
+
+The remaining external prerequisite is OSU-issued API access plus a callback/client arrangement that fits user-owned Workers. Canvas documents institution-issued confidential clients; no student self-service registration route or public-client shortcut was found in the reviewed documentation. Public-template distribution cannot embed a shared confidential secret. No OSU inquiry was sent or approval obtained, and no Carmen provider/auth UI, cross-device cloud storage or deployment was implemented. The optional private-file probe remains diagnostic only. This clarification changes documentation/backlog; link and whitespace checks pass, with application suites unchanged from the preceding 159-test/build/package pass.
+
 ## Carmen lifetime, alternatives and optional test preparation
 
 Found OTDI's documented two-hour inactivity timeout (August 2025) and BuckeyePass's distinct 24-hour Trust Browser option. No 30-day Carmen-session guarantee is established. [Test instructions and reconnect design](docs/CARMEN_SESSION_TEST.md) describe normal sign-in/resume, saved-data retention and the separate approved-OAuth, companion and manual-import choices. QR login is documented for the official Canvas Student app, not a generic GradeViewer authorization path. A phone PWA cannot automatically read another origin's cookies; a companion may simplify personal desktop use, with actual phone/policy/access behavior still unverified.

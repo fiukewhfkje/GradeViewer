@@ -10,6 +10,8 @@ Follow-up: the public Dublin 2026–2027 guide now establishes the full local po
 
 Lifetime follow-up: OSU documents two-hour Carmen idle logout and a separate 24-hour BuckeyePass trusted-browser option, rather than a 30-day guarantee. [The optional local test and reconnect design](docs/CARMEN_SESSION_TEST.md) separate cookie proof, companion convenience and approved OAuth. A sanitized private-file probe exists with synthetic tests; no actual account or cookie lifecycle has been tested.
 
+Owner constraint: preserve normal GradeViewer behavior on independent phone and desktop PWAs, with low maintenance and existing local history/what-if saving. The selected product direction is institution-approved OAuth with encrypted refresh credentials in the existing personal Worker. Routine cookie transfer or desktop-only mediation does not satisfy that experience. Approval, callback registration and confidential-client ownership remain unresolved; no general cloud grade/history synchronization service is requested or implemented.
+
 ## Verified grade behavior — October 15, 2026
 
 **Documented:** [User Grades](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) separates assignment rows by `period_id` and returns `final_grade` records with grades/weights; period filters are available. [Course Section](https://developers.schoology.com/api-documentation/rest-api-v1/course-section/) exposes category weighting mode, category weights and scale metadata. [Midterms and finals](https://uc.powerschool-docs.com/en/schoology/latest/midterms-and-finals) explains that an exam can be weighted against a parent’s sub-periods or against overall periods. These are different levels of weighting, not interchangeable fields.

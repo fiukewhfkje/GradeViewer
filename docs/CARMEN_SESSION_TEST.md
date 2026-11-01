@@ -2,6 +2,16 @@
 
 This is a local diagnostic, not a GradeViewer connection feature. It does not change the Schoology app, Worker, vault or deployment. No live Carmen session has been tested. A successful local result would not establish Cloudflare portability, automatic renewal or general OSU integration approval.
 
+## Required product experience — owner clarification
+
+The owner requires seamless, low-maintenance operation in the PWA on both phone and desktop, following existing GradeViewer behavior. Each device must work independently of a running desktop browser. Routine cookie exports/imports and a desktop-only companion do **not** meet that requirement. The cookie probe below remains optional diagnostic evidence, not the selected product connection method.
+
+Use the existing personal Worker and address as the shared connection point. With institution-approved Canvas OAuth, the owner connects Carmen normally once; the Worker encrypts the account's access/refresh credentials and renews access tokens as needed. Either authenticated PWA reads fresh provider grades through that same connection, even when the other device is off. Preserve normal browser-local history saving and local what-if behavior; no new cloud grade-history or scenario synchronization service is requested. Ordinary revocation/MFA/account reauthorization can still require a normal Reconnect action, rather than promising permanent authorization.
+
+This is the simplest documented design that fits the required experience, **conditional on OSU API approval**. The reviewed [Canvas OAuth flow](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) requires an institution-issued client ID/secret and documents automatic refresh without repeated authorization. [OSU routes integrations through OTDI](https://teaching.resources.osu.edu/toolsets/carmencanvas/guides/carmen-integrations); no self-service student app-registration route was found. Confirm the read-only REST scopes, registered callback and client ownership with `carmen@osu.edu`. For one personal deployment, an approved key can stay in that owner's Worker. Public template distribution cannot copy a common confidential secret into every owner's Worker; its approval/client arrangement must be resolved separately. No request has been sent and no approved key is available.
+
+Acceptance for eventual implementation: connect with normal OSU sign-in; open the same GradeViewer address on a second device without transferring provider secrets; let an access token expire and verify one coalesced Worker refresh; confirm phone refresh with the desktop off; retain local history/scenarios and saved grades through refresh failures and reauthorization; distinguish invalid authorization from course-specific permission/network failures. Required provider traffic remains account-bound and read-only, apart from fixed OAuth credential-exchange endpoints. Do not change the established Schoology vault/password/session/update boundary or expand into a general provider framework merely to prepare for approval.
+
 ## Short instructions for the account holder
 
 1. Agree explicitly to the test: **read your own Canvas identity and, only if you also agree, enrolled-course grade totals; no account changes and no names/grades/cookies printed or saved in results.** You can run the probe yourself and share only its result, or authorize the local Codex operator to run it for you.
@@ -38,7 +48,7 @@ It makes at most two fixed-host HTTPS GET requests, does not follow redirects or
 
 For a later idle test, perform one successful baseline, close Carmen and make no Carmen/probe requests during the agreed interval, then check once after more than two hours. The student should use a time when this does not interrupt their work. That establishes one observed outcome, not a universal expiry period. Do not schedule background polling or make a lifetime claim from a cookie's timestamp alone.
 
-## Proposed easy reconnect path and alternatives
+## Proposed easy reconnect path and evaluated alternatives
 
 The product goal is **Reconnect to Carmen → normal OSU sign-in → resume saved grades**, with no routine cookie copying. This flow is specified here, not implemented or verified.
 
@@ -50,4 +60,4 @@ The product goal is **Reconnect to Carmen → normal OSU sign-in → resume save
 
 For a companion/OAuth implementation, use these states: connected → refresh in progress → either connected, temporary failure with Retry, or verified sign-in requirement with Reconnect. A course-specific 403, network problem or rate limit must not erase the session or open repeated login prompts. During reconnect, retain prior grades/history/local scenarios and open forms; verify the same account plus a complete new snapshot before activation. Require disconnect for an account switch. Stop at any genuine MFA challenge and let the student complete normal sign-in.
 
-OSU documents [QR login for the official Canvas Student app](https://teaching.resources.osu.edu/toolsets/carmencanvas/faqs). That does not establish a general GradeViewer authorization mechanism; do not reuse the official app's private credentials/tokens. No documented self-service route was found that promises seamless standalone-phone-PWA access without integration approval. The browser-companion route is the most promising personal desktop experiment; a smooth phone PWA favors approved OAuth. Schoology-only production behavior remains unchanged.
+OSU documents [QR login for the official Canvas Student app](https://teaching.resources.osu.edu/toolsets/carmencanvas/faqs). That does not establish a general GradeViewer authorization mechanism; do not reuse the official app's private credentials/tokens. No documented self-service route was found that promises seamless standalone-phone-PWA access without integration approval. A browser companion is a possible desktop experiment, but does not establish the owner's required independent phone experience. The chosen product direction is approved OAuth through the existing personal Worker, with actual access still pending. Schoology-only production behavior remains unchanged.
