@@ -1,5 +1,9 @@
 # Project status — November 1, 2026
 
+## Muse benchmark clarification — exercise automatic renewal
+
+The owner confirmed automatic silent renewal is required; only genuine human sign-in is manual. Updated the private Muse handoff to run the existing normal `check --consent` after quiet intervals, rather than using no-renew mode for both observations. The checker already attempts one bounded headless SSO recovery only after confirmed authentication rejection. The cron should tick locally each minute but issue requests only when a phase is due; per-minute provider polling can change idle behavior. It captures sanitized reports to distinguish normal HTTP, automatic renewal, human-attention-required and inconclusive errors, without recurring model calls. No cron was installed, no AI jobs re-enabled and no provider check performed in this clarification. Exact expiry/MFA frequency is not established by two observations. Documentation-only checks pass; prior 171-test/build evidence remains the code baseline. Branch-only release hold remains in effect.
+
 ## Owner-requested follow-up session observation
 
 An explicitly requested HTTP-only/no-renew check accepted the saved owner session after **24 minutes 31.615 seconds** since the previous verified read, taking **349 ms**, with cookie rotation and a private sanitized observation recorded. No browser, renewal or grade request occurred. This establishes current account access after that interval, not a two-hour/overnight lifetime or full grade speed. The successful request may reset idle activity; the private Muse handoff now uses the new baseline and adjusted observation targets. No Codex schedules or system cron were created/re-enabled. Production and the release hold remain unchanged.
