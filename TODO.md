@@ -1,5 +1,11 @@
 # Next work
 
+## GPA and Carmen investigation — November 1, 2026
+
+- [x] Investigate weighted/unweighted Schoology GPA and OSU Carmen feasibility using current source and official documentation; record [findings, policy gaps and implementation path](docs/GPA_AND_CARMEN_RESEARCH.md). No feature implementation or live student reads were part of this work.
+- [ ] Implement estimated semester GPA when requested: unweighted 4.0 and regular/Honors/AP A values of 4.0/4.5/5.0, title suggestions with local overrides, confirmed grading/bonus/inclusion policy and semester credits, one contribution per physical course, visible partial results and baseline/scenario separation. Add focused core/persistence/browser coverage.
+- [ ] Before any Carmen implementation, establish an OSU-approved read-only OAuth/developer-key route and per-user client/callback ownership. Personal token creation is disabled under OSU's May 8, 2026 notice; do not promise token-paste setup. Recheck policy before the next academic year. Released scope remains Schoology-only.
+
 ## Native retirement — October 23, 2026
 
 - [x] Remove Swift sources, GradeCore package, Xcode project, signing configuration, native assets, tests, fixtures and helper scripts; retain them in Git history.

@@ -1,3 +1,11 @@
+# PWA verification — November 1, 2026
+
+## GPA/Carmen investigation — documentation only
+
+Reviewed current source and official Schoology/Canvas/OSU documentation for the requested [GPA and Carmen investigation](GPA_AND_CARMEN_RESEARCH.md). Local document links and `git diff --check` passed. No application sources/dependencies changed, so build/unit/browser/release-package suites were not rerun. No live provider account, credentials, saved grades or connected browser was accessed; no OAuth approval, deployment or physical-device acceptance is claimed. API documentation is not proof of district/student permissions. Existing application validation below remains historical evidence.
+
+## Earlier application validation
+
 # PWA verification — October 23, 2026
 
 ## Native retirement / web-only verification

@@ -2,6 +2,10 @@
 
 GradeViewer supports Schoology only. The active application is the PWA; the TypeScript core and focused web regressions define current grade behavior. Retired native source remains in Git history. Current deployment and validation evidence is in [PWA validation](docs/PWA_VALIDATION.md). Original-account observations below do not establish access or behavior for every school.
 
+## GPA and requested Carmen feasibility — November 1, 2026
+
+[GPA and Carmen research](docs/GPA_AND_CARMEN_RESEARCH.md) records the owner's requested investigation. Schoology documents optional parent-course credits and letter cutoffs, but no dedicated AP/Honors/GPA-bonus field was found in the reviewed contracts. Recommend estimated semester weighted/unweighted GPA with name-based level suggestions, saved manual overrides, confirmed credit/grade policies and one contribution per physical course. OSU disabled personal CarmenCanvas token creation in May 2026; institution-approved OAuth access and per-user client/callback ownership must be resolved before a Canvas adapter. These are documented capabilities and design recommendations, not live account verification or implemented features. Released provider scope remains Schoology-only.
+
 ## Verified grade behavior — October 15, 2026
 
 **Documented:** [User Grades](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) separates assignment rows by `period_id` and returns `final_grade` records with grades/weights; period filters are available. [Course Section](https://developers.schoology.com/api-documentation/rest-api-v1/course-section/) exposes category weighting mode, category weights and scale metadata. [Midterms and finals](https://uc.powerschool-docs.com/en/schoology/latest/midterms-and-finals) explains that an exam can be weighted against a parent’s sub-periods or against overall periods. These are different levels of weighting, not interchangeable fields.

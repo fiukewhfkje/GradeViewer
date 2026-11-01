@@ -1,3 +1,13 @@
+# Project status — November 1, 2026
+
+## GPA and OSU Carmen investigation
+
+Investigated the two requested suggestions against current source and official Schoology, Canvas and OSU documentation. [Findings and implementation recommendation](docs/GPA_AND_CARMEN_RESEARCH.md): estimated semester GPA is feasible using the requested regular/Honors/AP A values of 4.0/4.5/5.0 and unweighted 4.0, with name-based level suggestions plus local overrides. Accurate GPA also needs confirmed letter/point rules, semester credits, explicit inclusion and one contribution per physical course; existing quarter/exam/year records cannot all be averaged. Schoology documents parent-course credits and letter cutoffs, but no dedicated AP/Honors bonus field was found in the reviewed contracts.
+
+OSU Carmen uses Canvas, but OTDI disabled personal token creation on May 8, 2026. An institution-approved OAuth developer key/access route and confidential-client/callback ownership compatible with per-user Workers remain prerequisites. The report identifies candidate read-only resources and the separate OSU 4.0 credit-hour GPA preset. No student data, credentials or connected browsers were used; no outreach was sent. Only research/status/backlog/validation documentation changed. Local link and whitespace checks passed; app suites were not rerun for this documentation-only change. Research is recorded on a focused branch; no runtime implementation, stable release or deployment was performed. Physical-device, district and independent-account acceptance limits remain open.
+
+## Earlier delivery records — historical
+
 # Project status — October 23, 2026
 
 GradeViewer is web-only at the owner’s request. Removed the SwiftUI app, GradeCore package, Xcode project, native signing/build configuration, assets, tests, fixtures, helper scripts and native setup guide. Removed project-local native build caches/signing overrides; protected captures under ignored `artifacts/` were retained. Native source remains in Git history at `4100e615130b407a4dc5b2901f936d39c789482a` and earlier.
@@ -9,8 +19,6 @@ PWA development instructions and architecture now describe the TypeScript core, 
 After integrating the existing v0.1.8 main-branch changes, validation passed locally: production build/type check, all **152 web tests**, **28 Chromium + 28 WebKit browser/integration flows**, Worker deployment dry-run, release-source packaging and the isolated-template install/build/test/dry-run/update/configuration/secret-retention/rollback check. No tracked Swift files, Xcode/signing/package configuration or active native CI references remain. The final reference run was synthetic; no live Schoology reads or real-record captures were needed.
 
 Delivery uses a focused cleanup branch and the existing web-only PR/merge pipeline. The stable package version remains 0.1.8; no new tag/release is needed. Existing main-branch Cloudflare Builds deploys the merge. See [PR #17](https://github.com/fiukewhfkje/GradeViewer/pull/17) for remote CI, merge and deployment results. Physical phone, independent-account and performance acceptance limits remain open.
-
-## Earlier delivery records — historical
 
 # Project status — October 20, 2026
 
