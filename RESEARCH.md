@@ -10,7 +10,7 @@ Follow-up: the public Dublin 2026–2027 guide now establishes the full local po
 
 Lifetime follow-up: OSU documents two-hour Carmen idle logout and a separate 24-hour BuckeyePass trusted-browser option, rather than a 30-day guarantee. [The optional local test and reconnect design](docs/CARMEN_SESSION_TEST.md) separate cookie proof, companion convenience and approved OAuth. A sanitized private-file probe exists with synthetic tests; no actual account or cookie lifecycle has been tested.
 
-Owner constraint: preserve normal GradeViewer behavior on independent phone and desktop PWAs, with low maintenance and existing local history/what-if saving. The selected product direction is institution-approved OAuth with encrypted refresh credentials in the existing personal Worker. Routine cookie transfer or desktop-only mediation does not satisfy that experience. Approval, callback registration and confidential-client ownership remain unresolved; no general cloud grade/history synchronization service is requested or implemented.
+Owner constraint, updated: no institutional app approval, normal independent phone/desktop PWAs and low maintenance. This excludes the earlier conditional OAuth selection as well as routine cookie transfer and a desktop-dependent companion. [Cloud-browser research](docs/CARMEN_BROWSER_RESEARCH.md) records an on-demand browser candidate, real isolated synthetic state-restoration/public-login evidence and separate browser/Canvas quotas. Actual OSU sign-in, Worker cookie portability, renewal frequency, physical-phone interaction and free-budget sufficiency remain unverified. Preserve existing local history/what-if behavior; no cloud grade-history service is requested.
 
 ## Verified grade behavior — October 15, 2026
 
