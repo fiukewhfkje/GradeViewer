@@ -28,6 +28,8 @@ Every sample reached the public OSU sign-in host with HTTP 200 and closed its br
 
 The diagnostic now reports fixed-label `timingsMs` for public navigation and synthetic state handling. Its synthetic mode separately verifies encrypt/close/restore across distinct browsers: one timed successful run took 264 ms to export/encrypt state and 772 ms to decrypt/create a restored browser context. These are exploratory synthetic values, not Carmen renewal latency; both browsers were explicitly closed. One extra immediate launch was rejected before a browser was created; that sanitized run did not preserve an exact provider error, so no cause is claimed. The diagnostic now identifies known quota/rate-limit messages without exposing raw errors. Space separate invocations by at least 20 seconds, follow any reported cooldown and close owned browsers explicitly. No retry loop or keepalive is used.
 
+The [friend-login lab and short consent instructions](CARMEN_FRIEND_TEST.md) now implement the operator handoff, encrypted test-state storage, ordinary Node HTTP checks and bounded browser renewal attempt. They have not been used with a real account. Their Node transport is not the isolated Worker proof required below.
+
 ## How to measure the real lifecycle
 
 Use a consenting student's dedicated test session and private encrypted state in an isolated Worker, leaving production untouched. The holder performs normal sign-in themselves and explicitly permits narrow self-identity reads plus retaining only required Carmen/SSO session state for the experiment. Do not send cookies or browser-state files in chat. No grade reads are needed to measure session lifetime; complete grade access remains a separate compatibility gate.

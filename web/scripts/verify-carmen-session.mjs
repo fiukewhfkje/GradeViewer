@@ -80,6 +80,9 @@ export async function probeCarmen({
   consent = false,
   grades = false,
   timing = false,
+  managedCookies = false,
+  expectedIdentity,
+  onIdentity,
   fetcher = fetch,
   now = () => performance.now(),
 }) {
@@ -93,21 +96,43 @@ export async function probeCarmen({
   if (timing) report.timingsMs = {};
   let stage = "setup";
   try {
-    const header = parseCookieHeader(cookie);
+    const header = managedCookies ? undefined : parseCookieHeader(cookie);
     async function read(path) {
       let response;
       try {
         response = await fetcher(origin + path, {
           method: "GET",
-          headers: { Cookie: header, Accept: "application/json" },
+          headers: {
+            ...(header ? { Cookie: header } : {}),
+            Accept: "application/json",
+          },
           redirect: "manual",
           signal: AbortSignal.timeout(15000),
         });
-      } catch {
+      } catch (error) {
+        if (error?.code === "responseTooLarge") throw error;
         throw failure("networkUnavailable");
       }
       report.cookieRotationOffered ||= response.headers.has("set-cookie");
       if (!response.ok) {
+        if (
+          managedCookies &&
+          [301, 302, 303, 307, 308].includes(response.status)
+        ) {
+          try {
+            const target = new URL(response.headers.get("location"), origin);
+            report.signInRedirect =
+              target.protocol === "https:" &&
+              !target.username &&
+              !target.password &&
+              !target.port &&
+              (target.hostname === "webauth.service.ohio-state.edu" ||
+                (target.origin === origin &&
+                  /^\/login(?:\/|$)/.test(target.pathname)));
+          } catch {
+            report.signInRedirect = false;
+          }
+        }
         await response.body?.cancel();
         throw failure(
           response.status === 401
@@ -173,6 +198,12 @@ export async function probeCarmen({
     const profile = (await get("/api/v1/users/self/profile")).data;
     if (!profile || Array.isArray(profile) || !validID(profile.id))
       throw failure("unverifiedIdentity");
+    if (
+      expectedIdentity !== undefined &&
+      String(profile.id) !== expectedIdentity
+    )
+      throw failure("accountChanged");
+    onIdentity?.(String(profile.id));
     report.authenticated = true;
     if (grades) {
       stage = "courseTotals";
@@ -208,6 +239,7 @@ export async function probeCarmen({
       "responseTooLarge",
       "invalidJSON",
       "unverifiedIdentity",
+      "accountChanged",
       "invalidCourseList",
     ]);
     return {

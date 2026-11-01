@@ -2,6 +2,8 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] Prepare the isolated friend-login lab: private direct sign-in/MFA handoff, managed HTTP cookie rotation, same-account checks, encrypted external session state, bounded silent renewal and sanitized timings. Validate with synthetic/headless tests and public-only Cloudflare handoff/cleanup; [friend instructions](docs/CARMEN_FRIEND_TEST.md). No friend account has been accessed.
+
 - [x] Record the owner's release hold in AGENTS.md: retain GPA/Carmen work on the GitHub development branch; no main merge, release tag/publication, stable-installation update or production deploy until explicitly lifted.
 - [x] Make silent automatic Carmen reconnect the default intended active-refresh behavior, with usable account-matched cached grades throughout; show manual Reconnect only for verified human sign-in. Separate API grade-retrieval timing from browser/login timing and mark the current totals probe as partial.
 - [ ] Implement and validate that automatic reconnect once actual-account session portability/renewal is proven. Keep one coalesced bounded renewal across devices, distinct provider-session/disconnection states, saved-data retention through slow/error/quota paths, and separate warm/cold/expired-session full-snapshot timing. This remains branch-only under the release hold.

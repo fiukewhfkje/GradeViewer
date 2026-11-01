@@ -1,17 +1,11 @@
 // Isolated platform research. Never signs in or reads a student API endpoint.
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
-import { chromium } from "playwright-core";
+import { createBrowserClient } from "./carmen-browser-client.mjs";
 import { random, seal, unseal } from "../worker/crypto.ts";
 
-const project = fileURLToPath(new URL("../", import.meta.url));
-const wrangler = join(project, "node_modules/wrangler/bin/wrangler.js");
-const execute = promisify(execFile);
 const fixture = "https://gradeviewer-synthetic.invalid";
 const mode = process.argv.slice(2);
 
@@ -32,7 +26,6 @@ const report = {
   timingsMs: {},
 };
 let browser;
-let token;
 let stage = "cloudflareCredentials";
 
 // Durations describe this CLI/CDP probe, not Worker-binding or authenticated SSO
@@ -48,66 +41,19 @@ async function timed(label, operation) {
   }
 }
 
-async function command(args) {
-  const { stdout } = await execute(process.execPath, [wrangler, ...args], {
-    cwd: project,
-    timeout: 25_000,
-    maxBuffer: 2 * 1024 * 1024,
-    env: {
-      ...process.env,
-      WRANGLER_SEND_METRICS: "false",
-      // Wrangler may log signed URLs or credentials; keep logs private/temporary.
-      WRANGLER_LOG_PATH: join(directory, "wrangler.log"),
-    },
-  });
-  return JSON.parse(stdout.trim());
-}
-
+const client = createBrowserClient(directory, timed);
 async function launch() {
-  const session = await timed("createSessionCLI", () =>
-    command([
-      "browser",
-      "create",
-      "--keepAlive",
-      "60",
-      "--json",
-      "--open=false",
-    ]),
-  );
-  assert.match(session.sessionId, /^[a-f0-9-]{36}$/);
-  owned.add(session.sessionId);
+  const session = await client.open();
+  browser = session.browser;
+  owned.add(session.id);
   report.created++;
-  const endpoint = new URL(session.webSocketDebuggerUrl);
-  assert.equal(endpoint.protocol, "wss:");
-  assert.equal(endpoint.hostname, "api.cloudflare.com");
-  assert.equal(endpoint.port, "");
-  assert.equal(endpoint.username + endpoint.password, "");
-  assert.match(
-    endpoint.pathname,
-    /^\/client\/v4\/accounts\/[a-f0-9]+\/browser-(?:rendering|run)\/devtools\/browser\/[a-f0-9-]{36}$/,
-  );
-  assert.ok(endpoint.pathname.endsWith("/" + session.sessionId));
-  browser = await timed("connectCDP", () =>
-    chromium.connectOverCDP(endpoint.href, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 15_000,
-    }),
-  );
-  return session.sessionId;
+  return session.id;
 }
-
 async function close(id) {
-  try {
-    await browser?.close();
-  } finally {
-    browser = undefined;
-    // Closing a Playwright CDP connection alone need not terminate remote Chrome.
-    await timed("closeSessionCLI", () =>
-      command(["browser", "close", id, "--json"]),
-    );
-    owned.delete(id);
-    report.closed++;
-  }
+  await client.close(id);
+  browser = undefined;
+  owned.delete(id);
+  report.closed++;
 }
 
 async function fixturePage(context) {
@@ -128,12 +74,6 @@ async function fixturePage(context) {
 }
 
 try {
-  const credential = await timed("cloudflareCredentialsCLI", () =>
-    command(["auth", "token", "--json"]),
-  );
-  assert.equal(typeof credential.token, "string");
-  assert.ok(credential.token);
-  token = credential.token;
   stage = "firstBrowser";
   const first = await launch();
   const createdAt = Date.now();
@@ -256,15 +196,9 @@ try {
   } catch {
     /* Cleanup continues via HTTP. */
   }
-  for (const id of owned) {
-    try {
-      await command(["browser", "close", id, "--json"]);
-      report.closed++;
-    } catch {
-      report.cleanupFailed = true;
-    }
-  }
-  token = undefined;
+  const remaining = owned.size;
+  if (!(await client.cleanup())) report.cleanupFailed = true;
+  else report.closed += remaining;
   await rm(directory, { recursive: true, force: true });
 }
 console.log(JSON.stringify(report));

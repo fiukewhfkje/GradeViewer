@@ -56,6 +56,10 @@ Neither command signs into an account or tests actual cookies, API access or ren
 
 [The session benchmark protocol](CARMEN_SESSION_BENCHMARK.md) separates existing-cookie lifetime, silent SSO renewal and human password/MFA intervention. Three public-only timing samples took 2.458–3.304 seconds through initial OSU sign-in navigation, including CLI setup; they do not measure authenticated renewal. The proposed production renewal is deterministic headless browser code triggered by the Worker, with interactive handoff only when normal OSU sign-in requires it. The PWA should retain saved grades throughout and report a separate reconnect-required state, not disconnect the account or erase the snapshot. Neither that Carmen UI nor authenticated renewal is implemented.
 
+## Direct sign-in experiment
+
+An [operator-only friend-login lab](CARMEN_FRIEND_TEST.md) now provides the missing private human handoff and encrypted test-state capture/check path. Synthetic/headless validation and public-only handoff/cleanup pass; no person has signed in through it yet. Ordinary checks use a managed HTTP jar in Node, not a deployed Worker, so a successful result would still leave Worker portability and the actual PWA unverified. The lab is not a production provider feature or a stable release.
+
 ## Gate before choosing this for the product
 
 With a consenting student, prove normal human sign-in through Live View; same-account read-only totals/assignment access; Carmen-only cookie use and rotation in an **isolated Worker**; automatic SSO renewal after more than two idle hours; overnight/later-day restoration; physical-phone interaction with desktop off; complete snapshot/failure retention; and actual cumulative browser seconds per renewal. OSU documents [two-hour Carmen inactivity logout](https://it.osu.edu/news/2025/08/18/technology-updates-autumn-2025) and [separate 24-hour BuckeyePass browser trust](https://it.osu.edu/security/services/buckeyepass). Neither promises unattended renewal or a particular reauthentication frequency.
