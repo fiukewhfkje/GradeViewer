@@ -64,6 +64,74 @@ async function privateRead(directory, name) {
   }
 }
 
+export function observationFor(report, baselineAt, now = Date.now()) {
+  const state = (result) =>
+    result?.authenticated === true
+      ? "accepted"
+      : result?.error === "authenticationRejected" || result?.signInRedirect
+        ? "signInRequired"
+        : result
+          ? "inconclusive"
+          : "notChecked";
+  return {
+    version: 1,
+    observedAtUTC: new Date(now).toISOString(),
+    previousVerifiedAtUTC: new Date(baselineAt).toISOString(),
+    idleGapMs: Math.max(0, now - baselineAt),
+    initialState: state(report.httpCheck),
+    httpStatus:
+      Number.isInteger(report.httpCheck?.status) &&
+      report.httpCheck.status >= 100 &&
+      report.httpCheck.status <= 599
+        ? report.httpCheck.status
+        : undefined,
+    httpDurationMs:
+      Number.isFinite(report.httpCheck?.timingsMs?.total) &&
+      report.httpCheck.timingsMs.total >= 0
+        ? Math.round(report.httpCheck.timingsMs.total)
+        : undefined,
+    renewalAttempted:
+      report.renewal !== undefined ||
+      report.timingsMs?.createSessionCLI !== undefined,
+    renewedState: state(report.renewal),
+    renewalDeferred: report.renewalDeferred === true,
+    success: report.success === true,
+  };
+}
+
+export function shouldRenew(result, enabled = true) {
+  return (
+    enabled &&
+    (result.error === "authenticationRejected" ||
+      (result.error === "redirectRequiresReview" &&
+        result.signInRedirect === true))
+  );
+}
+
+export async function recordObservation(directory, observation) {
+  const file = await open(
+    join(directory, "observations.jsonl"),
+    constants.O_WRONLY |
+      constants.O_CREAT |
+      constants.O_APPEND |
+      constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    const info = await file.stat();
+    if (
+      !info.isFile() ||
+      info.size > 100_000 ||
+      info.mode & 0o077 ||
+      (process.getuid && info.uid !== process.getuid())
+    )
+      throw fault("privateFileRequired");
+    await file.write(JSON.stringify(observation) + "\n");
+  } finally {
+    await file.close();
+  }
+}
+
 export async function saveSession(directory, value, key) {
   return saveEncrypted(directory, "session.json", value, key);
 }
@@ -354,7 +422,10 @@ async function main() {
   if (
     !["start", "check"].includes(mode) ||
     !path ||
-    flags.some((flag) => !["--consent", "--grades"].includes(flag))
+    flags.some(
+      (flag) => !["--consent", "--grades", "--no-renew"].includes(flag),
+    ) ||
+    (mode === "start" && flags.includes("--no-renew"))
   ) {
     console.log(
       JSON.stringify({
@@ -376,6 +447,8 @@ async function main() {
     timingsMs: {},
   };
   let stage = "privateLabSetup";
+  let baselineAt;
+  let observedAt;
   const timed = async (label, operation) => {
     const began = performance.now();
     try {
@@ -402,8 +475,10 @@ async function main() {
       }
       if (flags.includes("--grades") && !saved.gradesPermitted)
         throw fault("gradePermissionRequired");
+      baselineAt = saved.verifiedAt ?? saved.createdAt;
       api = await request.newContext({ storageState: saved.state });
       const result = await readAccount(api, saved, flags.includes("--grades"));
+      observedAt = Date.now();
       report.httpCheck = result.report;
       if (result.report.authenticated && !result.report.error) {
         await saveSession(
@@ -423,13 +498,8 @@ async function main() {
         report.success = true;
         return;
       }
-      if (
-        result.report.error !== "authenticationRejected" &&
-        !(
-          result.report.error === "redirectRequiresReview" &&
-          result.report.signInRedirect
-        )
-      ) {
+      if (!shouldRenew(result.report, !flags.includes("--no-renew"))) {
+        if (flags.includes("--no-renew")) report.renewalDeferred = true;
         report.success = false;
         return;
       }
@@ -523,6 +593,16 @@ async function main() {
     if (directory) {
       await rm(join(directory, "login.html"), { force: true });
       await rm(join(directory, "wrangler.log"), { force: true });
+      if (baselineAt !== undefined && observedAt !== undefined) {
+        const observation = observationFor(report, baselineAt, observedAt);
+        try {
+          await recordObservation(directory, observation);
+          report.observationLogSaved = true;
+        } catch {
+          report.observationLogSaved = false;
+        }
+        report.observation = observation;
+      }
     }
     console.log(JSON.stringify(report));
     process.removeListener("SIGINT", cancel);

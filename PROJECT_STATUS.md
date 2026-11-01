@@ -1,5 +1,11 @@
 # Project status — November 1, 2026
 
+## Lightweight idle observations and Muse handoff
+
+Added `check --consent --no-renew` to the operator lab so an idle observation never launches Chrome or renews SSO, even after authentication rejection. Checks now append owner-only sanitized timestamped observations with the actual gap since last verification; they do not log identity/cookies/keys/grades. Synthetic regressions cover renewal suppression and private observation output/permissions. Build/type check, **171 tests** and 79-file packaging pass; no additional Carmen requests were made while preparing the test.
+
+The owner requested lightweight script scheduling through Muse instead of model-driven follow-ups. Two finite Codex heartbeat schedules were created during preparation, then **both deleted before running** at the owner's request. No scheduled Codex/model session checks remain and no system cron was installed here. A private Muse handoff records the exact baseline/path/commands. The recommended minute cron only checks local due times, making one HTTP-only observation near 135 minutes and another more than 24 hours after the first. Every-minute HTTP requests could refresh inactivity and therefore measure active use instead of idle expiry. An overnight failure bounds expiry rather than revealing its exact moment; closer precision requires separate controlled trials. Current state remains private and branch-only; no release or deployment.
+
 ## Original-account Carmen sign-in and saved-session HTTP proof
 
 At the owner's request, switched the supervised experiment to their own OSU account, with identity-only permission and no course/grade requests. Normal human sign-in, MFA and first-use decisions were completed through private Live View. A schema-valid self-profile read passed in **254 ms**, encrypted scoped state was saved outside the repository, and a separate ordinary HTTP check of that saved session passed in **269 ms without launching Chrome**. No names, IDs, cookies, credentials, screenshot or raw response is retained in source/test fixtures; the account binding and required session state remain only in the private encrypted lab. Production is untouched. This proves original-account Node HTTP access and cookie rotation now, not a deployed Worker, complete grade retrieval or an idle/overnight lifetime.

@@ -1,5 +1,11 @@
 # PWA verification — November 1, 2026
 
+## HTTP-only idle observations and handoff
+
+Added a no-renew flag and a single renewal-decision implementation, with regressions proving known expired-session results cannot launch renewal in observation mode and unrelated failures cannot launch it. Added sanitized per-check UTC/idle-gap/outcome logging to a private owner-only file; regression checks exclude arbitrary error strings, identity/cookies and reject unsafe permissions. Production build/type check, **171 tests across 14 files**, 79-file source packaging and syntax/format/link/whitespace checks pass. No live Carmen request or new TTL result was produced during this preparation.
+
+The two Codex heartbeat schedules created during preparation were both deleted before running when the owner asked for Muse/lightweight cron instead. No remaining Codex check automation or system cron is claimed. A private handoff gives the existing baseline and deterministic commands; private credential/state files stay outside the repository. No production application/Worker/dependency change, release, tag, main merge or deployment occurred.
+
 ## Owner-account identity-only test and lab regressions
 
 The owner explicitly requested using their own OSU account, without courses/grade reads. The account holder entered normal login/MFA and handled first-use screens directly in private Cloudflare Live View. After explicit Done, the ordinary HTTP client verified a schema-valid profile in **254 ms**, encrypted the scoped state and closed Chrome. A separate `check --consent` then verified that saved session in **269 ms without a cloud browser** and retained rotated cookies. Identity/grades/cookies/raw responses were not printed; only fixed metadata is recorded here. No real records entered fixtures or the repository. This is Node HTTP evidence for one account, not Worker portability, complete grades or a measured TTL.

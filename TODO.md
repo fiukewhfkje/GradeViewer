@@ -2,6 +2,10 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] Add HTTP-only/no-renew observations and private timestamped logging; validate with 171 tests/build/package. Prepare a private Muse handoff for deterministic cron with no recurring model use.
+- [x] Delete both newly created Codex follow-up schedules at the owner's request before either ran. No Codex session-check automation remains; Muse/system cron has not been installed by this task.
+- [ ] Have Muse set up the chosen lightweight experiment: minute ticks gate local due times; sparse HTTP-only checks measure idle behavior. Frequent HTTP polling is a separate active-use experiment and must not be labeled idle expiry. Log actual timing, stop after the finite 48-hour test, and retain branch-only/no-release scope.
+
 - [x] Use the owner's own account for an explicitly permitted identity-only initial sign-in and saved-session check: 254 ms / 269 ms, second check HTTP-only with no Chrome. No grades were requested; retain secrets/state only in the private encrypted lab.
 - [x] Fix live-test completion/cookie-header bugs: wait for explicit human Done through first-use screens, preserve multiple Set-Cookie fields, stage encrypted pending state before identity verification and sanitize transport diagnostics. Add regression evidence; no automatic policy/MFA acceptance.
 - [ ] After an agreed quiet interval, recheck the owner's saved session and measure actual expired-session renewal/MFA frequency once Cloudflare allows browser launch. Warm-SSO attempts were blocked at launch by 429, so no silent-renewal timing, idle lifetime, Worker portability or grade retrieval is established. Preserve branch-only release hold.

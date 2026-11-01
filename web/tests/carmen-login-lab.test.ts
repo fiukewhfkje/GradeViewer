@@ -55,6 +55,74 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
 }
 
 describe("isolated direct-sign-in Carmen lab", () => {
+  it("keeps an idle observation HTTP-only even when authentication was rejected", () => {
+    for (const result of [
+      { error: "authenticationRejected" },
+      { error: "redirectRequiresReview", signInRedirect: true },
+    ]) {
+      expect(lab.shouldRenew(result)).toBe(true);
+      expect(lab.shouldRenew(result, false)).toBe(false);
+    }
+    for (const result of [
+      { authenticated: true },
+      { error: "permissionDenied" },
+      { error: "rateLimited" },
+      { error: "networkUnavailable" },
+      { error: "redirectRequiresReview", signInRedirect: false },
+    ])
+      expect(lab.shouldRenew(result)).toBe(false);
+  });
+
+  it("records bounded private observations without copying identity, cookies or arbitrary errors", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "synthetic-carmen-observation-"),
+    );
+    try {
+      const observation = lab.observationFor(
+        {
+          httpCheck: {
+            authenticated: false,
+            status: 401,
+            error: "authenticationRejected",
+            cookie: "synthetic-private-cookie",
+            name: profile.name,
+            timingsMs: { total: 123 },
+          },
+          error: "synthetic-private-error",
+          success: false,
+          renewalDeferred: true,
+        },
+        1000,
+        8_101_000,
+      );
+      expect(observation).toMatchObject({
+        idleGapMs: 8_100_000,
+        initialState: "signInRequired",
+        renewalAttempted: false,
+        renewalDeferred: true,
+        httpStatus: 401,
+      });
+      await lab.recordObservation(directory, observation);
+      const source = await readFile(
+        join(directory, "observations.jsonl"),
+        "utf8",
+      );
+      for (const value of [
+        profile.name,
+        "synthetic-private-cookie",
+        "synthetic-private-error",
+      ])
+        expect(source).not.toContain(value);
+      expect(JSON.parse(source)).toEqual(observation);
+      await chmod(join(directory, "observations.jsonl"), 0o644);
+      await expect(
+        lab.recordObservation(directory, observation),
+      ).rejects.toThrow("privateFileRequired");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("uses a managed cookie jar, fixed GETs, no redirects/retries and sanitized results", async () => {
     const api = apiFor();
     const result = await lab.readAccount(api, undefined, false);

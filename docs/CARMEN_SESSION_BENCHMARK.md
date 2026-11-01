@@ -36,6 +36,14 @@ The owner's supervised identity-only sign-in was verified in 254 ms after the hu
 
 Initial live-test failures were lab bugs rather than measured OSU expiry. The human handoff now requires explicit Done before profile verification, preserving time for first-use screens; no policy is accepted automatically. Multiple response-cookie headers are preserved individually. Completed sign-in state is encrypted as pending before verification so diagnostic failures can be retried without throwing away the human login; only a verified profile activates the bound account.
 
+## Lightweight scheduling without recurring model calls
+
+The owner chose a deterministic Muse/system-cron handoff instead of scheduled Codex agent turns. Both finite AI schedules created during preparation were deleted before running. No cron was installed by this task. A 60-second cron tick can check a local due timestamp and invoke the existing CLI only for the selected observation phases; it must not launch an LLM every minute.
+
+Use `check PRIVATE_LAB_DIRECTORY --consent --no-renew` for HTTP-only observations. This records the actual idle gap/result in owner-only `observations.jsonl` and suppresses browser/SSO renewal. Treat authentication rejection/exit 1 as a completed negative observation, not an instruction to retry every minute. Use a lock and mark a phase attempted before invocation. Stop after the finite experiment/48-hour state limit. No grades are requested.
+
+Every-minute HTTP polling could reset Carmen's inactivity timer and measure active-use persistence rather than idle expiry. For idle tests, make sparse reads after agreed quiet intervals and preserve actual timestamps. A late check cannot recover the precise expiry instant from local logs: failure provides an upper bound; success supports only the tested interval, and a successful read can start a new idle baseline. A later, separately initiated renewal test is needed to measure SSO/MFA behavior. Copies of one cookie are not independent server-side idle trials.
+
 ## How to measure the real lifecycle
 
 Use a consenting student's dedicated test session and private encrypted state in an isolated Worker, leaving production untouched. The holder performs normal sign-in themselves and explicitly permits narrow self-identity reads plus retaining only required Carmen/SSO session state for the experiment. Do not send cookies or browser-state files in chat. No grade reads are needed to measure session lifetime; complete grade access remains a separate compatibility gate.
