@@ -1,12 +1,12 @@
 # GPA and OSU Carmen investigation — November 1, 2026
 
-This is a source and official-documentation investigation requested by the owner. Neither feature is implemented. No student account, credentials, saved grades or provider responses were read. Carmen is a requested possible scope expansion; the released app remains Schoology-only.
+This is an investigation requested by the owner. Neither feature is implemented. The initial phase used source and official documentation only. In a follow-up, the owner supplied a portal transcript image for private comparison; its records and GPA values are not copied into this repository. No live student account, credentials, browser cookies or provider responses were accessed. Carmen is a requested possible scope expansion; the released app remains Schoology-only.
 
 ## Recommendation
 
 Build a small **estimated semester GPA** feature for Schoology first. Show unweighted and weighted results together above the Grades course grid, with an expandable course breakdown and local settings. Suggest course levels from names, allow corrections, and make credits and grading rules explicit. The requested A values are 4.0 regular, 4.5 Honors and 5.0 AP; unweighted A remains 4.0 for every course.
 
-CarmenCanvas has the necessary general API capabilities for a grade viewer, but **OSU authentication is an unresolved external prerequisite**. Do not start a broad provider refactor or promise a token-paste setup. Establish an institution-approved access route before implementing an adapter. A local calculator with manually entered course grades/credits could work independently of Carmen access.
+CarmenCanvas has the necessary general API capabilities for a grade viewer, but **OSU access and session lifecycle remain unverified**. Disabled personal token creation blocks the token-paste setup; it does not establish that own-session cookie reads are impossible. Upstream Canvas source supports session authentication. A small personal cookie-session proof is worth investigating before a broad provider refactor; distribution should follow Canvas's documented OAuth requirements. A local calculator with manually entered course grades/credits could work independently of Carmen access.
 
 ## Schoology: available data and current gaps
 
@@ -51,7 +51,34 @@ A reasonable proposed high-school preset uses A/B/C/D/F = 4/3/2/1/0 and adds +1.
 
 For example, equally credited A grades in one AP, one Honors and one regular course yield **4.50 weighted / 4.00 unweighted**. For unequal credits, use the formula above rather than averaging course point values equally.
 
-The A values come from the owner's request. The additive rule for lower grades is a **proposal**, not a verified district policy. Before shipping, confirm percentage cutoffs, plus/minus handling, grade rounding, bonus eligibility for D/F, GPA-excluded courses and semester credit allocation. Prefer a full explicit point table over a universal bonus rule when district policy differs. Never convert a percent by multiplying it by 4/100 or 5/100.
+The initial A values came from the owner's request; the generic proposal is superseded for Dublin by the verified district table below. Other districts still need their own policy. Never convert a percent by multiplying it by 4/100 or 5/100.
+
+### Dublin policy and private transcript follow-up
+
+The current [2026–2027 Academic Programs and Pathways guide](https://www.dublinschools.net/fs/resource-manager/view/9fee7ad1-f701-493e-96cf-32b6901e5015), linked from [district scheduling](https://www.dublinschools.net/departments/teaching-learning/high-school-families/high-school-scheduling), page 76, supplies this public table. The relevant page was rendered and visually inspected because its scale tables are images and ordinary text extraction omits their contents.
+
+| Grade | Published percent band | Conventional / unweighted | Honors | AP/IB/eligible CCP/CTAG |
+| --- | --- | --- | --- | --- |
+| A | 93–100 | 4.00 | 4.50 | 5.00 |
+| A- | 90–92 | 3.67 | 4.17 | 4.67 |
+| B+ | 87–89 | 3.33 | 3.83 | 4.33 |
+| B | 83–86 | 3.00 | 3.50 | 4.00 |
+| B- | 80–82 | 2.67 | 3.17 | 3.67 |
+| C+ | 77–79 | 2.33 | 2.83 | 3.33 |
+| C | 73–76 | 2.00 | 2.50 | 3.00 |
+| C- | 70–72 | 1.67 | 2.17 | 2.67 |
+| D+ | 67–69 | 1.33 | 1.33 | 1.33 |
+| D | 63–66 | 1.00 | 1.00 | 1.00 |
+| D- | 60–62 | 0.67 | 0.67 | 0.67 |
+| F | 59 and below | 0.00 | 0.00 | 0.00 |
+
+The guide explicitly withholds the Honors/AP-family bonus for **D+ and below**. Its published plus/minus values use 3.33/3.67-style steps; do not reuse OSU's 3.3/3.7 table. The transcript comparison agrees with the published point table, credit weighting, exclusion of satisfactory/non-GPA credit and eligible college-course bonuses at the displayed precision. This is evidence from one owner-supplied image, not a live portal/API check. It does not establish whether internal arithmetic uses the published two-decimal points or more precise thirds, or how fractional percentages are rounded at a letter boundary. No personal rows, identities, credit totals, quality-point totals or GPA results are retained here or as fixtures.
+
+The transcript's Weight values behave as GPA credit weights in this comparison, rather than the AP +1.0 or Honors +0.5 difficulty bonus. This is not a verified API field contract. Graduation/earned credit and GPA denominator credit must be distinct: non-GPA satisfactory credit can count toward graduation, while a failure must not disappear merely because it earns zero credit. Repeated rows for separate semesters must remain separate transcript contributions; only multiple provider views of the same course-semester are deduplicated. High-school credit earned before ninth grade and completed college coursework can affect cumulative GPA even when absent from current Schoology enrollments. In-progress rows cannot be treated as completed transcript grades.
+
+The district's [CCP policy](https://www.dublinschools.net/departments/teaching-learning/high-school-families/college-credit-plus) assigns equivalent AP/IB weight in like subjects, with an explicit unweighted financial-literacy counterexample. Therefore CCP cannot be classified solely by an `AP`/`Honors` name search or a universal college-course bonus. Preserve a general 5.0-course override and confirmed GPA inclusion; labels may distinguish AP/IB/CCP/CTAG without adding calculator complexity. High-school transcript credits are not automatically college semester hours for a future OSU GPA calculation.
+
+The same guide describes S/U transfer grades as outside GPA, and the current [school counseling page](https://jerome.dublinschools.net/about/counseling) describes a PE waiver as carrying no grade/credit and Withdrawal Fail as counting as failure. The image supports satisfactory/waiver exclusions; it does not validate every exceptional mark or withdrawal rule. Confirm provider representation and numeric grade-rounding rules before implementing them.
 
 Implementation behavior should be conservative:
 
@@ -73,7 +100,7 @@ Synthetic checks for implementation: regular/Honors/AP A values; mixed grades; f
 
 ## OSU CarmenCanvas
 
-### Access is the first gate
+### Official API access
 
 [OSU's Carmen site](https://carmen.osu.edu/) confirms that CarmenCanvas uses Canvas. However, OTDI's **May 8, 2026** notice says the ability to create personal access tokens has been disabled. The notice says authorized external tools can still work; it does not grant this project authorization or establish that previously created tokens remain usable. [Official token notice](https://it.osu.edu/news/2026/05/08/carmencanvas-personal-access-tokens-disabled).
 
@@ -81,7 +108,28 @@ Canvas's supported application route is OAuth 2.0 using an institution-issued de
 
 For a future single-user prototype, a separately approved key and registered callback to that user's Worker could fit the ownership model. Whether OSU will issue one is unknown. For distribution, copying a common confidential client secret into every user's Worker is not an acceptable design. Registered callbacks and client ownership must fit the existing per-user hosting constraint; do not introduce a shared maintainer authentication service without a separate product decision. No outreach was sent in this investigation.
 
-The useful next external question is concrete: **Will OSU authorize a student-owned, self-hosted, read-only Canvas API application, issue/enable a scoped developer key, and permit its per-user Worker callback?** The published support contact is `carmen@osu.edu`. Do not request passwords, session cookies, borrowed app credentials or scraping as a substitute for supported API access.
+For the OAuth route, the useful external question is concrete: **Will OSU authorize a student-owned, self-hosted, read-only Canvas API application, issue/enable a scoped developer key, and permit its per-user Worker callback?** The published support contact is `carmen@osu.edu`. No outreach was sent. The owner separately requested investigation of own-session cookies; that distinct technical option is evaluated below, rather than treating OAuth credentials as the only conceivable way to make a request.
+
+### Own-session cookies and the retired Infinite Campus implementation
+
+**Finding: technically plausible, not verified against OSU.** Canvas's current [authentication implementation](https://github.com/instructure/canvas-lms/blob/master/lib/authentication_methods.rb), `load_user`, falls back to a validated browser session when no token-authenticated pseudonym exists. Its [request-forgery protection](https://github.com/instructure/canvas-lms/blob/master/lib/canvas/request_forgery_protection.rb) accepts GET/HEAD requests without a CSRF token. This supports a read-only cookie-session experiment using existing Canvas JSON resources rather than HTML scraping. It does not prove OSU's deployed configuration, session portability/lifetime or permission for a third-party integration. OSU's token-creation notice does not address or establish a ban on cookie authentication.
+
+Git history confirms the owner's recollection:
+
+- `825ed0b` added a manual Cookie-request-header import fallback, scoped to one selected HTTPS Campus origin. It could not infer expiry or renew SSO by itself. [Historical parser](https://github.com/fiukewhfkje/GradeViewer/blob/825ed0bad4a20c4668fbed6930b10be18d261103/Sources/GradeCore/CampusCookies.swift).
+- `b0fdea5` added a retained, nonpersistent `WKWebView` for normal interactive sign-in, browser-cookie capture, scoped Campus/identity-provider cookie records and Keychain persistence. `73f0150` hardened renewal/recovery. The native HTTP client selected scoped cookies and retained response rotations. [Last pre-removal browser implementation](https://github.com/fiukewhfkje/GradeViewer/blob/1761c0fc7b4da944a6d551b453cd016ac472e052/GradeViewer/CampusWebSession.swift), [transport](https://github.com/fiukewhfkje/GradeViewer/blob/1761c0fc7b4da944a6d551b453cd016ac472e052/Sources/GradeCore/Networking.swift).
+- Historical research records a successful forced SSO renewal and relaunch reuse on the owner's phone. It explicitly does not establish indefinite session lifetime. This is previous Campus evidence, not a new Carmen test. [Recorded evidence](https://github.com/fiukewhfkje/GradeViewer/blob/07a2616/RESEARCH.md).
+
+The old mechanism depended on a native app's privileged WebKit cookie store and Keychain. The current GradeViewer PWA has neither. A `workers.dev` page cannot read cookies belonging to `osu.instructure.com` or inspect a cross-origin sign-in window; HttpOnly also prevents script access to protected cookies. Browser Fetch does not let application code supply a raw Cookie header. Opening Carmen in another tab does not transfer its session to the Worker. These are capture/transport boundaries, not proof that a server-side request with a valid session would fail. [Same-origin policy](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Same-origin_policy), [HttpOnly cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie), [forbidden request headers](https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header).
+
+Two personal-experiment designs are possible:
+
+1. **Explicit manual session import to the user's own Worker.** A local tool or deliberate export can supply only necessary Carmen-origin cookies to a protected HTTPS setup action; keep them encrypted in a separate provider vault record. The Worker can make fixed-host GETs independently of browser CORS and manage response-cookie rotations. Verify identity and a complete snapshot before activation; retain the old snapshot on expiry/failure. This is the smallest portability experiment, but it may need repeated user sign-in/import and is not equivalent to refresh-token renewal. Never put session values in chat, source, logs, URLs, browser grade storage or a maintainer service. Do not export broader OSU identity-provider/SSO cookies just to recreate the native renewal behavior in Cloudflare.
+2. **A browser companion that operates in Carmen's signed-in context.** An explicitly installed extension/local helper could mediate selected read-only data or cookie transfer after normal user login/MFA. That adds installation and phone-compatibility work and changes the current PWA-only onboarding. An extension that returns permitted grade data to the user's app could avoid sending session cookies to Cloudflare, but its permissions and account binding still need design. Do not revive retired native tooling to test this idea.
+
+For either experiment, first prove an own-account identity read, enrolled courses and one complete visible grade/assignment read; then check cookie rotation, logout/expiry detection, re-login, Worker portability, rate limits and failure retention. Do not claim an OSU TTL, IP/device binding or natural expiry behavior without measuring it. OSU documents BuckeyePass MFA for sign-in; session reuse cannot guarantee unattended renewal when another challenge is required. [OSU student guide](https://teaching.resources.osu.edu/toolsets/carmencanvas/guides/getting-started-carmen-students).
+
+Technical success is separate from institutional/product support. Canvas's [OAuth documentation](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth) says applications used by multiple users must use OAuth. The reviewed OSU pages do not settle the acceptability of this personal session-export experiment. Keep the recommendation for distribution on the OAuth route and distinguish an unsupported personal proof from an approved general Carmen integration. No cookies were captured/imported and no live proof or session renewal was attempted in this investigation.
 
 ### What an approved adapter would read
 
@@ -108,6 +156,6 @@ The reviewed standard Canvas Course contract does not document registrar credit 
 
 ## Evidence and remaining work
 
-Reviewed current models, parsing, period selection, calculator/scenario rules, refresh/metadata, browser persistence and Worker transport/route boundaries, plus the official sources linked above. Only documentation changes result from this investigation. Whitespace and local-document link checks cover this change; no app build/test, live Schoology/Carmen read, OAuth authorization, physical-device check or deployment is claimed.
+Reviewed current models, parsing, period selection, calculator/scenario rules, refresh/metadata, browser persistence and Worker transport/route boundaries, plus the official sources linked above. The follow-up also reviewed the owner's supplied image privately, visually inspected the public district guide's grading page, and inspected retired Campus source/history plus current upstream Canvas authentication code. Only public policy and general implementation findings enter the repository. Whitespace and local-document link checks cover these documentation changes; no app build/test, live Schoology/Carmen read, cookie capture, OAuth authorization, new physical-device check or deployment is claimed.
 
-Before GPA implementation: establish district conversion/bonus/inclusion rules and semester credits, then implement and test the small local feature. Before Carmen implementation: obtain a supported OSU access path, verify its scopes with the student's own account under a separately scoped live check, and resolve confidential-client/callback ownership for per-user deployments. Current policies should be checked again before the owner's next academic year.
+Before GPA implementation: use the public Dublin point/bonus table, confirm remaining numeric rounding/provider representation and per-course semester credits, then implement and test the small local feature. For Carmen, the next useful experiment is a narrow own-session read rather than assuming cookies cannot work; validate lifetime/reconnect behavior and policy separately from request success. OAuth remains the documented distribution route, with client/callback ownership to resolve for per-user deployments. Current policies should be checked again before the owner's next academic year.
