@@ -29,10 +29,24 @@ const report = {
   studentDataRequested: false,
   created: 0,
   closed: 0,
+  timingsMs: {},
 };
 let browser;
 let token;
 let stage = "cloudflareCredentials";
+
+// Durations describe this CLI/CDP probe, not Worker-binding or authenticated SSO
+// performance. Never include URLs, headers or response values in timing labels.
+async function timed(label, operation) {
+  const started = performance.now();
+  try {
+    return await operation();
+  } finally {
+    (report.timingsMs[label] ??= []).push(
+      Math.round(performance.now() - started),
+    );
+  }
+}
 
 async function command(args) {
   const { stdout } = await execute(process.execPath, [wrangler, ...args], {
@@ -50,14 +64,16 @@ async function command(args) {
 }
 
 async function launch() {
-  const session = await command([
-    "browser",
-    "create",
-    "--keepAlive",
-    "60",
-    "--json",
-    "--open=false",
-  ]);
+  const session = await timed("createSessionCLI", () =>
+    command([
+      "browser",
+      "create",
+      "--keepAlive",
+      "60",
+      "--json",
+      "--open=false",
+    ]),
+  );
   assert.match(session.sessionId, /^[a-f0-9-]{36}$/);
   owned.add(session.sessionId);
   report.created++;
@@ -71,10 +87,12 @@ async function launch() {
     /^\/client\/v4\/accounts\/[a-f0-9]+\/browser-(?:rendering|run)\/devtools\/browser\/[a-f0-9-]{36}$/,
   );
   assert.ok(endpoint.pathname.endsWith("/" + session.sessionId));
-  browser = await chromium.connectOverCDP(endpoint.href, {
-    headers: { Authorization: `Bearer ${token}` },
-    timeout: 15_000,
-  });
+  browser = await timed("connectCDP", () =>
+    chromium.connectOverCDP(endpoint.href, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15_000,
+    }),
+  );
   return session.sessionId;
 }
 
@@ -84,7 +102,9 @@ async function close(id) {
   } finally {
     browser = undefined;
     // Closing a Playwright CDP connection alone need not terminate remote Chrome.
-    await command(["browser", "close", id, "--json"]);
+    await timed("closeSessionCLI", () =>
+      command(["browser", "close", id, "--json"]),
+    );
     owned.delete(id);
     report.closed++;
   }
@@ -108,7 +128,9 @@ async function fixturePage(context) {
 }
 
 try {
-  const credential = await command(["auth", "token", "--json"]);
+  const credential = await timed("cloudflareCredentialsCLI", () =>
+    command(["auth", "token", "--json"]),
+  );
   assert.equal(typeof credential.token, "string");
   assert.ok(credential.token);
   token = credential.token;
@@ -119,11 +141,13 @@ try {
 
   if (mode[0] === "--public-login") {
     stage = "publicSignInNavigation";
-    const page = await context.newPage();
-    const response = await page.goto("https://osu.instructure.com/", {
-      waitUntil: "domcontentloaded",
-      timeout: 20_000,
-    });
+    const page = await timed("newPublicPage", () => context.newPage());
+    const response = await timed("publicSignInNavigation", () =>
+      page.goto("https://osu.instructure.com/", {
+        waitUntil: "domcontentloaded",
+        timeout: 20_000,
+      }),
+    );
     const host = new URL(page.url()).hostname;
     report.httpStatus = response?.status() ?? null;
     report.reachedOSUSignIn = host === "webauth.service.ohio-state.edu";
@@ -134,10 +158,12 @@ try {
     stage = "syntheticStateAndLiveView";
     const page = await fixturePage(context);
     const cdp = await context.newCDPSession(page);
-    const live = await cdp.send("Cloudflare.getLiveView", {
-      mode: "tab",
-      expiresInMs: 60_000,
-    });
+    const live = await timed("generateLiveView", () =>
+      cdp.send("Cloudflare.getLiveView", {
+        mode: "tab",
+        expiresInMs: 60_000,
+      }),
+    );
     const liveURL = new URL(live.devtoolsFrontendUrl);
     assert.equal(liveURL.protocol, "https:");
     assert.equal(liveURL.hostname, "live.browser.run");
@@ -164,7 +190,9 @@ try {
       localStorage.setItem("synthetic-storage", "restored"),
     );
     const password = random(); // Ephemeral, never persisted or printed.
-    const envelope = await seal(await context.storageState(), password);
+    const envelope = await timed("exportAndEncryptSyntheticState", async () =>
+      seal(await context.storageState(), password),
+    );
     assert.ok(
       !JSON.stringify(envelope).includes("synthetic-not-an-osu-cookie"),
     );
@@ -180,9 +208,11 @@ try {
     const second = await launch();
     assert.notEqual(first, second);
     report.separateBrowserInstances = true;
-    const restored = await browser.newContext({
-      storageState: await unseal(envelope, password),
-    });
+    const restored = await timed("decryptAndRestoreSyntheticState", async () =>
+      browser.newContext({
+        storageState: await unseal(envelope, password),
+      }),
+    );
     const restoredPage = await fixturePage(restored);
     assert.equal(
       await restoredPage.evaluate(() =>
@@ -210,9 +240,16 @@ try {
     await close(second);
     report.success = true;
   }
-} catch {
+} catch (error) {
   report.success = false;
   report.failedStage = stage;
+  // Child-process errors can embed signed URLs/tokens. Inspect only for these
+  // fixed categories; never serialize the error, stdout or stderr.
+  const details = String(error?.stderr ?? "") + String(error?.stdout ?? "");
+  if (/Browser time limit exceeded for today/i.test(details))
+    report.error = "dailyBrowserBudgetExceeded";
+  else if (/\b429\b|too many requests/i.test(details))
+    report.error = "cloudflareRateLimited";
 } finally {
   try {
     await browser?.close();

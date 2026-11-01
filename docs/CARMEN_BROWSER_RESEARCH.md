@@ -50,6 +50,10 @@ node scripts/verify-carmen-browser.mjs --public-login
 
 Neither command signs into an account or tests actual cookies, API access or renewal. No flag prints a Live View link or deployment token. Wrangler output is captured into a private temporary directory and removed; only sanitized results reach stdout. An explicit mode is required before retrieving credentials or creating resources. This is an operator diagnostic, not a phone onboarding feature.
 
+## Renewal mechanics, timing and saved-grades behavior
+
+[The session benchmark protocol](CARMEN_SESSION_BENCHMARK.md) separates existing-cookie lifetime, silent SSO renewal and human password/MFA intervention. Three public-only timing samples took 2.458–3.304 seconds through initial OSU sign-in navigation, including CLI setup; they do not measure authenticated renewal. The proposed production renewal is deterministic headless browser code triggered by the Worker, with interactive handoff only when normal OSU sign-in requires it. The PWA should retain saved grades throughout and report a separate reconnect-required state, not disconnect the account or erase the snapshot. Neither that Carmen UI nor authenticated renewal is implemented.
+
 ## Gate before choosing this for the product
 
 With a consenting student, prove normal human sign-in through Live View; same-account read-only totals/assignment access; Carmen-only cookie use and rotation in an **isolated Worker**; automatic SSO renewal after more than two idle hours; overnight/later-day restoration; physical-phone interaction with desktop off; complete snapshot/failure retention; and actual cumulative browser seconds per renewal. OSU documents [two-hour Carmen inactivity logout](https://it.osu.edu/news/2025/08/18/technology-updates-autumn-2025) and [separate 24-hour BuckeyePass browser trust](https://it.osu.edu/security/services/buckeyepass). Neither promises unattended renewal or a particular reauthentication frequency.

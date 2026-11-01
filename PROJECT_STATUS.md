@@ -1,5 +1,11 @@
 # Project status — November 1, 2026
 
+## Carmen renewal latency and session-lifetime test preparation
+
+Added sanitized phase timings to the isolated browser diagnostic and opt-in `--timing` to the private-file identity/course diagnostic. Three real public-only browser samples took **2.458–3.304 seconds (median 2.696)** from CLI credential setup through Carmen→OSU public sign-in navigation; all three browsers were closed. These numbers exclude authenticated SSO/password/MFA and are not production Worker or billed-runtime measurements. No student session is available, so actual cookie lifetime, automatic renewal time and manual-login frequency remain unmeasured. One extra immediate launch was rejected before creation; its exact provider error was not retained, so no cause is claimed. Later diagnostics classify known quota/rate-limit errors without raw output.
+
+[Controlled test protocol and reconnect contract](docs/CARMEN_SESSION_BENCHMARK.md) separate cookie acceptance, silent SSO and human intervention. Renewal would run as deterministic headless Playwright/Puppeteer code, not AI computer use or a CLI step for students. Existing authenticated/account-matched saved grades and Retry behavior can be reused, with a separate Carmen reconnect-required state; reporting expiry as disconnected would otherwise risk clearing local data. No Carmen UI, actual renewal or provider connection has shipped. Do not promise weeks between manual logins from OSU's documented two-hour idle timeout or separate BuckeyePass trust option. Production build/type check, **160 tests**, focused diagnostic/security checks, timed synthetic browser restoration and 76-file packaging pass. No deployment or release was performed; exact limits are in [PWA validation](docs/PWA_VALIDATION.md).
+
 ## Carmen constraints, cloud-browser proof and quota investigation
 
 The owner now explicitly requires **no institutional app approval**, independent seamless phone/desktop PWA access and low maintenance. This supersedes the earlier conditional OAuth selection: OAuth avoids manually generated personal tokens but still needs institution-issued client credentials, so it fails the new requirement. Students remain unable to generate personal tokens under OSU's August 11 notice. Routine cookie transfers and an always-on desktop companion also fail the intended experience.

@@ -3,11 +3,8 @@ import { mkdtemp, writeFile, chmod, symlink, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error Opt-in diagnostic intentionally uses plain JavaScript.
-import {
-  parseCookieHeader,
-  probeCarmen,
-  readPrivateCookieFile,
-} from "../scripts/verify-carmen-session.mjs";
+import * as carmenSession from "../scripts/verify-carmen-session.mjs";
+const { parseCookieHeader, probeCarmen, readPrivateCookieFile } = carmenSession;
 
 const cookie = "synthetic_session=synthetic-secret";
 const json = (data: unknown, headers = {}) =>
@@ -20,6 +17,10 @@ describe("opt-in Carmen cookie diagnostic", () => {
     let requests = 0;
     const report = await probeCarmen({
       cookie,
+      timing: true,
+      now: () => {
+        throw new Error("must not time an unpermitted read");
+      },
       fetcher: async () => {
         requests++;
       },
@@ -162,6 +163,47 @@ describe("opt-in Carmen cookie diagnostic", () => {
     expect(report.courseTotalsChecked).toBe(true);
     expect(report.visibleTotalsPresent).toBe(false);
     expect(report.courseListHasMorePages).toBe(false);
+  });
+
+  it("optionally times complete reads without logging credentials or response data", async () => {
+    let clock = 0;
+    const report = await probeCarmen({
+      cookie,
+      consent: true,
+      grades: true,
+      timing: true,
+      now: () => clock,
+      fetcher: async () => {
+        const identity = clock === 0;
+        clock += identity ? 125 : 250;
+        return json(
+          identity ? { id: 123, name: "Private synthetic name" } : [],
+        );
+      },
+    });
+    expect(report.timingsMs).toEqual({
+      identity: 125,
+      courseTotals: 250,
+      total: 375,
+    });
+    expect(report.authenticated).toBe(true);
+    expect(report.courseTotalsChecked).toBe(true);
+    for (const secret of [cookie, "Private synthetic name", '"id"'])
+      expect(JSON.stringify(report)).not.toContain(secret);
+
+    clock = 0;
+    const rejected = await probeCarmen({
+      cookie,
+      consent: true,
+      timing: true,
+      now: () => clock,
+      fetcher: async () => {
+        clock += 80;
+        return new Response(null, { status: 401 });
+      },
+    });
+    expect(rejected.error).toBe("authenticationRejected");
+    expect(rejected.timingsMs).toEqual({ identity: 80, total: 80 });
   });
 
   it("requires a private external owner-only file and refuses symlinks", async () => {

@@ -30,6 +30,9 @@ The probe uses Node.js 24 or later and no third-party libraries. From `web/`:
 # Identity only; --consent means the account holder explicitly permitted this test.
 node scripts/verify-carmen-session.mjs /absolute/path/to/carmen-cookie.txt --consent
 
+# Optional sanitized timings for the self-profile read.
+node scripts/verify-carmen-session.mjs /absolute/path/to/carmen-cookie.txt --consent --timing
+
 # Optional second read, only when grade-total access was also permitted.
 node scripts/verify-carmen-session.mjs /absolute/path/to/carmen-cookie.txt --consent --grades
 ```
@@ -38,7 +41,9 @@ It makes at most two fixed-host HTTPS GET requests, does not follow redirects or
 
 `authenticated: true` means a schema-valid self-profile response was accepted now. `courseTotalsChecked` means the optional first page parsed; `visibleTotalsPresent` means that page supplied at least one visible current total. An empty list or missing totals is not a failed login. `courseListHasMorePages` explicitly marks partial discovery; this diagnostic is not a complete snapshot and does not request assignments or another student's records. [Canvas course fields](https://developerdocs.instructure.com/services/canvas/resources/courses).
 
-`cookieRotationOffered` reports only whether a response offered cookies. The probe does not import/persist them or implement a cookie jar; it deliberately does not claim renewal. A second read can therefore expose a session-rotation issue that a future transport would need to handle. It does not produce an exact expiry prediction. A 401, 403, redirect, HTML response and network failure receive different labels rather than all being called expiry. No result should be interpreted as a reason to discard saved application grades.
+`cookieRotationOffered` reports only whether a response offered cookies. The probe does not import/persist them or implement a cookie jar; it deliberately does not claim renewal. A second read can therefore expose a session-rotation issue that a future transport would need to handle. Optional `--timing` reports per-read and total elapsed milliseconds; it does not report identity values or measure automatic SSO renewal. It does not produce an exact expiry prediction. A 401, 403, redirect, HTML response and network failure receive different labels rather than all being called expiry. No result should be interpreted as a reason to discard saved application grades.
+
+See the [controlled lifetime/renewal benchmark and PWA reconnect contract](CARMEN_SESSION_BENCHMARK.md) for separate idle trials, timing phases and cached-grade behavior.
 
 ## Lifetime evidence
 

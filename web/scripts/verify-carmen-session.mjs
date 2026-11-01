@@ -79,7 +79,9 @@ export async function probeCarmen({
   cookie,
   consent = false,
   grades = false,
+  timing = false,
   fetcher = fetch,
+  now = () => performance.now(),
 }) {
   const report = {
     authenticated: false,
@@ -87,10 +89,12 @@ export async function probeCarmen({
     cookieRotationOffered: false,
   };
   if (!consent) return { ...report, error: "accountHolderPermissionRequired" };
+  const started = timing ? now() : 0;
+  if (timing) report.timingsMs = {};
   let stage = "setup";
   try {
     const header = parseCookieHeader(cookie);
-    async function get(path) {
+    async function read(path) {
       let response;
       try {
         response = await fetcher(origin + path, {
@@ -153,6 +157,18 @@ export async function probeCarmen({
         ),
       };
     }
+    async function get(path) {
+      const requestedAt = timing ? now() : 0;
+      try {
+        return await read(path);
+      } finally {
+        if (timing)
+          report.timingsMs[stage] = Math.max(
+            0,
+            Math.round(now() - requestedAt),
+          );
+      }
+    }
     stage = "identity";
     const profile = (await get("/api/v1/users/self/profile")).data;
     if (!profile || Array.isArray(profile) || !validID(profile.id))
@@ -200,6 +216,9 @@ export async function probeCarmen({
       error: known.has(error.code) ? error.code : "probeFailed",
       ...(error.status ? { status: error.status } : {}),
     };
+  } finally {
+    if (timing)
+      report.timingsMs.total = Math.max(0, Math.round(now() - started));
   }
 }
 
@@ -214,7 +233,9 @@ async function main() {
   if (
     paths.length !== 1 ||
     args.some(
-      (a) => a.startsWith("--") && !["--consent", "--grades"].includes(a),
+      (a) =>
+        a.startsWith("--") &&
+        !["--consent", "--grades", "--timing"].includes(a),
     )
   ) {
     console.log(
@@ -229,6 +250,7 @@ async function main() {
       cookie,
       consent: true,
       grades: args.includes("--grades"),
+      timing: args.includes("--timing"),
     });
     console.log(JSON.stringify(report));
     if (report.error) process.exitCode = 1;
