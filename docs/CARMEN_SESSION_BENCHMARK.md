@@ -46,6 +46,10 @@ Use `check PRIVATE_LAB_DIRECTORY --consent --no-renew` for separate HTTP-only ex
 
 Every-minute HTTP polling could reset Carmen's inactivity timer and measure active-use persistence rather than idle expiry. For idle tests, make sparse reads after agreed quiet intervals and preserve actual timestamps. A late check cannot recover the precise expiry instant from local logs: failure provides an upper bound; success supports only the tested interval, and a successful read can start a new idle baseline. A later, separately initiated renewal test is needed to measure SSO/MFA behavior. Copies of one cookie are not independent server-side idle trials.
 
+## Separate VM handoff
+
+The owner subsequently clarified Muse has a separate VM. A [private portable export and local-browser backend](CARMEN_VM_TEST.md) now support that experiment without transferring Cloudflare credentials or running a model on each tick. Use one next-morning check with automatic VM-local recovery, then a later 24-hour quiet trial within the 48-hour limit. The exported cookie copy is not an independent server session; do not poll the original in parallel. A new VM can cause a new authentication challenge and its launch timings are not Cloudflare timings. No provider request or extra login was made while preparing the export.
+
 ## How to measure the real lifecycle
 
 Use a consenting student's dedicated test session and private encrypted state in an isolated Worker, leaving production untouched. The holder performs normal sign-in themselves and explicitly permits narrow self-identity reads plus retaining only required Carmen/SSO session state for the experiment. Do not send cookies or browser-state files in chat. No grade reads are needed to measure session lifetime; complete grade access remains a separate compatibility gate.

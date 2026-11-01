@@ -8,6 +8,36 @@ import { chromium } from "playwright-core";
 
 const project = fileURLToPath(new URL("../", import.meta.url));
 const execute = promisify(execFile);
+
+// Portable diagnostic backend. It uses only the VM's own headless Chromium;
+// never retrieves a Cloudflare token or calls Wrangler.
+export function createLocalBrowserClient(timed = async (_, task) => task()) {
+  let browser;
+  return {
+    async open() {
+      browser = await timed("localBrowserLaunch", () =>
+        chromium.launch({
+          headless: true,
+          timeout: 15_000,
+          ...(process.env.CARMEN_CHROMIUM_PATH
+            ? { executablePath: process.env.CARMEN_CHROMIUM_PATH }
+            : {}),
+        }),
+      );
+      return { browser };
+    },
+    async cleanup() {
+      try {
+        if (browser) await timed("localBrowserClose", () => browser.close());
+        browser = undefined;
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
 export function createBrowserClient(
   directory,
   timed = async (_, task) => task(),

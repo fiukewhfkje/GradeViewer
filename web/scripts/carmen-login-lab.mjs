@@ -13,7 +13,10 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { request } from "playwright-core";
 import { random, seal, unseal } from "../worker/crypto.ts";
-import { createBrowserClient } from "./carmen-browser-client.mjs";
+import {
+  createBrowserClient,
+  createLocalBrowserClient,
+} from "./carmen-browser-client.mjs";
 import { probeCarmen } from "./verify-carmen-session.mjs";
 
 const origin = "https://osu.instructure.com";
@@ -92,7 +95,9 @@ export function observationFor(report, baselineAt, now = Date.now()) {
         : undefined,
     renewalAttempted:
       report.renewal !== undefined ||
-      report.timingsMs?.createSessionCLI !== undefined,
+      report.timingsMs?.createSessionCLI !== undefined ||
+      report.timingsMs?.localBrowserLaunch !== undefined,
+    browserRuntime: report.browserRuntime ?? "none",
     renewedState: state(report.renewal),
     renewalDeferred: report.renewalDeferred === true,
     success: report.success === true,
@@ -423,9 +428,13 @@ async function main() {
     !["start", "check"].includes(mode) ||
     !path ||
     flags.some(
-      (flag) => !["--consent", "--grades", "--no-renew"].includes(flag),
+      (flag) =>
+        !["--consent", "--grades", "--no-renew", "--local-browser"].includes(
+          flag,
+        ),
     ) ||
-    (mode === "start" && flags.includes("--no-renew"))
+    (mode === "start" &&
+      (flags.includes("--no-renew") || flags.includes("--local-browser")))
   ) {
     console.log(
       JSON.stringify({
@@ -509,7 +518,12 @@ async function main() {
         cookies: (await api.storageState()).cookies,
       });
     }
-    client = createBrowserClient(directory, timed);
+    report.browserRuntime = flags.includes("--local-browser")
+      ? "vm-local"
+      : "cloudflare";
+    client = flags.includes("--local-browser")
+      ? createLocalBrowserClient(timed)
+      : createBrowserClient(directory, timed);
     stage = "cloudBrowserLaunch";
     const { browser } = await client.open();
     const result = await attemptRenewal({
@@ -611,4 +625,8 @@ async function main() {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === ownPath) await main();
+if (
+  process.argv[1] &&
+  (await realpath(resolve(process.argv[1])).catch(() => "")) === ownPath
+)
+  await main();

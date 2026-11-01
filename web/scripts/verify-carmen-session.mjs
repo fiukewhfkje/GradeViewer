@@ -315,4 +315,8 @@ async function main() {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === ownPath) await main();
+if (
+  process.argv[1] &&
+  (await realpath(resolve(process.argv[1])).catch(() => "")) === ownPath
+)
+  await main();

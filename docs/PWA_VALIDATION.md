@@ -1,5 +1,11 @@
 # PWA verification — November 1, 2026
 
+## Portable VM backend/export — no provider access
+
+Added `--local-browser` for check mode only, using the VM's own headless Chromium and no Cloudflare credential lookup. The synthetic headless restoration test now uses that backend; existing session validation/account binding/encryption/rotation remain shared. Portable-layout validation found that a symlinked entry path could skip the CLI entirely; canonical entry comparison fixes both diagnostic entry points, and a regression verifies their consent refusal through symlinks.
+
+Production build/type check, **172 tests across 14 files**, 79-file source packaging, final focused tests, syntax/format/link/whitespace and private export layout/state/consent/shell checks pass. The private nine-file archive contains only selected source/setup files and the owner-authorized encrypted session/wrapping key; it is outside the repository, not a public release. No password, Schoology credential, cached Cloudflare login, `.env`, node_modules or native browser binary was copied. Its state loading was tested locally without provider requests; actual Muse VM installation, transport, renewal and device-policy behavior remain unverified. Offline metadata review made no authenticated request or idle reset. Production app/Worker/dependencies are unchanged, no VM/AI scheduler was installed, and no main merge/tag/release/deployment occurred. [VM diagnostic limits](CARMEN_VM_TEST.md).
+
 ## HTTP-only idle observations and handoff
 
 Added a no-renew flag and a single renewal-decision implementation, with regressions proving known expired-session results cannot launch renewal in observation mode and unrelated failures cannot launch it. Added sanitized per-check UTC/idle-gap/outcome logging to a private owner-only file; regression checks exclude arbitrary error strings, identity/cookies and reject unsafe permissions. Production build/type check, **171 tests across 14 files**, 79-file source packaging and syntax/format/link/whitespace checks pass. No live Carmen request or new TTL result was produced during this preparation.

@@ -10,11 +10,14 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { chromium } from "playwright-core";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 // @ts-expect-error Operator diagnostic intentionally uses JavaScript.
 import * as lab from "../scripts/carmen-login-lab.mjs";
 // @ts-expect-error Operator diagnostic intentionally uses JavaScript.
 import * as probe from "../scripts/verify-carmen-session.mjs";
+// @ts-expect-error Operator diagnostic intentionally uses JavaScript.
+import * as browserClients from "../scripts/carmen-browser-client.mjs";
 
 const identity = "123456789";
 const profile = { id: identity, name: "Synthetic private student" };
@@ -55,6 +58,33 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
 }
 
 describe("isolated direct-sign-in Carmen lab", () => {
+  it("runs the consent guard even when the CLI entry path is a symlink", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "synthetic-carmen-cli-"));
+    try {
+      for (const name of [
+        "carmen-login-lab.mjs",
+        "verify-carmen-session.mjs",
+      ]) {
+        const target = fileURLToPath(
+          new URL("../scripts/" + name, import.meta.url),
+        );
+        const link = join(directory, name);
+        await symlink(target, link);
+        const result = spawnSync(process.execPath, [link], {
+          encoding: "utf8",
+          timeout: 5000,
+        });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toBe("");
+        expect(JSON.parse(result.stdout)).toEqual({
+          error: "accountHolderPermissionRequired",
+        });
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("keeps an idle observation HTTP-only even when authentication was rejected", () => {
     for (const result of [
       { error: "authenticationRejected" },
@@ -382,18 +412,21 @@ describe("isolated direct-sign-in Carmen lab", () => {
   });
 
   it("performs a silent restoration with headless Chrome and synthetic data only", async () => {
-    const browser = await chromium.launch();
+    const client = browserClients.createLocalBrowserClient();
+    const { browser } = await client.open();
     try {
       const wrapped = {
         async newContext(options: Record<string, unknown>) {
           const context = await browser.newContext(options);
-          await context.route("**/*", (route) =>
-            route.request().url() === "https://osu.instructure.com/"
-              ? route.fulfill({
-                  contentType: "text/html",
-                  body: "<!doctype html><title>Synthetic only</title>",
-                })
-              : route.abort(),
+          await context.route(
+            "**/*",
+            (route: import("playwright-core").Route) =>
+              route.request().url() === "https://osu.instructure.com/"
+                ? route.fulfill({
+                    contentType: "text/html",
+                    body: "<!doctype html><title>Synthetic only</title>",
+                  })
+                : route.abort(),
           );
           return context;
         },
@@ -413,7 +446,7 @@ describe("isolated direct-sign-in Carmen lab", () => {
       expect(result.state).toEqual({ cookies: [], origins: [] });
       expect(result.renewalMs).toBeGreaterThanOrEqual(0);
     } finally {
-      await browser.close();
+      expect(await client.cleanup()).toBe(true);
     }
   });
 

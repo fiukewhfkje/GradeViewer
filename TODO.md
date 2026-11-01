@@ -2,6 +2,9 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] At the owner's explicit request, prepare a private portable session/checker bundle for Muse's VM, without an OSU password, Schoology secrets or Cloudflare credentials. Add local headless renewal mode and fix symlinked CLI entry handling; validate with 172 tests/build/export checks. No provider read or idle reset occurred.
+- [ ] On Muse's VM, install and run the uploaded diagnostic after a quiet interval; record migration/device effects separately from idle expiry and Cloudflare performance. No Muse cron or VM installation has been performed here. Do not run Mac/VM copies as independent idle sessions; preserve the finite identity-only 48-hour authorization and branch release hold.
+
 - [x] Clarify the Muse benchmark for the owner's actual question: normal `check --consent` automatically attempts silent renewal on authentication rejection; log normal/auto-renewed/human-attention/error outcomes after quiet gaps. No-renew mode remains available for isolated expiry observations, not the default automatic-recovery benchmark. No cron/model schedule/provider call was started.
 
 - [x] At the owner's request, perform one additional HTTP-only saved-session check: accepted after 24m31.615s idle in 349 ms, no Chrome/renewal/grades. Log actual timing privately and update the Muse handoff baseline; no scheduled AI checks were re-enabled.
