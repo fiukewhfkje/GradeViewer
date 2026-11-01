@@ -24,6 +24,7 @@ const ownPath = fileURLToPath(import.meta.url);
 const fault = (code) => Object.assign(new Error(code), { code });
 const maxBytes = 2_000_000;
 const maxAge = 48 * 60 * 60 * 1000;
+const week = 7 * 24 * 60 * 60 * 1000;
 
 export async function labDirectory(path, create = false) {
   if (!isAbsolute(path)) throw fault("absolutePrivateDirectoryRequired");
@@ -47,7 +48,7 @@ export async function labDirectory(path, create = false) {
   return actual;
 }
 
-async function privateRead(directory, name) {
+export async function privateRead(directory, name) {
   const file = await open(
     join(directory, name),
     constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -69,7 +70,7 @@ async function privateRead(directory, name) {
 
 export function observationFor(report, baselineAt, now = Date.now()) {
   const state = (result) =>
-    result?.authenticated === true
+    result?.authenticated === true && !result.error
       ? "accepted"
       : result?.error === "authenticationRejected" || result?.signInRedirect
         ? "signInRequired"
@@ -126,7 +127,7 @@ export async function recordObservation(directory, observation) {
     const info = await file.stat();
     if (
       !info.isFile() ||
-      info.size > 100_000 ||
+      info.size > 5_000_000 ||
       info.mode & 0o077 ||
       (process.getuid && info.uid !== process.getuid())
     )
@@ -169,8 +170,13 @@ export async function loadSession(directory, pending = false) {
   if (
     saved.version !== 1 ||
     (!pending && typeof saved.identity !== "string") ||
-    !saved.createdAt ||
-    Date.now() - saved.createdAt > maxAge ||
+    !Number.isFinite(saved.createdAt) ||
+    saved.createdAt > Date.now() ||
+    (saved.authorizedUntil !== undefined &&
+      (!Number.isFinite(saved.authorizedUntil) ||
+        saved.authorizedUntil <= saved.createdAt ||
+        saved.authorizedUntil - saved.createdAt > week)) ||
+    Date.now() > (saved.authorizedUntil ?? saved.createdAt + maxAge) ||
     !Array.isArray(saved.state?.cookies) ||
     !Array.isArray(saved.state?.origins)
   )
@@ -280,6 +286,45 @@ export async function readAccount(api, saved, grades, timeoutMs = 15_000) {
   return { report, identity };
 }
 
+// Inspect only fixed gate booleans. Never read form values, page text, names,
+// URLs into logs, click a policy/MFA control, or infer Duo from a timeout alone.
+export async function humanGate(page) {
+  try {
+    const url = new URL(page.url());
+    if (
+      url.origin === origin &&
+      (await page
+        .getByRole("heading", { name: /acceptable use policy/i })
+        .first()
+        .isVisible())
+    )
+      return "policy";
+    for (const frame of page.frames()) {
+      const host = new URL(frame.url()).hostname;
+      if (
+        /^[a-z0-9-]+\.duosecurity\.com$/.test(host) &&
+        (await frame
+          .getByText(
+            /verify your identity|check for a duo push|choose an authentication|enter.*passcode|log in with duo|approve.*duo/i,
+          )
+          .first()
+          .isVisible())
+      )
+        return "duo";
+    }
+    if (
+      ["webauth.service.ohio-state.edu", "osu.instructure.com"].includes(
+        url.hostname,
+      ) &&
+      (await page.locator('input[type="password"]').first().isVisible())
+    )
+      return "credentials";
+  } catch {
+    /* Unsupported/changed page or navigation: inconclusive, not Duo. */
+  }
+  return undefined;
+}
+
 export async function attemptRenewal({
   browser,
   saved,
@@ -304,7 +349,7 @@ export async function attemptRenewal({
       : await browser.newContext(saved ? { storageState: saved.state } : {});
   const page = await context.newPage();
   const cutoff = performance.now() + deadlineMs;
-  // Only normal navigation. No password fields, clicks, challenges or DOM reads.
+  // Only normal navigation and fixed human-gate checks. Never fill or click.
   onStage("normalSignInNavigation");
   await page.goto(origin + "/", {
     waitUntil: "domcontentloaded",
@@ -345,6 +390,18 @@ export async function attemptRenewal({
     // Human interaction happens only in Cloudflare Live View. URL checks keep
     // the short handoff browser alive, without periodic Carmen HTTP traffic.
     const url = new URL(page.url());
+    if (!interactive) {
+      const reason = await humanGate(page);
+      if (reason)
+        return {
+          report: {
+            authenticated: false,
+            error: "humanSignInRequired",
+            humanReason: reason,
+          },
+          renewalMs: Math.round(performance.now() - began),
+        };
+    }
     if (
       handoffState === "done" &&
       url.origin === origin &&
@@ -393,7 +450,11 @@ export async function attemptRenewal({
   return {
     report: {
       authenticated: false,
-      error: signal?.aborted ? "cancelled" : "humanSignInRequired",
+      error: signal?.aborted
+        ? "cancelled"
+        : interactive
+          ? "humanSignInRequired"
+          : "renewalInconclusive",
     },
     renewalMs: Math.round(performance.now() - began),
   };
@@ -425,16 +486,23 @@ async function main() {
   }
   const [mode, path, ...flags] = args;
   if (
-    !["start", "check"].includes(mode) ||
+    !["start", "check", "reconnect", "authorize"].includes(mode) ||
     !path ||
     flags.some(
       (flag) =>
-        !["--consent", "--grades", "--no-renew", "--local-browser"].includes(
-          flag,
-        ),
+        ![
+          "--consent",
+          "--grades",
+          "--no-renew",
+          "--local-browser",
+          "--week",
+        ].includes(flag),
     ) ||
-    (mode === "start" &&
-      (flags.includes("--no-renew") || flags.includes("--local-browser")))
+    (["start", "reconnect"].includes(mode) &&
+      (flags.includes("--no-renew") || flags.includes("--local-browser"))) ||
+    (["check", "reconnect"].includes(mode) && flags.includes("--week")) ||
+    (mode === "authorize" &&
+      flags.some((f) => !["--consent", "--week", "--grades"].includes(f)))
   ) {
     console.log(
       JSON.stringify({
@@ -458,6 +526,7 @@ async function main() {
   let stage = "privateLabSetup";
   let baselineAt;
   let observedAt;
+  let recoveryBegan;
   const timed = async (label, operation) => {
     const began = performance.now();
     try {
@@ -482,8 +551,38 @@ async function main() {
         ({ key, saved } = await loadSession(directory, true));
         report.resumedPendingSession = true;
       }
+      if (mode === "authorize") {
+        if (report.resumedPendingSession)
+          throw fault("invalidOrExpiredLabState");
+        await saveSession(
+          directory,
+          {
+            ...saved,
+            authenticationId: saved.authenticationId ?? random(),
+            authorizedUntil: flags.includes("--week")
+              ? saved.createdAt + week
+              : saved.authorizedUntil,
+            gradesPermitted:
+              saved.gradesPermitted || flags.includes("--grades"),
+          },
+          key,
+        );
+        report.success = true;
+        report.authorizationUpdated = true;
+        return; // Explicit local authorization only; no provider request.
+      }
       if (flags.includes("--grades") && !saved.gradesPermitted)
         throw fault("gradePermissionRequired");
+    }
+    const createdAt = saved?.createdAt ?? Date.now();
+    const metadata = {
+      createdAt,
+      authenticationId: saved?.authenticationId ?? random(),
+      authorizedUntil:
+        saved?.authorizedUntil ??
+        createdAt + (flags.includes("--week") ? week : maxAge),
+    };
+    if (mode === "check") {
       baselineAt = saved.verifiedAt ?? saved.createdAt;
       api = await request.newContext({ storageState: saved.state });
       const result = await readAccount(api, saved, flags.includes("--grades"));
@@ -500,6 +599,9 @@ async function main() {
               cookies: (await api.storageState()).cookies,
             }),
             verifiedAt: Date.now(),
+            courseTotalsVerifiedAt: flags.includes("--grades")
+              ? Date.now()
+              : saved.courseTotalsVerifiedAt,
           },
           key,
         );
@@ -518,6 +620,7 @@ async function main() {
         cookies: (await api.storageState()).cookies,
       });
     }
+    recoveryBegan = performance.now();
     report.browserRuntime = flags.includes("--local-browser")
       ? "vm-local"
       : "cloudflare";
@@ -530,17 +633,17 @@ async function main() {
       browser,
       saved,
       grades: flags.includes("--grades"),
-      interactive: mode === "start",
-      deadlineMs: mode === "start" ? 240_000 : 25_000,
+      interactive: mode !== "check",
+      deadlineMs: mode !== "check" ? 240_000 : 25_000,
       signal: controller.signal,
       onPendingState: async (state) => {
         await savePending(
           directory,
           {
             version: 1,
+            ...metadata,
             identity: saved?.identity,
             state,
-            createdAt: saved?.createdAt ?? Date.now(),
             gradesPermitted:
               saved?.gradesPermitted ?? flags.includes("--grades"),
           },
@@ -557,7 +660,9 @@ async function main() {
           file,
           '<!doctype html><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'"><title>Private Carmen test</title><h1>Private Carmen session test</h1><p>The account holder signs in directly, including MFA and any first-use policy decision. Select Done in the browser view only after Carmen is ready. The script waits for Done before checking the profile. This link grants access to the test browser; keep it private.</p><p><a rel="noreferrer" href="' +
             htmlEscape(url) +
-            '">Open private OSU sign-in</a></p><p>The session closes after four minutes. No password is saved. Only agreed self-account reads and encrypted OSU/Carmen/Duo state are retained for a 48-hour test. Later checks refuse expired state. Delete the private directory after testing; expiration does not erase the files automatically.</p>',
+            '">Open private OSU sign-in</a></p><p>The session closes after four minutes. No password is saved. Only agreed self-account reads and encrypted OSU/Carmen/Duo state are retained until ' +
+            new Date(metadata.authorizedUntil).toISOString() +
+            ". Later checks refuse expired state. Delete the private directory after testing; expiration does not erase the files automatically.</p>",
           { mode: 0o600, flag: "wx" },
         );
         console.log(
@@ -576,9 +681,12 @@ async function main() {
         directory,
         {
           version: 1,
+          ...metadata,
           identity: result.identity,
-          createdAt: saved?.createdAt ?? Date.now(),
           verifiedAt: Date.now(),
+          courseTotalsVerifiedAt: flags.includes("--grades")
+            ? Date.now()
+            : saved?.courseTotalsVerifiedAt,
           gradesPermitted: saved?.gradesPermitted ?? flags.includes("--grades"),
           state: result.state,
         },
@@ -591,7 +699,10 @@ async function main() {
   } catch (error) {
     report.success = false;
     report.failedStage = stage;
-    const details = String(error?.stderr ?? "") + String(error?.stdout ?? "");
+    const details =
+      String(error?.message ?? "") +
+      String(error?.stderr ?? "") +
+      String(error?.stdout ?? "");
     report.error = safeErrors.has(error?.code)
       ? error.code
       : error?.code === "EEXIST"
@@ -603,6 +714,10 @@ async function main() {
             : "labFailed";
   } finally {
     if (client && !(await client.cleanup())) report.cleanupFailed = true;
+    if (recoveryBegan !== undefined)
+      report.timingsMs.browserRecoveryTotal = [
+        Math.round(performance.now() - recoveryBegan),
+      ];
     await api?.dispose().catch(() => {});
     if (directory) {
       await rm(join(directory, "login.html"), { force: true });

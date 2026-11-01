@@ -221,9 +221,34 @@ export async function probeCarmen({
       const { data, morePages } = await get(
         "/api/v1/courses?enrollment_type=student&include[]=total_scores&per_page=100",
       );
-      if (!Array.isArray(data) || data.some((c) => !c || !validID(c.id)))
+      if (
+        !Array.isArray(data) ||
+        data.some(
+          (c) =>
+            !c ||
+            !validID(c.id) ||
+            (c.enrollments != null &&
+              (!Array.isArray(c.enrollments) ||
+                c.enrollments.some(
+                  (e) =>
+                    !e ||
+                    typeof e !== "object" ||
+                    Array.isArray(e) ||
+                    ["computed_current_score", "computed_final_score"].some(
+                      (name) =>
+                        e[name] != null &&
+                        (typeof e[name] !== "number" ||
+                          !Number.isFinite(e[name])),
+                    ) ||
+                    ["computed_current_grade", "computed_final_grade"].some(
+                      (name) => e[name] != null && typeof e[name] !== "string",
+                    ),
+                ))),
+        )
+      )
         throw failure("invalidCourseList");
       report.courseTotalsChecked = true;
+      report.courseListEmpty = data.length === 0;
       report.courseListHasMorePages = morePages;
       report.visibleTotalsPresent = data.some((c) =>
         c.enrollments?.some(

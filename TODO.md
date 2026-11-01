@@ -2,8 +2,13 @@
 
 ## GPA and Carmen investigation — November 1, 2026
 
+- [x] Implement the two-profile benchmark: active five-minute checks, sequential 2/4/8/16/24/48h idle gaps, schema-valid course/total-score reads, explicit seven-day lab authorization, real expiry bounds, bounded silent recovery and separately recorded human/unknown outcomes. Keep normal refreshes HTTP-only and preserve unknown Duo cases in sample bounds.
+- [x] At the owner’s request, check the existing session now: identity accepted at 2:11 PM EST (288 ms); course-total path accepted at 2:17 PM (409 ms) and 2:21 PM (404 ms, valid empty list). No browser/relogin was needed. Draft an unsent email to carmen@osu.edu using OSU’s official contact listing.
+- [ ] Complete a fresh independent idle sign-in when Cloudflare permits browser acquisition. Two spaced attempts returned 429 before OSU; inventory showed no active browsers. Do not clone the original session or claim the idle clock/trial has started.
+- [ ] After both grade-path profiles are verified, initialize/install the deterministic cron on the selected host and run repeated expiry/recovery episodes. No VM installation, local benchmark cron or recurring model job is currently running. Record actual gaps, manual interventions, migration effects and incomplete per-course parsing; stop at the explicit deadline.
+
 - [x] At the owner's explicit request, prepare a private portable session/checker bundle for Muse's VM, without an OSU password, Schoology secrets or Cloudflare credentials. Add local headless renewal mode and fix symlinked CLI entry handling; validate with 172 tests/build/export checks. No provider read or idle reset occurred.
-- [ ] On Muse's VM, install and run the uploaded diagnostic after a quiet interval; record migration/device effects separately from idle expiry and Cloudflare performance. No Muse cron or VM installation has been performed here. Do not run Mac/VM copies as independent idle sessions; preserve the finite identity-only 48-hour authorization and branch release hold.
+- [x] Supersede the earlier single-profile VM quiet-check plan with the two-profile benchmark above. The old uploaded archive is not two independent sessions and keeps its original 48-hour identity-only scope; no VM install/cron is claimed.
 
 - [x] Clarify the Muse benchmark for the owner's actual question: normal `check --consent` automatically attempts silent renewal on authentication rejection; log normal/auto-renewed/human-attention/error outcomes after quiet gaps. No-renew mode remains available for isolated expiry observations, not the default automatic-recovery benchmark. No cron/model schedule/provider call was started.
 
@@ -11,7 +16,7 @@
 
 - [x] Add HTTP-only/no-renew observations and private timestamped logging; validate with 171 tests/build/package. Prepare a private Muse handoff for deterministic cron with no recurring model use.
 - [x] Delete both newly created Codex follow-up schedules at the owner's request before either ran. No Codex session-check automation remains; Muse/system cron has not been installed by this task.
-- [ ] Have Muse set up the chosen lightweight experiment: minute ticks gate local due times; sparse HTTP-only checks measure idle behavior. Frequent HTTP polling is a separate active-use experiment and must not be labeled idle expiry. Log actual timing, stop after the finite 48-hour test, and retain branch-only/no-release scope.
+- [x] Supersede the original sparse-only 48-hour plan with the explicit active/idle seven-day protocol above. Keep the distinction between active-use survival and idle expiry and retain branch-only/no-release scope.
 
 - [x] Use the owner's own account for an explicitly permitted identity-only initial sign-in and saved-session check: 254 ms / 269 ms, second check HTTP-only with no Chrome. No grades were requested; retain secrets/state only in the private encrypted lab.
 - [x] Fix live-test completion/cookie-header bugs: wait for explicit human Done through first-use screens, preserve multiple Set-Cookie fields, stage encrypted pending state before identity verification and sanitize transport diagnostics. Add regression evidence; no automatic policy/MFA acceptance.

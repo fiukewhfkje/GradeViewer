@@ -283,6 +283,27 @@ describe("isolated direct-sign-in Carmen lab", () => {
       await expect(lab.loadSession(directory)).rejects.toThrow(
         "invalidOrExpiredLabState",
       );
+      await lab.saveSession(
+        directory,
+        {
+          ...saved,
+          createdAt: Date.now() - 49 * 3600_000,
+          authorizedUntil: Date.now() + 24 * 3600_000,
+        },
+        "synthetic-root-key",
+      );
+      expect((await lab.loadSession(directory)).saved.identity).toBe(identity);
+      await lab.saveSession(
+        directory,
+        {
+          ...saved,
+          authorizedUntil: saved.createdAt + 8 * 24 * 3600_000,
+        },
+        "synthetic-root-key",
+      );
+      await expect(lab.loadSession(directory)).rejects.toThrow(
+        "invalidOrExpiredLabState",
+      );
       const link = join(parent, "link");
       await symlink(directory, link);
       await expect(lab.labDirectory(link)).rejects.toThrow(
@@ -448,6 +469,34 @@ describe("isolated direct-sign-in Carmen lab", () => {
     } finally {
       expect(await client.cleanup()).toBe(true);
     }
+  });
+
+  it("recognizes visible Duo, policy and credential gates without treating an unknown page as Duo", async () => {
+    for (const reason of ["duo", "policy", "credentials", undefined]) {
+      const visible = (value: boolean) => ({
+        first: () => ({ isVisible: async () => value }),
+      });
+      const page = {
+        url: () =>
+          reason === "credentials"
+            ? "https://webauth.service.ohio-state.edu/"
+            : "https://osu.instructure.com/",
+        getByRole: () => visible(reason === "policy"),
+        locator: () => visible(reason === "credentials"),
+        frames: () => [
+          {
+            url: () => "https://synthetic.duosecurity.com/",
+            getByText: () => visible(reason === "duo"),
+          },
+        ],
+      };
+      expect(await lab.humanGate(page)).toBe(reason);
+    }
+    const observation = lab.observationFor(
+      { httpCheck: { authenticated: true, error: "rateLimited" } },
+      Date.now(),
+    );
+    expect(observation.initialState).toBe("inconclusive");
   });
 
   it("never consults a managed session or identity callback without permission", async () => {

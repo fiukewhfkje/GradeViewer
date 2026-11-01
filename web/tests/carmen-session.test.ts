@@ -82,6 +82,7 @@ describe("opt-in Carmen cookie diagnostic", () => {
     expect(report).toEqual({
       authenticated: true,
       courseTotalsChecked: true,
+      courseListEmpty: false,
       visibleTotalsPresent: true,
       courseListHasMorePages: true,
       cookieRotationOffered: true,
@@ -161,8 +162,30 @@ describe("opt-in Carmen cookie diagnostic", () => {
       fetcher: async () => json(++requests === 1 ? { id: 1 } : []),
     });
     expect(report.courseTotalsChecked).toBe(true);
+    expect(report.courseListEmpty).toBe(true);
     expect(report.visibleTotalsPresent).toBe(false);
     expect(report.courseListHasMorePages).toBe(false);
+  });
+
+  it("rejects malformed courses and enrollment scores rather than accepting a profile-only result", async () => {
+    for (const courses of [
+      { error: "not a list" },
+      [null],
+      [{ id: 0 }],
+      [{ id: 1, enrollments: {} }],
+      [{ id: 1, enrollments: [null] }],
+      [{ id: 1, enrollments: [{ computed_current_score: "not a number" }] }],
+    ]) {
+      let calls = 0;
+      const result = await probeCarmen({
+        consent: true,
+        grades: true,
+        cookie,
+        fetcher: async () => json(++calls === 1 ? { id: 1 } : courses),
+      });
+      expect(result.error).toBe("invalidCourseList");
+      expect(result.courseTotalsChecked).toBe(false);
+    }
   });
 
   it("optionally times complete reads without logging credentials or response data", async () => {

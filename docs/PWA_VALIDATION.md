@@ -1,3 +1,11 @@
+# Two-profile Carmen benchmark — November 1, 2026
+
+Production build/type check and **182 tests across 15 files** passed. New synthetic regressions cover distinct same-account authentication provenance/cookie-copy rejection, explicit week limits, courses/schema validation including `[]`, sequential idle wait anchoring, active cadence and widened real failure windows, course failure after identity success, unknown Duo outcomes, safe output and no-consent guards. Real CLI tests exercise private initialization, no-request not-due/finite-end paths, interrupted-check refusal and verified resume. A real local Chromium synthetic restoration remains covered; no real student data is used in committed fixtures. Final focused 30-test operator reruns cover subsequent coordinator recovery refinements. Local 81-file source packaging passed without publication.
+
+Live owner-authorized HTTP checks accepted identity at 19:11:45.934Z in 288 ms, identity/courses at 19:17:05.139Z in 409 ms, and identity/courses at 19:21:01.940Z in 404 ms with schema-valid empty `[]` explicitly confirmed. No browser or relogin was needed. This proves the authenticated course-total request path for an unenrolled account, not enrolled-course parsing, full snapshots, a running five-minute experiment, long-term lifetime or successful silent renewal. Encrypted state and private observations remain outside Git.
+
+At the owner’s request, two spaced fresh idle-browser starts were attempted; Cloudflare rejected both with 429 before OSU navigation. Read-only inventory reported zero active browsers. These are infrastructure failures, not Carmen expiries. There is no second authenticated profile, active two-probe trial, local/VM cron, recurring model task or deployment. The [benchmark](CARMEN_SESSION_BENCHMARK.md) documents the explicit seven-day extension, code-only cron and human/inconclusive recovery; the [support email](CARMEN_SUPPORT_EMAIL.md) is an unsent draft. Application/Worker sources and dependencies are unchanged; app E2E/template/deployment suites were not rerun. The release hold remains in force.
+
 # PWA verification — November 1, 2026
 
 ## Portable VM backend/export — no provider access
