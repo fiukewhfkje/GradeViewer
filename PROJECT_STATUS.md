@@ -1,5 +1,13 @@
 # Project status — November 1, 2026
 
+## Current: Muse VM HTTP proxy correction
+
+The owner relayed Muse's successful Wrangler/account authorization and failed first VM baseline: `networkUnavailable` after about 37 ms, no coordinator or cron. Muse isolated a transport gap: an explicitly proxied Playwright request reaches Canvas, while its default HTTP context does not. The two standalone HTTP contexts now share a small environment-proxy options helper, honoring HTTPS_PROXY/https_proxy and NO_PROXY/no_proxy, including wildcard and Canvas port-qualified bypass entries. Browser launch/recovery logic, endpoints, no-renew semantics, schedules, budgets, dependencies and authorization deadlines are unchanged.
+
+A replacement private ZIP preserves the same top-level folder and all 18 entries. Only `project/web/scripts/carmen-login-lab.mjs` and `README.md` differ from the original; sessions, keys, account/capture metadata and pinned packages are byte-for-byte identical. Muse should stage the archive separately and replace only that installed script, preserving its existing VM login and state. The README includes a sanitized no-session smoke command and instructions to retry the previously failed initialization without extending authorization. [Resumable handoff](docs/CARMEN_HANDOFF.md).
+
+Validation: the new regression failed before the helper, then passed; **202 tests across 16 files**, build/type check, formatting and private ZIP CRC/byte comparisons pass. A real no-session request using pinned Playwright 1.64.1 and an environment-configured temporary local forwarding proxy reached Canvas with **401 / JSON**, with an observed proxy tunnel, no saved session and no browser. This Mac has no VM proxy environment, so this does not claim a successful Muse baseline or cron installation. No authenticated Mac request, production change/deploy, main merge or release occurred. Earlier sections below are historical.
+
 
 ## Current: quota diagnosed, two captures saved, Muse handoff ready
 

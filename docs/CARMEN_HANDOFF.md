@@ -2,12 +2,30 @@
 
 This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
 
+## Latest: proxy-fix handoff for Muse
+
+The owner reports that Muse installed the original bundle on Linux/Node 24.22.1 and authorized pinned Wrangler 4.151.1 successfully. Account binding passes. Its first active HTTP baseline failed as `networkUnavailable` in about 37 ms; no coordinator or cron was created. Muse's separate no-session comparison reached Canvas only when Playwright received the VM's environment proxy explicitly. This is a technical transport failure, not measured session expiry or Cloudflare authorization failure.
+
+`carmen-login-lab.mjs` now uses `measurementRequestOptions` at both standalone HTTP context creation sites. It reads HTTPS_PROXY/https_proxy and respects NO_PROXY/no_proxy, including `*`, domain suffixes and Canvas's port 443. The pinned [Playwright API](https://playwright.dev/docs/api/class-apirequest#api-request-new-context-option-proxy) supports explicit proxy/bypass options; its installed domain matcher alone does not cover wildcard/port entries. Browser launch/recovery logic and all measurement policies remain unchanged. No proxy values are logged or stored.
+
+The replacement archive is:
+
+```text
+/Users/ashtonchang/Library/Application Support/GradeViewer/CarmenBenchmark/trial-20261101T234105Z/muse-handoff/carmen-muse-experiment-proxy-fix.zip
+```
+
+It keeps the original top-level `carmen-muse-experiment` and 18 entries. Exactly two entries differ: `project/web/scripts/carmen-login-lab.mjs` (helper/two callers) and `README.md` (patch/smoke/retry instructions). All other bytes, including sessions, wrapping keys, account/capture metadata and pinned packages, match the original archive. The original ZIP is retained. The new staging directory is `muse-handoff/proxy-fix/carmen-muse-experiment/`.
+
+**Next action:** send the replacement ZIP to Muse. Stage it separately; copy only the lab source over the already-installed source. Do not overwrite VM private state, dependencies, login or coordinator. Run the enclosed no-session smoke using Muse's existing proxy environment, then retry the failed init only if no coordinator exists. No new login, dependency upgrade or authorization extension is part of this fix. Cron must inherit its required proxy environment privately. Stop setup on an inconclusive baseline rather than retrying indefinitely.
+
+Validation here: regression failed before the fix, then passed; **202 tests/16 files**, build/type check and ZIP CRC/byte checks pass. Pinned Playwright 1.64.1, empty state and an environment-configured temporary local proxy reached real Canvas **401 / JSON**, with an observed CONNECT tunnel. No proxy values, raw response or credentials appeared in output; no saved session or browser was used. This Mac has no VM proxy environment, so actual Muse baseline/cron success remains unverified. Do not request Carmen with the Mac session copies. The original authorization still ends no later than November 8, 2026 23:41:13.829Z.
+
 ## Scope
 
 - Repository `/Users/ashtonchang/Documents/GradeViewer`, branch `codex/investigate-gpa-carmen`, origin `https://github.com/fiukewhfkje/GradeViewer.git`. Inspect `git log` for the final commit; the preceding baseline was `6e1551a`.
 - Carmen remains isolated operator tooling. Production PWA/Worker/provider settings still support Schoology only. GPA/Carmen work must not merge to main, deploy, publish a stable/prerelease or create tags. Validated branch pushes are authorized. Preserve the existing app/vault/address/sessions/updater.
 - The owner authorized two human sign-ins and a private transfer to Muse's VM. The human signed into two separate local Chromium processes through `--local-sign-in`; no passwords, Duo approvals or policy decisions were automated. This explicit human-capture exception is recorded in AGENTS. Automated tests and recovery remain headless CLI; do not use connected-browser/computer-use tools.
-- No cron, recurring AI task or VM installation has been performed here. The owner will send the private ZIP and prompt to Muse, whose ordinary code-only cron is the intended experiment host. No model invocation on ticks. The app must remain independent of Muse.
+- No cron, recurring AI task or VM installation has been performed here. The owner reports Muse's installation/Wrangler authorization, with initialization blocked as described above. Ordinary code-only cron is the intended experiment host; no model invocation on ticks. The app must remain independent of Muse.
 
 ## Exact persistent Mac locations — outside Git
 
@@ -66,7 +84,7 @@ The owner requires browser usage WELL below ten minutes/day. The trial's routine
 - `carmen-experiment.mjs`: portable init/tick/status/budget runner. Default Cloudflare recovery requires Muse's own authorized Wrangler login to the owner's account; Mac OAuth is not transferred. Pinned Wrangler supports `login --device`, useful on the remote VM. Init verifies the account binding, performs one controlled no-renew baseline for each profile on the VM, then starts its timers. Repeated successful initialization is refused before resetting a baseline. This initial migration baseline is not an idle-expiry observation.
 - `carmen-cloudflare-status.mjs PRIVATE_ROOT --consent`: read-only account usage/listing. Add `--probe-launch` only for a deliberate one-shot blank browser, which is explicitly closed. No Carmen requests. Do not use it as a repeated launch loop.
 
-**Immediate next action:** give Muse the private ZIP and [copy/paste prompt](CARMEN_MUSE_HANDOFF.md). It includes exact install, owner Cloudflare device-login if needed, initial baseline, cron, status and budget commands. Actual Linux/Muse installation has not been tested here. No experiment cron or coordinator has been initialized on the Mac. Do not claim the seven-day experiment is already running.
+The original handoff includes exact install, owner Cloudflare device-login if needed, initial baseline, cron, status and budget commands. Use the proxy-fix patch/retry instructions above for the already-installed VM. Actual Linux/Muse baseline success has not been tested here. No experiment cron or coordinator has been initialized on the Mac. Do not claim the seven-day experiment is already running.
 
 After VM takeover, **do not request Carmen using the Mac copies**: that could reset/contaminate the shared server sessions or stale rotated state. Read sanitized Muse observations instead. A first Cloudflare human prompt from Mac-captured state can reflect device/host migration; do not call it an exact SSO timeout or stable MFA frequency. Do not automatically type passwords, approve Duo or accept policies. Keep notifications quiet on ordinary success and report meaningful pauses, cleanup/budget failures and completion.
 

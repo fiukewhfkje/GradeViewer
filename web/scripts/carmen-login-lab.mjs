@@ -255,6 +255,32 @@ export function scopeState(state) {
   };
 }
 
+// Only the standalone HTTP client uses the VM proxy; browser recovery is unchanged.
+export function measurementRequestOptions(state, env = process.env) {
+  const options = { storageState: state };
+  const server = env.HTTPS_PROXY || env.https_proxy;
+  if (!server) return options;
+  const bypass = env.NO_PROXY || env.no_proxy;
+  // All measurement requests use this fixed HTTPS origin. Playwright's domain
+  // bypass list does not itself handle NO_PROXY=* or port-qualified entries.
+  const host = new URL(origin).hostname;
+  if (
+    (bypass ?? "").split(",").some((entry) => {
+      const value = entry.trim().toLowerCase();
+      if (value === "*") return true;
+      const [domain, port] = value.split(":");
+      const suffix = domain.replace(/^\*?\./, "");
+      return (
+        (!port || port === "443") &&
+        suffix &&
+        (host === suffix || host.endsWith("." + suffix))
+      );
+    })
+  )
+    return options;
+  return { ...options, proxy: { server, ...(bypass ? { bypass } : {}) } };
+}
+
 // Playwright manages cookie scope and Set-Cookie rotation for ordinary HTTP reads.
 // Its API client buffers a body; reject advertised oversize before buffering and
 // cap unadvertised size before conversion/JSON parsing. Never expose the body.
@@ -396,7 +422,8 @@ export async function attemptRenewal({
   read = readAccount,
   onStage = () => {},
   signal,
-  createRequest = (state) => request.newContext({ storageState: state }),
+  createRequest = (state) =>
+    request.newContext(measurementRequestOptions(state)),
   onPendingState = async () => {},
   localHandoff,
   stages = newRenewalStages(),
@@ -700,7 +727,7 @@ async function main() {
     };
     if (mode === "check") {
       baselineAt = saved.verifiedAt ?? saved.createdAt;
-      api = await request.newContext({ storageState: saved.state });
+      api = await request.newContext(measurementRequestOptions(saved.state));
       const result = await readAccount(api, saved, flags.includes("--grades"));
       observedAt = Date.now();
       report.httpCheck = result.report;

@@ -58,6 +58,56 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
 }
 
 describe("isolated direct-sign-in Carmen lab", () => {
+  it("uses environment proxies only for HTTP measurement and honors Canvas bypass entries", () => {
+    const state = { cookies: [], origins: [] };
+    const server = "http://synthetic-proxy.invalid:8080";
+    expect(lab.measurementRequestOptions(state, {})).toEqual({
+      storageState: state,
+    });
+    expect(
+      lab.measurementRequestOptions(state, {
+        HTTPS_PROXY: server,
+        https_proxy: "http://unused.invalid:8080",
+        NO_PROXY: "localhost,example.invalid",
+      }),
+    ).toEqual({
+      storageState: state,
+      proxy: { server, bypass: "localhost,example.invalid" },
+    });
+    expect(
+      lab.measurementRequestOptions(state, {
+        https_proxy: server,
+        no_proxy: "localhost",
+      }),
+    ).toEqual({ storageState: state, proxy: { server, bypass: "localhost" } });
+    for (const bypass of [
+      "*",
+      "osu.instructure.com",
+      " localhost, .instructure.com ",
+      "*.instructure.com",
+      "OSU.INSTRUCTURE.COM:443",
+    ]) {
+      expect(
+        lab.measurementRequestOptions(state, {
+          HTTPS_PROXY: server,
+          NO_PROXY: bypass,
+        }),
+      ).toEqual({ storageState: state });
+    }
+    for (const bypass of [
+      "osu.instructure.com:8443",
+      "notosu.instructure.com",
+      "structure.com",
+    ]) {
+      expect(
+        lab.measurementRequestOptions(state, {
+          HTTPS_PROXY: server,
+          NO_PROXY: bypass,
+        }).proxy,
+      ).toEqual({ server, bypass });
+    }
+  });
+
   it("uses explicit human completion for local capture without Cloudflare handoff commands", async () => {
     for (const done of [false, true]) {
       const api = apiFor();

@@ -2,6 +2,8 @@
 
 The ZIP contains two separately captured owner sessions and their wrapping keys. It contains no OSU password or Mac Cloudflare OAuth credential. Keep it in private VM storage outside a Git checkout. This prompt itself contains no credentials.
 
+For the already-installed VM with successful Wrangler authorization and a failed first HTTP baseline, use `carmen-muse-experiment-proxy-fix.zip`. Extract it separately and follow its README's proxy-correction section: replace only `project/web/scripts/carmen-login-lab.mjs`, run the no-session environment-proxy smoke, then retry init if no coordinator exists. Keep the VM's existing sessions, keys, metadata, dependencies, Wrangler login and authorization end. Do not re-run installation or overwrite private state with the archive copies. Ensure cron inherits the required VM proxy environment without printing/storing its values. The [handoff](CARMEN_HANDOFF.md) records exact artifact location, validation and remaining limits.
+
 ```text
 Run this finite Carmen session experiment using the attached private ZIP. Use ordinary shell/Node cron, with no LLM invocation on ticks. Do not deploy a Worker, publish anything, upgrade a Cloudflare plan or modify production GradeViewer.
 
