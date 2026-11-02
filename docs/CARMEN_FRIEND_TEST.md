@@ -4,7 +4,7 @@ For the current owner experiment, read the [self-contained handoff](CARMEN_HANDO
 
 Ready for a supervised experiment, not a supported Carmen connection. The account holder signs in directly through a private Cloudflare Live View. No password, cookie header, HAR, browser-state file or screenshot of credentials should be pasted into chat. Production and stable releases remain untouched.
 
-The owner’s original identity and course-total HTTP reads passed, including a schema-valid empty course list. That temporary state/archive is now missing; the evening check made no Carmen request. A fresh persistent capture was blocked by Cloudflare 429 before OSU. Their friend is not needed for the current experiment; two new owner-controlled captures remain pending.
+The owner’s original identity and course-total HTTP reads passed, including a schema-valid empty course list. That temporary state/archive is now missing; the evening check made no Carmen request. Cloudflare creation was blocked before its daily reset; two fresh owner-controlled local captures then passed, and a blank Cloudflare browser worked after reset. Their friend is not needed; the current private Muse export is ready, with experiment initialization still pending on the VM.
 
 ## Short instructions for the account holder
 

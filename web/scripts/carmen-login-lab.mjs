@@ -9,15 +9,16 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createInterface } from "node:readline/promises";
 import { request } from "playwright-core";
 import { random, seal, unseal } from "../worker/crypto.ts";
 import {
   createBrowserClient,
   createLocalBrowserClient,
 } from "./carmen-browser-client.mjs";
-import { probeCarmen } from "./verify-carmen-session.mjs";
+import { probeCarmen, outsideDirectory } from "./verify-carmen-session.mjs";
 
 const origin = "https://osu.instructure.com";
 const ownPath = fileURLToPath(import.meta.url);
@@ -42,13 +43,11 @@ export async function labDirectory(path, create = false) {
     fileURLToPath(new URL("../", import.meta.url)),
   );
   const root = await realpath(join(appRoot, "..")).catch(() => appRoot);
-  const location = relative(root, actual);
-  if (!location || (!location.startsWith("../") && !isAbsolute(location)))
-    throw fault("labMustBeOutsideProject");
+  if (!outsideDirectory(root, actual)) throw fault("labMustBeOutsideProject");
   return actual;
 }
 
-export async function privateRead(directory, name) {
+export async function privateRead(directory, name, limit = maxBytes) {
   const file = await open(
     join(directory, name),
     constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -57,7 +56,7 @@ export async function privateRead(directory, name) {
     const info = await file.stat();
     if (
       !info.isFile() ||
-      info.size > maxBytes ||
+      info.size > Math.min(limit, 5_100_000) ||
       info.mode & 0o077 ||
       (process.getuid && info.uid !== process.getuid())
     )
@@ -399,6 +398,7 @@ export async function attemptRenewal({
   signal,
   createRequest = (state) => request.newContext({ storageState: state }),
   onPendingState = async () => {},
+  localHandoff,
   stages = newRenewalStages(),
   clock = () => performance.now(),
   pause = () => new Promise((done) => setTimeout(done, 1000)),
@@ -409,7 +409,7 @@ export async function attemptRenewal({
   // Initial handoff uses only this newly created browser's fresh default context;
   // silent restoration remains isolated in a new browser context.
   const context =
-    interactive && !saved
+    interactive && !saved && browser.contexts()[0]
       ? browser.contexts()[0]
       : await browser.newContext(saved ? { storageState: saved.state } : {});
   const page = await context.newPage();
@@ -437,7 +437,12 @@ export async function attemptRenewal({
     timeout: Math.max(1, Math.min(20_000, cutoff - clock())),
   });
   let handoffState = interactive ? "pending" : "done";
-  if (interactive) {
+  if (interactive && localHandoff) {
+    onStage("awaitLocalAccountHolder");
+    handoffState = (await localHandoff(Math.max(1, cutoff - clock())))
+      ? "done"
+      : "failed";
+  } else if (interactive) {
     onStage("generatePrivateHandoff");
     const cdp = await context.newCDPSession(page);
     const view = await cdp.send("Cloudflare.getLiveView", {
@@ -594,11 +599,14 @@ async function main() {
           "--grades",
           "--no-renew",
           "--local-browser",
+          "--local-sign-in",
           "--week",
         ].includes(flag),
     ) ||
     (["start", "reconnect"].includes(mode) &&
       (flags.includes("--no-renew") || flags.includes("--local-browser"))) ||
+    (flags.includes("--local-sign-in") &&
+      !["start", "reconnect"].includes(mode)) ||
     (["check", "renew", "reconnect"].includes(mode) &&
       flags.includes("--week")) ||
     (mode === "renew" && flags.includes("--no-renew")) ||
@@ -682,6 +690,13 @@ async function main() {
       authorizedUntil:
         saved?.authorizedUntil ??
         createdAt + (flags.includes("--week") ? week : maxAge),
+      captureRuntime:
+        saved?.captureRuntime ??
+        (mode === "start"
+          ? flags.includes("--local-sign-in")
+            ? "mac-local-human"
+            : "cloudflare"
+          : "unknown"),
     };
     if (mode === "check") {
       baselineAt = saved.verifiedAt ?? saved.createdAt;
@@ -732,12 +747,16 @@ async function main() {
       mode === "renew" || mode === "check",
     );
     recoveryBegan = performance.now();
-    report.browserRuntime = flags.includes("--local-browser")
-      ? "vm-local"
-      : "cloudflare";
-    client = flags.includes("--local-browser")
-      ? createLocalBrowserClient(timed)
-      : createBrowserClient(directory, timed);
+    const localSignIn = flags.includes("--local-sign-in");
+    report.browserRuntime = localSignIn
+      ? "mac-local-human"
+      : flags.includes("--local-browser")
+        ? "vm-local"
+        : "cloudflare";
+    client =
+      flags.includes("--local-browser") || localSignIn
+        ? createLocalBrowserClient(timed, { humanSignIn: localSignIn })
+        : createBrowserClient(directory, timed);
     stage = "cloudBrowserLaunch";
     const { browser } = await client.open();
     report.renewalStages.browserLaunched = true;
@@ -747,8 +766,35 @@ async function main() {
       saved,
       grades: flags.includes("--grades"),
       interactive,
-      deadlineMs: interactive ? 240_000 : 25_000,
+      deadlineMs: interactive ? (localSignIn ? 600_000 : 240_000) : 25_000,
       stages: report.renewalStages,
+      localHandoff: localSignIn
+        ? async (remainingMs) => {
+            console.log(
+              JSON.stringify({
+                awaitingAccountHolder: true,
+                localSignInWindow: true,
+                instructions:
+                  "Complete OSU/Duo and all first-use screens in this local browser. Tell the operator when Carmen is ready; the operator then enters DONE here. The script verifies the account only after DONE.",
+                timeoutSeconds: Math.floor(remainingMs / 1000),
+              }),
+            );
+            const input = createInterface({ input: process.stdin });
+            try {
+              const answer = await input.question("", {
+                signal: AbortSignal.any([
+                  controller.signal,
+                  AbortSignal.timeout(Math.max(1, Math.floor(remainingMs))),
+                ]),
+              });
+              return answer.trim() === "DONE";
+            } catch {
+              return false;
+            } finally {
+              input.close();
+            }
+          }
+        : undefined,
       signal: controller.signal,
       onPendingState: async (state) => {
         await savePending(
@@ -832,6 +878,7 @@ async function main() {
               : "labFailed";
   } finally {
     if (client && !(await client.cleanup())) report.cleanupFailed = true;
+    if (client) report.browserLeaseWallMs = client.browserLeaseWallMs();
     if (recoveryBegan !== undefined)
       report.timingsMs.browserRecoveryTotal = [
         Math.round(performance.now() - recoveryBegan),

@@ -1,81 +1,73 @@
-# Carmen diagnostic handoff — November 1, 2026, evening
+# Carmen diagnostic handoff — November 1, 2026, after 7 PM EST
 
-This is the starting point for a fresh thread. Read `AGENTS.md`, then this file and [the benchmark protocol](CARMEN_SESSION_BENCHMARK.md). Inspect the current Git/filesystem state before treating a saved status as current.
+This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
 
-## Scope and delivery
+## Scope
 
-- Work in `/Users/ashtonchang/Documents/GradeViewer`, branch `codex/investigate-gpa-carmen`, origin `https://github.com/fiukewhfkje/GradeViewer.git`. The prior committed benchmark baseline is `1e775cb`; inspect `git log` for subsequent work.
-- The production PWA/Worker still supports Schoology only. Carmen is isolated operator tooling, not an installed integration. GPA research is also development-only.
-- The owner forbids production deployment, main merges, tags, stable releases and prereleases. Validated development-branch commits/pushes are authorized. Preserve the existing Worker, vault, address, credentials, sessions and updater.
-- Do not install a cron or create recurring AI jobs. The owner wants exact commands for Muse’s separate VM, with ordinary code-only ticks and no model invocation. No cron/AI monitor is running here.
-- Use headless CLI browsers and synthetic fixtures. The human signs in themselves through the private Cloudflare handoff; never automate passwords, Duo approval or policy acceptance, and never expose credentials or browser URLs.
+- Repository `/Users/ashtonchang/Documents/GradeViewer`, branch `codex/investigate-gpa-carmen`, origin `https://github.com/fiukewhfkje/GradeViewer.git`. Inspect `git log` for the final commit; the preceding baseline was `6e1551a`.
+- Carmen remains isolated operator tooling. Production PWA/Worker/provider settings still support Schoology only. GPA/Carmen work must not merge to main, deploy, publish a stable/prerelease or create tags. Validated branch pushes are authorized. Preserve the existing app/vault/address/sessions/updater.
+- The owner authorized two human sign-ins and a private transfer to Muse's VM. The human signed into two separate local Chromium processes through `--local-sign-in`; no passwords, Duo approvals or policy decisions were automated. This explicit human-capture exception is recorded in AGENTS. Automated tests and recovery remain headless CLI; do not use connected-browser/computer-use tools.
+- No cron, recurring AI task or VM installation has been performed here. The owner will send the private ZIP and prompt to Muse, whose ordinary code-only cron is the intended experiment host. No model invocation on ticks. The app must remain independent of Muse.
 
-## Private storage on the owner’s Mac
-
-Persistent root, **outside Git**:
+## Exact persistent Mac locations — outside Git
 
 ```text
 /Users/ashtonchang/Library/Application Support/GradeViewer/CarmenBenchmark/
+  CURRENT.json
+  README.txt
+  cloudflare-reset-probe.json
+  trial-20261101T234105Z/
+    active/key
+    active/session.json
+    active/observations.jsonl
+    idle/key
+    idle/session.json
+    capture-summary.json
+    cloudflare-account.json
+    muse-handoff/carmen-muse-experiment.zip
+    muse-handoff/SEND-TO-MUSE.md
+    muse-handoff/carmen-muse-experiment/
 ```
 
-The current attempted trial is:
+`CURRENT.json` is the private pointer to the current trial and artifact. Root/trial/profile directories have mode 700, keys/encrypted state/private metadata/ZIP mode 600. Source/wrapper files in the private extracted bundle are owner-readable/executable as needed. Check actual files/modes rather than assuming a key implies authentication.
 
-```text
-/Users/ashtonchang/Library/Application Support/GradeViewer/CarmenBenchmark/trial-20261101T231441Z/
-```
+**Both active and idle encrypted sessions exist and were verified for the same account**, with distinct authentication IDs and session-cookie copy guards passing. Those guards cannot mathematically prove independence after arbitrary manual edits; output deliberately says `independenceProven: false`. Actual captures used two fresh independent browser processes, not copied login state.
 
-**Actual state when this handoff was written:** the trial and `active/` directories exist with mode 700; `active/key` exists with mode 600. `active/session.json` does **not** exist. `idle/` does **not** exist. This was a failed fresh-browser launch, not an authenticated capture. A key alone is not a session. No new transfer ZIP or usable two-profile benchmark exists.
+The per-profile `key` unwraps encrypted `session.json`; optional `pending.json` is not an activated verified account. Never print/paste these files or copy them into Git/fixtures/prompts. The ZIP includes both session envelopes and their wrapping keys, but no OSU password or Mac Cloudflare OAuth credential. The private Cloudflare account ID only binds the expected account; it does not authorize API access. Expiration refuses later use but does not erase files automatically.
 
-The CLI’s private per-profile files are `key` (wrapping key), `session.json` (encrypted scoped browser state and account binding), optional encrypted `pending.json`, and sanitized `observations.jsonl`. A transient `login.html` contains a sensitive browser handoff link and is removed after the attempt; never print its contents or URL. Coordinator state/logs live in a separate owner-only benchmark directory. Never copy these files into Git, fixtures, prompts or public artifacts. Expiration refuses later use but does not delete private files automatically.
+Do not use temporary folders for retained captures. The earlier `/var/folders/rj/q4pkkt7x47xbs5501nyqlx6m0000gn/T/gradeviewer-owner-carmen-PJJV9Z/retry4/` and temporary transfer ZIP were missing on the evening return. The owner had not retained the old ZIP. The requested multi-hour original-session check therefore made no Carmen request; its expiry remains unknown. Do not infer why the files disappeared. The older persistent failed trial `trial-20261101T231441Z/active` contains only an unbound key and is not the current session.
 
-Use persistent private storage for multi-day experiments. On a Linux VM, a suitable root is `$HOME/.local/share/gradeviewer-carmen` with mode 700. Do not use OS temporary folders for retained account state. Each profile needs a separate human-completed fresh sign-in; transferring a profile between hosts is not a second authentication and can itself change Duo/device behavior.
+## Actual account evidence
 
-## What happened to the original session
+- Original initial/saved-session identity reads passed in 254/269 ms. Later identity passed in 349 ms after about 24½ minutes; at 2:11 PM EST it passed in 288 ms after a 37m19.126s gap.
+- Original courses/total-scores reads passed at 2:17 PM in 409 ms and at 2:21 PM in 404 ms, explicitly confirming schema-valid `[]`. The side-chat claim that courses had never been requested was stale.
+- Fresh local captures: active verified **2026-11-01T23:43:13.340Z (6:43 PM EST)**, identity/courses 385 ms; idle verified **23:43:13.975Z**, 338 ms. Both returned real valid empty course lists. Their browsers then closed. Initial human-inclusive browser intervals were about two minutes each, **local rather than Cloudflare usage**.
+- At **2026-11-02T00:16:08.303Z (7:16 PM EST November 1)**, the active profile passed a post-browser-close HTTP-only/no-renew check in 385 ms after a 32m54.963s gap. Its rotated cookies were saved. This was pre-trial transport verification, not a running five-minute experiment. The idle profile has had **no extra request since capture**.
+- Authorization ends no later than **2026-11-08T23:41:13.829Z (November 8, 6:41 PM EST)**, seven days from original capture setup. Do not extend it silently. A new session test can be separately authorized if more time is needed.
+- The owner has no enrolled courses. This proves the authenticated grade-data request path, not enrolled-course parsing, complete snapshots, physical phones, Worker portability, actual expired-session renewal or steady-state MFA frequency.
 
-The original state was stored under:
+## Cloudflare 429 investigation and browser budget
 
-```text
-/var/folders/rj/q4pkkt7x47xbs5501nyqlx6m0000gn/T/gradeviewer-owner-carmen-PJJV9Z/retry4/
-```
+The current Mac Wrangler login is an OAuth login to one Cloudflare account; earlier browser logs matched that account. There was no Cloudflare account/API-token environment override. Changing ChatGPT accounts does not change these cached Cloudflare credentials.
 
-An old private archive had been created under `T/gradeviewer-muse-transfer-gduuoivt/carmen-muse-vm.zip`. Both that archive and the original directory were missing on the evening return. A filename-only search found no matching accessible local copy in Downloads/Documents/the temporary root; some OS-protected directories were inaccessible. The owner confirmed they did not retain the ZIP. Do not claim a complete forensic search, a cause of file disappearance, or a measured OSU expiry. No password was saved, so the old session cannot be automatically recovered without a retained copy.
+Before UTC midnight, browser creation returned generic **Rate limit exceeded**, with no Retry-After. Account authentication/listing worked, zero browsers were active and Cloudflare reported Browser Run operational. GraphQL account analytics reported **654,396 ms (10m54s)** of browser time on November 1, above the documented Free allowance of 600,000 ms/day. Billing-plan read was unavailable (403), so the status tool reports `planVerified: false`; do not invent billing details or claim an exact limiter implementation.
 
-The owner explicitly permits fresh sign-ins for two isolated profiles and is willing to complete OSU/Duo when a window is available. A fresh capture at about **6:14 PM EST** used the persistent trial above but failed at Cloudflare browser launch with sanitized **429**, before OSU navigation. Do not claim a fresh authenticated session or Duo outcome. Further launches have not been scheduled. The precise quota cause/reset ETA is unknown; do not promise a fixed retry time from the generic 429.
+After the UTC-day reset (**7 PM EST November 1**), account analytics reported zero for the new day before a blank-browser test. The same CLI/account then successfully launched and explicitly closed a browser at **2026-11-02T00:02:19.508Z**, with **2,836 ms lease wall time through close acknowledgement**. No OSU page was visited. Thus the 429 cleared at the documented daily reset, consistent with exhausting the effective Free allowance. This is not full SSO recovery timing or exact billed duration. A one-shot reset probe initially failed technically; the later successful result is retained in `cloudflare-reset-probe.json`. No probe process or retry loop is still running.
 
-## Verified evidence and unknowns
+The owner requires browser usage WELL below ten minutes/day. The trial's routine unattended-recovery target is **at most 120 seconds per rolling 24 hours**, with account-wide telemetry checked too. `carmen-browser-budget.mjs` reports per-probe/runtime calendar-day and rolling-24h totals, max lease, missing costs and deferrals. Wall time is not exact billing, analytics may lag/be sampled, and initial/manual/other-account workloads also need headroom. VM timing does not prove Cloudflare usage. A budget pass alone does not prove infrequent manual login.
 
-- The original human-completed sign-in verified identity in 254 ms; a later saved-session HTTP identity read took 269 ms without Chromium.
-- A later self-profile read passed in 349 ms after about 24½ minutes. At **2:11 PM EST**, identity passed in 288 ms after a 37m19.126s gap.
-- At **2:17 PM EST**, identity plus the documented courses/total-scores endpoint passed in 409 ms. At **2:21 PM EST** (`2026-11-01T19:21:01.940Z`), it passed again in 404 ms and explicitly confirmed schema-valid `[]`. Thus the side-chat claim that courses had never been requested is stale.
-- The evening original-session check failed locally because its state was missing; **no Carmen request occurred**. There is no multi-hour survival/expiry result.
-- Earlier cloud renewal attempts and the fresh evening capture were rejected by Cloudflare before OSU. We have not observed a successful real expired-session renewal, a real renewal-time credential prompt or a renewal-time Duo challenge. Synthetic classifications are not account evidence.
-- The owner has no enrolled courses. A valid empty course list verifies authenticated access to the grade-data route; per-course grade parsing, complete snapshots, Worker portability, physical-phone behavior and end-to-end Carmen PWA timing remain unverified.
-- OSU documents a two-hour Carmen inactivity logout and separate 24-hour BuckeyePass browser trust. Neither establishes the exact SSO maximum, whether API reads reset inactivity, or how often Duo will actually be required.
-- [The support email](CARMEN_SUPPORT_EMAIL.md) is ready for the owner to send to the officially listed `carmen@osu.edu`. It has not been sent.
+`carmen-experiment.mjs tick --observe-recovery` always logs no-renew HTTP measurement first, then separately invokes at most one recovery per tick. It spaces Cloudflare acquisitions, holds at the rolling routine target, avoids creation when account telemetry leaves under 120 seconds of Free headroom, and defers unknown budgets instead of repeatedly launching. Future PWA design must coalesce across devices, retain cached grades and display a clear temporary-refresh/retry state rather than raw 429s. That PWA UI/Worker feature is not implemented or deployed.
 
-## Current tooling contract
+## Tooling and next steps
 
-- `web/scripts/verify-carmen-session.mjs` is the canonical schema/error probe. It checks account identity, then `GET /api/v1/courses?enrollment_type=student&include[]=total_scores&per_page=100`. Output contains only fixed classifications, first-page course count, field-presence/empty/pagination booleans and durations. No identity details, names, scores, raw responses or sensitive URLs.
-- `web/scripts/carmen-login-lab.mjs` owns direct sign-in, encrypted state, HTTP checks and browser recovery. `check --no-renew` is measurement-only. `renew` requires a persisted confirmed auth rejection and claims at most one attempt before launch. `reconnect` is human controlled. Missing private state is a local setup failure, never expiry.
-- `web/scripts/carmen-benchmark.mjs` runs the active and idle schedules. Every scheduled check is HTTP-only with `--no-renew`. A confirmed failure pauses the probe; **only a separate `renew` command** can try headless recovery. Inconclusive/technical failures also pause rather than retrying every minute.
-- The active schedule is five minutes, with actual timestamps/bounds if ticks are late. Idle waits are **2, 4, 8, 16, 24, then 48 hours**, each from the previous successful check, totaling 102 hours. They are not a full quiet week. A later full-week-with-no-requests experiment needs separate explicit retention planning; do not silently exceed the seven-day-from-capture cap. Output says `fullWeekQuietTest: false`.
-- Profile provenance/cookie-copy guards reject obvious reuse, but cannot prove independence against manually edited files. Output explicitly says `independenceProven: false`. Use two genuinely separate sign-ins.
-- Renewal stages distinguish a confirmed Carmen rejection; browser launch; OSU reached/silent continuation/stable credential prompt; Duo page versus observed challenge; policy/other human steps; verified renewal success; and technical/unknown failures. A password screen is not proof of an exact SSO timeout. A Duo URL or generic failure is not proof Duo was required. Stable prompt checks do not fill/click controls.
-- The default local safety limit is 48 hours. Explicit `start --week`/`authorize --week` permits up to seven days from capture; this is not Carmen’s lifetime and does not resurrect already-expired local state. `init --hours=N` bounds a shorter experiment (1–168 hours).
+- `verify-carmen-session.mjs`: canonical same-account profile plus `GET /api/v1/courses?enrollment_type=student&include[]=total_scores&per_page=100`, strict JSON/schema, first-page counts/field-presence only. Valid `[]` is success. HTML/malformed/403/429/network/5xx are not expiry. Only a 401 or reviewed sign-in redirect confirms rejection. No names/identity/grades/secrets in output.
+- `carmen-login-lab.mjs`: `start`/`reconnect` human captures, default 48h or explicit `--week`; `check --no-renew` HTTP only; `renew` requires a persisted rejection and claims one attempt before launch. Stages separate Carmen rejection, OSU reached/silent continuation/credentials, Duo page/challenge, policy/other human steps and technical/unknown results. A credential screen does not prove an exact SSO timeout.
+- `carmen-benchmark.mjs`: active every five minutes; idle 2/4/8/16/24/48h from each successful verification. Total waits 102h, max quiet gap 48h. This is not a week without requests; output says `fullWeekQuietTest: false`. Actual last-success-to-failure timestamps bound expiry; network errors/missed ticks widen uncertainty. Repeated recovery episodes are required for human-action frequency.
+- `carmen-experiment.mjs`: portable init/tick/status/budget runner. Default Cloudflare recovery requires Muse's own authorized Wrangler login to the owner's account; Mac OAuth is not transferred. Pinned Wrangler supports `login --device`, useful on the remote VM. Init verifies the account binding, performs one controlled no-renew baseline for each profile on the VM, then starts its timers. Repeated successful initialization is refused before resetting a baseline. This initial migration baseline is not an idle-expiry observation.
+- `carmen-cloudflare-status.mjs PRIVATE_ROOT --consent`: read-only account usage/listing. Add `--probe-launch` only for a deliberate one-shot blank browser, which is explicitly closed. No Carmen requests. Do not use it as a repeated launch loop.
 
-## Resume commands and next actions
+**Immediate next action:** give Muse the private ZIP and [copy/paste prompt](CARMEN_MUSE_HANDOFF.md). It includes exact install, owner Cloudflare device-login if needed, initial baseline, cron, status and budget commands. Actual Linux/Muse installation has not been tested here. No experiment cron or coordinator has been initialized on the Mac. Do not claim the seven-day experiment is already running.
 
-1. Check Git status/current tests and the private paths above without printing file contents. Preserve unrelated work. Missing session files mean fresh capture is required.
-2. When Cloudflare allows acquisition and the owner is ready, choose **new, nonexistent** profile directory names under the persistent root. The failed `active/` path cannot be reused with `start`; existing directories are deliberately rejected. From `web/`:
+After VM takeover, **do not request Carmen using the Mac copies**: that could reset/contaminate the shared server sessions or stale rotated state. Read sanitized Muse observations instead. A first Cloudflare human prompt from Mac-captured state can reflect device/host migration; do not call it an exact SSO timeout or stable MFA frequency. Do not automatically type passwords, approve Duo or accept policies. Keep notifications quiet on ordinary success and report meaningful pauses, cleanup/budget failures and completion.
 
-   ```sh
-   node scripts/carmen-login-lab.mjs start "/ABS/PERSISTENT/TRIAL/active-next" --consent --grades --week
-   node scripts/carmen-login-lab.mjs start "/ABS/PERSISTENT/TRIAL/idle-next" --consent --grades --week
-   ```
-
-   Run these sequentially, respecting Cloudflare cooldowns. The owner opens the printed private HTML file, completes sign-in/Duo/policy screens and selects Done. Do not begin another capture while the first is waiting. Close each owned browser explicitly (the CLI does this). On 429, stop and report the technical blocker; do not spin on launch.
-3. Do not touch the idle profile after successful capture except at its scheduled checks. Initialize only after both independently authenticated profiles verify the course path. The [protocol](CARMEN_SESSION_BENCHMARK.md) gives exact initialization, no-renew checks, one separate renewal, verified resume and VM cron commands. No scheduler is installed by preparing these instructions.
-4. A VM run uses `--local-browser` at coordinator initialization and needs its own headless Chromium/Node 24+. Never transfer the Mac’s Cloudflare login. Device/IP migration is an experimental variable; VM timings do not establish Cloudflare timings.
-5. Validate changes with the relevant operator tests, build/type check and source-package checks from `web/`; update PROJECT_STATUS/TODO/validation with actual results. Commit/push only this development branch. No releases or deployment.
-
-The immediate blockers are fresh authenticated captures and Cloudflare acquisition, not a known OSU rejection. The owner’s desired eventual PWA behavior remains cached grades immediately, fast HTTP refreshes, automatic silent SSO recovery when possible, and human reconnect only when the observed flow requires it. This measurement protocol does not implement that PWA feature.
+The [support email](CARMEN_SUPPORT_EMAIL.md) to `carmen@osu.edu` remains unsent. OSU documents two-hour Carmen inactivity and separate 24-hour BuckeyePass browser trust, but exact SSO maxima/API activity effects are not established. The eventual Canvas settings option remains contingent on real parsing, user interaction, renewal reliability and budget evidence. No release, main merge, production deployment or paid upgrade is authorized.

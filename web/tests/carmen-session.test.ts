@@ -13,6 +13,26 @@ const json = (data: unknown, headers = {}) =>
   });
 
 describe("opt-in Carmen cookie diagnostic", () => {
+  it("accepts an external parent bundle root while denying the project and its descendants", () => {
+    expect(carmenSession.outsideDirectory("/private/project", "/private")).toBe(
+      true,
+    );
+    expect(
+      carmenSession.outsideDirectory("/private/project", "/private/project"),
+    ).toBe(false);
+    expect(
+      carmenSession.outsideDirectory(
+        "/private/project",
+        "/private/project/sub",
+      ),
+    ).toBe(false);
+    expect(
+      carmenSession.outsideDirectory(
+        "/private/project",
+        "/private/project-copy",
+      ),
+    ).toBe(true);
+  });
   it("makes no request without the account holder's permission", async () => {
     let requests = 0;
     const report = await probeCarmen({

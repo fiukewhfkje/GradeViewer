@@ -158,6 +158,7 @@ export function newBenchmark(
 function scheduleNext(probe, role, baseline, advance = true) {
   probe.phase = "waiting";
   probe.lastSuccessAt = baseline;
+  probe.confirmedExpiry = false;
   if (role === "idle" && advance) probe.intervalIndex++;
   if (role === "idle" && probe.intervalIndex === idleIntervals.length) {
     probe.phase = "complete";
@@ -315,6 +316,17 @@ export function applyRenewalResult(probe, role, report, began, ended) {
     recoveryError: safeError(report.renewal?.error ?? report.error),
     renewalMs: report.timingsMs?.renewal?.[0] ?? null,
     recoveryTotalMs: report.timingsMs?.browserRecoveryTotal?.[0] ?? null,
+    browserRuntime:
+      report.browserRuntime === "cloudflare"
+        ? "cloudflare"
+        : report.browserRuntime === "vm-local"
+          ? "vm-local"
+          : "unknown",
+    browserLeaseWallMs:
+      Number.isFinite(report.browserLeaseWallMs) &&
+      report.browserLeaseWallMs >= 0
+        ? report.browserLeaseWallMs
+        : null,
     cleanupFailed: report.cleanupFailed === true,
     courseTotalsChecked: succeeded,
     courseCount:
@@ -588,6 +600,7 @@ async function main() {
         probe.lastSuccessAt
       ) {
         probe.phase = "paused";
+        probe.confirmedExpiry = false;
         probe.pausedAt = Date.now();
         probe.nextAt = null;
         await saveState(directory, state);

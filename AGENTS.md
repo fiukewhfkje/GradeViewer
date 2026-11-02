@@ -11,6 +11,7 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Preserve the last successful snapshot on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
 - Keep calculated graph points separate from observed history and never invent missing dates. The tooltip shows grade/date only, per the user’s preference.
 - Use synthetic tests and headless CLI browsers. No connected-browser/computer-use or mouse/keyboard GUI automation.
+- At the owner's explicit request for two visible sign-in windows, isolated local Chromium captures may use `--local-sign-in` for human input only. The agent must not fill credentials, approve Duo or accept policies. Automated tests and renewal stay headless; this exception does not authorize connected-browser/computer-use tools.
 - Keep `web/` buildable as an isolated template root. Run appropriate `npm run build`, `npm test`, browser and release-package checks from `web/`; keep CI proportional and do not reintroduce cross-language comparisons.
 - Preserve the existing Worker, URL, vault, password, sessions and signed source-update verification boundary during updates. Use existing merge/deployment workflows; repository cleanup alone does not require a new stable tag.
 - Use focused commits and preserve Git history. The PWA migration is already merged; do not repeat its merge or recreate published tags.

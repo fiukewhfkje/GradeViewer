@@ -14,6 +14,13 @@ const validID = (value) =>
     ? Number.isSafeInteger(value) && value > 0
     : typeof value === "string" && /^[1-9]\d{0,19}$/.test(value);
 
+export function outsideDirectory(root, actual) {
+  const location = relative(root, actual);
+  return (
+    location === ".." || location.startsWith("../") || isAbsolute(location)
+  );
+}
+
 export function parseCookieHeader(input) {
   const header = input.trim().replace(/^cookie:\s*/i, "");
   if (!header || header.length > 65536 || /[^\x20-\x7e]/.test(header))
@@ -56,8 +63,7 @@ export async function readPrivateCookieFile(path) {
       /* No Git metadata at this parent. */
     }
   }
-  const location = relative(await realpath(protectedRoot), actual);
-  if (!location || (!location.startsWith(".." + "/") && !isAbsolute(location)))
+  if (!outsideDirectory(await realpath(protectedRoot), actual))
     throw failure("cookieFileMustBeOutsideProject");
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {

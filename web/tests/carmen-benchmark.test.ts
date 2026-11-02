@@ -152,6 +152,7 @@ describe("finite active and sequential idle Carmen benchmark", () => {
       silentRenewals: 1,
     });
     expect(other.intervalIndex).toBe(1);
+    expect(other.confirmedExpiry).toBe(false);
   });
   it("requires separate authentications, same account and verified grade-path scope", () => {
     expect(() =>

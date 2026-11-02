@@ -58,6 +58,33 @@ function apiFor(data: unknown = profile, status = 200, extraHeaders = {}) {
 }
 
 describe("isolated direct-sign-in Carmen lab", () => {
+  it("uses explicit human completion for local capture without Cloudflare handoff commands", async () => {
+    for (const done of [false, true]) {
+      const api = apiFor();
+      const context = {
+        newPage: async () => ({
+          goto: async () => {},
+          url: () => "https://osu.instructure.com/",
+        }),
+        storageState: async () => ({ cookies: [], origins: [] }),
+        newCDPSession: async () => {
+          throw new Error("must not use Cloudflare handoff for local capture");
+        },
+      };
+      const r = await lab.attemptRenewal({
+        browser: { contexts: () => [], newContext: async () => context },
+        interactive: true,
+        deadlineMs: 2000,
+        createRequest: async () => api,
+        localHandoff: async () => {
+          expect(api.calls).toHaveLength(0);
+          return done;
+        },
+      });
+      expect(r.report.authenticated).toBe(done);
+      expect(api.calls).toHaveLength(done ? 1 : 0);
+    }
+  });
   it("claims exactly one recovery per recorded failure, including concurrent invocations", async () => {
     const parent = await mkdtemp(join(tmpdir(), "synthetic-carmen-claim-"));
     try {
@@ -637,6 +664,7 @@ describe("isolated direct-sign-in Carmen lab", () => {
       expect(result.renewalMs).toBeGreaterThanOrEqual(0);
     } finally {
       expect(await client.cleanup()).toBe(true);
+      expect(client.browserLeaseWallMs()).toBeGreaterThan(0);
     }
   });
 
