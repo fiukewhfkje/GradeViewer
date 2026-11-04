@@ -21,3 +21,5 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Widgets are intentionally removed. Do not restore widget routes or native extensions.
 
 - November 4 authorization: implement IC on main and deploy only to the owner’s existing Cloudflare Worker for testing, with no new stable tag/release. Finish Carmen on `codex/investigate-gpa-carmen` without deploying it. Keep only those two branches. The proposed 90-minute Carmen HTTP keepalive is an unverified lifetime experiment, not a promise that requests reset the server idle timeout.
+
+- Carmen runtime is implemented only on the held investigative branch. Read docs/CARMEN_INTEGRATION.md for normalization, standalone workspaces, separate OSU GPA and HTTP-only session-maintenance limits. Keep the branch undeployed and distinguish synthetic checks from enrolled-account acceptance.

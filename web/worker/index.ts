@@ -46,6 +46,7 @@ interface Scan {
 interface Vault {
   credentials?: Envelope;
   account?: string;
+  workspace?: string;
   revision: string;
   scans: Record<string, Scan>;
   cooldown: number;
@@ -152,16 +153,26 @@ export class CredentialVault {
     private env: Env,
   ) {}
   protected upstream: Fetcher = fetch;
-  protected portals() {
+  protected portals(kind: "campus" | "carmen" = "campus") {
     return new PortalService(
       this.ctx.storage,
       this.env.APP_PASSWORD,
       this.env.BROWSER,
       this.upstream,
+      kind,
     );
   }
   async alarm() {
-    const result = this.queue.then(() => this.portals().expire());
+    const result = this.queue.then(async () => {
+      for (const kind of ["campus", "carmen"] as const) {
+        try {
+          await this.portals(kind).expire();
+        } catch (e) {
+          if (!(e instanceof ApiError) || e.code !== "portalPasswordChanged")
+            throw e;
+        }
+      }
+    });
     this.queue = result.catch(() => {});
     await result;
   }
@@ -461,19 +472,51 @@ export class CredentialVault {
         vault.failures = 0;
         result = json({ ok: true }, 200, { "Set-Cookie": setCookie(id) });
       } else if (route === "status" && !post) {
+        const campus = authenticated
+          ? await this.portals().status()
+          : undefined;
+        const carmen = authenticated
+          ? await this.portals("carmen").status()
+          : undefined;
+        if (carmen?.connected && !vault.workspace)
+          vault.workspace = vault.account ?? "workspace:" + random();
         result = json({
-          ...(authenticated
-            ? { portals: { campus: await this.portals().status() } }
-            : {}),
+          ...(authenticated ? { portals: { campus, carmen } } : {}),
           authenticated,
-          connected: authenticated && !!vault.credentials,
-          account: authenticated ? vault.account : undefined,
+          connected:
+            authenticated && (!!vault.credentials || !!carmen?.connected),
+          schoologyConnected: authenticated && !!vault.credentials,
+          account: authenticated
+            ? (vault.workspace ?? vault.account)
+            : undefined,
           revision: authenticated ? vault.revision : undefined,
           cooldown: authenticated ? vault.cooldown : undefined,
         });
       } else {
         if (!authenticated) throw new ApiError(401, "unlockRequired");
-        if (route.startsWith("campus/") && post) {
+        if (route.startsWith("carmen/") && post) {
+          result = json(
+            await this.portals("carmen").handle(
+              route.slice(7),
+              await body(request),
+            ),
+          );
+          if (
+            (await this.portals("carmen").status()).connected &&
+            !vault.workspace
+          )
+            vault.workspace = vault.account ?? "workspace:" + random();
+        } else if (route === "schoology/disconnect" && post) {
+          delete vault.credentials;
+          delete vault.account;
+          vault.scans = {};
+          vault.metadata = {};
+          vault.gradeLinks = {};
+          vault.cooldown = 0;
+          vault.revision = random();
+          await this.portals().handle("disconnect");
+          result = json({ ok: true });
+        } else if (route.startsWith("campus/") && post) {
           if (!vault.account) throw new ApiError(409, "schoologyFirst");
           result = json(
             await this.portals().handle(route.slice(7), await body(request)),
@@ -483,6 +526,7 @@ export class CredentialVault {
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "disconnect" && post) {
           await this.portals().handle("disconnect");
+          await this.portals("carmen").handle("disconnect");
           vault = initial();
           vault.passwordHash = fingerprint;
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });

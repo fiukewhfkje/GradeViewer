@@ -8,6 +8,8 @@ import { type Course } from "./core/model";
 import {
   estimateGpa,
   gpaLetters,
+  osuLetters,
+  type GpaPolicy,
   gpaSemesters,
   type CourseLevel,
   type GpaLetter,
@@ -45,25 +47,31 @@ export function GpaSummary({
   courses,
   settings,
   save,
+  policy = "dublin",
 }: {
+  policy?: GpaPolicy;
   courses: Course[];
   settings?: GpaSettings;
   save: (settings: GpaSettings) => Promise<boolean>;
 }) {
+  const osu = policy === "osu",
+    letters = osu ? osuLetters : gpaLetters;
   const [period, setPeriod] = useState("");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [weighting, setWeighting] = useState(settings?.weighting ?? "equal");
+  const [weighting, setWeighting] = useState(
+    settings?.weighting ?? (osu ? "credits" : "equal"),
+  );
   const [projectedGrades, setProjectedGrades] =
     useState<Partial<Record<string, GpaLetter>>>();
   const terms = gpaSemesters(courses);
   const term = terms.find(({ id }) => id === period) ?? terms[0];
   if (!term) return null;
-  const result = settings && estimateGpa(courses, term, settings);
+  const result = settings && estimateGpa(courses, term, settings, {}, policy);
   const projection =
     settings &&
     projectedGrades &&
-    estimateGpa(courses, term, settings, projectedGrades);
+    estimateGpa(courses, term, settings, projectedGrades, policy);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!settings || !result || saving) return;
@@ -74,16 +82,18 @@ export function GpaSummary({
     for (const row of result.rows) {
       const level = data.get(row.key + ":level"),
         credits = Number(data.get(row.key + ":credits")),
-        excluded = data.has(row.key + ":exclude");
+        excluded = data.has(row.key + ":exclude"),
+        letter = osuLetters.find((l) => l === data.get(row.key + ":letter"));
       const override =
         level === "regular" || level === "honors" || level === "advanced"
           ? level
           : undefined;
-      if (override || credits > 0 || excluded)
+      if (override || credits > 0 || excluded || letter)
         next.courses[row.key] = {
           level: override,
           credits: credits > 0 ? credits : undefined,
           excluded,
+          ...(osu && letter ? { letter } : {}),
         };
       else delete next.courses[row.key];
     }
@@ -100,10 +110,12 @@ export function GpaSummary({
   return (
     <details className="gpa-card">
       <summary>
-        <strong>Semester GPA</strong>
+        <strong>{osu ? "Ohio State semester GPA" : "Semester GPA"}</strong>
         <span className={result?.weighted !== undefined ? "grade" : "muted"}>
           {result?.weighted !== undefined
-            ? `${result.weighted.toFixed(2)} / ${result.unweighted!.toFixed(2)}`
+            ? osu
+              ? result.unweighted!.toFixed(2)
+              : `${result.weighted.toFixed(2)} / ${result.unweighted!.toFixed(2)}`
             : settings
               ? "Unavailable"
               : "Set up"}
@@ -111,18 +123,26 @@ export function GpaSummary({
       </summary>
       <div className="gpa-content">
         {result?.weighted !== undefined && (
-          <p className="muted">Weighted / unweighted estimate</p>
+          <p className="muted">
+            {osu
+              ? "Estimate · enter credits from your schedule"
+              : "Weighted / unweighted estimate"}
+          </p>
         )}
         {!settings || !result ? (
           <>
             <p className="muted">
-              Estimate your GPA with the Dublin City Schools scale.
+              {osu
+                ? "Estimate GPA using Ohio State letter points. Course credits and any missing letters are entered locally. Carmen totals are estimates, not transcript grades."
+                : "Estimate your GPA with the Dublin City Schools scale."}
             </p>
             <button
               className="primary"
-              onClick={() => void save({ weighting: "equal", courses: {} })}
+              onClick={() =>
+                void save({ weighting: osu ? "credits" : "equal", courses: {} })
+              }
             >
-              Use Dublin GPA scale
+              {osu ? "Use Ohio State GPA scale" : "Use Dublin GPA scale"}
             </button>
           </>
         ) : (
@@ -142,14 +162,18 @@ export function GpaSummary({
                     const { ordinal, start } = descriptor(course);
                     return (
                       <option key={id} value={id}>
-                        Semester {ordinal}
+                        {osu ? course.term.name : `Semester ${ordinal}`}
                         {start !== undefined ? ` · ${date.format(start)}` : ""}
                       </option>
                     );
                   })}
                 </select>
               ) : (
-                <span>Semester {descriptor(term.course).ordinal}</span>
+                <span>
+                  {osu
+                    ? term.course.term.name
+                    : `Semester ${descriptor(term.course).ordinal}`}
+                </span>
               )}
               {!editing && (
                 <div className="gpa-actions">
@@ -198,7 +222,7 @@ export function GpaSummary({
                   <fieldset key={row.key} className="gpa-course">
                     <legend>{row.title}</legend>
                     <div className="gpa-fields">
-                      <label>
+                      <label hidden={osu}>
                         Level
                         <select
                           name={row.key + ":level"}
@@ -214,6 +238,20 @@ export function GpaSummary({
                           ))}
                         </select>
                       </label>
+                      {osu && (
+                        <label>
+                          GPA letter override
+                          <select
+                            name={row.key + ":letter"}
+                            defaultValue={row.override?.letter ?? ""}
+                          >
+                            <option value="">Use Carmen letter</option>
+                            {osuLetters.map((l) => (
+                              <option key={l}>{l}</option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
                       <label hidden={weighting !== "credits"}>
                         Semester credits
                         <input
@@ -261,7 +299,9 @@ export function GpaSummary({
                     <span className="grade">
                       {projection.weighted === undefined
                         ? "Unavailable"
-                        : `${projection.weighted.toFixed(2)} / ${projection.unweighted!.toFixed(2)}`}
+                        : osu
+                          ? projection.unweighted!.toFixed(2)
+                          : `${projection.weighted.toFixed(2)} / ${projection.unweighted!.toFixed(2)}`}
                     </span>
                     {projection.incomplete > 0 && (
                       <small className="muted">Partial estimate</small>
@@ -275,7 +315,11 @@ export function GpaSummary({
                         {row.title}
                         <small>
                           {row.reason ??
-                            labels[row.override?.level ?? row.suggested]}
+                            (osu
+                              ? row.override?.letter
+                                ? "Local GPA letter"
+                                : "Carmen letter"
+                              : labels[row.override?.level ?? row.suggested])}
                           {row.conflict && " · Letter and percent differ"}
                         </small>
                       </span>
@@ -285,7 +329,7 @@ export function GpaSummary({
                           aria-label={`What-if grade for ${row.title}`}
                           value={projectedGrades[row.key] ?? ""}
                           onChange={(e) => {
-                            const letter = gpaLetters.find(
+                            const letter = letters.find(
                               (value) => value === e.target.value,
                             );
                             setProjectedGrades({
@@ -297,7 +341,7 @@ export function GpaSummary({
                           <option value="">
                             {row.grade ? `${row.grade} (current)` : "No grade"}
                           </option>
-                          {gpaLetters.map((letter) => (
+                          {letters.map((letter) => (
                             <option key={letter}>{letter}</option>
                           ))}
                         </select>
@@ -310,8 +354,16 @@ export function GpaSummary({
               </>
             )}
             <p className="muted">
-              <a href={dublinGuide} target="_blank" rel="noopener noreferrer">
-                Dublin scale
+              <a
+                href={
+                  osu
+                    ? "https://registrar.osu.edu/student-hub/transcripts-and-verifications/transcript-key/"
+                    : dublinGuide
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {osu ? "Ohio State scale" : "Dublin scale"}
               </a>
               {" · "}
               {settings.weighting === "equal"

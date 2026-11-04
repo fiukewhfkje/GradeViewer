@@ -137,7 +137,9 @@ export async function portalBrowser(
         await page.waitForURL(
           (u) =>
             u.origin === origin &&
-            /\/(?:student\/home|portal\/student\/home)/.test(u.pathname),
+            (/\/(?:student\/home|portal\/student\/home)/.test(u.pathname) ||
+              (u.hostname === "osu.instructure.com" &&
+                !/^\/(login|saml2|SAML2)/.test(u.pathname))),
           { timeout: 10_000 },
         );
       },

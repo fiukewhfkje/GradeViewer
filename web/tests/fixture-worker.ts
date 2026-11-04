@@ -1,3 +1,4 @@
+import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
 import {
@@ -22,12 +23,13 @@ export class FixtureVault extends CredentialVault {
   ) {
     super(fixtureState, fixtureEnv);
   }
-  protected override portals() {
+  protected override portals(kind: "campus" | "carmen" = "campus") {
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
         return {
           id: "synthetic-session",
-          state: async () => structuredClone(campusState),
+          state: async () =>
+            structuredClone(kind === "carmen" ? canvasState : campusState),
           live: async () => "https://live.browser.run/ui/view?synthetic=true",
           navigate: async () => {},
           url: () => campusPortal,
@@ -41,15 +43,23 @@ export class FixtureVault extends CredentialVault {
       this.fixtureEnv.APP_PASSWORD,
       undefined,
       this.upstream,
+      kind,
     );
   }
   override async fetch(request: Request): Promise<Response> {
     if (
-      new URL(request.url).pathname === "/api/fixture/campus" &&
+      ["/api/fixture/campus", "/api/fixture/carmen"].includes(
+        new URL(request.url).pathname,
+      ) &&
       request.method === "POST"
     ) {
       const value = await request.json();
-      await this.fixtureState.storage.put("synthetic-campus", value);
+      await this.fixtureState.storage.put(
+        new URL(request.url).pathname.endsWith("carmen")
+          ? "synthetic-carmen"
+          : "synthetic-campus",
+        value,
+      );
       return Response.json({ ok: true });
     }
 
@@ -78,6 +88,26 @@ export class FixtureVault extends CredentialVault {
     return super.fetch(request);
   }
   protected upstream = async (request: Request): Promise<Response> => {
+    if (new URL(request.url).hostname === "osu.instructure.com") {
+      const config = await this.fixtureState.storage.get<{
+        failure?: boolean;
+        malformed?: boolean;
+        empty?: boolean;
+      }>("synthetic-carmen");
+      if (config?.failure) return Response.json({}, { status: 401 });
+      const path = new URL(request.url).pathname,
+        details = canvasDetails();
+      if (path.endsWith("/profile")) return Response.json({ id: 77 });
+      if (path === "/api/v1/courses")
+        return Response.json(
+          config?.malformed ? {} : config?.empty ? [] : canvasCourses,
+        );
+      if (path.endsWith("/assignment_groups"))
+        return Response.json(details["101:groups"]);
+      if (path.endsWith("/enrollments"))
+        return Response.json(details["101:enrollments"]);
+      return Response.json({}, { status: 404 });
+    }
     if (new URL(request.url).hostname === "fixture.infinitecampus.org") {
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;

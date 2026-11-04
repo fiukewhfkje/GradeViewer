@@ -284,14 +284,33 @@ export default function App() {
         apply(next);
         setFresh(true);
         const portalStatus = s;
+        let portalFailed = false;
         setStatus(portalStatus);
         if (
           portalStatus.portals?.campus?.connected ||
           next.courses.some((c) => c.fields.provider === "campus")
         ) {
           try {
-            apply(await refreshCampus(next, portalStatus.portals?.campus));
+            next = await refreshCampus(next, portalStatus.portals?.campus);
+            apply(next);
           } catch (e) {
+            portalFailed = true;
+            setError(errorMessage(e));
+          }
+        }
+        if (
+          portalStatus.portals?.carmen?.connected ||
+          next.courses.some((c) => c.fields.provider === "carmen")
+        ) {
+          try {
+            next = await refreshCampus(
+              next,
+              portalStatus.portals?.carmen,
+              "carmen",
+            );
+            apply(next);
+          } catch (e) {
+            portalFailed = true;
             setError(errorMessage(e));
           }
         }
@@ -305,7 +324,9 @@ export default function App() {
         } else setDeadline(0);
         channel.current?.postMessage("saved");
         setStatus({
-          ...portalStatus,
+          ...(credentials || portalFailed
+            ? await api<Status>("status")
+            : portalStatus),
           connected: true,
           account: next.account,
           cooldown: undefined,
@@ -475,6 +496,10 @@ export default function App() {
           ...current,
           scenarios,
           gpa: next.gpa !== before.gpa ? next.gpa : current.gpa,
+          carmenGpa:
+            next.carmenGpa !== before.carmenGpa
+              ? next.carmenGpa
+              : current.carmenGpa,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -921,6 +946,27 @@ export default function App() {
   }
   async function disconnect() {
     try {
+      if (status?.portals?.carmen?.connected) {
+        await api("schoology/disconnect", {});
+        const current = stateRef.current;
+        const next = {
+          ...current,
+          courses: current.courses.filter(
+            (c) => c.fields.provider === "carmen",
+          ),
+          scenarios: Object.fromEntries(
+            Object.entries(current.scenarios).filter(([id]) =>
+              id.startsWith("carmen:"),
+            ),
+          ),
+          metadata: undefined,
+          gpa: undefined,
+        };
+        await repository.save(next);
+        apply(next);
+        await refresh(undefined, true);
+        return;
+      }
       await api("disconnect", {});
       apply(emptyState());
       setStatus({ authenticated: false, connected: false });
@@ -1130,7 +1176,10 @@ export default function App() {
                         <span
                           className="connection"
                           data-connected={
-                            !locked && (status?.connected || demo)
+                            !locked &&
+                            ((status?.schoologyConnected ??
+                              status?.connected) ||
+                              demo)
                           }
                         >
                           <span className="status-dot" />
@@ -1138,7 +1187,8 @@ export default function App() {
                             ? "Locked"
                             : demo
                               ? "Sample"
-                              : status?.connected
+                              : (status?.schoologyConnected ??
+                                  status?.connected)
                                 ? "Connected"
                                 : "Not connected"}
                         </span>
@@ -1153,7 +1203,11 @@ export default function App() {
                       ) : (
                         <>
                           <Connection
-                            connected={!!status?.connected || demo}
+                            connected={
+                              !!(
+                                status?.schoologyConnected ?? status?.connected
+                              ) || demo
+                            }
                             busy={busy}
                             connect={async (credentials) => {
                               await refresh(credentials);
@@ -1161,6 +1215,7 @@ export default function App() {
                             }}
                             disconnect={disconnect}
                             demo={demo}
+                            retainsCarmen={!!status?.portals?.carmen?.connected}
                           />
                         </>
                       )}
@@ -1169,7 +1224,20 @@ export default function App() {
                   {!demo && !locked && (
                     <PortalConnection
                       status={status?.portals?.campus}
-                      disabled={busy || !status?.connected}
+                      disabled={
+                        busy ||
+                        !(status?.schoologyConnected ?? status?.connected)
+                      }
+                      refresh={async () => {
+                        await refresh(undefined, true);
+                      }}
+                    />
+                  )}
+                  {!demo && !locked && (
+                    <PortalConnection
+                      provider="carmen"
+                      status={status?.portals?.carmen}
+                      disabled={busy}
                       refresh={async () => {
                         await refresh(undefined, true);
                       }}
@@ -1393,9 +1461,22 @@ export default function App() {
                 <>
                   <GpaSummary
                     key={state.account ?? "demo"}
-                    courses={state.courses}
+                    courses={state.courses.filter(
+                      (c) => c.fields.provider !== "carmen",
+                    )}
                     settings={state.gpa}
                     save={(gpa) => persist({ ...stateRef.current, gpa })}
+                  />
+                  <GpaSummary
+                    key={(state.account ?? "demo") + ":carmen"}
+                    policy="osu"
+                    courses={state.courses.filter(
+                      (c) => c.fields.provider === "carmen",
+                    )}
+                    settings={state.carmenGpa}
+                    save={(carmenGpa) =>
+                      persist({ ...stateRef.current, carmenGpa })
+                    }
                   />
                   <div className="courses">
                     {visibleCourses(state.courses).map((c) => {
@@ -1437,7 +1518,7 @@ export default function App() {
                         className="primary"
                         onClick={() => setTab("profile")}
                       >
-                        Connect Schoology
+                        Open Settings
                       </button>
                     </div>
                   )}
@@ -1662,11 +1743,13 @@ function Connection({
   connect,
   disconnect,
   demo,
+  retainsCarmen = false,
 }: {
   connected: boolean;
   busy: boolean;
   connect: (c: { key: string; secret: string }) => Promise<void>;
   disconnect: () => Promise<void>;
+  retainsCarmen?: boolean;
   demo: boolean;
 }) {
   const [editing, setEditing] = useState(!connected),
@@ -1675,7 +1758,7 @@ function Connection({
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false);
   useEffect(() => {
-    if (connected) setEditing(false);
+    setEditing(!connected);
   }, [connected]);
   return (
     <>
@@ -1774,9 +1857,9 @@ function Connection({
       {confirm && (
         <Dialog title="Disconnect Schoology?" close={() => setConfirm(false)}>
           <p>
-            This removes saved grades, history and local changes from this
-            browser and revokes access on your other devices. It does not change
-            Schoology.
+            {retainsCarmen
+              ? "This removes Schoology and IC grades, history and local changes. Your Carmen connection and data stay available."
+              : "This removes saved grades, history and local changes from this browser and revokes access on your other devices. It does not change Schoology."}
           </p>
           <button
             className="primary full"

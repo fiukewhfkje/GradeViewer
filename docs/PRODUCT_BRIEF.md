@@ -2,6 +2,8 @@
 
 GradeViewer is a simple, personal Schoology grade viewer with optional selected Infinite Campus classes. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
 
+The owner additionally authorized a CarmenCanvas development integration, held on its own branch without deployment. It may run without Schoology, shares the existing read-only grade UI, keeps provider identities separate and exposes a separate Ohio State GPA estimate. The 90-minute HTTP session check is experimental; reconnect must preserve saved data. See [Carmen integration](CARMEN_INTEGRATION.md).
+
 ## Product and ownership
 
 - Schoology discovers courses automatically; personal student API access must be permitted by the school. Optional Infinite Campus classes are selected in Settings. Keep the setup free of course linking, mappings and cross-provider assignment deduplication. IC is currently for owner testing, with district compatibility unverified.

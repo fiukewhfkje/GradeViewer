@@ -3,6 +3,7 @@ export class RequestError extends Error {
     public code: string,
     public retryAfter?: number,
     public status?: number,
+    public provider?: string,
   ) {
     super(code);
   }
@@ -11,12 +12,16 @@ export interface PortalStatus {
   connected: boolean;
   needsReconnect: boolean;
   selected: string[];
+  maintenance?: boolean;
+  nextMaintenance?: number;
+  lastKeepalive?: number;
   portal?: string;
   lastVerified?: number;
   cooldown?: number;
 }
 export interface Status {
-  portals?: { campus?: PortalStatus };
+  portals?: { campus?: PortalStatus; carmen?: PortalStatus };
+  schoologyConnected?: boolean;
   authenticated: boolean;
   connected: boolean;
   account?: string;
@@ -48,10 +53,17 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
       (value as { error?: string }).error ?? "requestFailed",
       (value as { retryAfter?: number }).retryAfter,
       response.status,
+      path.startsWith("carmen/") ? "carmen" : undefined,
     );
   return value as T;
 }
 const messages: Record<string, string> = {
+  malformedCanvas:
+    "Carmen returned an unsupported response. Your saved grades are retained.",
+  portalTooLarge:
+    "The course data exceeds the supported sync limit. Your saved grades are retained.",
+  portalTooManyCourses:
+    "This account has more courses than the supported sync limit.",
   invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
   schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
   portalSignInRequired:
@@ -103,8 +115,13 @@ const messages: Record<string, string> = {
   incompleteSnapshot:
     "The snapshot was incomplete. Your saved data is retained.",
 };
-export const errorMessage = (error: unknown) =>
-  error instanceof Error
-    ? (messages[error.message] ??
-      "Unable to complete this request. Your saved data is retained.")
-    : "Unable to complete this request.";
+export const errorMessage = (error: unknown): string => {
+  const message =
+    error instanceof Error
+      ? (messages[error.message] ??
+        "Unable to complete this request. Your saved data is retained.")
+      : "Unable to complete this request.";
+  return error instanceof RequestError && error.provider === "carmen"
+    ? message.replaceAll("Infinite Campus", "Carmen")
+    : message;
+};

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   School,
   ChevronRight,
@@ -7,23 +7,31 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { api, errorMessage, type PortalStatus } from "./api";
+import { api as request, errorMessage, type PortalStatus } from "./api";
 import type { CampusChoice } from "./core/campus";
 export function PortalConnection({
   status,
   disabled,
   refresh,
+  provider = "campus",
 }: {
+  provider?: "campus" | "carmen";
   status?: PortalStatus;
   disabled: boolean;
   refresh: () => Promise<void>;
 }) {
+  const carmen = provider === "carmen",
+    title = carmen ? "CarmenCanvas" : "Infinite Campus";
+  const api = <T,>(path: string, data?: unknown) =>
+    request<T>(path.replace("campus/", provider + "/"), data);
   const [portal, setPortal] = useState(status?.portal ?? ""),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [login, setLogin] = useState<{ url: string; expires: number }>(),
     [courses, setCourses] = useState<CampusChoice[]>(),
     [selected, setSelected] = useState(status?.selected ?? []);
+  const [maintenance, setMaintenance] = useState(!!status?.maintenance);
+  useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   async function run(task: () => Promise<void>) {
     setBusy(true);
@@ -50,7 +58,7 @@ export function PortalConnection({
     let pending;
     try {
       pending = await api<{ url: string; expires: number }>("campus/start", {
-        ...(status?.connected ? {} : { portal }),
+        ...(status?.connected || carmen ? {} : { portal }),
       });
     } catch (e) {
       popup?.close();
@@ -63,13 +71,13 @@ export function PortalConnection({
   const count = status?.selected.length ?? 0;
   return (
     <section className="settings-group">
-      <h2>Additional classes</h2>
+      <h2>{carmen ? "University courses" : "Additional classes"}</h2>
       <div className="settings-card portal-connection" aria-busy={busy}>
         <div className="connection-heading portal-heading">
           <span className="settings-icon">
             <School size={20} />
           </span>
-          <strong>Infinite Campus</strong>
+          <strong>{title}</strong>
           <span
             className="connection"
             data-connected={!!status?.connected && !status.needsReconnect}
@@ -126,7 +134,7 @@ export function PortalConnection({
                     await api("campus/finish", {});
                     signInWindow.current?.close();
                     setLogin(undefined);
-                    if (!status?.connected) await choices();
+                    if (!carmen && !status?.connected) await choices();
                     await refresh();
                   })
                 }
@@ -201,36 +209,72 @@ export function PortalConnection({
           <>
             {status.needsReconnect && (
               <p className="portal-notice" role="status">
-                Sign in again to refresh IC grades. Your selected classes and
-                saved grades are retained.
+                Sign in again to refresh {carmen ? "Carmen" : "IC"} grades. Your
+                selected classes and saved grades are retained.
               </p>
             )}
-            <button
-              className="settings-action portal-action"
-              disabled={disabled || busy}
-              aria-label="Choose IC courses"
-              onClick={() => void run(choices)}
-            >
-              <ListChecks size={19} />
-              <span>
-                <strong>Choose IC courses</strong>
-                <small>
-                  {count
-                    ? `${count} ${count === 1 ? "class" : "classes"} included`
-                    : "Choose the classes to add"}
-                </small>
-              </span>
-              <ChevronRight size={18} />
-            </button>
+            {!carmen && (
+              <button
+                className="settings-action portal-action"
+                disabled={disabled || busy}
+                aria-label="Choose IC courses"
+                onClick={() => void run(choices)}
+              >
+                <ListChecks size={19} />
+                <span>
+                  <strong>Choose IC courses</strong>
+                  <small>
+                    {count
+                      ? `${count} ${count === 1 ? "class" : "classes"} included`
+                      : "Choose the classes to add"}
+                  </small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
+            )}
             <button
               className="settings-action portal-action"
               disabled={disabled || busy}
               onClick={() => void run(start)}
             >
               <LogIn size={19} />
-              <span>Reconnect Infinite Campus</span>
+              <span>Reconnect {title}</span>
               <ChevronRight size={18} />
             </button>
+            {carmen && (
+              <div className="portal-body">
+                <p className="portal-description">
+                  Your student courses sync automatically.
+                </p>
+                <label className="gpa-check">
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={maintenance}
+                    disabled={disabled || busy}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setMaintenance(enabled);
+                      void run(async () => {
+                        try {
+                          await api("campus/maintenance", { enabled });
+                          await refresh();
+                        } catch (error) {
+                          setMaintenance(!!status.maintenance);
+                          throw error;
+                        }
+                      });
+                    }}
+                  />
+                  <span className="gpa-toggle-track" aria-hidden="true" />
+                  <span>Keep my session active</span>
+                </label>
+                <p className="muted">
+                  Checks your session every 90 minutes. OSU may still require
+                  sign-in again. Failed access pauses background checks.
+                </p>
+              </div>
+            )}
             <button
               className="portal-disconnect danger"
               disabled={disabled || busy}
@@ -242,36 +286,46 @@ export function PortalConnection({
                 })
               }
             >
-              Disconnect Infinite Campus
+              Disconnect {title}
             </button>
           </>
         ) : (
           <div className="portal-body">
             <p className="portal-description">
-              Schoology covers most classes. Add Infinite Campus for teachers
-              who only post grades there.
+              {carmen
+                ? "Connect your Ohio State student courses with your regular school sign-in."
+                : "Schoology covers most classes. Add Infinite Campus for teachers who only post grades there."}
             </p>
-            <label className="portal-address">
-              Campus Student sign-in address
-              <input
-                type="url"
-                aria-label="Campus Student sign-in address"
-                autoComplete="url"
-                placeholder="Your district’s Campus Student URL"
-                value={portal}
-                onChange={(e) => setPortal(e.target.value)}
-              />
-              <small>
-                Copy the address of your school’s Campus Student login page.
-              </small>
-            </label>
+            {carmen ? (
+              <p className="muted">
+                Experimental · OSU does not support this integration. Your
+                Worker stores encrypted session cookies, never your university
+                password. Background checks start after connecting and can be
+                turned off here.
+              </p>
+            ) : (
+              <label className="portal-address">
+                Campus Student sign-in address
+                <input
+                  type="url"
+                  aria-label="Campus Student sign-in address"
+                  autoComplete="url"
+                  placeholder="Your district’s Campus Student URL"
+                  value={portal}
+                  onChange={(e) => setPortal(e.target.value)}
+                />
+                <small>
+                  Copy the address of your school’s Campus Student login page.
+                </small>
+              </label>
+            )}
             <button
               className="primary portal-connect"
-              disabled={disabled || busy || !portal}
+              disabled={disabled || busy || (!carmen && !portal)}
               onClick={() => void run(start)}
             >
               <LogIn size={18} />
-              Connect Infinite Campus
+              Connect {title}
             </button>
           </div>
         )}

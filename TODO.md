@@ -7,7 +7,9 @@
 - [x] Complete cross-browser/source verification: 186 tests, 31 flows in each engine, source packaging, Worker dry-run, zero-vulnerability dependency audit and isolated-template update/rollback pass.
 - [x] Verify real synthetic cookie restore/persistent CDP capture/Live View/cleanup and deploy IC through main to the owner’s existing Worker. Five asset hashes, unchanged vault binding, secret-password presence and locked unauthenticated API verify; no stable tag/release was created.
 - [ ] Owner/friend acceptance: actual district login, strict IC roster identity shape, assignment/period/rule compatibility, selected-class GPA and physical phone/reconnect behavior. No live IC account was available during implementation.
-- [ ] Finish Carmen on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Keep 90-minute HTTP session maintenance bounded and distinguish an attempted keepalive from verified session extension. The owner will arrange enrolled-course testing later.
+- [x] Finish Carmen runtime on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Implemented bounded 90-minute HTTP session maintenance with opt-out, cookie rotation, identity binding, retries and rejection pause; this does not establish session extension. The owner will arrange enrolled-course testing later.
+- [x] Validate Carmen build/type checking, 264 tests, 33 browser flows in each engine, 99-file source package, isolated-template update/rollback and zero-vulnerability dependency audit. Keep the current owner production IC assets unchanged.
+- [ ] Carmen acceptance: enrolled-course response/permissions, actual graded/ungraded/override cases, credits/letters against the schedule, cloud human sign-in/reconnect, physical-phone UI and a measured 90-minute keepalive trial. A saved ACTIVE capture currently rejects authentication; no current course contents were verified.
 
 
 ## v0.1.10

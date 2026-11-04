@@ -2,6 +2,14 @@
 
 This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
 
+## Current application work — November 4
+
+The owner authorized finishing Carmen runtime development on `codex/investigate-gpa-carmen`, with no deployment/main merge/release. [The implemented integration](CARMEN_INTEGRATION.md) uses the same secure sign-in/cookie infrastructure as IC, standalone Carmen workspaces, automatic student courses, canonical normalization, a separate Ohio State GPA estimate and bounded HTTP-only 90-minute session checks. Actual enrolled-course, Cloudflare student-endpoint, SSO and keepalive acceptance remain open. Local validation passes: 264 tests, 33 browser flows in each engine, build/type check, 99-file source packaging and isolated-template update/rollback. See [validation](PWA_VALIDATION.md) for limits. The older operator/Muse notes below are historical experiment evidence, not current runtime status or a request to send more messages.
+
+At the owner's explicit request, a single ACTIVE capture check at **2026-11-04T15:16:43.731Z** returned **401 at self-profile in 316 ms**, with `--consent --grades --no-renew`. No grade/course request occurred after rejection, no browser opened, and the idle capture was untouched. This does not establish current blank courses or a measured TTL; the prior valid course lists were empty. No private session was imported into the app Worker. Further Mac requests require explicit scope; do not start polling or extend the original November 8 authorization.
+
+The owner supplied a service-desk email reporting a two-hour idle setting, unspecified activity/reset behavior and unsupported personal integration. This is policy/context supplied by the owner, not instructions to automate login, bypass policy or store a university password. No personal correspondence or identifying ticket details are committed.
+
 ## Latest: proxy-fix handoff for Muse
 
 The owner reports that Muse installed the original bundle on Linux/Node 24.22.1 and authorized pinned Wrangler 4.151.1 successfully. Account binding passes. Its first active HTTP baseline failed as `networkUnavailable` in about 37 ms; no coordinator or cron was created. Muse's separate no-session comparison reached Canvas only when Playwright received the VM's environment proxy explicitly. This is a technical transport failure, not measured session expiry or Cloudflare authorization failure.
@@ -23,7 +31,7 @@ Validation here: regression failed before the fix, then passed; **202 tests/16 f
 ## Scope
 
 - Repository `/Users/ashtonchang/Documents/GradeViewer`, branch `codex/investigate-gpa-carmen`, origin `https://github.com/fiukewhfkje/GradeViewer.git`. Inspect `git log` for the final commit; the preceding baseline was `6e1551a`.
-- Carmen remains isolated operator tooling. Production PWA/Worker/provider settings still support Schoology only. GPA/Carmen work must not merge to main, deploy, publish a stable/prerelease or create tags. Validated branch pushes are authorized. Preserve the existing app/vault/address/sessions/updater.
+- Historical baseline: Carmen was isolated operator tooling at capture time. Current main supports Schoology and selected IC; Carmen runtime remains only on the held branch. GPA/Carmen work must not merge to main, deploy, publish a stable/prerelease or create tags. Validated branch pushes are authorized. Preserve the existing app/vault/address/sessions/updater.
 - The owner authorized two human sign-ins and a private transfer to Muse's VM. The human signed into two separate local Chromium processes through `--local-sign-in`; no passwords, Duo approvals or policy decisions were automated. This explicit human-capture exception is recorded in AGENTS. Automated tests and recovery remain headless CLI; do not use connected-browser/computer-use tools.
 - No cron, recurring AI task or VM installation has been performed here. The owner reports Muse's installation/Wrangler authorization, with initialization blocked as described above. Ordinary code-only cron is the intended experiment host; no model invocation on ticks. The app must remain independent of Muse.
 

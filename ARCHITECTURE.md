@@ -2,6 +2,10 @@
 
 GradeViewer is a Schoology-primary React/TypeScript PWA with optional selected Infinite Campus courses. `web/` is the self-contained build, deployment and template root. The retired Swift app and its build/test infrastructure remain in Git history. `web/src/core/` owns current grade behavior; no Swift or macOS tooling is needed.
 
+## Held Carmen branch
+
+The investigative branch adds Carmen as a provider partition, sharing PortalService's encrypted sessions, cookie jar, identity checks, browser restoration and request budgets with IC. Campus remains opt-in selected courses; Carmen auto-discovers student courses. A stable workspace identity permits Carmen without Schoology while preserving existing Schoology-first browser account keys. HTTP-only Durable Object alarms perform opt-out 90-minute identity checks, pause on rejected access and never fetch grades or launch Chrome. Ohio State GPA settings/letter points are separate from Dublin's. See [the implementation and evidence limits](docs/CARMEN_INTEGRATION.md). Carmen must not deploy or enter main under the current release hold.
+
 ## Browser and Worker
 
 React/Vite renders Grades, Settings, course details, assignments, local scenarios and the final calculator. Desktop uses a navigation/course sidebar, course grid and side-by-side panels; phone navigation remains compact. Held chart selection owns its touch gesture, tolerates vertical drift and follows display frames. `web/src/core/` provides framework-independent models, parsing, calculations, periods/estimates, reconciliation and progression. `refresh.ts` coordinates fresh reads; `repository.ts` stores versioned IndexedDB snapshots, observations, scenarios and metadata, with prepared-save recovery.

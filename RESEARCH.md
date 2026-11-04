@@ -1,3 +1,7 @@
+# Carmen implementation decisions — November 4, 2026
+
+The [Carmen integration notes](docs/CARMEN_INTEGRATION.md) link current primary Canvas API and Ohio State GPA sources and separate documented contracts from synthetic tests and the owner's account evidence. PortalService reuses the existing Playwright, tough-cookie and encrypted Worker vault infrastructure; `http-link-header` adds only the standard RFC Link parser (MIT). The owner-supplied service-desk email gives a two-hour idle setting but no reliable activity/reset contract. One explicitly requested ACTIVE HTTP check returned 401 before courses, not a new empty grade response. No background lifetime or enrolled-grade behavior has been measured by this implementation.
+
 # Schoology research
 
 ## IC owner-testing implementation — November 4, 2026

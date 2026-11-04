@@ -5,22 +5,26 @@ import * as repository from "./repository";
 export async function refreshCampus(
   previous: SavedState,
   status?: PortalStatus,
+  provider: "campus" | "carmen" = "campus",
 ): Promise<SavedState> {
   let courses: SourceCourse[] = [];
   if (status?.connected)
     ({ courses } = await api<{ account: string; courses: SourceCourse[] }>(
-      "campus/snapshot",
+      provider + "/snapshot",
       {},
     ));
   const latest = await repository.load(),
     base = latest.account === previous.account ? latest : previous;
   const next = {
     ...base,
+    ...(!status?.connected && provider === "carmen"
+      ? { carmenGpa: undefined }
+      : {}),
     ...(!status?.connected
       ? {
           scenarios: Object.fromEntries(
             Object.entries(base.scenarios).filter(
-              ([id]) => !id.startsWith("campus:"),
+              ([id]) => !id.startsWith(provider + ":"),
             ),
           ),
           ...(base.gpa
@@ -31,7 +35,7 @@ export async function refreshCampus(
                     Object.entries(base.gpa.courses).filter(([key]) => {
                       try {
                         return !String(JSON.parse(key)[1]).startsWith(
-                          "campus:",
+                          provider + ":",
                         );
                       } catch {
                         return true;
@@ -45,7 +49,7 @@ export async function refreshCampus(
       : {}),
     courses: reconcile(
       [
-        ...base.courses.filter((c) => c.fields.provider !== "campus"),
+        ...base.courses.filter((c) => c.fields.provider !== provider),
         ...courses,
       ],
       base.courses,

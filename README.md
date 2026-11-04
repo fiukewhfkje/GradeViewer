@@ -64,6 +64,10 @@ Newly deployed app versions also show a discreet update notice when the app open
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
 
+## Carmen development branch
+
+CarmenCanvas is implemented for local testing on `codex/investigate-gpa-carmen` only. It has secure school sign-in, automatic course discovery, independent saved grades, session checks and an Ohio State GPA estimate. It has not been deployed or released; OSU enrolled-course compatibility and session extension remain unverified. [Integration details](docs/CARMEN_INTEGRATION.md).
+
 ## Optional Infinite Campus classes
 
 In **Settings → Additional classes**, connect your district’s Campus Student login and choose the IC-only classes to include. These use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. A reconnect keeps your selected classes and local data. This is an unreleased testing feature; district sign-in and identity compatibility still need account testing.
