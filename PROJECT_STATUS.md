@@ -1,5 +1,11 @@
 # Project status — November 3, 2026
 
+## v0.1.9 published
+
+[Stable v0.1.9](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.9) is published. [PR #18](https://github.com/fiukewhfkje/GradeViewer/pull/18) merged as `1efc1ec3ac82a4556ace5298fbd26336bac87e68` with the assignment editing, straight-points and GPA changes. [Release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/41756174474) passed 162 tests and 30 browser flows each in Chromium and WebKit. The signed updater installed the actual published assets into an isolated v0.1.8 copy and retained its synthetic personal config and secret.
+
+[Cloudflare deployed v0.1.9](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ea1833f2-ad0e-4e10-aece-3546b4963419). All five public app assets matched the tested build and the production release endpoint returned 0.1.9. Carmen remains on the development branch. The updater schedules midnight Eastern using America/New_York. Copy owners can also dispatch it from GitHub Actions.
+
 ## Development: local grade editing and semester GPA
 
 The official grade stays visible alongside what-if results. The what-if calculator applies the assignment delta without comparing the two original totals against a tolerance. It projects the delta through the declared semester weights when available and otherwise labels the edited period. A confirmed override gets a Teacher override badge and supports what-if edits. Add Grade, Edit Grade and Drop Assignment save locally. The score editor opens with the caret at the end. Sample mode demonstrates a synthetic AP Physics 1 teacher override at 90% alongside an editable what-if estimate. The what-if delta uses a percent sign.
