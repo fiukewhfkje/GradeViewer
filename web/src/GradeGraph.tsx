@@ -1,6 +1,6 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Course } from "./core/model";
-import { gradeCurve, progression } from "./core/progression";
+import { gradeCurve, recentProgression } from "./core/progression";
 import { descriptor, overall } from "./core/periods";
 
 const position = (x: number, rect: DOMRect) =>
@@ -14,7 +14,7 @@ export const GradeGraph = memo(function GradeGraph({
   all: Course[];
 }) {
   const curve = useMemo(
-    () => gradeCurve(progression(course, all)),
+    () => gradeCurve(recentProgression(course, all)),
     [course, all],
   );
   const [selection, setSelection] = useState<number>();
@@ -187,7 +187,7 @@ export const GradeGraph = memo(function GradeGraph({
           )}
         </div>
       ) : (
-        <p className="muted">No dated grades available.</p>
+        <p className="muted">No grade history in the last 60 days.</p>
       )}
     </section>
   );

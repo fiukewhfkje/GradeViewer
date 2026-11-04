@@ -24,6 +24,7 @@ import {
   semesterScale,
   exams,
   visibleCourses,
+  descriptor,
 } from "../src/core/periods";
 import { progression, calculatedPoints, curve } from "../src/core/progression";
 const score = (
@@ -479,6 +480,17 @@ describe("native periods and estimates", () => {
   });
 });
 describe("native progression regressions", () => {
+  it.each([
+    ["semester", "Semester"],
+    ["quarter", "Quarter"],
+  ])("labels an explicitly typed %s with no ordinal", (kind, label) => {
+    const c = source([]);
+    c.term.name = "Final";
+    c.fields.period_kind = kind;
+    expect(descriptor(c).label).toBe(label);
+    c.term.name = label + " 2";
+    expect(descriptor(c).label).toBe(label[0] + "2");
+  });
   it.each([89.991, 89.996, 90.004, 90.009])(
     "anchors prefix %s in its own interval",
     (first) => {

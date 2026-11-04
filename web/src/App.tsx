@@ -1333,9 +1333,6 @@ export default function App() {
                             <ChevronRight size={17} />
                           </button>
                         </div>
-                        <p className="settings-note">
-                          Your private app. Open this address on any device.
-                        </p>
                       </section>
                       <section className="settings-group app-actions">
                         <h2>App</h2>
@@ -1437,11 +1434,7 @@ export default function App() {
                       {updateMessage}
                     </p>
                   )}
-                  <p className="profile-footnote">
-                    GradeViewer {version}
-                    <span aria-hidden="true"> · </span>Grades stay on this
-                    device.
-                  </p>
+                  <p className="profile-footnote">GradeViewer {version}</p>
                 </>
               ) : !fresh && !demo ? (
                 !busy && (

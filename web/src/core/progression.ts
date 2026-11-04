@@ -224,6 +224,10 @@ export function progression(c: Course, all: Course[]): GraphPoint[] {
   }
   return sortedPoints(reconstructed.concat(own));
 }
+export function recentProgression(c: Course, all: Course[], now = Date.now()) {
+  const start = now - 60 * 86400000;
+  return progression(c, all).filter((p) => p.date >= start && p.date <= now);
+}
 /** Progression geometry: evenly spaced real events, monotone interpolation.
  * A tracing marker follows the curve; the tooltip always selects an actual event.
  */

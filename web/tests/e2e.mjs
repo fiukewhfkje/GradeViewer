@@ -219,6 +219,10 @@ try {
     "Settings stays contained across phone, split view, laptop and monitor sizes",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      assert.doesNotMatch(
+        await page.locator(".profile").innerText(),
+        /Grades stay on this device|Your private app/,
+      );
       const sizes = [
         [320, 568],
         [360, 780],
@@ -1839,6 +1843,35 @@ try {
       await page.getByText("Synthetic work", { exact: true }).first().waitFor();
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { courseDelayMs: 1200 },
+      });
+      const chooseIC = page.getByRole("button", {
+        name: "Choose IC courses",
+        exact: true,
+      });
+      await chooseIC.click();
+      await page
+        .getByRole("heading", { name: "Choose your classes", exact: true })
+        .waitFor({ timeout: 500 });
+      await page.getByText("Loading IC courses…", { exact: true }).waitFor();
+      await page.getByText(/both copies count toward GPA/).waitFor();
+      await page
+        .getByRole("switch", { name: /Synthetic IC-only course/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await chooseIC.click();
+      assert.equal(
+        await page
+          .getByRole("switch", { name: /Synthetic IC-only course/ })
+          .isVisible(),
+        true,
+      );
+      assert.equal(
+        await page.getByText("Loading IC courses…", { exact: true }).count(),
+        0,
+      );
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await context.request.post(base + "/api/fixture/campus", {
         data: { failure: true },
       });

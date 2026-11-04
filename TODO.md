@@ -1,5 +1,11 @@
 # Next work
 
+## Graphs and IC selection — November 4
+
+- [x] Show generic labels for unnumbered periods and limit displayed graph points to the last 60 days. Keep single-point lines and stored history.
+- [x] Remove the requested Settings footnotes and explain separate IC classes and duplicate GPA contributions.
+- [x] Open the course picker immediately, reuse its list during a Settings visit, and test with delayed synthetic provider responses.
+
 ## Desktop app polish — November 4
 
 - [x] Replace the sidebar lettermark with the app icon, remove duplicate labels and the tagline, and tighten desktop spacing.

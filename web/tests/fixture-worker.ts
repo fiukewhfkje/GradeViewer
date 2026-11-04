@@ -103,12 +103,19 @@ export class FixtureVault extends CredentialVault {
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
         malformed?: boolean;
+        courseDelayMs?: number;
       }>("synthetic-campus");
       if (config?.failure) return Response.json({}, { status: 401 });
       const path = new URL(request.url).pathname;
       if (path.endsWith("/roster"))
         return Response.json({ personID: "synthetic-campus-student" });
-      if (path.endsWith("/grades")) return Response.json(campusSummary);
+      if (path.endsWith("/grades")) {
+        if (config?.courseDelayMs)
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(config.courseDelayMs!, 2000)),
+          );
+        return Response.json(campusSummary);
+      }
       if (path.endsWith("/detail/100"))
         return Response.json(config?.malformed ? [] : campusDetail);
       return Response.json({}, { status: 404 });

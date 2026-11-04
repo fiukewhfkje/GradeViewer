@@ -29,6 +29,7 @@ export function PortalConnection({
     [signInOpened, setSignInOpened] = useState(false),
     [confirmation, setConfirmation] = useState(""),
     [courses, setCourses] = useState<CampusChoice[]>(),
+    [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
@@ -44,6 +45,9 @@ export function PortalConnection({
     }
   }
   async function choices() {
+    setChoosing(true);
+    setSelected(status?.selected ?? []);
+    if (courses !== undefined) return;
     const r = await api<{ courses: CampusChoice[]; selected: string[] }>(
       "campus/courses",
       {},
@@ -104,6 +108,7 @@ export function PortalConnection({
     setSignInOpened(false);
     const pending = await api<Login>("campus/start", {});
     setCourses(undefined);
+    setChoosing(false);
     setLogin(pending);
   }
   const count = status?.selected.length ?? 0;
@@ -132,6 +137,12 @@ export function PortalConnection({
                   : "Not connected"}
           </span>
         </div>
+        {!login && (status?.connected || choosing) && (
+          <p className="portal-notice">
+            Choose only classes missing from Schoology. IC adds separate
+            classes, and both copies count toward GPA.
+          </p>
+        )}
         {login ? (
           <div className="portal-body">
             <div className="portal-login-note">
@@ -209,19 +220,23 @@ export function PortalConnection({
               )}
             </div>
           </div>
-        ) : courses ? (
+        ) : choosing ? (
           <div className="portal-body portal-selection">
             <div className="portal-selection-heading">
               <div>
                 <h3>Choose your classes</h3>
-                <p>Include the classes you use IC for.</p>
+                <p>Add your IC-only classes.</p>
               </div>
               <span className="portal-count">{selected.length} selected</span>
             </div>
             <fieldset disabled={busy || disabled}>
               <legend className="sr-only">Include these IC classes</legend>
               <div className="portal-course-list">
-                {courses.length ? (
+                {courses === undefined ? (
+                  <p className="muted" role="status">
+                    {busy ? "Loading IC courses…" : "IC courses couldn’t load."}
+                  </p>
+                ) : courses.length ? (
                   courses.map((c) => (
                     <label className="gpa-check portal-course" key={c.id}>
                       <input
@@ -251,24 +266,29 @@ export function PortalConnection({
             <div className="button-row">
               <button
                 className="secondary"
-                disabled={busy}
-                onClick={() => setCourses(undefined)}
+                disabled={busy && courses !== undefined}
+                onClick={() => setChoosing(false)}
               >
                 Cancel
               </button>
               <button
                 className="primary"
-                disabled={busy || disabled}
+                disabled={busy || disabled || courses === undefined}
                 onClick={() =>
                   void run(async () => {
                     await api("campus/select", { selected });
                     await refresh();
-                    setCourses(undefined);
-                  })
+                    setChoosing(false);
+                  }, "Saving IC courses…")
                 }
               >
                 Save IC courses
               </button>
+              {!busy && courses === undefined && (
+                <button className="primary" onClick={() => void run(choices)}>
+                  Retry loading courses
+                </button>
+              )}
             </div>
           </div>
         ) : status?.connected ? (
@@ -313,6 +333,7 @@ export function PortalConnection({
                   await api("campus/disconnect", {});
                   setConfirmation("");
                   setCourses(undefined);
+                  setChoosing(false);
                   await refresh();
                 })
               }
@@ -342,7 +363,7 @@ export function PortalConnection({
             <CheckCircle2 size={16} aria-hidden="true" /> {confirmation}
           </p>
         )}
-        {busy && (
+        {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">
             <RefreshCw size={14} className="spinning" /> {working}
           </div>

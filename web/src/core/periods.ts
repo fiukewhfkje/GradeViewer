@@ -40,9 +40,13 @@ export function descriptor(c: SourceCourse) {
     ordinal,
     label:
       kind === "quarter"
-        ? `Q${ordinal}`
+        ? ordinal === undefined
+          ? "Quarter"
+          : `Q${ordinal}`
         : kind === "semester"
-          ? `S${ordinal}`
+          ? ordinal === undefined
+            ? "Semester"
+            : `S${ordinal}`
           : kind === "exam"
             ? "Exam"
             : kind === "year"
