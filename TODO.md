@@ -6,7 +6,7 @@
 - [x] Show the official grade with a separate what-if projection, including explicitly marked teacher overrides.
 - [x] Add the Dublin GPA estimate and move course levels, semester credits and exclusions behind Edit courses.
 - [x] Show a teacher override example in sample mode and use % for the what-if delta.
-- [ ] If the original affected snapshot is available with the student’s consent, identify which condition disabled editing in the old build.
+- [ ] If the original affected snapshot is available with the student’s consent, identify which condition disabled editing in the old build and confirm how the course combines categories.
 - [ ] Compare the estimate with an owner-confirmed same-semester roster and check the new score editor on a physical phone.
 - [ ] Owner acceptance before cutting the next stable; Carmen work stays development-only.
 

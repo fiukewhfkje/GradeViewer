@@ -10,6 +10,8 @@ Build/type check, 207 tests, 30 browser flows each in Chromium and WebKit, Worke
 
 A follow-up screenshot comparison reproduced the Q2 value shown by GradeViewer by summing the visible scored assignments as points. The Schoology screenshot showed the quarter's semester weight and no numeric quarter total. The old branch used category rules for its edit check, so matching the visible point sum does not establish what the old calculator returned. The affected snapshot's provider metadata was unavailable. No student scores were retained in the repository.
 
+An in-memory synthetic reproduction passed through the actual parser and calculator. With unequal points across categories, a points-based reported total failed the old edit check when the section was parsed as equal categories. The current branch kept the edit available, but the what-if delta followed the selected category method. The documented Schoology REST flag describes equal category weighting when off, so a flat points mode needs independent confirmation before changing how the calculator selects the method.
+
 # Project status — November 1, 2026
 
 ## Current: Muse VM HTTP proxy correction
