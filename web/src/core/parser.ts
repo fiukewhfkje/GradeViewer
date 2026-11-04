@@ -4,7 +4,8 @@ import {
   type SourceCourse,
   hasTitle,
 } from "./model";
-import { titleDates } from "./periods";
+import { descriptor, titleDates } from "./periods";
+import { reportedGradeSupportsTotalPoints } from "./calculator";
 export type Row = Record<string, unknown>;
 export class ProviderError extends Error {
   constructor(
@@ -402,7 +403,7 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         fields: { assignment_id: itemID(item)!, type: kind(item) },
       });
     }
-    return {
+    const course: SourceCourse = {
       id: `schoology:${p.owner}:${id}`,
       title: fields.course_name,
       teacher:
@@ -426,5 +427,12 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
       fields,
       catalog,
     };
+    if (
+      descriptor(course).kind === "quarter" &&
+      reportedGradeSupportsTotalPoints(course)
+    ) {
+      course.method = "points";
+    }
+    return course;
   });
 }

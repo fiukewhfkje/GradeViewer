@@ -78,16 +78,29 @@ export class FixtureVault extends CredentialVault {
         .map((value) => {
           const row = value as {
             section_id: string;
+            period: {
+              period_id: string;
+              assignment: { grade: { grade: number; max_points: number }[] };
+            }[];
             final_grade: {
               period_id: string;
               grade: number;
               is_override?: boolean;
             }[];
           };
-          // A valid official total that doesn't match the assignment subtotal.
+          // The reported quarter follows straight points even though category
+          // weighting is off and the API describes that as equal categories.
           if (row.section_id === "102") {
+            const scores = row.period.find(
+              (period) => period.period_id === "p2",
+            )!.assignment.grade;
+            const earned = scores.reduce((sum, score) => sum + score.grade, 0);
+            const possible = scores.reduce(
+              (sum, score) => sum + score.max_points,
+              0,
+            );
             row.final_grade.find((grade) => grade.period_id === "p2")!.grade =
-              81;
+              Number(((earned / possible) * 100).toFixed(2));
             row.final_grade.find(
               (grade) => grade.period_id === "p3",
             )!.is_override = true;
@@ -114,6 +127,8 @@ export class FixtureVault extends CredentialVault {
         Date.parse("2026-10-16T12:00:00Z"),
       );
     if (key === "fixture-aliases") p.section.id = section;
+    if (p.section.course_title === "Computer Science A")
+      p.section.options = { weighted_grading_categories: 0 };
     if (u.pathname === `/v1/sections/${section}`)
       return Response.json(p.section);
     const name = u.pathname.split("/").at(-1);

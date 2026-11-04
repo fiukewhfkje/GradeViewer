@@ -654,7 +654,7 @@ export default function App() {
     const groups: { id: string; title: string; rows: Assignment[] }[] = [];
     if (added.length)
       groups.push({ id: "added", title: "Added Grades", rows: added });
-    if (c.method === "points" || !c.categories.length) {
+    if (!c.categories.length) {
       if (actual.length)
         groups.push({ id: "total", title: "Total Points", rows: actual });
     } else {

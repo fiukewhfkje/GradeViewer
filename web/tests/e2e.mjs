@@ -459,7 +459,7 @@ try {
   }
   let cId, assignmentTitle;
   await check(
-    "local edits and drops remain available when the Schoology total differs",
+    "straight-points edits project alongside an official semester override",
     async () => {
       await page
         .locator(".courses")
@@ -491,10 +491,10 @@ try {
       const whatIf = page.getByLabel("What-If grade", { exact: true });
       await whatIf.waitFor();
       assert.match(await whatIf.innerText(), /What-if · S1/);
-      assert.ok(
-        Math.abs(
-          parseFloat(await whatIf.locator(".scenario-delta").innerText()),
-        ) > 0.15,
+      const pointsChange = Number(initial.slice(0, -1)) - Number(initial);
+      assert.equal(
+        await whatIf.locator(".scenario-delta").innerText(),
+        ((pointsChange / 320) * 100 * 0.5).toFixed(2) + "%",
       );
       assert.equal(
         await page.getByText("Teacher override", { exact: true }).count(),

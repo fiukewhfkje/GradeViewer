@@ -235,6 +235,50 @@ describe("Schoology parsing and replacement", () => {
     ...syntheticPayload("100", Date.parse("2026-11-10T12:00:00Z")),
     owner: "100",
   });
+  function pointsComparison(grade: number | null) {
+    const p = payload();
+    p.section.options = { weighted_grading_categories: 0 };
+    p.items = [];
+    for (const category of p.categories) delete category.weight;
+    const section = (p.grades.section as any[])[0];
+    section.period[0].assignment = [
+      { assignment_id: "1", category_id: "1", grade: 9, max_points: 10 },
+      { assignment_id: "2", category_id: "2", grade: 50, max_points: 100 },
+    ];
+    section.final_grade[0].grade = grade;
+    return p;
+  }
+
+  it("uses straight points for what-if when only straight points reproduce the reported quarter", () => {
+    const p = pointsComparison(53.64);
+    const c = parseSection(p)[0];
+    expect(c.grade.percent).toBe(53.64);
+    expect(calculate({ ...c, method: "equalCategories" })).toBe(70);
+    expect(c.method).toBe("points");
+    const edit = { ...emptyScenario(), scores: { [c.assignments[1].id]: 60 } };
+    expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
+  });
+
+  it("retains category grading when the reported total cannot distinguish the two methods", () => {
+    const ambiguous = pointsComparison(90);
+    (ambiguous.grades.section as any[])[0].period[0].assignment[1].grade = 90;
+    expect(parseSection(ambiguous)[0].method).toBe("equalCategories");
+
+    const overridden = pointsComparison(53.64);
+    (overridden.grades.section as any[])[0].final_grade[0].is_override = true;
+    expect(parseSection(overridden)[0].method).toBe("equalCategories");
+
+    const dropped = pointsComparison(53.64);
+    dropped.categories[0].drop_lowest = 1;
+    expect(parseSection(dropped)[0].method).toBe("equalCategories");
+
+    expect(parseSection(pointsComparison(null))[0].method).toBe(
+      "equalCategories",
+    );
+    expect(parseSection(pointsComparison(70))[0].method).toBe(
+      "equalCategories",
+    );
+  });
   it("joins typed metadata and named ungraded items without duplicate scores", () => {
     const c = parseSection(payload()).find((c) => c.term.id === "p2")!;
     expect(c.assignments).toHaveLength(9);

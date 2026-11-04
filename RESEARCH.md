@@ -11,6 +11,8 @@ The branch displays the reported grade and a separate what-if estimate. It appli
 
 GradeViewer supports Schoology only. The active application is the PWA; the TypeScript core and focused web regressions define current grade behavior. Retired native source remains in Git history. Current deployment and validation evidence is in [PWA validation](docs/PWA_VALIDATION.md). Original-account observations below do not establish access or behavior for every school.
 
+A synthetic case reproduced a mismatch between straight points and equal category averaging. The [Schoology section API](https://developers.schoology.com/api-documentation/rest-api-v1/course-section/) describes the unweighted flag as equal category weighting. GradeViewer now compares the two methods on eligible quarters with a reported numeric total and uses straight points when it alone matches the reported result. No real student data was used in the regression.
+
 ## GPA and requested Carmen feasibility — November 1, 2026
 
 Latest evidence: the owner completed direct sign-in for an identity-only experiment. Self-profile verification and a saved-session ordinary Node HTTP read passed in 254 ms and 269 ms, with cookie rotation and encrypted private state retained; no grades were requested. Explicit human Done now gates initial capture through first-use screens, and a reproduced multiple-Set-Cookie conversion bug is fixed. Cloudflare launch rate limiting blocked the warm-renewal benchmark; actual idle/SSO lifetime, Worker portability and full grade retrieval remain open. [Measured scope and remaining checks](docs/CARMEN_SESSION_BENCHMARK.md).

@@ -6,11 +6,11 @@ The official grade stays visible alongside what-if results. The what-if calculat
 
 The opt-in Dublin semester GPA card opens to a compact course list. The level, credit and exclusion controls are behind Edit courses, and credit inputs appear in credit mode. The estimate uses baseline semester grades and keeps settings local to the browser and Schoology account.
 
-Build/type check, 207 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run and source packaging pass. The owner authorized a read-only Schoology check. The returned final-grade records contained no explicit override fields. No grade values or credentials were retained in the repository. The work stays on the development branch for owner testing.
+Build/type check, 209 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run and source packaging pass. The owner authorized a read-only Schoology check. The returned final-grade records contained no explicit override fields. No grade values or credentials were retained in the repository. The work stays on the development branch for owner testing.
 
 A follow-up screenshot comparison reproduced the Q2 value shown by GradeViewer by summing the visible scored assignments as points. The Schoology screenshot showed the quarter's semester weight and no numeric quarter total. The old branch used category rules for its edit check, so matching the visible point sum does not establish what the old calculator returned. The affected snapshot's provider metadata was unavailable. No student scores were retained in the repository.
 
-An in-memory synthetic reproduction passed through the actual parser and calculator. With unequal points across categories, a points-based reported total failed the old edit check when the section was parsed as equal categories. The current branch kept the edit available, but the what-if delta followed the selected category method. The documented Schoology REST flag describes equal category weighting when off, so a flat points mode needs independent confirmation before changing how the calculator selects the method.
+A synthetic quarter reproduced the old lock when the API supplied a straight-points total but described the section as unweighted categories. The parser now selects straight points for an eligible quarter when that method alone reproduces the Schoology total to the hundredth. It preserves the reported grade, assignment categories, and declared method when the evidence is ambiguous or incomplete. A reported override, inferred category rules, duplicate rows, category percentage calculations, or drop rules prevent this inference. The new calculation applies after a fresh snapshot. The original affected snapshot remains unavailable.
 
 # Project status — November 1, 2026
 
