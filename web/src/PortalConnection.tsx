@@ -23,22 +23,24 @@ export function PortalConnection({
   disabled: boolean;
   refresh: () => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false),
+  const [working, setWorking] = useState(""),
     [message, setMessage] = useState(""),
     [login, setLogin] = useState<Login>(),
+    [signInOpened, setSignInOpened] = useState(false),
     [confirmation, setConfirmation] = useState(""),
     [courses, setCourses] = useState<CampusChoice[]>(),
     [selected, setSelected] = useState(status?.selected ?? []);
   const signInWindow = useRef<Window | null>(null);
-  async function run(task: () => Promise<void>) {
-    setBusy(true);
+  const busy = !!working;
+  async function run(task: () => Promise<void>, label = "Working…") {
+    setWorking(label);
     setMessage("");
     try {
       await task();
     } catch (e) {
       setMessage(errorMessage(e));
     } finally {
-      setBusy(false);
+      setWorking("");
     }
   }
   async function choices() {
@@ -99,21 +101,8 @@ export function PortalConnection({
 
   async function start() {
     setConfirmation("");
-    const popup = window.open("about:blank", "_blank");
-    signInWindow.current = popup;
-    if (popup) {
-      popup.document.title = "Infinite Campus sign-in";
-      popup.document.body.textContent =
-        "Starting the temporary Infinite Campus sign-in browser…";
-    }
-    let pending;
-    try {
-      pending = await api<Login>("campus/start", {});
-    } catch (e) {
-      popup?.close();
-      throw e;
-    }
-    if (popup) popup.location.href = pending.url;
+    setSignInOpened(false);
+    const pending = await api<Login>("campus/start", {});
     setCourses(undefined);
     setLogin(pending);
   }
@@ -133,7 +122,9 @@ export function PortalConnection({
           >
             <span className="status-dot" />
             {login
-              ? "Signing in"
+              ? signInOpened
+                ? "Signing in"
+                : "Ready to sign in"
               : status?.needsReconnect
                 ? "Sign-in needed"
                 : status?.connected
@@ -155,14 +146,6 @@ export function PortalConnection({
                 </p>
               </div>
             </div>
-            <a
-              className="portal-reopen"
-              href={login.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open sign-in again <ExternalLink size={14} />
-            </a>
             <div className="button-row">
               <button
                 className="secondary"
@@ -177,6 +160,30 @@ export function PortalConnection({
               >
                 Cancel sign-in
               </button>
+              <a
+                className="primary"
+                href={login.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  setSignInOpened(true);
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  const popup = window.open("about:blank", "_blank");
+                  if (!popup) return;
+                  event.preventDefault();
+                  popup.opener = null;
+                  popup.location.replace(login.url);
+                  signInWindow.current = popup;
+                }}
+              >
+                Open Campus Student <ExternalLink size={14} />
+              </a>
               {(!login.attempt || message) && (
                 <button
                   className="primary"
@@ -292,7 +299,7 @@ export function PortalConnection({
             <button
               className="settings-action portal-action"
               disabled={disabled || busy}
-              onClick={() => void run(start)}
+              onClick={() => void run(start, "Preparing the sign-in browser…")}
             >
               <LogIn size={19} />
               <span>Reconnect Infinite Campus</span>
@@ -323,7 +330,7 @@ export function PortalConnection({
             <button
               className="primary portal-connect"
               disabled={disabled || busy}
-              onClick={() => void run(start)}
+              onClick={() => void run(start, "Preparing the sign-in browser…")}
             >
               <LogIn size={18} />
               Connect Infinite Campus
@@ -337,7 +344,7 @@ export function PortalConnection({
         )}
         {busy && (
           <div className="portal-progress" role="status">
-            <RefreshCw size={14} className="spinning" /> Working…
+            <RefreshCw size={14} className="spinning" /> {working}
           </div>
         )}
         {message && (

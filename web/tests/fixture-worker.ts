@@ -1,5 +1,6 @@
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
+import { ApiError } from "../worker/provider";
 import {
   campusSummary,
   campusDetail,
@@ -26,6 +27,11 @@ export class FixtureVault extends CredentialVault {
     const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
+        const config = await storage.get<{ startLimited?: boolean }>(
+          "synthetic-campus",
+        );
+        if (config?.startLimited)
+          throw new ApiError(429, "portalBrowserDailyLimit");
         return {
           id: "synthetic-session",
           state: async () => structuredClone(campusState),

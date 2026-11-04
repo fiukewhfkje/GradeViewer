@@ -6,6 +6,8 @@
 
 ## Automatic IC sign-in — November 4
 
+- [x] Prepare the temporary browser in Settings before offering the sign-in link. Report startup and daily quota errors without opening a blank tab.
+
 - [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.
 - [ ] Verify a real district sign-in reaches the course picker after Browser Run capacity is available. Check local Live View closure on desktop and phone.
 

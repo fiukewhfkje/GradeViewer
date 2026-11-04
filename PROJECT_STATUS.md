@@ -1,3 +1,7 @@
+# IC sign-in startup feedback — November 4, 2026
+
+The old Connect action opened a blank local tab before the Worker acquired a browser, then closed it on any startup failure. The owner’s Browser Run account reported just over ten minutes used and zero active sessions after Cloudflare rate-limited the acquisition probe. Settings now prepares the browser in place and exposes the Open Campus Student link only on success. Cloudflare’s daily quota, short rate limits and GradeViewer’s own daily allowance have distinct messages. Explicit sign-in still finishes automatically after grade verification. Read-only session history accounts for about 2 minutes 12 seconds in five live diagnostics and 7 minutes 58 seconds in two later sessions consistent with the four-minute cleanup timer. This fix uses synthetic browser tests, including an injected quota response that must leave Settings open without creating a tab.
+
 # Desktop app polish — November 4, 2026
 
 The desktop sidebar now uses the installed GradeViewer icon. The page header keeps its title, and the sidebar omits the duplicate branding, version line and tagline. The version remains available in Settings. Desktop navigation and course cards use tighter spacing with a divider above the course shortcuts. Production build, 192 tests, source packaging and 33 synthetic HTTPS integration flows in each of Chromium and WebKit passed.

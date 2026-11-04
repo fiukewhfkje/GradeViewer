@@ -37,6 +37,12 @@ export interface PortalBrowser {
   detach?(): Promise<void>;
   close(): Promise<void>;
 }
+export function browserQuotaRetryAfter() {
+  const now = new Date();
+  const nextDay = new Date(now);
+  nextDay.setUTCHours(24, 0, 0, 0);
+  return Math.ceil((nextDay.getTime() - now.getTime()) / 1000);
+}
 export async function portalBrowser(
   binding: PortalBinding,
   saved?: BrowserState,
@@ -44,7 +50,6 @@ export async function portalBrowser(
   onEntry?: (url: string) => void,
   onStudentPortal?: (url: string, sessionID: string) => void,
 ): Promise<PortalBrowser> {
-  const sdk = await import("@cloudflare/playwright");
   let browser: Browser | undefined;
   let sessionID = session;
   let acquisitionExpired = false;
@@ -83,6 +88,7 @@ export async function portalBrowser(
     }
     // Cloudflare's default nonpersistent CDP connections isolate contexts. The
     // sign-in window and finish request must attach to the same default context.
+    const sdk = await import("@cloudflare/playwright");
     const endpoint = new URL(
       sdk.endpointURLString(binding, { sessionId: sessionID }),
     );
@@ -200,12 +206,15 @@ export async function portalBrowser(
   } catch (error) {
     if (!session && sessionID)
       await binding.closeSession(sessionID).catch(() => {});
-    if (
-      /429|rate limit|time limit exceeded/i.test(
-        String(error instanceof Error ? error.message : ""),
-      )
-    )
-      throw new ApiError(429, "portalBrowserBudget", 3600);
+    const message = error instanceof Error ? error.message : "";
+    if (/browser time limit exceeded for today/i.test(message))
+      throw new ApiError(
+        429,
+        "portalBrowserDailyLimit",
+        browserQuotaRetryAfter(),
+      );
+    if (/\b429\b|rate limit/i.test(message))
+      throw new ApiError(429, "portalBrowserRateLimited", 20);
     throw new ApiError(502, "browserUnavailable");
   }
 }

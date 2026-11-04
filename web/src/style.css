@@ -1571,7 +1571,7 @@ svg.spinning {
   margin-top: 12px;
   gap: 10px;
 }
-.portal-body .button-row > button {
+.portal-body .button-row > :is(button, a) {
   flex: 1;
   font-size: 14px;
   padding: 12px 8px;
@@ -1610,15 +1610,6 @@ svg.spinning {
   font-size: 13px;
   line-height: 1.5;
 }
-.portal-reopen {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 13px;
-  color: var(--blue);
-  margin: 0 0 14px 34px;
-}
-
 .profile button,
 .profile a {
   overflow-wrap: anywhere;

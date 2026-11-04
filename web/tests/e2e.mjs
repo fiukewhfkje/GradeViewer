@@ -1759,17 +1759,51 @@ try {
           document.body.dataset.campusPopup = "open";
           return {
             document: { body: {} },
-            location: {},
+            location: {
+              replace(url) {
+                document.body.dataset.campusDestination = url;
+              },
+            },
             close() {
               document.body.dataset.campusPopup = "closed";
             },
           };
         };
       });
+      const connect = page.getByRole("button", {
+        name: "Connect Infinite Campus",
+        exact: true,
+      });
+      const openSignIn = page.getByRole("link", {
+        name: "Open Campus Student",
+      });
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { startLimited: true },
+      });
+      await connect.click();
       await page
-        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
-        .click();
-      await page.getByRole("link", { name: "Open sign-in again" }).waitFor();
+        .getByRole("alert")
+        .filter({ hasText: "Cloudflare’s daily browser time is used up" })
+        .waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        null,
+      );
+      assert.equal(await openSignIn.count(), 0);
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { startLimited: false },
+      });
+      await connect.click();
+      await openSignIn.waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        null,
+      );
+      await openSignIn.click();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-destination"),
+        "/api/fixture/portal-window",
+      );
       assert.equal(
         await page.locator("body").getAttribute("data-campus-popup"),
         "open",
@@ -1824,7 +1858,7 @@ try {
       await page
         .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
         .click();
-      await page.getByRole("link", { name: "Open sign-in again" }).waitFor();
+      await openSignIn.click();
       await context.request.post(base + "/api/fixture/campus", {
         data: { signedIn: true },
       });

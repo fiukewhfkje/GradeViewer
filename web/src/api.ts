@@ -81,9 +81,13 @@ const messages: Record<string, string> = {
   portalRateLimited:
     "Infinite Campus is limiting requests. Please wait and retry.",
   portalBrowserBudget:
-    "The temporary sign-in browser reached its usage limit. Try again later.",
+    "GradeViewer’s daily sign-in allowance is used up. It resets at midnight UTC.",
+  portalBrowserDailyLimit:
+    "Cloudflare’s daily browser time is used up. It resets at midnight UTC.",
+  portalBrowserRateLimited:
+    "Cloudflare is limiting new sign-in browsers. Wait a moment and try again.",
   browserUnavailable:
-    "The sign-in window could not open. Please wait and retry.",
+    "GradeViewer couldn’t prepare the sign-in browser. Please try again.",
   portalPasswordChanged:
     "Your app password changed. Reconnect Infinite Campus.",
   networkUnavailable:

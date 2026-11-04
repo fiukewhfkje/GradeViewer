@@ -5,6 +5,7 @@ import { seal, unseal, hash, random, type Envelope } from "./crypto";
 import { ApiError, type Fetcher } from "./provider";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import {
+  browserQuotaRetryAfter,
   portalBrowser,
   type BrowserState,
   type PortalBinding,
@@ -356,7 +357,11 @@ export class PortalService {
           throw new ApiError(409, "portalDisconnectFirst");
         if (c?.pending) await this.close(s);
         if (s.browserMs + 240_000 > 540_000)
-          throw new ApiError(429, "portalBrowserBudget", 3600);
+          throw new ApiError(
+            429,
+            "portalBrowserBudget",
+            browserQuotaRetryAfter(),
+          );
         c ??= { portal, selected: [] };
         if (!c.account) c.portal = portal;
         s.connection = c;

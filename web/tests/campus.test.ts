@@ -8,6 +8,7 @@ import { gpaSemesters, estimateGpa } from "../src/core/gpa";
 import { demoCourses } from "../src/core/demo";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
+import { portalBrowser } from "../worker/portal-browser";
 import {
   campusSummary,
   campusDetail,
@@ -236,6 +237,21 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
+  it.each([
+    ["429: Browser time limit exceeded for today", "portalBrowserDailyLimit"],
+    ["429: Too many requests", "portalBrowserRateLimited"],
+  ])("classifies Browser Run launch failure %s", async (message, code) => {
+    const binding = {
+      acquire: async () => {
+        throw new Error(message);
+      },
+    } as unknown as PortalBinding;
+    await expect(portalBrowser(binding)).rejects.toMatchObject({
+      code,
+      status: 429,
+      retryAfter: expect.any(Number),
+    });
+  });
   it("waits at district sign-in, then verifies the short Campus home and closes the same browser", async () => {
     const h = harness(true);
     const { attempt } = (await h.service.handle("start")) as {
