@@ -7,6 +7,7 @@
 - [x] Add the Dublin GPA estimate and move course levels, semester credits and exclusions behind Edit courses.
 - [x] Show a teacher override example in sample mode and use % for the what-if delta.
 - [x] Reproduce the straight-points mismatch and use the points calculation when it uniquely matches a reported quarter total.
+- [x] Verify the matching course’s metadata read-only and use straight points when weighting is off and category weights are zero or absent.
 - [ ] If the original affected snapshot is available with the student’s consent, identify which condition disabled editing in the old build and confirm how the course combines categories.
 - [ ] Compare the estimate with an owner-confirmed same-semester roster and check the new score editor on a physical phone.
 - [ ] Owner acceptance before cutting the next stable; Carmen work stays development-only.

@@ -6,11 +6,15 @@ The official grade stays visible alongside what-if results. The what-if calculat
 
 The opt-in Dublin semester GPA card opens to a compact course list. The level, credit and exclusion controls are behind Edit courses, and credit inputs appear in credit mode. The estimate uses baseline semester grades and keeps settings local to the browser and Schoology account.
 
-Build/type check, 209 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run and source packaging pass. The owner authorized a read-only Schoology check. The returned final-grade records contained no explicit override fields. No grade values or credentials were retained in the repository. The work stays on the development branch for owner testing.
+Build/type check, 212 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run and source packaging pass. The owner authorized a read-only Schoology check. The returned final-grade records contained no explicit override fields. No grade values or credentials were retained in the repository. The work stays on the development branch for owner testing.
 
 A follow-up screenshot comparison reproduced the Q2 value shown by GradeViewer by summing the visible scored assignments as points. The Schoology screenshot showed the quarter's semester weight and no numeric quarter total. The old branch used category rules for its edit check, so matching the visible point sum does not establish what the old calculator returned. The affected snapshot's provider metadata was unavailable. No student scores were retained in the repository.
 
 A synthetic quarter reproduced the old lock when the API supplied a straight-points total but described the section as unweighted categories. The parser now selects straight points for an eligible quarter when that method alone reproduces the Schoology total to the hundredth. It preserves the reported grade, assignment categories, and declared method when the evidence is ambiguous or incomplete. A reported override, inferred category rules, duplicate rows, category percentage calculations, or drop rules prevent this inference. The new calculation applies after a fresh snapshot. The original affected snapshot remains unavailable.
+
+An owner-authorized read-only Schoology check matched the course from the screenshots by its assignment titles. The section had weighting explicitly off, every category weight zero, and no category calculation types returned. Both formulas could match a baseline while predicting different changes to an assignment. GradeViewer now treats unweighted categories with zero or absent weights and no percentage averaging or drop rules as straight points. Category groups remain visible. An in-memory check against the owner's live response verified the reported Q2 total remained intact and a local edit changed the estimate by the correct straight-points delta. A synthetic regression also covers the same metadata with no reported quarter total. The friend’s original snapshot was not used.
+
+A local candidate based on main with the app changes packaged as v0.1.9 without the Carmen diagnostics. Its isolated template install, build, tests, Worker dry-run, update and rollback fixture passed. The development branch is ready for the owner's release decision.
 
 # Project status — November 1, 2026
 

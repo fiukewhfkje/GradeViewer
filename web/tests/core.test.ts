@@ -239,7 +239,6 @@ describe("Schoology parsing and replacement", () => {
     const p = payload();
     p.section.options = { weighted_grading_categories: 0 };
     p.items = [];
-    for (const category of p.categories) delete category.weight;
     const section = (p.grades.section as any[])[0];
     section.period[0].assignment = [
       { assignment_id: "1", category_id: "1", grade: 9, max_points: 10 },
@@ -248,6 +247,39 @@ describe("Schoology parsing and replacement", () => {
     section.final_grade[0].grade = grade;
     return p;
   }
+
+  it.each([undefined, 0])(
+    "uses straight points when weighting is off, category weights are %s and there is no reported quarter",
+    (weight) => {
+      const p = pointsComparison(null);
+      for (const category of p.categories) {
+        category.weight = weight;
+        delete category.calculation_type;
+        delete category.drop_lowest;
+      }
+      const c = resolveGrades(parseSection(p))[0];
+      expect(c.method).toBe("points");
+      expect(c.grade.percent).toBeCloseTo((100 * 59) / 110);
+      expect(c.categories).toHaveLength(2);
+      const edit = {
+        ...emptyScenario(),
+        scores: { [c.assignments[1].id]: 60 },
+      };
+      expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
+    },
+  );
+
+  it("preserves explicit category calculation rules when weights are zero", () => {
+    const p = pointsComparison(null);
+    for (const category of p.categories) category.weight = 0;
+    p.categories[0].calculation_type = 1;
+    expect(parseSection(p)[0].method).toBe("equalCategories");
+    p.categories[0].calculation_type = 2;
+    p.categories[0].drop_lowest = 1;
+    expect(parseSection(p)[0].method).toBe("equalCategories");
+    p.section.options = { weighted_grading_categories: 1 };
+    expect(parseSection(p)[0].method).toBe("weightedCategories");
+  });
 
   it("uses straight points for what-if when only straight points reproduce the reported quarter", () => {
     const p = pointsComparison(53.64);

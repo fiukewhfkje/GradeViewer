@@ -202,12 +202,27 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         [1, 2].includes(number(r.calculation_type) ?? -1),
     ),
     options = p.section.options ? object(p.section.options) : {},
+    weighting = options.weighted_grading_categories,
+    // Student responses can use zero placeholders for every unweighted category.
+    // Keep the groups for display while calculating their assignment points together.
+    pointsOnly =
+      (weighting === false ||
+        ["0", "false"].includes(nonempty(weighting)?.toLowerCase() ?? "")) &&
+      categories.length > 0 &&
+      categories.every(
+        (category) =>
+          (category.weight === undefined || category.weight === 0) &&
+          category.method === "points" &&
+          category.dropLowest === 0,
+      ),
     method =
-      !known || options.weighted_grading_categories == null
+      !known || weighting == null
         ? "unknown"
-        : flag(options.weighted_grading_categories)
+        : weighting === true || flag(weighting)
           ? "weightedCategories"
-          : "equalCategories";
+          : pointsOnly
+            ? "points"
+            : "equalCategories";
   const metadata = (r: Row, period: string): Row => {
     const id = nonempty(r.assignment_id)!,
       key = `${kind(r)}:${id}`,
