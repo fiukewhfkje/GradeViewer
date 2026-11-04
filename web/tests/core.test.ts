@@ -8,7 +8,12 @@ import {
   scoreInput,
   updateAge,
 } from "../src/core/model";
-import { parseSection, assignmentMetadata, itemID, date } from "../src/core/parser";
+import {
+  parseSection,
+  assignmentMetadata,
+  itemID,
+  date,
+} from "../src/core/parser";
 import { reconcile, resolveGrades } from "../src/core/reconcile";
 import { syntheticPayload } from "../src/core/demo";
 import {
@@ -193,14 +198,16 @@ describe("native calculator rules", () => {
       }),
     ).toBe(80);
   });
-  it("applies scenario delta to reported grade and rejects unreliable baseline", () => {
+  it("applies the assignment delta even when the reported grade differs or is overridden", () => {
     const c = source();
     c.grade.percent = 80.01;
-    expect(
-      hypothetical(c, { ...emptyScenario(), scores: { a: 90 } }),
-    ).toBeCloseTo(90.01);
+    const edit = { ...emptyScenario(), scores: { a: 90 } };
+    expect(hypothetical(c, edit)?.percent).toBeCloseTo(90.01);
     c.grade.percent = 90;
-    expect(hypothetical(c, emptyScenario())).toBeUndefined();
+    c.fields.overall_override = "true";
+    expect(hypothetical(c, edit)).toEqual({ percent: 100, delta: 10 });
+    c.grade.percent = undefined;
+    expect(hypothetical(c, edit)?.percent).toBe(90);
   });
   it("final calculator accepts actual weights and extra-credit results", () => {
     expect(requiredFinal(80, 90, 0.2)).toBe(130);
@@ -260,6 +267,18 @@ describe("Schoology parsing and replacement", () => {
     expect(resolveGrades(parseSection(p))[0].grade.percent).toBe(0);
     (p.grades.section as any[])[0].final_grade[0].grade = "P";
     expect(resolveGrades(parseSection(p))[0].grade.letter).toBe("P");
+  });
+  it("distinguishes explicit overrides from disabled flags", () => {
+    const p = payload();
+    const final = (p.grades.section as any[])[0].final_grade[0];
+    final.override = "0";
+    final.is_override = false;
+    expect(parseSection(p)[0].fields.overall_override).toBeUndefined();
+    final.is_override = true;
+    expect(parseSection(p)[0].fields.overall_override).toBe("true");
+    final.is_override = false;
+    final.override_grade = 0;
+    expect(parseSection(p)[0].fields.overall_override).toBe("true");
   });
   it("uses a numeric overall scale only after unique visible metadata verification", () => {
     const p = payload();

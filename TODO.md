@@ -3,7 +3,8 @@
 ## Grade editing and GPA development
 
 - [x] Keep assignment edit and drop available when a what-if course total cannot be calculated; place the edit caret after the current score.
-- [x] Add an opt-in Dublin semester GPA estimate with local settings for levels, semester credits and exclusions.
+- [x] Show the official grade with a separate what-if projection, including explicitly marked teacher overrides.
+- [x] Add the Dublin GPA estimate and move course levels, semester credits and exclusions behind Edit courses.
 - [ ] Compare the estimate with an owner-confirmed same-semester roster and check the new score editor on a physical phone.
 - [ ] Owner acceptance before cutting the next stable; Carmen work stays development-only.
 

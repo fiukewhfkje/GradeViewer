@@ -126,14 +126,17 @@ export function reliable(c: SourceCourse) {
   );
 }
 export function hypothetical(c: SourceCourse, h: Scenario) {
-  if (!reliable(c)) return undefined;
-  try {
-    return (
-      c.grade.percent! + calculate(c, normalizeScenario(c, h)) - calculate(c)
-    );
-  } catch {
-    return undefined;
-  }
+  const edited = safelyCalculate(c, normalizeScenario(c, h));
+  if (edited === undefined) return;
+  const original = safelyCalculate(c);
+  const delta = original === undefined ? undefined : edited - original;
+  return {
+    percent:
+      c.grade.percent !== undefined && delta !== undefined
+        ? c.grade.percent + delta
+        : edited,
+    delta,
+  };
 }
 export function requiredFinal(current: number, target: number, weight: number) {
   if (

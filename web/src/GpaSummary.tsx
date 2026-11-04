@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { type Course, percentText } from "./core/model";
+import { type Course } from "./core/model";
 import {
   estimateGpa,
   gpaSemesters,
@@ -11,7 +11,7 @@ import { descriptor } from "./core/periods";
 const labels: Record<CourseLevel, string> = {
   regular: "Regular",
   honors: "Honors",
-  advanced: "AP / IB / eligible CCP or CTAG",
+  advanced: "AP / IB / eligible CCP",
 };
 const dublinGuide =
   "https://www.dublinschools.net/fs/resource-manager/view/9fee7ad1-f701-493e-96cf-32b6901e5015";
@@ -32,6 +32,8 @@ export function GpaSummary({
 }) {
   const [period, setPeriod] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [weighting, setWeighting] = useState(settings?.weighting ?? "equal");
   const terms = gpaSemesters(courses);
   const term = terms.find(({ id }) => id === period) ?? terms[0];
   if (!term) return null;
@@ -61,7 +63,10 @@ export function GpaSummary({
     }
     setSaving(true);
     try {
-      if (await save(next)) delete form.dataset.dirty;
+      if (await save(next)) {
+        delete form.dataset.dirty;
+        setEditing(false);
+      }
     } finally {
       setSaving(false);
     }
@@ -69,129 +74,170 @@ export function GpaSummary({
   return (
     <details className="gpa-card">
       <summary>
-        <strong>Estimated semester GPA</strong>
+        <strong>Semester GPA</strong>
         <span className={result?.weighted !== undefined ? "grade" : "muted"}>
           {result?.weighted !== undefined
-            ? `${result.weighted.toFixed(2)} weighted · ${result.unweighted!.toFixed(2)} unweighted`
+            ? `${result.weighted.toFixed(2)} / ${result.unweighted!.toFixed(2)}`
             : settings
               ? "Unavailable"
               : "Set up"}
         </span>
       </summary>
       <div className="gpa-content">
-        <p className="muted">
-          Uses the{" "}
-          <a href={dublinGuide} target="_blank" rel="noopener noreferrer">
-            Dublin City Schools scale
-          </a>
-          . Based on semester grades in this app. It may differ from your
-          transcript.
-        </p>
+        {result?.weighted !== undefined && (
+          <p className="muted">Weighted / unweighted estimate</p>
+        )}
         {!settings || !result ? (
-          <button
-            className="primary"
-            onClick={() => void save({ weighting: "equal", courses: {} })}
-          >
-            Use Dublin GPA scale
-          </button>
+          <>
+            <p className="muted">
+              Estimate your GPA with the Dublin City Schools scale.
+            </p>
+            <button
+              className="primary"
+              onClick={() => void save({ weighting: "equal", courses: {} })}
+            >
+              Use Dublin GPA scale
+            </button>
+          </>
         ) : (
           <>
-            <label>
-              Semester
-              <select
-                value={term.id}
-                onChange={(e) => setPeriod(e.target.value)}
-                disabled={saving}
-              >
-                {terms.map(({ id, course }) => {
-                  const { ordinal, start, end } = descriptor(course);
-                  return (
-                    <option key={id} value={id}>
-                      Semester {ordinal} ·{" "}
-                      {start !== undefined && end !== undefined
-                        ? `${date.format(start)} – ${date.format(end)}`
-                        : "dates unavailable"}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-            <p className="muted" role="status">
-              {settings.weighting === "equal"
-                ? "Each course counts equally."
-                : "Courses are weighted by entered semester credits."}
-              {result.incomplete > 0 &&
-                ` Partial estimate: ${result.incomplete} ${result.incomplete === 1 ? "course needs" : "courses need"} more information.`}
-            </p>
-            <form key={term.id} onSubmit={submit}>
-              <label>
-                Course weighting
-                <select name="weighting" defaultValue={settings.weighting}>
-                  <option value="equal">Count courses equally</option>
-                  <option value="credits">Use entered semester credits</option>
+            <div className="gpa-toolbar">
+              {terms.length > 1 ? (
+                <select
+                  aria-label="Semester"
+                  value={term.id}
+                  disabled={editing}
+                  onChange={(e) => setPeriod(e.target.value)}
+                >
+                  {terms.map(({ id, course }) => {
+                    const { ordinal, start } = descriptor(course);
+                    return (
+                      <option key={id} value={id}>
+                        Semester {ordinal}
+                        {start !== undefined ? ` · ${date.format(start)}` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
-              </label>
-              <p className="muted">
-                Check the suggested levels and exclude classes that don’t count
-                toward GPA. When a letter grade is missing, the estimate uses
-                Dublin’s published percentage cutoffs.
+              ) : (
+                <span>Semester {descriptor(term.course).ordinal}</span>
+              )}
+              {!editing && (
+                <button
+                  className="gpa-edit"
+                  onClick={() => {
+                    setWeighting(settings.weighting);
+                    setEditing(true);
+                  }}
+                >
+                  Edit courses
+                </button>
+              )}
+            </div>
+            {result.incomplete > 0 && (
+              <p className="muted" role="status">
+                Partial estimate · {result.incomplete}{" "}
+                {result.incomplete === 1 ? "course" : "courses"} missing grades
+                or credits
               </p>
-              {result.rows.map((row) => (
-                <fieldset key={row.key} className="gpa-course">
-                  <legend>{row.title}</legend>
-                  <p className="muted">
-                    {row.grade ?? "—"}
-                    {row.inferredGrade && ` (from ${percentText(row.percent)})`}
-                    {row.reason
-                      ? ` · ${row.reason}`
-                      : ` · ${row.weightedPoints?.toFixed(2)} weighted / ${row.points?.toFixed(2)} unweighted points`}
-                    {row.conflict &&
-                      " · Reported letter differs from the percentage conversion."}
-                  </p>
-                  <div className="gpa-fields">
-                    <label>
-                      Level
-                      <select
-                        name={row.key + ":level"}
-                        defaultValue={row.override?.level ?? ""}
-                      >
-                        <option value="">
-                          Suggested: {labels[row.suggested]}
-                        </option>
-                        {Object.entries(labels).map(([id, label]) => (
-                          <option key={id} value={id}>
-                            {label}
+            )}
+            {editing ? (
+              <form key={term.id} onSubmit={submit}>
+                <label className="gpa-check">
+                  <input
+                    type="checkbox"
+                    name="weighting"
+                    value="credits"
+                    checked={weighting === "credits"}
+                    onChange={(e) =>
+                      setWeighting(e.target.checked ? "credits" : "equal")
+                    }
+                  />
+                  Weight by semester credits
+                </label>
+                {result.rows.map((row) => (
+                  <fieldset key={row.key} className="gpa-course">
+                    <legend>{row.title}</legend>
+                    <div className="gpa-fields">
+                      <label>
+                        Level
+                        <select
+                          name={row.key + ":level"}
+                          defaultValue={row.override?.level ?? ""}
+                        >
+                          <option value="">
+                            Auto · {labels[row.suggested]}
                           </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>
-                      Semester credits
+                          {Object.entries(labels).map(([id, label]) => (
+                            <option key={id} value={id}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label hidden={weighting !== "credits"}>
+                        Semester credits
+                        <input
+                          name={row.key + ":credits"}
+                          type="number"
+                          min="0.001"
+                          max="100"
+                          step="any"
+                          inputMode="decimal"
+                          defaultValue={row.override?.credits ?? ""}
+                        />
+                      </label>
+                    </div>
+                    <label className="gpa-check">
                       <input
-                        name={row.key + ":credits"}
-                        type="number"
-                        min="0.001"
-                        max="100"
-                        step="any"
-                        inputMode="decimal"
-                        defaultValue={row.override?.credits ?? ""}
+                        type="checkbox"
+                        name={row.key + ":exclude"}
+                        defaultChecked={row.override?.excluded}
                       />
+                      Exclude from GPA
                     </label>
-                  </div>
-                  <label className="gpa-exclude">
-                    <input
-                      type="checkbox"
-                      name={row.key + ":exclude"}
-                      defaultChecked={row.override?.excluded}
-                    />
-                    Exclude from GPA
-                  </label>
-                </fieldset>
-              ))}
-              <button className="primary" disabled={saving}>
-                Save GPA settings
-              </button>
-            </form>
+                  </fieldset>
+                ))}
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={saving}
+                    onClick={() => setEditing(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button className="primary" disabled={saving}>
+                    Save GPA settings
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <ul className="gpa-list">
+                {result.rows.map((row) => (
+                  <li key={row.key}>
+                    <span>
+                      {row.title}
+                      <small>
+                        {row.reason ??
+                          labels[row.override?.level ?? row.suggested]}
+                        {row.conflict && " · Letter and percent differ"}
+                      </small>
+                    </span>
+                    <strong>{row.grade ?? "—"}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="muted">
+              <a href={dublinGuide} target="_blank" rel="noopener noreferrer">
+                Dublin scale
+              </a>
+              {" · "}
+              {settings.weighting === "equal"
+                ? "Courses count equally"
+                : "Weighted by credits"}
+            </p>
           </>
         )}
       </div>

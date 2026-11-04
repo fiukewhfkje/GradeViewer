@@ -78,12 +78,20 @@ export class FixtureVault extends CredentialVault {
         .map((value) => {
           const row = value as {
             section_id: string;
-            final_grade: { period_id: string; grade: number }[];
+            final_grade: {
+              period_id: string;
+              grade: number;
+              is_override?: boolean;
+            }[];
           };
           // A valid official total that doesn't match the assignment subtotal.
-          if (row.section_id === "102")
+          if (row.section_id === "102") {
             row.final_grade.find((grade) => grade.period_id === "p2")!.grade =
               81;
+            row.final_grade.find(
+              (grade) => grade.period_id === "p3",
+            )!.is_override = true;
+          }
           return row;
         })
         .filter(

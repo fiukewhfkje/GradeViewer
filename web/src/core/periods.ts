@@ -184,7 +184,6 @@ export function semesterScale(
       x.grade.percent !== undefined,
   );
   if (
-    s.grade.percent === undefined ||
     children.some(
       (x) =>
         x.term.weight === undefined ||
@@ -193,12 +192,9 @@ export function semesterScale(
     )
   )
     return;
-  const own = children.find((x) => x.id === c.id)?.term.weight,
-    total = children.reduce((n, x) => n + x.term.weight!, 0);
-  if (own === undefined || total <= 0) return;
-  const base =
-    children.reduce((n, x) => n + x.grade.percent! * x.term.weight!, 0) / total;
-  return Math.abs(base - s.grade.percent) <= 0.15 ? own / total : undefined;
+  const own = children.find((x) => x.id === c.id)?.term.weight;
+  const total = children.reduce((n, x) => n + x.term.weight!, 0);
+  if (own !== undefined && total > 0) return own / total;
 }
 export function estimateQuarter(c: SourceCourse, all: SourceCourse[]) {
   if (

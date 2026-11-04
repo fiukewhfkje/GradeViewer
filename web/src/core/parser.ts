@@ -288,10 +288,13 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         "Course",
     };
     if (
-      ["override", "override_grade", "grade_override"].some(
-        (k) => nonempty(final?.[k]) !== undefined,
+      [final?.override, final?.is_override].some(
+        (v) => v === true || flag(v),
       ) ||
-      flag(final?.is_override)
+      ["override_grade", "grade_override"].some((k) => {
+        const value = nonempty(final?.[k]);
+        return value !== undefined && value.toLowerCase() !== "false";
+      })
     )
       fields.overall_override = "true";
     if (gradeText && scale !== 0) {

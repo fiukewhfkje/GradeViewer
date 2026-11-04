@@ -488,20 +488,23 @@ try {
       await page.keyboard.press("Backspace");
       assert.equal(await input.inputValue(), initial.slice(0, -1));
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      await page
-        .getByText(
-          "Changes apply to assignments only. A what-if course grade is unavailable.",
-        )
-        .waitFor();
+      const whatIf = page.getByLabel("What-If grade", { exact: true });
+      await whatIf.waitFor();
+      assert.match(await whatIf.innerText(), /What-if · S1/);
+      assert.ok(
+        Math.abs(
+          parseFloat(await whatIf.locator(".scenario-delta").innerText()),
+        ) > 0.15,
+      );
+      assert.equal(
+        await page.getByText("Teacher override", { exact: true }).count(),
+        1,
+      );
       assert.match(
         await score.innerText(),
         new RegExp("^" + initial.slice(0, -1) + "/"),
       );
       assert.equal(await page.locator(".summary .grade").innerText(), baseline);
-      assert.equal(
-        await page.getByLabel("What-If grade", { exact: true }).count(),
-        0,
-      );
       await menu.click();
       await page
         .getByRole("button", { name: "Drop Assignment", exact: true })
@@ -522,12 +525,9 @@ try {
       const card = page.locator(".gpa-card");
       await card.locator("summary").click();
       await card.getByRole("button", { name: "Use Dublin GPA scale" }).click();
+      await card.getByRole("button", { name: "Edit courses" }).click();
       const biology = card.getByRole("group", { name: "AP Biology" });
-      assert.match(
-        await biology.innerText(),
-        /5.00 weighted \/ 4.00 unweighted/,
-      );
-      await card.getByLabel("Course weighting").selectOption("credits");
+      await card.getByLabel("Weight by semester credits").check();
       await biology.getByLabel("Level").selectOption("honors");
       await biology.getByLabel("Semester credits").fill("0.5");
       await card.getByRole("button", { name: "Save GPA settings" }).click();
@@ -535,18 +535,16 @@ try {
         .getByText("Credits needed", { exact: false })
         .first()
         .waitFor();
-      assert.match(
-        await card.locator("summary").innerText(),
-        /4.50 weighted · 4.00 unweighted/,
-      );
+      assert.match(await card.locator("summary").innerText(), /4\.50 \/ 4\.00/);
       const refreshed = page.waitForResponse(
         (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
       );
       await page.reload();
-      await card.getByText("4.50 weighted · 4.00 unweighted").waitFor();
+      await card.getByText("4.50 / 4.00").waitFor();
       await refreshed;
       await card.locator("summary").click();
       await page.screenshot({ path: directory + "/semester-gpa.png" });
+      await card.getByRole("button", { name: "Edit courses" }).click();
       assert.equal(await biology.getByLabel("Level").inputValue(), "honors");
       assert.equal(
         await biology.getByLabel("Semester credits").inputValue(),
@@ -714,7 +712,7 @@ try {
       await page.getByLabel("What-If grade", { exact: true }).waitFor();
       assert.match(
         await page.locator(".scenario-delta").innerText(),
-        /^-\d+\.\d{2}%$/,
+        /^-\d+\.\d{2} pp$/,
       );
       await page
         .getByRole("button", { name: "View All Assignments", exact: true })

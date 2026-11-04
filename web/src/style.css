@@ -1253,57 +1253,111 @@ svg.spinning {
   }
 }
 
+.override-tag {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.what-if {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+}
+.what-if > small:first-child {
+  margin-right: auto;
+  font-size: 14px;
+}
 .gpa-card {
   background: var(--row);
   border-radius: 16px;
   margin-bottom: 14px;
-  overflow: hidden;
 }
 .gpa-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 16px;
   cursor: pointer;
 }
+.gpa-card > summary::before {
+  content: "▸";
+  color: var(--muted);
+}
+.gpa-card[open] > summary::before {
+  content: "▾";
+}
 .gpa-card > summary > span {
-  display: block;
-  margin: 4px 0 0 1.25em;
+  margin-left: auto;
+  white-space: nowrap;
 }
 .gpa-content {
-  padding: 0 16px 16px;
+  padding: 0 16px 12px;
 }
-.gpa-content a {
-  color: inherit;
+.gpa-content p {
+  margin: 4px 0 10px;
 }
-.gpa-content form > p {
-  margin-top: 8px;
+.gpa-toolbar,
+.gpa-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.gpa-toolbar select {
+  min-width: 0;
+}
+.gpa-edit {
+  color: var(--blue);
+  min-height: 44px;
+  flex-shrink: 0;
+}
+.gpa-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.gpa-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.gpa-list small {
+  display: block;
+  color: var(--muted);
 }
 .gpa-course {
   min-inline-size: 0;
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   border: 1px solid var(--line);
   border-radius: 12px;
 }
 .gpa-course legend {
   font-weight: 600;
 }
-.gpa-course p {
-  margin: 0 0 8px;
-}
 .gpa-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+.gpa-fields label {
+  flex: 1 1 110px;
+  min-width: 0;
+}
+.gpa-fields label[hidden] {
+  display: none;
 }
 .gpa-fields select,
 .gpa-fields input {
   width: 100%;
   min-width: 0;
 }
-.gpa-exclude {
+.gpa-check {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.gpa-exclude input {
+.gpa-check input {
   width: auto;
   min-height: 0;
 }
