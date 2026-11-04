@@ -1,3 +1,7 @@
+# Automatic IC sign-in — November 4, 2026
+
+The synthetic Worker and browser checks cover waiting at district sign-in, the short Student Profile route, verification failure and retry, closure after success, first-time course selection and same-account reconnect with prior selections. The external window is modeled in the synthetic browsers, and the Worker test checks a single browser session is closed. A live Cloudflare probe was rate-limited before it could open a browser. The student's provider responses and local Live View tab closure remain unverified.
+
 # District finder, responsive Settings and cached startup — November 4, 2026
 
 Production build/type check, **191 tests across 15 files**, **33 Chromium and 33 WebKit HTTPS/Worker flows**, **85-file source packaging**, isolated template install/build/Worker dry-run/update/rollback and a zero-finding dependency audit passed. Settings coverage checks light/dark layout and control sizes at 320, 360, 390, 600, 768, 900, 1024, 1280, 1440, 1920, 2560 and 3840 CSS pixels, including expanded forms at four widths. Representative screenshots were inspected. WebKit exposed a native select sizing issue, corrected by styling the select consistently.

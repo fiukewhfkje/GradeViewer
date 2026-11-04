@@ -1,4 +1,4 @@
-import { observedCampusPortal } from "./campus-url";
+import { campusHome, observedCampusPortal } from "./campus-url";
 import { ApiError } from "./provider";
 import type {
   BrowserWorker,
@@ -6,7 +6,7 @@ import type {
   BrowserContext,
 } from "@cloudflare/playwright";
 export type PortalBinding = BrowserWorker &
-  Pick<BrowserRun, "acquire" | "closeSession" | "getLiveView">;
+  Pick<BrowserRun, "acquire" | "closeSession" | "getLiveView" | "devtools">;
 export interface BrowserState {
   cookies: {
     name: string;
@@ -33,6 +33,8 @@ export interface PortalBrowser {
   ): Promise<void>;
   url(): string;
   studentPortal?(): Promise<string | undefined>;
+  studentNumber?(origin: string): Promise<string | undefined>;
+  detach?(): Promise<void>;
   close(): Promise<void>;
 }
 export async function portalBrowser(
@@ -135,7 +137,38 @@ export async function portalBrowser(
     context.on("page", watch);
     return {
       id: browser.sessionId(),
-      state: () => context.storageState(),
+      state: () => bounded(context.storageState()),
+      detach: async () => {
+        await bounded(browser!.close(), 3000);
+      },
+      studentNumber: async (origin) => {
+        for (const open of [...context.pages()].reverse().slice(0, 6)) {
+          if (!campusHome(open.url()) || new URL(open.url()).origin !== origin)
+            continue;
+          for (const frame of open.frames().slice(0, 10)) {
+            if (
+              new URL(frame.url()).origin !== origin ||
+              !new URL(frame.url()).pathname.startsWith("/campus/")
+            )
+              continue;
+            const result = await bounded(
+              frame.evaluate(() => {
+                // Read just the labeled number. The profile, name, and other content never leave the page.
+                const text = document.body?.innerText ?? "";
+                if (!/^\s*Student Profile\s*$/im.test(text)) return;
+                const numbers = [
+                  ...text.matchAll(
+                    /^[ \t]*Student Number[ \t]*:?[ \t\r\n]+(\d{1,24})[ \t]*$/gim,
+                  ),
+                ].map((match) => match[1]);
+                if (new Set(numbers).size === 1) return numbers[0];
+              }),
+              2500,
+            ).catch(() => undefined);
+            if (result) return result;
+          }
+        }
+      },
       live: async () => {
         const result = await bounded(
           binding.getLiveView(sessionID!, {
@@ -165,7 +198,8 @@ export async function portalBrowser(
       },
     };
   } catch (error) {
-    if (sessionID) await binding.closeSession(sessionID).catch(() => {});
+    if (!session && sessionID)
+      await binding.closeSession(sessionID).catch(() => {});
     if (
       /429|rate limit|time limit exceeded/i.test(
         String(error instanceof Error ? error.message : ""),

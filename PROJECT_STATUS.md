@@ -1,3 +1,9 @@
+# Automatic IC sign-in — November 4, 2026
+
+The owner reached the signed-in Student Profile at the short Campus nav-wrapper URL. GradeViewer now recognizes that URL as a candidate and uses a bounded Worker alarm during explicit sign-in to verify the student and grades read, save the encrypted session and close the temporary cloud browser. Settings confirms success and opens the first-time course picker automatically. The app also tries to close the local Live View window, which can remain open when isolated by the browser.
+
+A first-time connection can bind to the authenticated Student Profile when the district schedule omits a usable student ID. Reconnect requires the same verified identity and keeps selected classes. Capture and grade-service failures have distinct retry messages. Synthetic tests cover the short wrapper, delayed verification, retry, session closure and reconnect. The live binding probe was rate-limited before acquisition, so live district grade verification remains open. Local build and type check, 192 tests, and 33 Chromium and 33 WebKit integration flows passed.
+
 # IC browser use and graph hover — November 4, 2026
 
 The earlier iPhone app opened IC in a local embedded WebKit view and read cookies from that view's private store. The PWA uses temporary Cloudflare Chrome because a website cannot access the separate IC origin's session cookies in a normal browser tab. IC now starts Browser Run only on Connect or Reconnect. Refresh reads use HTTP and show the reconnect action when authentication is rejected. Explicit reconnect uses the remembered SSO entry when available. Live View setup overlaps navigation and opens after the first document commits. No new live Browser Run launch was used to test this change, so the startup time improvement has not been measured against a student sign-in.

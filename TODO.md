@@ -1,5 +1,10 @@
 # Next work
 
+## Automatic IC sign-in — November 4
+
+- [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.
+- [ ] Verify a real district sign-in reaches the course picker after Browser Run capacity is available. Check local Live View closure on desktop and phone.
+
 ## IC browser use and graph hover — November 4
 
 - [x] Use Browser Run only for explicit IC sign-in and reconnect. Overlap Live View setup and the first navigation.

@@ -1750,18 +1750,45 @@ try {
     },
   );
   await check(
-    "selected IC courses share grade UI and survive expiry/reconnect without linking",
+    "IC sign-in finishes automatically and selected courses survive expiry and reconnect",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      const signIn = page.waitForEvent("popup");
+      // Model the external window without navigating a real popup to a synthetic sign-in page.
+      await page.evaluate(() => {
+        window.open = () => {
+          document.body.dataset.campusPopup = "open";
+          return {
+            document: { body: {} },
+            location: {},
+            close() {
+              document.body.dataset.campusPopup = "closed";
+            },
+          };
+        };
+      });
       await page
         .getByRole("button", { name: "Connect Infinite Campus", exact: true })
         .click();
-      const signInPage = await signIn;
-      await signInPage.waitForURL(base + "/api/fixture/portal-window");
+      await page.getByRole("link", { name: "Open sign-in again" }).waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        "open",
+      );
+      assert.equal(
+        await page.getByRole("button", { name: "Finish connecting" }).count(),
+        0,
+      );
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { signedIn: true },
+      });
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
+        .getByRole("status")
+        .filter({ hasText: "Infinite Campus connected." })
+        .waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        "closed",
+      );
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .check();
@@ -1797,9 +1824,14 @@ try {
       await page
         .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
         .click();
+      await page.getByRole("link", { name: "Open sign-in again" }).waitFor();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { signedIn: true },
+      });
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
+        .getByRole("status")
+        .filter({ hasText: "Infinite Campus connected." })
+        .waitFor();
       await page
         .getByRole("button", { name: "Choose IC courses", exact: true })
         .click();

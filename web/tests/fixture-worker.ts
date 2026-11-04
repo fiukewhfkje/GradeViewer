@@ -23,15 +23,21 @@ export class FixtureVault extends CredentialVault {
     super(fixtureState, fixtureEnv);
   }
   protected override portals() {
+    const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
         return {
           id: "synthetic-session",
           state: async () => structuredClone(campusState),
           live: async () => "/api/fixture/portal-window",
-          navigate: async () => {},
+          navigate: async () => {
+            await storage.delete("synthetic-campus-signed-in");
+          },
           url: () => campusPortal,
-          studentPortal: async () => campusPortal,
+          studentPortal: async () =>
+            (await storage.get("synthetic-campus-signed-in"))
+              ? new URL("/campus/nav-wrapper", campusPortal).href
+              : undefined,
           close: async () => {},
         };
       }
@@ -54,6 +60,11 @@ export class FixtureVault extends CredentialVault {
     ) {
       const value = await request.json();
       await this.fixtureState.storage.put("synthetic-campus", value);
+      if (value && typeof value === "object" && "signedIn" in value)
+        await this.fixtureState.storage.put(
+          "synthetic-campus-signed-in",
+          value.signedIn,
+        );
       return Response.json({ ok: true });
     }
 

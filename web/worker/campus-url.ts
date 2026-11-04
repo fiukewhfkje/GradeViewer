@@ -24,13 +24,15 @@ export function campusURL(input: unknown, observed = false): URL {
     u.pathname,
   );
   const modern =
-    /^\/campus\/nav-wrapper\/student\/portal\/student\/(?:home|grades)(?:\/)?$/.test(
+    /^\/campus\/nav-wrapper\/student\/portal\/student\/(?:home|grades|today)(?:\/)?$/.test(
       u.pathname,
     );
   const sso =
     observed &&
     u.pathname.match(/^\/campus\/SSO\/([a-zA-Z0-9_-]+)\/portal\/students\/?$/);
-  if (!legacy && !modern && !sso) throw new ApiError(400, "invalidCampusURL");
+  const wrapper = /^\/campus\/nav-wrapper\/?$/.test(u.pathname);
+  if (!legacy && !modern && !wrapper && !sso)
+    throw new ApiError(400, "invalidCampusURL");
   const app = modern ? u.searchParams.get("appName") : null;
   if (app && !/^[a-zA-Z0-9_-]{1,100}$/.test(app))
     throw new ApiError(400, "invalidCampusURL");
@@ -44,6 +46,7 @@ export function campusURL(input: unknown, observed = false): URL {
   u.search = "";
   u.hash = "";
   if (sso) u.pathname = `/campus/portal/students/${sso[1]}.jsp`;
+  else if (wrapper) u.pathname = "/campus/nav-wrapper";
   else if (modern) {
     u.pathname = "/campus/nav-wrapper/student/portal/student/home";
     if (app) u.searchParams.set("appName", app);
@@ -56,4 +59,12 @@ export function observedCampusPortal(input: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+// A home URL permits verification. It is not evidence of authentication by itself.
+export function campusHome(input: string) {
+  const portal = observedCampusPortal(input);
+  return portal && new URL(portal).pathname.startsWith("/campus/nav-wrapper")
+    ? portal
+    : undefined;
 }
