@@ -1,3 +1,13 @@
+# Project status — November 3, 2026
+
+## v0.1.9 release candidate
+
+Edit Grade, Drop Assignment and Add Grade are available even when the old comparison could not reproduce Schoology's total. The official grade stays visible alongside the what-if estimate. Explicit teacher overrides are tagged. The score editor opens with the caret at the end. Unweighted categories with absent or zero weights and no percentage averaging or drop rules use straight points.
+
+The Grades screen has a compact Dublin semester GPA estimate with weighted and unweighted results. Course levels, credits and exclusions are under Edit courses. Settings are stored locally for the connected account.
+
+An owner-authorized read-only check verified the points calculation against the matching course's Schoology response. The candidate passed local app tests in Chromium and WebKit and standalone template packaging, installation, update and rollback checks. The release uses the existing signed workflow. Physical phone and independent-account acceptance remain open.
+
 # Project status — October 23, 2026
 
 GradeViewer is web-only at the owner’s request. Removed the SwiftUI app, GradeCore package, Xcode project, native signing/build configuration, assets, tests, fixtures, helper scripts and native setup guide. Removed project-local native build caches/signing overrides; protected captures under ignored `artifacts/` were retained. Native source remains in Git history at `4100e615130b407a4dc5b2901f936d39c789482a` and earlier.

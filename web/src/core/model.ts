@@ -1,3 +1,5 @@
+import type { GpaSettings } from "./gpa";
+
 export interface Grade {
   percent?: number;
   letter?: string;
@@ -69,6 +71,7 @@ export interface SavedState {
   account?: string;
   courses: Course[];
   scenarios: Record<string, Scenario>;
+  gpa?: GpaSettings;
   metadata?: Record<
     string,
     {

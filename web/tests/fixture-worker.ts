@@ -75,6 +75,25 @@ export class FixtureVault extends CredentialVault {
             .grades.section as unknown[],
       )
         .flat()
+        .map((value) => {
+          const row = value as {
+            section_id: string;
+            final_grade: {
+              period_id: string;
+              grade: number | null;
+              is_override?: boolean;
+            }[];
+          };
+          // The unweighted section has assignment scores but no numeric Q2 total.
+          if (row.section_id === "102") {
+            row.final_grade.find((grade) => grade.period_id === "p2")!.grade =
+              null;
+            row.final_grade.find(
+              (grade) => grade.period_id === "p3",
+            )!.is_override = true;
+          }
+          return row;
+        })
         .filter(
           (r) =>
             !u.searchParams.has("section_id") ||
@@ -95,6 +114,13 @@ export class FixtureVault extends CredentialVault {
         Date.parse("2026-10-16T12:00:00Z"),
       );
     if (key === "fixture-aliases") p.section.id = section;
+    if (p.section.course_title === "Computer Science A") {
+      p.section.options = { weighted_grading_categories: 0 };
+      for (const category of p.categories) {
+        category.weight = 0;
+        delete category.calculation_type;
+      }
+    }
     if (u.pathname === `/v1/sections/${section}`)
       return Response.json(p.section);
     const name = u.pathname.split("/").at(-1);

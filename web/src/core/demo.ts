@@ -141,7 +141,15 @@ export function demoCourses(now = Date.now()) {
     Array.from({ length: 5 }, (_, i) => {
       const sectionID = String(100 + i),
         p = syntheticPayload(sectionID, now);
-      return parseSection({ ...p, owner: sectionID, fetched: now });
+      const courses = parseSection({ ...p, owner: sectionID, fetched: now });
+      // AP Physics 1 demonstrates an official semester override in sample mode.
+      const example =
+        sectionID === "101" && courses.find((c) => c.term.id === "p3");
+      if (example) {
+        example.grade = { percent: 90 };
+        example.fields.overall_override = "true";
+      }
+      return courses;
     }).flat(),
     [],
     now,

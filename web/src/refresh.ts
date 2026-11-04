@@ -540,6 +540,9 @@ export async function readSnapshot(
         preserved.account === account ? preserved.courses : [],
       ),
       scenarios: preserved.account === account ? preserved.scenarios : {},
+      ...(preserved.account === account && preserved.gpa
+        ? { gpa: preserved.gpa }
+        : {}),
     };
     await repository.prepare({
       state: next,

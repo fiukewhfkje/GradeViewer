@@ -8,7 +8,12 @@ import {
   scoreInput,
   updateAge,
 } from "../src/core/model";
-import { parseSection, assignmentMetadata, itemID, date } from "../src/core/parser";
+import {
+  parseSection,
+  assignmentMetadata,
+  itemID,
+  date,
+} from "../src/core/parser";
 import { reconcile, resolveGrades } from "../src/core/reconcile";
 import { syntheticPayload } from "../src/core/demo";
 import {
@@ -193,14 +198,16 @@ describe("native calculator rules", () => {
       }),
     ).toBe(80);
   });
-  it("applies scenario delta to reported grade and rejects unreliable baseline", () => {
+  it("applies the assignment delta even when the reported grade differs or is overridden", () => {
     const c = source();
     c.grade.percent = 80.01;
-    expect(
-      hypothetical(c, { ...emptyScenario(), scores: { a: 90 } }),
-    ).toBeCloseTo(90.01);
+    const edit = { ...emptyScenario(), scores: { a: 90 } };
+    expect(hypothetical(c, edit)?.percent).toBeCloseTo(90.01);
     c.grade.percent = 90;
-    expect(hypothetical(c, emptyScenario())).toBeUndefined();
+    c.fields.overall_override = "true";
+    expect(hypothetical(c, edit)).toEqual({ percent: 100, delta: 10 });
+    c.grade.percent = undefined;
+    expect(hypothetical(c, edit)?.percent).toBe(90);
   });
   it("final calculator accepts actual weights and extra-credit results", () => {
     expect(requiredFinal(80, 90, 0.2)).toBe(130);
@@ -227,6 +234,82 @@ describe("Schoology parsing and replacement", () => {
   const payload = () => ({
     ...syntheticPayload("100", Date.parse("2026-11-10T12:00:00Z")),
     owner: "100",
+  });
+  function pointsComparison(grade: number | null) {
+    const p = payload();
+    p.section.options = { weighted_grading_categories: 0 };
+    p.items = [];
+    const section = (p.grades.section as any[])[0];
+    section.period[0].assignment = [
+      { assignment_id: "1", category_id: "1", grade: 9, max_points: 10 },
+      { assignment_id: "2", category_id: "2", grade: 50, max_points: 100 },
+    ];
+    section.final_grade[0].grade = grade;
+    return p;
+  }
+
+  it.each([undefined, 0])(
+    "uses straight points when weighting is off, category weights are %s and there is no reported quarter",
+    (weight) => {
+      const p = pointsComparison(null);
+      for (const category of p.categories) {
+        category.weight = weight;
+        delete category.calculation_type;
+        delete category.drop_lowest;
+      }
+      const c = resolveGrades(parseSection(p))[0];
+      expect(c.method).toBe("points");
+      expect(c.grade.percent).toBeCloseTo((100 * 59) / 110);
+      expect(c.categories).toHaveLength(2);
+      const edit = {
+        ...emptyScenario(),
+        scores: { [c.assignments[1].id]: 60 },
+      };
+      expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
+    },
+  );
+
+  it("preserves explicit category calculation rules when weights are zero", () => {
+    const p = pointsComparison(null);
+    for (const category of p.categories) category.weight = 0;
+    p.categories[0].calculation_type = 1;
+    expect(parseSection(p)[0].method).toBe("equalCategories");
+    p.categories[0].calculation_type = 2;
+    p.categories[0].drop_lowest = 1;
+    expect(parseSection(p)[0].method).toBe("equalCategories");
+    p.section.options = { weighted_grading_categories: 1 };
+    expect(parseSection(p)[0].method).toBe("weightedCategories");
+  });
+
+  it("uses straight points for what-if when only straight points reproduce the reported quarter", () => {
+    const p = pointsComparison(53.64);
+    const c = parseSection(p)[0];
+    expect(c.grade.percent).toBe(53.64);
+    expect(calculate({ ...c, method: "equalCategories" })).toBe(70);
+    expect(c.method).toBe("points");
+    const edit = { ...emptyScenario(), scores: { [c.assignments[1].id]: 60 } };
+    expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
+  });
+
+  it("retains category grading when the reported total cannot distinguish the two methods", () => {
+    const ambiguous = pointsComparison(90);
+    (ambiguous.grades.section as any[])[0].period[0].assignment[1].grade = 90;
+    expect(parseSection(ambiguous)[0].method).toBe("equalCategories");
+
+    const overridden = pointsComparison(53.64);
+    (overridden.grades.section as any[])[0].final_grade[0].is_override = true;
+    expect(parseSection(overridden)[0].method).toBe("equalCategories");
+
+    const dropped = pointsComparison(53.64);
+    dropped.categories[0].drop_lowest = 1;
+    expect(parseSection(dropped)[0].method).toBe("equalCategories");
+
+    expect(parseSection(pointsComparison(null))[0].method).toBe(
+      "equalCategories",
+    );
+    expect(parseSection(pointsComparison(70))[0].method).toBe(
+      "equalCategories",
+    );
   });
   it("joins typed metadata and named ungraded items without duplicate scores", () => {
     const c = parseSection(payload()).find((c) => c.term.id === "p2")!;
@@ -260,6 +343,18 @@ describe("Schoology parsing and replacement", () => {
     expect(resolveGrades(parseSection(p))[0].grade.percent).toBe(0);
     (p.grades.section as any[])[0].final_grade[0].grade = "P";
     expect(resolveGrades(parseSection(p))[0].grade.letter).toBe("P");
+  });
+  it("distinguishes explicit overrides from disabled flags", () => {
+    const p = payload();
+    const final = (p.grades.section as any[])[0].final_grade[0];
+    final.override = "0";
+    final.is_override = false;
+    expect(parseSection(p)[0].fields.overall_override).toBeUndefined();
+    final.is_override = true;
+    expect(parseSection(p)[0].fields.overall_override).toBe("true");
+    final.is_override = false;
+    final.override_grade = 0;
+    expect(parseSection(p)[0].fields.overall_override).toBe("true");
   });
   it("uses a numeric overall scale only after unique visible metadata verification", () => {
     const p = payload();
