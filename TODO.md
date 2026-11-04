@@ -8,6 +8,7 @@
 
 - [x] Fix Workerd’s Illegal invocation in the IC transport and reproduce the correction in the remote runtime without credentials or Browser Run.
 - [x] Overlap local import deployment with sign-in and close the captured local Campus window before import verification.
+- [x] Confirm the owner’s real session persists on Cloudflare and the restored normal Worker can fetch the IC course list.
 
 - [x] Prepare the temporary browser in Settings before offering the sign-in link. Report startup and daily quota errors without opening a blank tab.
 
