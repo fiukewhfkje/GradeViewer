@@ -1,3 +1,4 @@
+import { observedCampusPortal } from "./campus-url";
 import { ApiError } from "./provider";
 import type {
   BrowserWorker,
@@ -28,6 +29,7 @@ export interface PortalBrowser {
   live(): Promise<string>;
   navigate(url: string): Promise<void>;
   url(): string;
+  studentPortal?(): Promise<string | undefined>;
   ready(origin: string): Promise<void>;
   close(): Promise<void>;
 }
@@ -36,6 +38,7 @@ export async function portalBrowser(
   saved?: BrowserState,
   session?: string,
   onEntry?: (url: string) => void,
+  onStudentPortal?: (url: string, sessionID: string) => void,
 ): Promise<PortalBrowser> {
   const sdk = await import("@cloudflare/playwright");
   let browser: Browser | undefined;
@@ -95,22 +98,39 @@ export async function portalBrowser(
       }, saved.origins);
     }
     const page = context.pages()[0] ?? (await context.newPage());
-    page.on("framenavigated", (frame) => {
-      if (frame.parentFrame()) return;
+    let selectedPortal: string | undefined;
+    const observe = (url: string) => {
+      const portal = observedCampusPortal(url);
+      if (!portal) return;
+      if (portal !== selectedPortal) {
+        selectedPortal = portal;
+        if (sessionID) onStudentPortal?.(portal, sessionID);
+      }
+      const u = new URL(url);
+      if (!/^\/campus\/SSO\//.test(u.pathname)) return;
+      const config = u.searchParams.get("configID");
+      u.search = "";
+      u.hash = "";
+      if (config && /^\d+$/.test(config))
+        u.searchParams.set("configID", config);
+      onEntry?.(u.href);
+    };
+    const watch = (open: typeof page) => {
+      open.on("framenavigated", (frame) => {
+        if (!frame.parentFrame()) observe(frame.url());
+      });
+    };
+    // Requests also see a Student link that redirects before it commits a document.
+    context.on("request", (request) => {
+      if (!request.isNavigationRequest()) return;
       try {
-        const u = new URL(frame.url());
-        if (u.protocol === "https:" && /^\/campus\/SSO\//.test(u.pathname)) {
-          const config = u.searchParams.get("configID");
-          u.search = "";
-          u.hash = "";
-          if (config && /^\d+$/.test(config))
-            u.searchParams.set("configID", config);
-          onEntry?.(u.href);
-        }
+        if (!request.frame().parentFrame()) observe(request.url());
       } catch {
-        /* No URL or page data is logged. */
+        /* Popup navigation can precede creation of its frame. */
       }
     });
+    for (const open of context.pages()) watch(open);
+    context.on("page", watch);
     return {
       id: browser.sessionId(),
       state: () => context.storageState(),
@@ -133,6 +153,11 @@ export async function portalBrowser(
         });
       },
       url: () => page.url(),
+      studentPortal: async () =>
+        [...context.pages()]
+          .reverse()
+          .map((p) => observedCampusPortal(p.url()))
+          .find(Boolean) ?? selectedPortal,
       ready: async (origin) => {
         await page.waitForURL(
           (u) =>

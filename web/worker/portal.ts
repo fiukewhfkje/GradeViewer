@@ -5,6 +5,9 @@ import {
   canvasNext,
   canvasCoursesPath,
 } from "./canvas";
+
+import { campusURL, campusLogin } from "./campus-url";
+export { campusURL } from "./campus-url";
 import { Cookie, CookieJar } from "tough-cookie";
 import { seal, unseal, hash, type Envelope } from "./crypto";
 import { ApiError, type Fetcher } from "./provider";
@@ -40,23 +43,6 @@ interface PortalStore {
   browserDay?: string;
   browserMs: number;
   renewalMs?: number;
-}
-export function campusURL(input: unknown) {
-  if (typeof input !== "string" || input.length > 1000)
-    throw new ApiError(400, "invalidCampusURL");
-  const u = new URL(input);
-  if (
-    u.protocol !== "https:" ||
-    u.username ||
-    u.password ||
-    u.port ||
-    u.hash ||
-    !/^([a-z0-9-]+\.)+infinitecampus\.(org|com)$/.test(u.hostname) ||
-    !/^\/campus\/portal\/students\/[a-zA-Z0-9_-]+\.jsp$/.test(u.pathname) ||
-    u.search
-  )
-    throw new ApiError(400, "invalidCampusURL");
-  return u;
 }
 export function browserJar(state: BrowserState, origin: string) {
   if (state.cookies.length > 400) throw new ApiError(502, "malformedCampus");
@@ -166,9 +152,22 @@ export class PortalService {
   }
   protected async browser(saved?: BrowserState, id?: string) {
     if (!this.binding) throw new ApiError(503, "browserUnavailable");
-    return portalBrowser(this.binding, saved, id, (entry) => {
-      void this.storage.put(`portal-${this.kind}-entry`, entry);
-    });
+    return portalBrowser(
+      this.binding,
+      saved,
+      id,
+      (entry) => {
+        void this.storage
+          .put(`portal-${this.kind}-entry`, entry)
+          .catch(() => {});
+      },
+      (portal, sessionID) => {
+        if (!id && this.kind === "campus")
+          void this.storage
+            .put("portal-campus-discovered", { portal, sessionID })
+            .catch(() => {});
+      },
+    );
   }
   private async load(): Promise<PortalStore> {
     const encrypted = await this.storage.get<Envelope>(`portal-${this.kind}`);
@@ -259,13 +258,15 @@ export class PortalService {
     } catch {
       /* Browser may already have expired. */
     }
-    if (new Date(p.started).toISOString().slice(0, 10) === s.browserDay)
+    if (s.browserDay === new Date(p.started).toISOString().slice(0, 10))
       s.browserMs = Math.max(
         0,
-        s.browserMs +
-          Math.min(240_000, Math.max(0, Date.now() - p.started)) -
-          240_000,
+        s.browserMs -
+          240_000 +
+          Math.min(240_000, Math.max(0, Date.now() - p.started)),
       );
+    if (this.kind === "campus")
+      await this.storage.delete("portal-campus-discovered");
     delete s.connection!.pending;
   }
   async expire() {
@@ -518,19 +519,19 @@ export class PortalService {
         return { ok: true };
       }
       if (action === "start") {
-        const portal = this.portalURL(
-          b.portal ??
-            c?.portal ??
-            (this.kind === "carmen"
-              ? "https://osu.instructure.com"
-              : undefined),
-        ).href;
+        const requested = b.portal ?? c?.portal;
+        const portal =
+          this.kind === "campus" &&
+          (requested === undefined || requested === campusLogin)
+            ? campusLogin
+            : this.portalURL(requested ?? "https://osu.instructure.com").href;
         if (c?.account && c.portal !== portal)
           throw new ApiError(409, "portalDisconnectFirst");
         if (c?.pending) await this.close(s);
         if (s.browserMs + 240_000 > 540_000)
           throw new ApiError(429, "portalBrowserBudget", 3600);
         c ??= { portal, selected: [] };
+        if (!c.account) c.portal = portal;
         s.connection = c;
         const began = Date.now();
         s.browserMs += 240_000;
@@ -557,16 +558,39 @@ export class PortalService {
         if (!c.pending) throw new ApiError(409, "portalSignInExpired");
         const browser = await this.browser(undefined, c.pending.id),
           state = await browser.state();
-        const jar = browserJar(state, this.portalURL(c.portal).origin),
-          account = await this.verify(c, jar);
-        this.choices(await this.read(c, this.summaryPath, jar));
-        // Retain only actual sign-in origins; never passwords, form state or page content.
-        c.state = this.retainState(state, c.portal);
+        let portal = c.portal;
+        if (this.kind === "campus") {
+          const discovered = await this.storage.get<{
+            portal: string;
+            sessionID: string;
+          }>("portal-campus-discovered");
+          const found =
+            (await browser.studentPortal?.()) ??
+            (discovered?.sessionID === c.pending.id
+              ? discovered.portal
+              : undefined) ??
+            (c.portal !== campusLogin ? c.portal : undefined);
+          if (!found) throw new ApiError(409, "portalChooseStudent");
+          portal = campusURL(found).href;
+          if (
+            c.account &&
+            campusURL(c.portal).origin !== campusURL(portal).origin
+          )
+            throw new ApiError(409, "portalDisconnectFirst");
+        }
+        const candidate = { ...c, portal };
+        const jar = browserJar(state, this.portalURL(portal).origin),
+          account = await this.verify(candidate, jar);
+        this.choices(await this.read(candidate, this.summaryPath, jar));
+        const retained = this.retainState(state, portal);
         const entry = await this.storage.get<string>(
           `portal-${this.kind}-entry`,
         );
-        if (entry && new URL(entry).origin === this.portalURL(c.portal).origin)
+        Object.assign(c, candidate);
+        if (entry && new URL(entry).origin === this.portalURL(portal).origin)
           c.entry = entry;
+        c.portal = portal;
+        c.state = retained;
         c.account = account;
         this.retainJar(c, jar);
         c.needsReconnect = false;

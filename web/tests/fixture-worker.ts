@@ -33,6 +33,7 @@ export class FixtureVault extends CredentialVault {
           live: async () => "https://live.browser.run/ui/view?synthetic=true",
           navigate: async () => {},
           url: () => campusPortal,
+          studentPortal: async () => campusPortal,
           ready: async () => {},
           close: async () => {},
         };

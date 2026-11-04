@@ -1,3 +1,7 @@
+# Shared Settings and startup follow-up on the held Carmen branch
+
+After merging main `f7c57b5`, the Carmen branch passed **269 tests across 20 files**, **35 Chromium and 35 WebKit flows**, build/type checking and **101-file source packaging**. Its existing Carmen-only and combined-account flows passed with the new Settings and browser cache behavior. The verified Cloudflare deployment uses main.
+
 # Carmen held-branch validation — November 4, 2026
 
 The runtime integration is implemented only on `codex/investigate-gpa-carmen`; it is not deployed or released. Build/type check, **264 tests / 19 files**, **33 Chromium + 33 WebKit HTTPS/Worker browser flows**, **99-file source packaging**, isolated-template installation/build/Worker dry-run/attested-update fixture/configuration-secret retention/explicit rollback and **zero-vulnerability npm audit** pass. Formatting, local documentation links and whitespace checks pass. The source-package fixture is local, not a new signed publication.
@@ -9,6 +13,14 @@ Browser flows cover both Schoology-first and Carmen-first accounts, preserving w
 The owner-requested ACTIVE saved capture check returned 401 at self-profile in 316 ms; no course/grade request or renewal followed and the independent idle capture was untouched. This is not current blank-grade evidence, student-endpoint acceptance or a measured TTL. Actual enrolled-course schemas/permissions, cloud human sign-in/renewal, long-term keepalive, university acceptance and physical-device usability remain open. See [integration limits](CARMEN_INTEGRATION.md) and [capture evidence](CARMEN_HANDOFF.md).
 
 The owner-only production IC deployment remains separate. A public check at **2026-11-04T17:04:38Z** matched `/assets/index-ClbXMudR.js` (SHA-256 `ffd732b41a995a1c2b7f91cad93fbc944c95d8f3edc76ff9c882802fd95a56dd`), found Infinite Campus UI and no CarmenCanvas UI, and confirmed locked unauthenticated API access. No stable tag, release, student data migration or Carmen deployment occurred.
+
+# District finder, responsive Settings and cached startup — November 4, 2026
+
+Production build/type check, **191 tests across 15 files**, **33 Chromium and 33 WebKit HTTPS/Worker flows**, **85-file source packaging**, isolated template install/build/Worker dry-run/update/rollback and a zero-finding dependency audit passed. Settings coverage checks light/dark layout and control sizes at 320, 360, 390, 600, 768, 900, 1024, 1280, 1440, 1920, 2560 and 3840 CSS pixels, including expanded forms at four widths. Representative screenshots were inspected. WebKit exposed a native select sizing issue, corrected by styling the select consistently.
+
+A delayed Worker status regression verifies that saved grades render before the network check finishes. Previously unlocked browsers can open saved grades offline, while an explicit local lock blocks cached presentation even when the logout request fails. The receipt is account-bound and expires with the verified server session. API requests continue to require server authentication. Existing installations obtain their first receipt on a successful session check after the update. Normal background refresh has no updating label or blocking screen.
+
+Synthetic IC tests cover discovery without a pasted URL, a pending selection, modern Student routes, sanitized SAML redirects and same-account reconnect. A temporary local Worker with the owner’s real Browser Run binding opened the public Infinite Campus district finder, obtained a valid Live View URL and closed its browser in 4.1 seconds. Actual district SSO, student grades and physical-device behavior still need student acceptance. The main deployment at `f7c57b5` matched all five tested public asset hashes. The Worker vault fingerprint matched the pre-update value, the APP_PASSWORD binding remained a secret, and unauthenticated API access stayed locked. The Carmen branch receives the shared changes through a branch merge.
 
 # November 4, 2026 — selected IC classes and Settings polish
 

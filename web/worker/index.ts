@@ -489,6 +489,7 @@ export class CredentialVault {
           account: authenticated
             ? (vault.workspace ?? vault.account)
             : undefined,
+          sessionExpires: authenticated ? vault.sessions[session] : undefined,
           revision: authenticated ? vault.revision : undefined,
           cooldown: authenticated ? vault.cooldown : undefined,
         });

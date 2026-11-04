@@ -12,6 +12,7 @@ import {
 import {
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   RefreshCw,
   User,
   Settings,
@@ -170,6 +171,7 @@ export default function App() {
     demoRef = useRef(false),
     [busy, setBusy] = useState(true),
     [fresh, setFresh] = useState(false),
+    [cachedUnlocked, setCachedUnlocked] = useState(false),
     [error, setError] = useState(""),
     [deadline, setDeadline] = useState(0),
     [tick, setTick] = useState(Date.now()),
@@ -197,10 +199,36 @@ export default function App() {
     saveFailed = useRef(false),
     channel = useRef<BroadcastChannel | undefined>(undefined),
     mounted = useRef(false),
+    cacheGeneration = useRef(0),
     app = useRef<HTMLDivElement>(null);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
+  }
+  async function restoreCache() {
+    const generation = cacheGeneration.current;
+    const [saved, receipt] = await Promise.all([
+      repository.load(),
+      repository.access(),
+    ]);
+    if (generation === cacheGeneration.current && receipt?.locked) {
+      setStatus({ authenticated: false, connected: false });
+      setTab("profile");
+    }
+    if (
+      generation === cacheGeneration.current &&
+      !demoRef.current &&
+      repository.canReadCache(saved, receipt)
+    ) {
+      apply(saved);
+      setCachedUnlocked(true);
+      setFresh(true);
+    }
+  }
+  function hideCache() {
+    cacheGeneration.current++;
+    setCachedUnlocked(false);
+    setFresh(false);
   }
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -218,21 +246,34 @@ export default function App() {
     if (demoRef.current) return;
     const queuedAt = Date.now();
     const run = async () => {
+      const generation = cacheGeneration.current;
       setBusy(true);
       setError("");
       try {
-        const [s, latest, recovered] = await Promise.all([
+        const [s, latest, recovered, access] = await Promise.all([
           api<Status>("status"),
           repository.load(),
           repository.pending(),
+          repository.access(),
         ]);
         setStatus(s);
-        if (!s.authenticated) {
-          setFresh(false);
+        if (
+          !s.authenticated ||
+          access?.locked ||
+          (generation !== cacheGeneration.current &&
+            (await repository.access())?.locked)
+        ) {
+          hideCache();
+          setStatus({ ...s, authenticated: false });
+          await repository.lock();
           setTab("profile");
           return;
         }
+        if (access?.account && s.account && access.account !== s.account) {
+          hideCache();
+        }
         if (!s.connected && !credentials) {
+          hideCache();
           if (latest.account || stateRef.current.account) {
             await repository.clear();
             apply(emptyState());
@@ -245,6 +286,8 @@ export default function App() {
           apply(latest);
           // Keep the last complete snapshot usable while Schoology refreshes.
           setFresh(latest.courses.length > 0);
+          setCachedUnlocked(true);
+          await repository.rememberAccess(s.account, s.sessionExpires);
         } else {
           setFresh(false);
         }
@@ -281,6 +324,11 @@ export default function App() {
           if (credentials || stateRef.current.account !== s.account) throw e;
           schoologyError = e;
         }
+        if (
+          generation !== cacheGeneration.current &&
+          (await repository.access())?.locked
+        )
+          return;
         apply(next);
         setFresh(true);
         const portalStatus = s;
@@ -322,6 +370,13 @@ export default function App() {
           )
             setDeadline(Date.now() + schoologyError.retryAfter * 1000);
         } else setDeadline(0);
+        if (
+          generation !== cacheGeneration.current &&
+          (await repository.access())?.locked
+        )
+          return;
+        await repository.rememberAccess(next.account, s.sessionExpires);
+        setCachedUnlocked(true);
         channel.current?.postMessage("saved");
         setStatus({
           ...(credentials || portalFailed
@@ -352,15 +407,25 @@ export default function App() {
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
+    void restoreCache().catch(() => {});
     void refresh().catch(() => {});
     const bc = new BroadcastChannel("gradeviewer");
     channel.current = bc;
     bc.onmessage = (event) => {
       if (!demoRef.current) {
+        if (["locked", "disconnect"].includes(event.data)) {
+          hideCache();
+          setTab("profile");
+          setSelected(undefined);
+          setModal(undefined);
+          setStatus({ authenticated: false, connected: false });
+          return;
+        }
         void (async () => {
           const remote = await api<Status>("status");
           setStatus(remote);
-          if (!remote.authenticated) {
+          if (!remote.authenticated || (await repository.access())?.locked) {
+            hideCache();
             setSelected(undefined);
             setModal(undefined);
             setFresh(false);
@@ -968,6 +1033,7 @@ export default function App() {
         return;
       }
       await api("disconnect", {});
+      hideCache();
       apply(emptyState());
       setStatus({ authenticated: false, connected: false });
       setSelected(undefined);
@@ -982,9 +1048,13 @@ export default function App() {
   useEffect(() => {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
-  const locked = !demo && !status?.authenticated;
+  const locked = !demo && !status?.authenticated && !cachedUnlocked;
   const canRefresh =
-    !busy && !locked && !demo && !!status?.connected && deadline <= Date.now();
+    !busy &&
+    !locked &&
+    !demo &&
+    (!!status?.connected || cachedUnlocked) &&
+    deadline <= Date.now();
   const pull = usePullRefresh(
     app,
     canRefresh && tab === "grades" && fresh && !modal && !install,
@@ -1003,6 +1073,7 @@ export default function App() {
         <div
           className={
             "app" +
+            (tab === "profile" ? " settings-screen" : "") +
             (tab === "grades" && selected && fresh ? " course-screen" : "")
           }
         >
@@ -1134,24 +1205,15 @@ export default function App() {
                 {error}
               </p>
             )}
-            {fresh && !demo && tab === "grades" && (
-              <div className="refresh-status" role="status" aria-live="polite">
-                {busy ? (
-                  <>
-                    <RefreshCw size={14} className="spinning" /> Updating
-                    grades…
-                  </>
-                ) : error ? (
-                  <>
-                    Showing saved grades.{" "}
-                    <button
-                      disabled={!canRefresh}
-                      onClick={() => void refresh().catch(() => {})}
-                    >
-                      Retry
-                    </button>
-                  </>
-                ) : null}
+            {fresh && !demo && tab === "grades" && error && (
+              <div className="refresh-status" role="status">
+                Showing saved grades.{" "}
+                <button
+                  disabled={!canRefresh}
+                  onClick={() => void refresh().catch(() => {})}
+                >
+                  Retry
+                </button>
               </div>
             )}
             <main
@@ -1165,237 +1227,259 @@ export default function App() {
             >
               {tab === "profile" ? (
                 <>
-                  <section className="settings-group">
-                    <h2>Connection</h2>
-                    <div className="settings-card">
-                      <div className="connection-heading">
-                        <span className="settings-icon">
-                          <User size={20} />
-                        </span>
-                        <strong>Schoology</strong>
-                        <span
-                          className="connection"
-                          data-connected={
-                            !locked &&
-                            ((status?.schoologyConnected ??
-                              status?.connected) ||
-                              demo)
+                  <div className="settings-layout">
+                    <div className="settings-column settings-connections">
+                      <section className="settings-group">
+                        <h2>Connections</h2>
+                        <div className="settings-card">
+                          <div className="connection-heading">
+                            <span className="settings-icon">
+                              <User size={20} />
+                            </span>
+                            <strong>Schoology</strong>
+                            <span
+                              className="connection"
+                              data-connected={
+                                !locked &&
+                                ((status?.schoologyConnected ??
+                                  status?.connected) ||
+                                  demo)
+                              }
+                            >
+                              <span className="status-dot" />
+                              {locked
+                                ? "Locked"
+                                : demo
+                                  ? "Sample"
+                                  : (status?.schoologyConnected ??
+                                      status?.connected)
+                                    ? "Connected"
+                                    : "Not connected"}
+                            </span>
+                          </div>
+                          {locked ? (
+                            <Unlock
+                              onUnlock={async (password) => {
+                                await api("login", { password });
+                                await repository.unlock();
+                                await refresh();
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <Connection
+                                connected={
+                                  !!(
+                                    status?.schoologyConnected ??
+                                    status?.connected
+                                  ) || demo
+                                }
+                                busy={busy}
+                                connect={async (credentials) => {
+                                  await refresh(credentials);
+                                  setTab("grades");
+                                }}
+                                disconnect={disconnect}
+                                demo={demo}
+                                retainsCarmen={
+                                  !!status?.portals?.carmen?.connected
+                                }
+                              />
+                            </>
+                          )}
+                        </div>
+                      </section>
+                      {!demo && !locked && (
+                        <PortalConnection
+                          status={status?.portals?.campus}
+                          disabled={
+                            !(status?.schoologyConnected ?? status?.connected)
                           }
-                        >
-                          <span className="status-dot" />
-                          {locked
-                            ? "Locked"
-                            : demo
-                              ? "Sample"
-                              : (status?.schoologyConnected ??
-                                  status?.connected)
-                                ? "Connected"
-                                : "Not connected"}
-                        </span>
-                      </div>
-                      {locked ? (
-                        <Unlock
-                          onUnlock={async (password) => {
-                            await api("login", { password });
-                            await refresh();
+                          refresh={async () => {
+                            await flight.current?.catch(() => {});
+                            await refresh(undefined, true);
                           }}
                         />
-                      ) : (
-                        <>
-                          <Connection
-                            connected={
-                              !!(
-                                status?.schoologyConnected ?? status?.connected
-                              ) || demo
+                      )}
+                      {!demo && !locked && (
+                        <PortalConnection
+                          provider="carmen"
+                          status={status?.portals?.carmen}
+                          disabled={!status?.authenticated}
+                          refresh={async () => {
+                            await flight.current?.catch(() => {});
+                            await refresh(undefined, true);
+                          }}
+                        />
+                      )}
+                      <section className="settings-group">
+                        <h2>Preferences</h2>
+                        <label className="settings-card settings-row">
+                          <span className="settings-icon">
+                            <SunMoon size={20} />
+                          </span>
+                          <span className="settings-label">Theme</span>
+                          <span className="theme-control">
+                            <select
+                              aria-label="Theme"
+                              value={theme}
+                              onChange={(e) => setTheme(e.target.value)}
+                            >
+                              <option value="system">System</option>
+                              <option value="light">Light</option>
+                              <option value="dark">Dark</option>
+                            </select>
+                            <ChevronDown size={15} aria-hidden="true" />
+                          </span>
+                        </label>
+                      </section>
+                    </div>
+                    <div className="settings-column settings-preferences">
+                      <section className="settings-group personal-site">
+                        <h2>Your personal website</h2>
+                        <div className="settings-card site-card">
+                          <div className="site-heading">
+                            <span className="settings-icon">
+                              <Globe size={20} />
+                            </span>
+                            <strong>Your app address</strong>
+                          </div>
+                          <label>
+                            Website address
+                            <input
+                              readOnly
+                              value={location.origin}
+                              onFocus={(e) => e.target.select()}
+                            />
+                          </label>
+                          <div className="button-row">
+                            <button
+                              className="secondary"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(
+                                    location.origin,
+                                  );
+                                  setCopied(true);
+                                } catch {
+                                  setCopied(false);
+                                  setError(
+                                    "Select the website address above and copy it.",
+                                  );
+                                }
+                              }}
+                            >
+                              {copied ? (
+                                <Check size={17} />
+                              ) : (
+                                <Copy size={17} />
+                              )}{" "}
+                              {copied ? "Copied" : "Copy address"}
+                            </button>
+                            <a
+                              className="secondary"
+                              href={location.origin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open <ExternalLink size={16} />
+                            </a>
+                          </div>
+                          <button
+                            className="secondary full"
+                            onClick={() => setInstall(true)}
+                          >
+                            <Download size={18} /> Add to Home Screen{" "}
+                            <ChevronRight size={17} />
+                          </button>
+                        </div>
+                        <p className="settings-note">
+                          Your private app. Open this address on any device.
+                        </p>
+                      </section>
+                      <section className="settings-group app-actions">
+                        <h2>App</h2>
+                        <div className="settings-card">
+                          <button
+                            disabled={
+                              checkingUpdate || applyingUpdate || !!modal
                             }
-                            busy={busy}
-                            connect={async (credentials) => {
-                              await refresh(credentials);
+                            onClick={() => void checkUpdates()}
+                          >
+                            <Download
+                              size={18}
+                              className={checkingUpdate ? "spinning" : ""}
+                            />
+                            {checkingUpdate
+                              ? "Checking for updates…"
+                              : "Check for updates"}
+                          </button>
+                          {update && (
+                            <button
+                              disabled={busy || applyingUpdate || !!modal}
+                              onClick={activateUpdate}
+                            >
+                              <RefreshCw size={18} />{" "}
+                              {applyingUpdate ? "Updating…" : "Update now"}
+                            </button>
+                          )}
+                          {!demo &&
+                            (status?.authenticated || cachedUnlocked) && (
+                              <button
+                                className="secondary full"
+                                disabled={!canRefresh}
+                                onClick={() =>
+                                  void refresh(undefined, true).catch(() => {})
+                                }
+                              >
+                                <RefreshCw size={18} /> Refresh grades
+                              </button>
+                            )}
+                          {!demo &&
+                            (status?.authenticated || cachedUnlocked) && (
+                              <button
+                                className="secondary"
+                                onClick={async () => {
+                                  try {
+                                    await repository.lock();
+                                    hideCache();
+                                    setStatus({
+                                      authenticated: false,
+                                      connected: false,
+                                    });
+                                    channel.current?.postMessage("locked");
+                                    await api("logout", {});
+                                  } catch (e) {
+                                    setError(errorMessage(e));
+                                  }
+                                }}
+                              >
+                                <LockKeyhole size={18} /> Lock app
+                              </button>
+                            )}
+                          <button
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => {
+                              demoRef.current = true;
+                              setDemo(true);
+                              apply({
+                                schema: 1,
+                                courses: demoCourses(),
+                                scenarios: {},
+                              });
+                              setFresh(true);
+                              setBusy(false);
+                              setError("");
                               setTab("grades");
                             }}
-                            disconnect={disconnect}
-                            demo={demo}
-                            retainsCarmen={!!status?.portals?.carmen?.connected}
-                          />
-                        </>
-                      )}
+                          >
+                            Try sample grades
+                          </button>
+                        </div>
+                      </section>
                     </div>
-                  </section>
-                  {!demo && !locked && (
-                    <PortalConnection
-                      status={status?.portals?.campus}
-                      disabled={
-                        busy ||
-                        !(status?.schoologyConnected ?? status?.connected)
-                      }
-                      refresh={async () => {
-                        await refresh(undefined, true);
-                      }}
-                    />
-                  )}
-                  {!demo && !locked && (
-                    <PortalConnection
-                      provider="carmen"
-                      status={status?.portals?.carmen}
-                      disabled={busy}
-                      refresh={async () => {
-                        await refresh(undefined, true);
-                      }}
-                    />
-                  )}
-                  <section className="settings-group">
-                    <h2>Appearance</h2>
-                    <label className="settings-card settings-row">
-                      <span className="settings-icon">
-                        <SunMoon size={20} />
-                      </span>
-                      <span className="settings-label">Theme</span>
-                      <select
-                        aria-label="Theme"
-                        value={theme}
-                        onChange={(e) => setTheme(e.target.value)}
-                      >
-                        <option value="system">System</option>
-                        <option value="light">Light</option>
-                        <option value="dark">Dark</option>
-                      </select>
-                    </label>
-                  </section>
-                  <section className="settings-group personal-site">
-                    <h2>Your personal website</h2>
-                    <div className="settings-card site-card">
-                      <div className="site-heading">
-                        <span className="settings-icon">
-                          <Globe size={20} />
-                        </span>
-                        <strong>GradeViewer</strong>
-                      </div>
-                      <label>
-                        Website address
-                        <input
-                          readOnly
-                          value={location.origin}
-                          onFocus={(e) => e.target.select()}
-                        />
-                      </label>
-                      <div className="button-row">
-                        <button
-                          className="secondary"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(
-                                location.origin,
-                              );
-                              setCopied(true);
-                            } catch {
-                              setCopied(false);
-                              setError(
-                                "Select the website address above and copy it.",
-                              );
-                            }
-                          }}
-                        >
-                          {copied ? <Check size={17} /> : <Copy size={17} />}{" "}
-                          {copied ? "Copied" : "Copy address"}
-                        </button>
-                        <a
-                          className="secondary"
-                          href={location.origin}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Open <ExternalLink size={16} />
-                        </a>
-                      </div>
-                      <button
-                        className="secondary full"
-                        onClick={() => setInstall(true)}
-                      >
-                        <Download size={18} /> Add to Home Screen{" "}
-                        <ChevronRight size={17} />
-                      </button>
-                    </div>
-                    <p className="settings-note">
-                      Your private app. Open this address on any device.
-                    </p>
-                  </section>
-                  <section className="settings-group app-actions">
-                    <h2>App</h2>
-                    <div className="settings-card">
-                      <button
-                        disabled={checkingUpdate || applyingUpdate || !!modal}
-                        onClick={() => void checkUpdates()}
-                      >
-                        <Download
-                          size={18}
-                          className={checkingUpdate ? "spinning" : ""}
-                        />
-                        {checkingUpdate
-                          ? "Checking for updates…"
-                          : "Check for updates"}
-                      </button>
-                      {update && (
-                        <button
-                          disabled={busy || applyingUpdate || !!modal}
-                          onClick={activateUpdate}
-                        >
-                          <RefreshCw size={18} />{" "}
-                          {applyingUpdate ? "Updating…" : "Update now"}
-                        </button>
-                      )}
-                      {!demo && status?.authenticated && (
-                        <button
-                          className="secondary full"
-                          disabled={!canRefresh}
-                          onClick={() =>
-                            void refresh(undefined, true).catch(() => {})
-                          }
-                        >
-                          <RefreshCw
-                            size={18}
-                            className={busy ? "spinning" : ""}
-                          />{" "}
-                          Refresh grades
-                        </button>
-                      )}
-                      {!demo && status?.authenticated && (
-                        <button
-                          className="secondary"
-                          onClick={async () => {
-                            try {
-                              await api("logout", {});
-                              setFresh(false);
-                              setStatus(await api<Status>("status"));
-                              channel.current?.postMessage("locked");
-                            } catch (e) {
-                              setError(errorMessage(e));
-                            }
-                          }}
-                        >
-                          <LockKeyhole size={18} /> Lock app
-                        </button>
-                      )}
-                      <button
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => {
-                          demoRef.current = true;
-                          setDemo(true);
-                          apply({
-                            schema: 1,
-                            courses: demoCourses(),
-                            scenarios: {},
-                          });
-                          setFresh(true);
-                          setBusy(false);
-                          setError("");
-                          setTab("grades");
-                        }}
-                      >
-                        Try sample grades
-                      </button>
-                    </div>
-                  </section>
+                  </div>
                   {installation?.automation === "missing" && (
                     <p className="settings-note" role="status">
                       Automatic updates need a one-time setup repair.{" "}
@@ -1415,18 +1499,13 @@ export default function App() {
                   )}
                   <p className="profile-footnote">
                     GradeViewer {version}
-                    <br />
-                    Grades and local changes stay in this browser.
+                    <span aria-hidden="true"> · </span>Grades stay on this
+                    device.
                   </p>
                 </>
               ) : !fresh && !demo ? (
-                <div className="gate">
-                  {busy ? (
-                    <>
-                      <RefreshCw className="spinning" />
-                      <h2>Refreshing grades…</h2>
-                    </>
-                  ) : (
+                !busy && (
+                  <div className="gate">
                     <>
                       <h2>
                         {locked && status
@@ -1455,8 +1534,8 @@ export default function App() {
                         {locked && status ? "Open Settings" : "Retry"}
                       </button>
                     </>
-                  )}
-                </div>
+                  </div>
+                )
               ) : !course ? (
                 <>
                   <GpaSummary

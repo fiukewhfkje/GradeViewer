@@ -1,5 +1,14 @@
 # Next work
 
+## IC sign-in, Settings and cached startup — November 4
+
+- [x] Recover the historical district-finder flow and modern Student URL handling. Remove the pasted-address setup.
+- [x] Rework Settings into bounded, independently flowing columns and remove repeated grade-loading UI. Add account/expiry-bound immediate local cache restoration with an explicit local lock.
+- [x] Validate both themes across 12 phone/split/tablet/laptop/monitor sizes, expanded forms, cached-before-status startup, offline reuse and locking.
+- [x] Deploy the IC and Settings follow-up to the existing owner Worker. Verify all five public asset hashes and vault binding preservation. Merge the follow-up into the held Carmen branch.
+- [ ] Confirm district SSO and grade import with a student account and check physical devices.
+
+
 ## IC owner testing and Carmen development — November 4, 2026
 
 - [x] Implement the optional Settings IC course checklist, shared course/GPA model, independent snapshot/history identities, read-only session transport and reconnect retention. Polish the connection card/actions and replace native checkboxes with styled switches.
