@@ -5,7 +5,7 @@
 - [x] Complete browser checks for blank enrollments, hide/restore persistence, GPA retention and responsive Settings.
 - [x] Read the selected IC course's actual period/task metadata and normalize composite Final semester spans using explicit child references and reported totals.
 - [x] Complete local semester/GPA normalization and browser validation.
-- [ ] Deploy the semester correction to the owner Worker.
+- [x] Deploy the semester correction through bed8049 and verify assets, vault/password bindings, locked APIs and successful main CI.
 - [ ] Confirm semester display/GPA with an owner refresh; no numeric student-grade capture was used for this fix.
 - [x] Deploy the blank-course/hide follow-up only to the owner's existing Worker; verify assets and vault/password/auth boundaries. Keep Carmen separate and undeployed.
 - [ ] Resume the stable release only after the owner lifts the latest stop.
@@ -62,7 +62,7 @@
 - [x] Complete cross-browser/source verification: 186 tests, 31 flows in each engine, source packaging, Worker dry-run, zero-vulnerability dependency audit and isolated-template update/rollback pass.
 - [x] Verify real synthetic cookie restore/persistent CDP capture/Live View/cleanup and deploy IC through main to the owner’s existing Worker. Five asset hashes, unchanged vault binding, secret-password presence and locked unauthenticated API verify; no stable tag/release was created.
 - [ ] Owner/friend acceptance: actual district login, strict IC roster identity shape, assignment/period/rule compatibility, selected-class GPA and physical phone/reconnect behavior. No live IC account was available during implementation.
-- [ ] Finish Carmen on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Keep 90-minute HTTP session maintenance bounded and distinguish an attempted keepalive from verified session extension. The owner will arrange enrolled-course testing later.
+- [x] Finish Carmen on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Keep 90-minute HTTP session maintenance bounded and distinguish an attempted keepalive from verified session extension. The owner will arrange enrolled-course testing later.
 
 
 ## v0.1.10
