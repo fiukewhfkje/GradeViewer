@@ -144,9 +144,12 @@ export class FixtureVault extends CredentialVault {
         section:
           key === "fixture-empty"
             ? []
-            : Array.from({ length: 5 }, (_, i) => ({
-                id: String((key === "fixture-aliases" ? 1000 : 100) + i),
-              })),
+            : Array.from(
+                { length: key === "fixture-blank" ? 7 : 5 },
+                (_, i) => ({
+                  id: String((key === "fixture-aliases" ? 1000 : 100) + i),
+                }),
+              ),
       });
     if (u.pathname.endsWith("/grades")) {
       const sections = Array.from(
@@ -195,6 +198,13 @@ export class FixtureVault extends CredentialVault {
         Date.parse("2026-10-16T12:00:00Z"),
       );
     if (key === "fixture-aliases") p.section.id = section;
+    if (key === "fixture-blank" && ["105", "106"].includes(section)) {
+      p.section.course_title =
+        section === "105" ? "Ungraded synthetic class" : "New synthetic class";
+      p.items = [];
+      p.categories = [];
+      if (section === "106") p.periods = [];
+    }
     if (p.section.course_title === "Computer Science A") {
       p.section.options = { weighted_grading_categories: 0 };
       for (const category of p.categories) {

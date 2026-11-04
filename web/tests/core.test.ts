@@ -338,6 +338,50 @@ describe("Schoology parsing and replacement", () => {
     p.grades = {};
     expect(() => parseSection(p)).toThrow();
   });
+  it("retains schema-valid empty gradebooks without inventing scores or dates", () => {
+    const p = payload();
+    p.grades = { section: [] };
+    p.items = [];
+    const known = parseSection(p);
+    expect(known.length).toBeGreaterThan(0);
+    expect(
+      known.every((c) => c.grade.percent === undefined && !c.grade.letter),
+    ).toBe(true);
+    p.periods = [];
+    const [blank] = parseSection(p);
+    expect(blank.term).toMatchObject({ id: "ungraded", name: "Course" });
+    expect(blank.term.start).toBeUndefined();
+    expect(blank.term.end).toBeUndefined();
+    expect(blank.fields.metadata_only).toBe("true");
+    expect(
+      visibleCourses(
+        reconcile([blank, ...parseSection(payload())]),
+        Date.parse("2026-11-04"),
+      ),
+    ).toHaveLength(1);
+    blank.fields.grade_section_id = "different-enrollment";
+    expect(
+      visibleCourses(
+        reconcile([blank, ...parseSection(payload())]),
+        Date.parse("2026-11-04"),
+      ),
+    ).toHaveLength(2);
+    p.grades = { section: [{ section_id: "different-owner", period: [] }] };
+    expect(() => parseSection(p)).toThrow();
+  });
+  it("preserves hiding across new period scopes without hiding another provider", () => {
+    const old = course({ ...source(), id: "old-period" });
+    old.hidden = true;
+    const fresh = { ...source(), id: "new-period" };
+    const other = {
+      ...source(),
+      id: "other-provider",
+      fields: { section_id: "100", provider: "campus" },
+    };
+    const result = reconcile([fresh, other], [old]);
+    expect(result.find((c) => c.id === "new-period")!.hidden).toBe(true);
+    expect(result.find((c) => c.id === "other-provider")!.hidden).toBe(false);
+  });
   it("keeps reported zero and letter totals authoritative", () => {
     const p = payload();
     (p.grades.section as any[])[0].final_grade[0].grade = 0;

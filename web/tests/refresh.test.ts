@@ -6,6 +6,7 @@ import { readSnapshot } from "../src/refresh";
 import { api, type Status } from "../src/api";
 import { emptyState } from "../src/core/model";
 import * as repository from "../src/repository";
+import { visibleCourses } from "../src/core/periods";
 describe("complete snapshot and cache integration", () => {
   let requests = 0,
     cookie = "",
@@ -302,6 +303,28 @@ describe("complete snapshot and cache integration", () => {
     requests = 0;
     await readSnapshot(warm, await status(), undefined, true);
     expect(requests).toBe(23);
+  });
+  it("discovers empty enrolled gradebooks and reuses their verified metadata", async () => {
+    const cold = await readSnapshot(emptyState(), await status(), {
+      key: "fixture-blank",
+      secret: "fixture-secret",
+    });
+    const shown = visibleCourses(cold.courses, Date.parse("2026-11-04"));
+    expect(shown).toHaveLength(7);
+    for (const title of ["Ungraded synthetic class", "New synthetic class"]) {
+      const c = shown.find((c) => c.title === title)!;
+      expect(c.grade).toEqual({ percent: undefined, letter: undefined });
+      expect(c.history).toEqual([]);
+      expect(c.assignments).toEqual([]);
+    }
+    const stamp = cold.metadata!["106"].fetched;
+    requests = 0;
+    const warm = await readSnapshot(cold, await status());
+    expect(requests).toBe(5); // identity, enrollment, bulk grades, two empty gradebooks
+    expect(warm.metadata!["106"].fetched).toBe(stamp);
+    expect(visibleCourses(warm.courses, Date.parse("2026-11-04"))).toHaveLength(
+      7,
+    );
   });
   it("defers optional title traversal on returning opens and retries it on manual refresh", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {

@@ -96,8 +96,11 @@ export const physicalKey = (c: SourceCourse) =>
   c.fields.grade_section_id ??
   c.fields.section_id ??
   c.id;
+export const sameClass = (a: SourceCourse, b: SourceCourse) =>
+  (a.fields.provider ?? "schoology") === (b.fields.provider ?? "schoology") &&
+  physicalKey(a) === physicalKey(b);
 export function related<T extends SourceCourse>(c: T, all: T[]): T[] {
-  return all.filter((x) => physicalKey(x) === physicalKey(c));
+  return all.filter((x) => sameClass(x, c));
 }
 export function ordered<T extends SourceCourse>(all: T[]): T[] {
   return [...all].sort((a, b) => {
@@ -368,10 +371,19 @@ function visibleProviderCourses(all: Course[], now = Date.now()) {
       continue;
     if (
       c.term.name !== term &&
+      c.fields.metadata_only !== "true" &&
       (!selected ||
         d.kind !== selected.kind ||
         d.ordinal !== selected.ordinal ||
         d.kind === "other")
+    )
+      continue;
+    if (
+      c.fields.metadata_only === "true" &&
+      selected &&
+      d.kind !== "other" &&
+      d.kind === selected.kind &&
+      d.ordinal !== selected.ordinal
     )
       continue;
     const key = physicalKey(c);

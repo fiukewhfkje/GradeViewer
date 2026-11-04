@@ -1,3 +1,13 @@
+# Blank courses and IC semester investigation — November 4, 2026
+
+The owner paused the requested stable release before any version/tag/release changes. Main remains 0.1.10 and Carmen remains on its separate undeployed development branch.
+
+Schoology discovery previously skipped enrolled sections whose complete grades read returned an explicit empty section list. It now retains those classes using verified section/period metadata, with no invented grade or history. A section without period metadata has a local ungraded display scope. Existing alias deduplication and malformed-response rejection remain in place. Empty gradebooks receive bounded metadata receipts so returning reads can reuse metadata without weakening fresh grade verification.
+
+Course options now include Hide class. It hides every period of that provider's class, preserves grades/history/scenarios and GPA participation, survives refresh/new period scopes, and can be reversed in Settings. GPA exclusions remain under Edit courses. The production build, 201 local tests, all 33 existing Chromium flows plus the new focused flow, all 34 WebKit flows, the 85-file source package and Worker dry-run pass. The new flow checks blank enrollment discovery, persistence after hide/refresh/reload, restoration, unchanged GPA and Settings containment at 320, 768 and 1440 pixels. Synthetic screenshots were inspected. Browser tests use local fixtures; no Browser Run sessions were acquired.
+
+The IC screenshots expose quarter totals while Schoology shows an overall semester total. The GPA calculator currently requires a usable semester record; it does not treat Q2 as a semester. Actual selected-course period/task metadata is still needed before changing that mapping or inferring rollup rules. The owner's first metadata diagnostic failed locally because git archive ran from web rather than the repository root, producing an empty archive. The path is corrected and the archive/patch/upload dry-run passes. No Worker deployment or IC read occurred during that failure. The corrected diagnostic is pending the owner's report and uses no Browser Run sessions. No stable release or new application deployment has been made for this follow-up.
+
 # Cloudflare automatic deployment correction — November 4, 2026
 
 The owner’s build log shows successful dependency installation, type checking and Vite compilation. Deployment failed at the helper’s separate secret bulk command because Cloudflare refuses secret edits when its latest uploaded Worker version is not active. The temporary IC import’s rollback exposed that version mismatch. This was a deployment-sequencing bug. The GitHub check’s start/completion timestamp did not describe the full build duration.

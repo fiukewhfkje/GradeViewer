@@ -1,3 +1,12 @@
+# Current follow-up — November 4
+
+- [x] Retain verified blank Schoology enrollments with no invented grades; reuse their metadata and keep aliases deduplicated.
+- [x] Add reversible class hiding across periods, independently of GPA exclusions.
+- [x] Complete browser checks for blank enrollments, hide/restore persistence, GPA retention and responsive Settings.
+- [ ] Read the selected IC course's actual period/task metadata and fix semester/GPA normalization using supported provider data/rules.
+- [ ] Deploy validated follow-up only to the owner's existing Worker; keep Carmen separate and undeployed.
+- [ ] Resume the stable release only after the owner lifts the latest stop.
+
 # Next work
 
 ## Automatic Cloudflare builds — November 4

@@ -1,3 +1,9 @@
+# Blank Schoology enrollments and class hiding — November 4, 2026
+
+Production build/type check, 201 tests, all 33 existing Chromium flows plus a focused blank-course/hide flow, all 34 WebKit flows, 85-file source packaging and Worker dry-run pass. The additional flow checks enrolled classes with no grade row, including no period metadata, blank grade/graph presentation, hide/refresh/reload/restore, unchanged GPA and Settings containment at 320, 768 and 1440 CSS pixels. Representative synthetic screenshots were inspected. Core tests preserve malformed-response rejection, grade-owner alias deduplication, metadata receipt expiry and provider-scoped hiding across new periods. A returning seven-course fixture with two empty gradebooks performs five upstream reads rather than re-fetching their metadata.
+
+The selected IC semester/task investigation remains open. The first owner diagnostic stopped at local source packaging; its corrected repository-root archive and temporary Worker patch/upload dry-run pass. No real IC metadata was obtained from that failed run. These follow-up checks acquire no Browser Run sessions, perform no provider writes, and do not establish a friend account's response format or physical-device acceptance. The stable release remains paused.
+
 # Automatic IC sign-in — November 4, 2026
 
 The synthetic Worker and browser checks cover waiting at district sign-in, the short Student Profile route, verification failure and retry, closure after success, first-time course selection and same-account reconnect with prior selections. The external window is modeled in the synthetic browsers, and the Worker test checks a single browser session is closed. A live Cloudflare probe was rate-limited before it could open a browser. The student's provider responses and local Live View tab closure remain unverified.

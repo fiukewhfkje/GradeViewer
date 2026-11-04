@@ -113,6 +113,8 @@ async function stop() {
   ]);
 }
 async function check(name, run) {
+  const filter = process.env.GRADEVIEWER_E2E_CHECK;
+  if (filter && !name.includes(filter)) return;
   let timer;
   try {
     await Promise.race([
@@ -2032,6 +2034,118 @@ try {
           .connected,
         false,
       );
+    },
+  );
+  await check(
+    "blank enrollments stay visible; hiding is reversible and preserves GPA",
+    async () => {
+      const fresh = await browser.newContext({
+        ignoreHTTPSErrors: true,
+      });
+      try {
+        const blank = await fresh.newPage();
+        await blank.goto(base);
+        await blank
+          .getByLabel("App password", { exact: true })
+          .fill("synthetic-owner-password-for-tests-only");
+        await blank
+          .getByRole("button", { name: "Unlock app", exact: true })
+          .click();
+        await blank
+          .getByLabel("Schoology API key", { exact: true })
+          .fill("fixture-blank");
+        await blank
+          .getByLabel("Schoology API secret", { exact: true })
+          .fill("fixture-secret");
+        await blank
+          .getByRole("button", { name: "Connect Schoology", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "New synthetic class" })
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 7);
+        await blank.locator(".gpa-card summary").click();
+        await blank
+          .getByRole("button", { name: "Use Dublin GPA scale", exact: true })
+          .click();
+        await blank.locator(".gpa-card summary .grade").waitFor();
+        const gpa = await blank.locator(".gpa-card summary .grade").innerText();
+        for (const title of ["New synthetic class", "AP Biology"]) {
+          await blank
+            .locator(".courses .course")
+            .filter({ hasText: title })
+            .click();
+          if (title === "New synthetic class") {
+            assert.equal(
+              (await blank.locator(".summary .grade").innerText()).trim(),
+              "—",
+            );
+            assert.match(
+              await blank.locator(".graph-section").innerText(),
+              /No grade history in the last 60 days/,
+            );
+          }
+          await blank.getByLabel("Course options", { exact: true }).click();
+          await blank
+            .getByRole("button", { name: "Hide class", exact: true })
+            .click();
+          await blank.locator(".courses").waitFor();
+        }
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        assert.equal(
+          await blank.locator(".gpa-card summary .grade").innerText(),
+          gpa,
+        );
+        await blank.reload();
+        await blank.locator(".courses").waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        await blank
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await blank
+          .locator(".profile")
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await blank
+          .locator(".profile button:not([disabled])")
+          .filter({ hasText: "Refresh grades" })
+          .waitFor({ state: "visible" });
+        for (const width of [320, 768, 1440]) {
+          await blank.setViewportSize({ width, height: 900 });
+          assert.ok(
+            await blank.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          );
+          await blank.screenshot({
+            path: `${directory}/hidden-classes-${width}.png`,
+          });
+        }
+        assert.match(
+          await blank.locator(".hidden-classes").innerText(),
+          /Use Edit courses in GPA/,
+        );
+        for (const title of ["New synthetic class", "AP Biology"])
+          await blank
+            .getByRole("button", { name: `Show ${title}`, exact: true })
+            .click();
+        await blank.locator(".hidden-classes").waitFor({ state: "hidden" });
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "New synthetic class" })
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 7);
+        assert.equal(
+          await blank.locator(".gpa-card summary .grade").innerText(),
+          gpa,
+        );
+      } finally {
+        await fresh.close();
+      }
     },
   );
   assert.deepEqual(errors, []);

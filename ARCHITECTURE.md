@@ -12,7 +12,7 @@ Only fixed, enrolled-section Schoology GET routes are signed. Identity verificat
 
 ## Grade identities and calculations
 
-Section/grade-owner/period and typed assignment IDs define identity; titles never merge distinct assignments. Reconciliation preserves course identity, ordering, visibility, observations and explicit local removals. Only a complete schema-valid successful snapshot replaces saved data, including a valid empty result.
+Section/grade-owner/period and typed assignment IDs define identity; titles never merge distinct assignments. Reconciliation preserves course identity, ordering, visibility, observations and explicit local removals. Only a complete schema-valid successful snapshot replaces saved data, including a valid empty result. An enrolled Schoology section with a verified empty gradebook remains visible using section/period metadata; a local ungraded scope is used when periods are absent. Hiding a provider-scoped class preserves its grades and GPA inclusion, applies across periods and is reversible in Settings.
 
 Reported interpretable numeric/letter totals take priority. Verified numeric/percent scales permit numeric overall interpretation; unsupported or hidden scales do not become percentages. Omitted student-hidden category methods/drop counts retain points/zero defaults, with provenance rather than a claim about hidden teacher rules. Explicit unsupported rules, incomplete numeric contributions and letter-only assignments withhold unsupported calculations. Each assignment contributes once, including local editing, drops and additions.
 
