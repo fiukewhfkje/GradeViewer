@@ -5,7 +5,7 @@
 - [x] Implement the optional Settings IC course checklist, shared course/GPA model, independent snapshot/history identities, read-only session transport and reconnect retention. Polish the connection card/actions and replace native checkboxes with styled switches.
 - [x] Keep only main and the Carmen investigative branch locally/remotely; retain clean old release worktrees detached.
 - [x] Complete cross-browser/source verification: 186 tests, 31 flows in each engine, source packaging, Worker dry-run, zero-vulnerability dependency audit and isolated-template update/rollback pass.
-- [ ] Finish the real synthetic browser-binding check and owner-only IC deployment, retaining the password/vault/URL. Do not create a stable tag or release.
+- [x] Verify real synthetic cookie restore/persistent CDP capture/Live View/cleanup and deploy IC through main to the owner’s existing Worker. Five asset hashes, unchanged vault binding, secret-password presence and locked unauthenticated API verify; no stable tag/release was created.
 - [ ] Owner/friend acceptance: actual district login, strict IC roster identity shape, assignment/period/rule compatibility, selected-class GPA and physical phone/reconnect behavior. No live IC account was available during implementation.
 - [ ] Finish Carmen on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Keep 90-minute HTTP session maintenance bounded and distinguish an attempted keepalive from verified session extension. The owner will arrange enrolled-course testing later.
 
