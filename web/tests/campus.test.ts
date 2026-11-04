@@ -2,17 +2,24 @@ import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import { reconcile } from "../src/core/reconcile";
-import { physicalKey, visibleCourses } from "../src/core/periods";
+import {
+  physicalKey,
+  visibleCourses,
+  descriptor,
+  overall,
+} from "../src/core/periods";
 import { calculate, hypothetical } from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
 import { demoCourses } from "../src/core/demo";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
-import type { PortalBrowser } from "../worker/portal-browser";
+import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
+import { portalBrowser } from "../worker/portal-browser";
 import {
   campusSummary,
   campusDetail,
   campusPortal,
   campusState,
+  campusCompositeFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
 const parsed = () =>
@@ -24,6 +31,74 @@ const parsed = () =>
     now,
   );
 describe("selected IC normalization", () => {
+  it("maps Q2/Q4 Final tasks to semesters using their explicit child links", () => {
+    const { summary, detail } = campusCompositeFixture();
+    const courses = parseCampus(
+      summary,
+      { "100": detail },
+      ["1:100"],
+      "account",
+      now,
+    );
+    const finals = courses.filter((c) => descriptor(c).kind === "semester");
+    expect(finals.map((c) => descriptor(c).label)).toEqual(["S1", "S2"]);
+    expect(finals[0].term.start).toBe(Date.parse("2026-08-15"));
+    expect(finals[0].term.end).toBe(Date.parse("2026-12-18"));
+    expect(finals[0].grade.percent).toBe(90); // provider total, not an average of the quarters
+    expect(finals[0].assignments).toEqual([]);
+    expect(courses.every((c) => c.term.weight === undefined)).toBe(true);
+    const current = visibleCourses(reconcile(courses), now)[0];
+    expect(descriptor(current).label).toBe("Q2");
+    expect(overall(current, courses).id).toBe(finals[0].id);
+    for (const q of courses.filter((c) =>
+      ["Q1", "Q2"].includes(descriptor(c).label),
+    ))
+      expect(overall(q, courses).id).toBe(finals[0].id);
+    const schoology = demoCourses(now),
+      term = gpaSemesters(schoology, now)[0];
+    const result = estimateGpa([...schoology, ...courses], term, {
+      weighting: "equal",
+      courses: {},
+    });
+    expect(result.rows).toHaveLength(6);
+    expect(
+      result.rows.find((r) => r.title === "Synthetic IC-only course"),
+    ).toMatchObject({ points: 3.67, reason: undefined });
+  });
+  it.each(["missing", "duplicate", "foreign", "wrong-quarter", "self"])(
+    "withholds an inferred semester span for %s child links",
+    (problem) => {
+      const { summary, detail } = campusCompositeFixture();
+      const final = detail.details.find(
+        (entry) => entry.children?.length === 3,
+      )!;
+      if (problem === "missing") delete final.children;
+      else if (problem === "duplicate")
+        final.children!.push({ ...final.children![0] });
+      else if (problem === "foreign") final.children![0].sectionID = 999;
+      else if (problem === "wrong-quarter") final.children![0].termID = 503;
+      else final.children![0].taskID = 4;
+      const courses = parseCampus(
+        summary,
+        { "100": detail },
+        ["1:100"],
+        "account",
+        now,
+      );
+      const s = courses.find((c) => c.term.id === "502:4")!;
+      expect(s.term.start).toBeUndefined();
+      expect(s.grade.percent).toBe(90);
+      expect(
+        gpaSemesters(courses, now).some((term) => term.course.id === s.id),
+      ).toBe(true);
+      const row = estimateGpa(
+        [...demoCourses(now), ...courses],
+        gpaSemesters(demoCourses(now), now)[0],
+        { weighting: "equal", courses: {} },
+      ).rows.find((r) => r.title === s.title);
+      expect(row?.points).toBeUndefined();
+    },
+  );
   it("uses sectionID, scoped identities and normal calculator/GPA behavior", () => {
     expect(campusChoices(campusSummary)[0]).toMatchObject({
       id: "1:100",
@@ -130,13 +205,16 @@ describe("selected IC normalization", () => {
     ).toBe(45);
   });
 });
-function harness() {
+function harness(withBinding = false) {
   const data = new Map<string, unknown>();
   let selectedPortal: string | undefined = campusPortal;
   const navigations: string[] = [];
-  let browserCalls = 0;
-  let identity = "101",
+  let browserCalls = 0,
+    closed = 0;
+  let identity: string | undefined = "101",
+    studentNumber: string | undefined,
     failure = false,
+    unavailable = false,
     malformed = false;
   const calls: string[] = [];
   const storage = {
@@ -147,7 +225,9 @@ function harness() {
     delete: async (k: string) => data.delete(k),
     setAlarm: async () => {},
   } as unknown as DurableObjectStorage;
-  const upstream = async (req: Request) => {
+  const upstream = async function (this: unknown, req: Request) {
+    // Workerd's global fetch rejects a receiver other than the global object.
+    if (this !== undefined) throw new TypeError("Illegal invocation");
     const u = new URL(req.url);
     calls.push(u.pathname);
     expect(req.method).toBe("GET");
@@ -155,8 +235,13 @@ function harness() {
     expect(req.redirect).toBe("manual");
     if (failure) return Response.json({}, { status: 401 });
     if (u.pathname.endsWith("/roster"))
-      return Response.json({ personID: identity });
-    if (u.pathname.endsWith("/grades")) return Response.json(campusSummary);
+      return Response.json(
+        identity ? { personID: identity } : [{ sectionID: 100 }],
+      );
+    if (u.pathname.endsWith("/grades"))
+      return unavailable
+        ? Response.json({}, { status: 503 })
+        : Response.json(campusSummary);
     if (u.pathname.endsWith("/detail/100"))
       return Response.json(malformed ? [] : campusDetail);
     return Response.json({}, { status: 404 });
@@ -173,23 +258,47 @@ function harness() {
           navigations.push(url);
         },
         studentPortal: async () => selectedPortal,
+        studentNumber: async () => studentNumber,
         url: () => campusPortal,
         ready: async () => {},
         close: async () => {},
       };
     }
   }
+  const binding = withBinding
+    ? ({
+        devtools: {
+          listTargets: async () => [
+            {
+              type: "page",
+              url: selectedPortal ?? "https://www.infinitecampus.com/login",
+            },
+          ],
+        },
+        closeSession: async () => {
+          closed++;
+        },
+      } as unknown as PortalBinding)
+    : undefined;
   return {
     service: new Service(
       storage,
       "synthetic-owner-password-123456",
-      undefined,
+      binding,
       upstream,
     ),
     data,
     calls,
     navigations,
     browserCalls: () => browserCalls,
+    closed: () => closed,
+    setStudentNumber: (value: string) => {
+      identity = undefined;
+      studentNumber = value;
+    },
+    setUnavailable: (value: boolean) => {
+      unavailable = value;
+    },
     selectPortal: (url?: string) => {
       selectedPortal = url;
     },
@@ -205,6 +314,82 @@ function harness() {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
+  it.each([
+    ["429: Browser time limit exceeded for today", "portalBrowserDailyLimit"],
+    ["429: Too many requests", "portalBrowserRateLimited"],
+  ])("classifies Browser Run launch failure %s", async (message, code) => {
+    const binding = {
+      acquire: async () => {
+        throw new Error(message);
+      },
+    } as unknown as PortalBinding;
+    await expect(portalBrowser(binding)).rejects.toMatchObject({
+      code,
+      status: 429,
+      retryAfter: expect.any(Number),
+    });
+  });
+  it("waits at district sign-in, then verifies the short Campus home and closes the same browser", async () => {
+    const h = harness(true);
+    const { attempt } = (await h.service.handle("start")) as {
+      attempt: string;
+    };
+    await h.service.expire();
+    expect(h.browserCalls()).toBe(1);
+    expect(h.calls).toEqual([]);
+    expect(await h.service.handle("progress", { attempt })).toEqual({
+      state: "waiting",
+    });
+    await expect(
+      h.service.handle("progress", { attempt: "another-attempt" }),
+    ).rejects.toThrow("portalSignInExpired");
+    expect(h.closed()).toBe(0);
+
+    h.selectPortal(new URL("/campus/nav-wrapper", campusPortal).href);
+    h.setStudentNumber("123456");
+    h.setUnavailable(true);
+    await h.service.expire();
+    await expect(h.service.handle("progress", { attempt })).rejects.toThrow(
+      "portalVerificationUnavailable",
+    );
+    expect((await h.service.status()).connected).toBe(false);
+    expect(h.closed()).toBe(0);
+
+    h.setUnavailable(false);
+    await h.service.handle("progress", { attempt, retry: true });
+    await h.service.expire();
+    expect(h.closed()).toBe(1);
+    expect(await h.service.handle("progress", { attempt })).toMatchObject({
+      state: "connected",
+      firstConnection: true,
+    });
+    await h.service.handle("select", { selected: ["1:100"] });
+    expect(await h.service.handle("snapshot")).toMatchObject({
+      courses: [expect.anything()],
+    });
+
+    const reconnect = (await h.service.handle("start")) as { attempt: string };
+    h.setStudentNumber("234567");
+    await h.service.expire();
+    await expect(
+      h.service.handle("progress", { attempt: reconnect.attempt }),
+    ).rejects.toThrow("portalAccountChanged");
+    expect((await h.service.status()).selected).toEqual(["1:100"]);
+    h.setStudentNumber("123456");
+    await h.service.handle("progress", {
+      attempt: reconnect.attempt,
+      retry: true,
+    });
+    await h.service.expire();
+    expect(
+      await h.service.handle("progress", { attempt: reconnect.attempt }),
+    ).toMatchObject({
+      state: "connected",
+      firstConnection: false,
+      selected: ["1:100"],
+    });
+    expect(h.closed()).toBe(2);
+  });
   it("stages sign-in, verifies identity, encrypts cookies and reads only selected sectionID details", async () => {
     const h = harness();
     await h.service.handle("start", { portal: campusPortal });

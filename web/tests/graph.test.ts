@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   gradeCurve,
   progression,
+  recentProgression,
   type GraphPoint,
 } from "../src/core/progression";
 import type { Course } from "../src/core/model";
+import { reconcile } from "../src/core/reconcile";
 
 const points = (values: number[]): GraphPoint[] =>
   values.map((percent, i) => ({
@@ -128,6 +130,62 @@ function semesterFixture() {
   return { q1, q2, s, all: [q1, q2, s] };
 }
 describe("semester progression", () => {
+  it("displays only the last 60 days without pruning stored history or adding a boundary point", () => {
+    const { s } = semesterFixture(),
+      now = s.fetched,
+      day = 86400000;
+    s.history = [
+      {
+        id: "old",
+        date: now - 61 * day,
+        grade: { percent: 70 },
+        provider: "schoology",
+      },
+      {
+        id: "boundary",
+        date: now - 60 * day,
+        grade: { percent: 80 },
+        provider: "schoology",
+      },
+      {
+        id: "recent",
+        date: now - day,
+        grade: { percent: 85 },
+        provider: "schoology",
+      },
+      {
+        id: "future",
+        date: now + 1,
+        grade: { percent: 91 },
+        provider: "schoology",
+      },
+    ];
+    const before = JSON.stringify(s);
+    expect(recentProgression(s, [s], now).map((p) => p.date)).toEqual([
+      now - 60 * day,
+      now - day,
+      now,
+    ]);
+    expect(JSON.stringify(s)).toBe(before);
+    expect(recentProgression(s, [s], now + 62 * day)).toEqual([]);
+  });
+  it("starts a new user's graph with one observed grade and leaves an ungraded class empty", () => {
+    const { s } = semesterFixture();
+    s.term.name = "Course";
+    s.grade = { percent: 90 };
+    const [saved] = reconcile([s], [], s.fetched);
+    const points = recentProgression(saved, [saved], s.fetched);
+    expect(points).toHaveLength(1);
+    expect(points[0]).toMatchObject({
+      percent: 90,
+      date: s.fetched,
+      calculated: false,
+    });
+    expect(gradeCurve(points).path).toBe("M0,77 L1000,77");
+    s.grade = {};
+    const [ungraded] = reconcile([s], [], s.fetched);
+    expect(recentProgression(ungraded, [ungraded], s.fetched)).toEqual([]);
+  });
   it("combines Q2 with Q1 instead of switching to the Q2 percentage", () => {
     const { q2, all } = semesterFixture(),
       before = JSON.stringify(all);

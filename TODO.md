@@ -1,4 +1,44 @@
+# Current follow-up — November 4
+
+- [x] Retain verified blank Schoology enrollments with no invented grades; reuse their metadata and keep aliases deduplicated.
+- [x] Add reversible class hiding across periods, independently of GPA exclusions.
+- [x] Complete browser checks for blank enrollments, hide/restore persistence, GPA retention and responsive Settings.
+- [x] Read the selected IC course's actual period/task metadata and normalize composite Final semester spans using explicit child references and reported totals.
+- [x] Complete local semester/GPA normalization and browser validation.
+- [x] Deploy the semester correction through main bed8049 and verify assets, vault/password bindings and locked APIs.
+- [ ] Confirm semester display/GPA with an owner refresh; no numeric student-grade capture was used for this fix.
+- [x] Deploy the blank-course/hide follow-up only to the owner's existing Worker; verify assets and vault/password/auth boundaries. Keep Carmen separate and undeployed.
+- [ ] Resume the stable release only after the owner lifts the latest stop.
+
 # Next work
+
+## Automatic Cloudflare builds — November 4
+
+- [x] Diagnose the rollback/version conflict at the separate secret upload and deploy code plus password in one operation.
+- [x] Observe a successful automatic Cloudflare build with the corrected deployment helper and verify the live assets and existing vault/password bindings.
+
+## Graphs and IC selection — November 4
+
+- [x] Show generic labels for unnumbered periods and limit displayed graph points to the last 60 days. Keep single-point lines and stored history.
+- [x] Remove the requested Settings footnotes and explain separate IC classes and duplicate GPA contributions.
+- [x] Open the course picker immediately, reuse its list during a Settings visit, and test with delayed synthetic provider responses.
+
+## Desktop app polish — November 4
+
+- [x] Replace the sidebar lettermark with the app icon, remove duplicate labels and the tagline, and tighten desktop spacing.
+
+## Automatic IC sign-in — November 4
+
+- [x] Fix Workerd’s Illegal invocation in the IC transport and reproduce the correction in the remote runtime without credentials or Browser Run.
+- [x] Overlap local import deployment with sign-in and close the captured local Campus window before import verification.
+- [x] Confirm the owner’s real session persists on Cloudflare and the restored normal Worker can fetch the IC course list.
+
+- [x] Prepare the temporary browser in Settings before offering the sign-in link. Report startup and daily quota errors without opening a blank tab.
+
+- [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.
+- [x] Validate automatic capture, close and normalization in local Chromium with an HttpOnly fixture. Prepare an opt-in local check for the account holder.
+- [x] Confirm automatic capture, local Chrome closure and a normalized snapshot of one real class with the owner’s district sign-in.
+- [ ] Verify a real district sign-in reaches the course picker after Browser Run capacity is available. Check local Live View closure on desktop and phone.
 
 ## IC browser use and graph hover — November 4
 

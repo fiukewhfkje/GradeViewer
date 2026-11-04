@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useEffectEvent, useState, useRef } from "react";
 import {
+  CheckCircle2,
   School,
   ChevronRight,
   LogIn,
@@ -7,8 +8,17 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { api as request, errorMessage, type PortalStatus } from "./api";
+import {
+  api as request,
+  errorMessage,
+  RequestError,
+  type PortalStatus,
+} from "./api";
 import type { CampusChoice } from "./core/campus";
+type Login = { url: string; expires: number; attempt?: string };
+type SignInProgress =
+  { state: "waiting" } | { state: "connected"; firstConnection: boolean };
+
 export function PortalConnection({
   status,
   disabled,
@@ -24,26 +34,33 @@ export function PortalConnection({
     title = carmen ? "CarmenCanvas" : "Infinite Campus";
   const api = <T,>(path: string, data?: unknown) =>
     request<T>(path.replace("campus/", provider + "/"), data);
-  const [busy, setBusy] = useState(false),
+  const [working, setWorking] = useState(""),
     [message, setMessage] = useState(""),
-    [login, setLogin] = useState<{ url: string; expires: number }>(),
+    [login, setLogin] = useState<Login>(),
+    [signInOpened, setSignInOpened] = useState(false),
+    [confirmation, setConfirmation] = useState(""),
     [courses, setCourses] = useState<CampusChoice[]>(),
+    [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
   const [maintenance, setMaintenance] = useState(!!status?.maintenance);
   useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
-  async function run(task: () => Promise<void>) {
-    setBusy(true);
+  const busy = !!working;
+  async function run(task: () => Promise<void>, label = "Working…") {
+    setWorking(label);
     setMessage("");
     try {
       await task();
     } catch (e) {
       setMessage(errorMessage(e));
     } finally {
-      setBusy(false);
+      setWorking("");
     }
   }
   async function choices() {
+    setChoosing(true);
+    setSelected(status?.selected ?? []);
+    if (courses !== undefined) return;
     const r = await api<{ courses: CampusChoice[]; selected: string[] }>(
       "campus/courses",
       {},
@@ -51,22 +68,60 @@ export function PortalConnection({
     setCourses(r.courses);
     setSelected(r.selected);
   }
+  function closeSignIn() {
+    signInWindow.current?.close();
+    signInWindow.current = null;
+    setLogin(undefined);
+  }
+  async function connected(firstConnection: boolean) {
+    closeSignIn();
+    setConfirmation(`${title} connected.`);
+    await run(async () => {
+      try {
+        if (!carmen && firstConnection) await choices();
+      } finally {
+        await refresh();
+      }
+    });
+  }
+  const finishAutomatically = useEffectEvent(connected);
+  useEffect(() => {
+    if (!login?.attempt || message || busy) return;
+    const attempt = login.attempt;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function check() {
+      try {
+        const result = await api<SignInProgress>("campus/progress", {
+          attempt,
+        });
+        if (!active) return;
+        if (result.state === "connected")
+          void finishAutomatically(result.firstConnection);
+        else timer = setTimeout(check, 2000);
+      } catch (error) {
+        if (!active) return;
+        if (
+          error instanceof RequestError &&
+          error.code === "portalSignInExpired"
+        )
+          closeSignIn();
+        setMessage(errorMessage(error));
+      }
+    }
+    void check();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [login, message, busy]);
+
   async function start() {
-    const popup = window.open("about:blank", "_blank");
-    signInWindow.current = popup;
-    if (popup) {
-      popup.document.title = `${title} sign-in`;
-      popup.document.body.textContent = `Starting the temporary ${title} sign-in browser…`;
-    }
-    let pending;
-    try {
-      pending = await api<{ url: string; expires: number }>("campus/start", {});
-    } catch (e) {
-      popup?.close();
-      throw e;
-    }
-    if (popup) popup.location.href = pending.url;
+    setConfirmation("");
+    setSignInOpened(false);
+    const pending = await api<Login>("campus/start", {});
     setCourses(undefined);
+    setChoosing(false);
     setLogin(pending);
   }
   const count = status?.selected.length ?? 0;
@@ -85,7 +140,9 @@ export function PortalConnection({
           >
             <span className="status-dot" />
             {login
-              ? "Signing in"
+              ? signInOpened
+                ? "Signing in"
+                : "Ready to sign in"
               : status?.needsReconnect
                 ? "Sign-in needed"
                 : status?.connected
@@ -93,71 +150,117 @@ export function PortalConnection({
                   : "Not connected"}
           </span>
         </div>
+        {!carmen && !login && (status?.connected || choosing) && (
+          <p className="portal-notice">
+            Choose only classes missing from Schoology. IC adds separate
+            classes, and both copies count toward GPA.
+          </p>
+        )}
         {login ? (
           <div className="portal-body">
             <div className="portal-login-note">
               <LogIn size={22} />
               <div>
-                <strong>Finish signing in</strong>
-                <p>
+                <strong>
                   {carmen
-                    ? "Complete Ohio State sign-in in the other window, then return here."
-                    : "Find your district, choose Campus Student, and complete your school’s sign-in. Then return here."}
+                    ? "Sign in to CarmenCanvas"
+                    : "Sign in to Campus Student"}
+                </strong>
+                <p>
+                  {carmen ? (
+                    "Complete Ohio State sign-in in the other window, then return here."
+                  ) : (
+                    <>
+                      Find your district and complete your school’s sign-in.
+                      {login.attempt
+                        ? " GradeViewer will verify the connection and close the temporary browser automatically."
+                        : " Then return here to finish connecting."}
+                    </>
+                  )}
                 </p>
               </div>
             </div>
-            <a
-              className="portal-reopen"
-              href={login.url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open sign-in again <ExternalLink size={14} />
-            </a>
             <div className="button-row">
               <button
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
-                    await api("campus/cancel", {});
-                    signInWindow.current?.close();
-                    setLogin(undefined);
+                    await api("campus/cancel", { attempt: login.attempt });
+                    closeSignIn();
+                    await refresh();
                   })
                 }
               >
                 Cancel sign-in
               </button>
-              <button
+              <a
                 className="primary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await api("campus/finish", {});
-                    signInWindow.current?.close();
-                    setLogin(undefined);
-                    if (!carmen && !status?.connected) await choices();
-                    await refresh();
-                  })
-                }
+                href={login.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  setSignInOpened(true);
+                  if (
+                    event.metaKey ||
+                    event.ctrlKey ||
+                    event.shiftKey ||
+                    event.altKey
+                  )
+                    return;
+                  const popup = window.open("about:blank", "_blank");
+                  if (!popup) return;
+                  event.preventDefault();
+                  popup.opener = null;
+                  popup.location.replace(login.url);
+                  signInWindow.current = popup;
+                }}
               >
-                Finish connecting
-              </button>
+                {carmen ? "Open CarmenCanvas" : "Open Campus Student"}{" "}
+                <ExternalLink size={14} />
+              </a>
+              {(!login.attempt || message) && (
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      if (login.attempt) {
+                        await api("campus/progress", {
+                          attempt: login.attempt,
+                          retry: true,
+                        });
+                      } else {
+                        await api("campus/finish", {});
+                        await connected(!status?.connected);
+                      }
+                    })
+                  }
+                >
+                  {login.attempt
+                    ? "Retry connection check"
+                    : "Finish connecting"}
+                </button>
+              )}
             </div>
           </div>
-        ) : courses ? (
+        ) : choosing ? (
           <div className="portal-body portal-selection">
             <div className="portal-selection-heading">
               <div>
                 <h3>Choose your classes</h3>
-                <p>Include the classes you use IC for.</p>
+                <p>Add your IC-only classes.</p>
               </div>
               <span className="portal-count">{selected.length} selected</span>
             </div>
             <fieldset disabled={busy || disabled}>
               <legend className="sr-only">Include these IC classes</legend>
               <div className="portal-course-list">
-                {courses.length ? (
+                {courses === undefined ? (
+                  <p className="muted" role="status">
+                    {busy ? "Loading IC courses…" : "IC courses couldn’t load."}
+                  </p>
+                ) : courses.length ? (
                   courses.map((c) => (
                     <label className="gpa-check portal-course" key={c.id}>
                       <input
@@ -187,24 +290,29 @@ export function PortalConnection({
             <div className="button-row">
               <button
                 className="secondary"
-                disabled={busy}
-                onClick={() => setCourses(undefined)}
+                disabled={busy && courses !== undefined}
+                onClick={() => setChoosing(false)}
               >
                 Cancel
               </button>
               <button
                 className="primary"
-                disabled={busy || disabled}
+                disabled={busy || disabled || courses === undefined}
                 onClick={() =>
                   void run(async () => {
                     await api("campus/select", { selected });
                     await refresh();
-                    setCourses(undefined);
-                  })
+                    setChoosing(false);
+                  }, "Saving IC courses…")
                 }
               >
                 Save IC courses
               </button>
+              {!busy && courses === undefined && (
+                <button className="primary" onClick={() => void run(choices)}>
+                  Retry loading courses
+                </button>
+              )}
             </div>
           </div>
         ) : status?.connected ? (
@@ -237,7 +345,7 @@ export function PortalConnection({
             <button
               className="settings-action portal-action"
               disabled={disabled || busy}
-              onClick={() => void run(start)}
+              onClick={() => void run(start, "Preparing the sign-in browser…")}
             >
               <LogIn size={19} />
               <span>Reconnect {title}</span>
@@ -283,7 +391,9 @@ export function PortalConnection({
               onClick={() =>
                 void run(async () => {
                   await api("campus/disconnect", {});
+                  setConfirmation("");
                   setCourses(undefined);
+                  setChoosing(false);
                   await refresh();
                 })
               }
@@ -309,16 +419,21 @@ export function PortalConnection({
             <button
               className="primary portal-connect"
               disabled={disabled || busy}
-              onClick={() => void run(start)}
+              onClick={() => void run(start, "Preparing the sign-in browser…")}
             >
               <LogIn size={18} />
               Connect {title}
             </button>
           </div>
         )}
-        {busy && (
+        {confirmation && (
+          <p className="portal-notice" role="status">
+            <CheckCircle2 size={16} aria-hidden="true" /> {confirmation}
+          </p>
+        )}
+        {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">
-            <RefreshCw size={14} className="spinning" /> Working…
+            <RefreshCw size={14} className="spinning" /> {working}
           </div>
         )}
         {message && (

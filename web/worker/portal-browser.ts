@@ -1,4 +1,4 @@
-import { observedCampusPortal } from "./campus-url";
+import { campusHome, observedCampusPortal } from "./campus-url";
 import { ApiError } from "./provider";
 import type {
   BrowserWorker,
@@ -6,7 +6,7 @@ import type {
   BrowserContext,
 } from "@cloudflare/playwright";
 export type PortalBinding = BrowserWorker &
-  Pick<BrowserRun, "acquire" | "closeSession" | "getLiveView">;
+  Pick<BrowserRun, "acquire" | "closeSession" | "getLiveView" | "devtools">;
 export interface BrowserState {
   cookies: {
     name: string;
@@ -34,7 +34,15 @@ export interface PortalBrowser {
   url(): string;
   studentPortal?(): Promise<string | undefined>;
   ready(origin: string): Promise<void>;
+  studentNumber?(origin: string): Promise<string | undefined>;
+  detach?(): Promise<void>;
   close(): Promise<void>;
+}
+export function browserQuotaRetryAfter() {
+  const now = new Date();
+  const nextDay = new Date(now);
+  nextDay.setUTCHours(24, 0, 0, 0);
+  return Math.ceil((nextDay.getTime() - now.getTime()) / 1000);
 }
 export async function portalBrowser(
   binding: PortalBinding,
@@ -43,7 +51,6 @@ export async function portalBrowser(
   onEntry?: (url: string) => void,
   onStudentPortal?: (url: string, sessionID: string) => void,
 ): Promise<PortalBrowser> {
-  const sdk = await import("@cloudflare/playwright");
   let browser: Browser | undefined;
   let sessionID = session;
   let acquisitionExpired = false;
@@ -82,6 +89,7 @@ export async function portalBrowser(
     }
     // Cloudflare's default nonpersistent CDP connections isolate contexts. The
     // sign-in window and finish request must attach to the same default context.
+    const sdk = await import("@cloudflare/playwright");
     const endpoint = new URL(
       sdk.endpointURLString(binding, { sessionId: sessionID }),
     );
@@ -136,7 +144,38 @@ export async function portalBrowser(
     context.on("page", watch);
     return {
       id: browser.sessionId(),
-      state: () => context.storageState(),
+      state: () => bounded(context.storageState()),
+      detach: async () => {
+        await bounded(browser!.close(), 3000);
+      },
+      studentNumber: async (origin) => {
+        for (const open of [...context.pages()].reverse().slice(0, 6)) {
+          if (!campusHome(open.url()) || new URL(open.url()).origin !== origin)
+            continue;
+          for (const frame of open.frames().slice(0, 10)) {
+            if (
+              new URL(frame.url()).origin !== origin ||
+              !new URL(frame.url()).pathname.startsWith("/campus/")
+            )
+              continue;
+            const result = await bounded(
+              frame.evaluate(() => {
+                // Read just the labeled number. The profile, name, and other content never leave the page.
+                const text = document.body?.innerText ?? "";
+                if (!/^\s*Student Profile\s*$/im.test(text)) return;
+                const numbers = [
+                  ...text.matchAll(
+                    /^[ \t]*Student Number[ \t]*:?[ \t\r\n]+(\d{1,24})[ \t]*$/gim,
+                  ),
+                ].map((match) => match[1]);
+                if (new Set(numbers).size === 1) return numbers[0];
+              }),
+              2500,
+            ).catch(() => undefined);
+            if (result) return result;
+          }
+        }
+      },
       live: async () => {
         const result = await bounded(
           binding.getLiveView(sessionID!, {
@@ -176,13 +215,17 @@ export async function portalBrowser(
       },
     };
   } catch (error) {
-    if (sessionID) await binding.closeSession(sessionID).catch(() => {});
-    if (
-      /429|rate limit|time limit exceeded/i.test(
-        String(error instanceof Error ? error.message : ""),
-      )
-    )
-      throw new ApiError(429, "portalBrowserBudget", 3600);
+    if (!session && sessionID)
+      await binding.closeSession(sessionID).catch(() => {});
+    const message = error instanceof Error ? error.message : "";
+    if (/browser time limit exceeded for today/i.test(message))
+      throw new ApiError(
+        429,
+        "portalBrowserDailyLimit",
+        browserQuotaRetryAfter(),
+      );
+    if (/\b429\b|rate limit/i.test(message))
+      throw new ApiError(429, "portalBrowserRateLimited", 20);
     throw new ApiError(502, "browserUnavailable");
   }
 }

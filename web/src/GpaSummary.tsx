@@ -162,7 +162,11 @@ export function GpaSummary({
                     const { ordinal, start } = descriptor(course);
                     return (
                       <option key={id} value={id}>
-                        {osu ? course.term.name : `Semester ${ordinal}`}
+                        {osu
+                          ? course.term.name
+                          : ordinal === undefined
+                            ? "Semester"
+                            : `Semester ${ordinal}`}
                         {start !== undefined ? ` · ${date.format(start)}` : ""}
                       </option>
                     );
@@ -172,7 +176,9 @@ export function GpaSummary({
                 <span>
                   {osu
                     ? term.course.term.name
-                    : `Semester ${descriptor(term.course).ordinal}`}
+                    : descriptor(term.course).ordinal === undefined
+                      ? "Semester"
+                      : `Semester ${descriptor(term.course).ordinal}`}
                 </span>
               )}
               {!editing && (

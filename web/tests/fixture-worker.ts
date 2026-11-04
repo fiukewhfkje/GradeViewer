@@ -1,11 +1,13 @@
 import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
+import { ApiError } from "../worker/provider";
 import {
   campusSummary,
   campusDetail,
   campusState,
   campusPortal,
+  campusCompositeFixture,
 } from "./campus-fixture";
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
@@ -24,16 +26,27 @@ export class FixtureVault extends CredentialVault {
     super(fixtureState, fixtureEnv);
   }
   protected override portals(kind: "campus" | "carmen" = "campus") {
+    const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
+        const config = await storage.get<{ startLimited?: boolean }>(
+          "synthetic-campus",
+        );
+        if (config?.startLimited)
+          throw new ApiError(429, "portalBrowserDailyLimit");
         return {
           id: "synthetic-session",
           state: async () =>
             structuredClone(kind === "carmen" ? canvasState : campusState),
           live: async () => "/api/fixture/portal-window",
-          navigate: async () => {},
+          navigate: async () => {
+            await storage.delete("synthetic-campus-signed-in");
+          },
           url: () => campusPortal,
-          studentPortal: async () => campusPortal,
+          studentPortal: async () =>
+            (await storage.get("synthetic-campus-signed-in"))
+              ? new URL("/campus/nav-wrapper", campusPortal).href
+              : undefined,
           ready: async () => {},
           close: async () => {},
         };
@@ -65,6 +78,11 @@ export class FixtureVault extends CredentialVault {
           : "synthetic-campus",
         value,
       );
+      if (value && typeof value === "object" && "signedIn" in value)
+        await this.fixtureState.storage.put(
+          "synthetic-campus-signed-in",
+          value.signedIn,
+        );
       return Response.json({ ok: true });
     }
 
@@ -117,14 +135,23 @@ export class FixtureVault extends CredentialVault {
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
         malformed?: boolean;
+        courseDelayMs?: number;
       }>("synthetic-campus");
       if (config?.failure) return Response.json({}, { status: 401 });
       const path = new URL(request.url).pathname;
       if (path.endsWith("/roster"))
         return Response.json({ personID: "synthetic-campus-student" });
-      if (path.endsWith("/grades")) return Response.json(campusSummary);
+      if (path.endsWith("/grades")) {
+        if (config?.courseDelayMs)
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(config.courseDelayMs!, 2000)),
+          );
+        return Response.json(campusCompositeFixture().summary);
+      }
       if (path.endsWith("/detail/100"))
-        return Response.json(config?.malformed ? [] : campusDetail);
+        return Response.json(
+          config?.malformed ? [] : campusCompositeFixture().detail,
+        );
       return Response.json({}, { status: 404 });
     }
 
@@ -151,9 +178,12 @@ export class FixtureVault extends CredentialVault {
         section:
           key === "fixture-empty"
             ? []
-            : Array.from({ length: 5 }, (_, i) => ({
-                id: String((key === "fixture-aliases" ? 1000 : 100) + i),
-              })),
+            : Array.from(
+                { length: key === "fixture-blank" ? 7 : 5 },
+                (_, i) => ({
+                  id: String((key === "fixture-aliases" ? 1000 : 100) + i),
+                }),
+              ),
       });
     if (u.pathname.endsWith("/grades")) {
       const sections = Array.from(
@@ -202,6 +232,13 @@ export class FixtureVault extends CredentialVault {
         Date.parse("2026-10-16T12:00:00Z"),
       );
     if (key === "fixture-aliases") p.section.id = section;
+    if (key === "fixture-blank" && ["105", "106"].includes(section)) {
+      p.section.course_title =
+        section === "105" ? "Ungraded synthetic class" : "New synthetic class";
+      p.items = [];
+      p.categories = [];
+      if (section === "106") p.periods = [];
+    }
     if (p.section.course_title === "Computer Science A") {
       p.section.options = { weighted_grading_categories: 0 };
       for (const category of p.categories) {

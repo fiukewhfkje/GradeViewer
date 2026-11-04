@@ -74,7 +74,13 @@ const messages: Record<string, string> = {
   schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
   portalSignInRequired:
     "Infinite Campus needs you to sign in again. Your saved grades are retained.",
-  portalSignInExpired: "That sign-in window expired. Open sign-in again.",
+  portalSignInExpired: "That sign-in window expired. Start a new sign-in.",
+  portalBrowserCaptureFailed:
+    "GradeViewer couldn’t read the temporary sign-in browser. Retry the connection check.",
+  portalSessionUnverified:
+    "Campus Student opened, but GradeViewer couldn’t verify its session. Retry the connection check.",
+  portalVerificationUnavailable:
+    "GradeViewer reached Campus Student, but its grade service didn’t respond successfully. Retry the connection check.",
   portalAccountChanged:
     "This is a different Infinite Campus student. Disconnect Infinite Campus before switching students.",
   portalDisconnectFirst:
@@ -90,9 +96,13 @@ const messages: Record<string, string> = {
   portalRateLimited:
     "Infinite Campus is limiting requests. Please wait and retry.",
   portalBrowserBudget:
-    "Sign-in is temporarily unavailable. Please try again later.",
+    "GradeViewer’s daily sign-in allowance is used up. It resets at midnight UTC.",
+  portalBrowserDailyLimit:
+    "Cloudflare’s daily browser time is used up. It resets at midnight UTC.",
+  portalBrowserRateLimited:
+    "Cloudflare is limiting new sign-in browsers. Wait a moment and try again.",
   browserUnavailable:
-    "The sign-in window could not open. Please wait and retry.",
+    "GradeViewer couldn’t prepare the sign-in browser. Please try again.",
   portalPasswordChanged:
     "Your app password changed. Reconnect Infinite Campus.",
   networkUnavailable:

@@ -70,7 +70,7 @@ CarmenCanvas is implemented for local testing on `codex/investigate-gpa-carmen` 
 
 ## Optional Infinite Campus classes
 
-In **Settings → Additional classes**, choose **Connect Infinite Campus**, find your district, choose **Campus Student**, and complete your normal school sign-in. Return to GradeViewer, finish connecting and choose the IC-only classes to include. These use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. This is an unreleased testing feature; district sign-in and identity compatibility still need account testing.
+In **Settings → Additional classes**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. These use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. This is an unreleased testing feature; district sign-in and identity compatibility still need account testing.
 
 ## Estimated semester GPA
 

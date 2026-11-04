@@ -281,8 +281,10 @@ export class CredentialVault {
         if (!scan.sections.includes(id)) scan.sections.push(id);
       }
     }
-    if (resource === "grades" && section && list!.length === 0)
+    if (resource === "grades" && section && list!.length === 0) {
       scan.owners[section] = "empty";
+      scan.fingerprints[section] = await hash(JSON.stringify(null));
+    }
     if (resource === "grades")
       for (const row of list!) {
         const id = String(row.section_id ?? "");

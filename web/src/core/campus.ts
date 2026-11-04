@@ -81,6 +81,96 @@ export function campusStudent(roster: unknown): string {
     throw new ProviderError("campusIdentityUnsupported");
   return id(identities[0]);
 }
+// IC can attach a semester Final to its last quarter. The detail's explicit
+// child links establish its span; the containing Q2/Q4 alone does not.
+function compositeSemester(
+  parent: ReturnType<typeof campusRows>[number],
+  entries: Row[],
+  rows: ReturnType<typeof campusRows>,
+) {
+  const matches = entries.filter((entry) => {
+    const task = object(entry.task);
+    return (
+      nonempty(task.termID) ===
+        nonempty(parent.term.termID ?? parent.term._id) &&
+      nonempty(task.taskID ?? task.gradingTaskID) ===
+        nonempty(
+          parent.task.taskID ?? parent.task.gradingTaskID ?? parent.task._id,
+        )
+    );
+  });
+  if (matches.length !== 1 || !Array.isArray(matches[0].children)) return;
+  const children = collection(matches[0].children);
+  if (children.length < 2 || children.length > 6) return;
+  const seen = new Set<string>();
+  const spans: { start: number; end: number }[] = [];
+  const quarters: {
+    ordinal: number;
+    start: number;
+    end: number;
+    term: string;
+    startDateOnly: boolean;
+    endDateOnly: boolean;
+  }[] = [];
+  for (const child of children) {
+    if (
+      child.sectionID !== undefined &&
+      nonempty(child.sectionID) !== nonempty(parent.course.sectionID)
+    )
+      return;
+    const termID = nonempty(child.termID),
+      taskID = nonempty(child.taskID ?? child.gradingTaskID);
+    const key = termID + ":" + taskID;
+    if (!termID || !taskID || seen.has(key)) return;
+    seen.add(key);
+    const targets = rows.filter(
+      (r) =>
+        nonempty(r.school.schoolID) === nonempty(parent.school.schoolID) &&
+        nonempty(r.course.sectionID) === nonempty(parent.course.sectionID) &&
+        nonempty(r.term.termID ?? r.term._id) === termID &&
+        nonempty(r.task.taskID ?? r.task.gradingTaskID ?? r.task._id) ===
+          taskID,
+    );
+    if (targets.length !== 1) return;
+    const target = targets[0];
+    const start = date(target.term.startDate),
+      end = date(target.term.endDate);
+    if (start === undefined || end === undefined || start > end) return;
+    spans.push({ start, end });
+    const name = nonempty(target.task.taskName ?? target.task.name) ?? "";
+    if (/exam|midterm/i.test(name)) continue;
+    const q = nonempty(target.term.termName)?.match(
+      /^(?:q|quarter)\s*([1-4])$/i,
+    );
+    if (!q || !/^(?:quarter(?:\s*[1-4])?|q[1-4])$/i.test(name)) return;
+    quarters.push({
+      ordinal: Number(q[1]),
+      start,
+      end,
+      term: termID,
+      startDateOnly: /^\d{4}-\d{2}-\d{2}$/.test(String(target.term.startDate)),
+      endDateOnly: /^\d{4}-\d{2}-\d{2}$/.test(String(target.term.endDate)),
+    });
+  }
+  quarters.sort((a, b) => a.ordinal - b.ordinal);
+  if (quarters.length !== 2) return;
+  const [first, last] = quarters;
+  if (
+    first.ordinal % 2 !== 1 ||
+    last.ordinal !== first.ordinal + 1 ||
+    first.end >= last.start ||
+    last.term !== nonempty(parent.term.termID ?? parent.term._id) ||
+    spans.some((span) => span.start < first.start || span.end > last.end)
+  )
+    return;
+  return {
+    name: `Semester ${last.ordinal / 2}`,
+    start: first.start,
+    end: last.end,
+    startDateOnly: first.startDateOnly,
+    endDateOnly: last.endDateOnly,
+  };
+}
 export function parseCampus(
   summary: unknown,
   details: Record<string, unknown>,
@@ -92,8 +182,10 @@ export function parseCampus(
     allowed = new Set(choices.map((c) => c.id));
   if (selected.length > 32 || new Set(selected).size !== selected.length)
     return bad();
-  const output: SourceCourse[] = [];
-  for (const { school, term, course, task } of campusRows(summary)) {
+  const output: SourceCourse[] = [],
+    rows = campusRows(summary);
+  for (const row of rows) {
+    const { school, term, course, task } = row;
     const physical = id(school.schoolID) + ":" + id(course.sectionID);
     if (!selected.includes(physical) || !allowed.has(physical)) continue;
     const tid = id(term.termID ?? term._id),
@@ -191,12 +283,14 @@ export function parseCampus(
         : undefined;
     const ownStart = date(task.startDate),
       ownEnd = date(task.endDate);
+    const composite =
+      kind === "semester" ? compositeSemester(row, entries, rows) : undefined;
     const start =
       ownStart ??
       (kind === "semester" && !/^s(?:emester)?\s*\d/i.test(termName)
-        ? undefined
+        ? composite?.start
         : date(term.startDate));
-    const end = ownEnd ?? date(term.endDate);
+    const end = ownEnd ?? composite?.end ?? date(term.endDate);
     output.push({
       id: namespace,
       title: String(course.courseName),
@@ -207,7 +301,7 @@ export function parseCampus(
           kind === "exam"
             ? "Exam"
             : kind === "semester" && !/^s(?:emester)?\s*\d/i.test(termName)
-              ? taskName
+              ? (composite?.name ?? taskName)
               : termName,
         start,
         end,
@@ -239,14 +333,20 @@ export function parseCampus(
         task_name: taskName,
         grade_basis: progress ? "reportedInProgress" : "reportedPosted",
         period_start_date_only: String(
-          !!start &&
-            /^\d{4}-\d{2}-\d{2}$/.test(
-              String(task.startDate ?? term.startDate),
-            ),
+          ownStart === undefined && composite
+            ? composite.startDateOnly
+            : !!start &&
+                /^\d{4}-\d{2}-\d{2}$/.test(
+                  String(task.startDate ?? term.startDate),
+                ),
         ),
         period_end_date_only: String(
-          !!end &&
-            /^\d{4}-\d{2}-\d{2}$/.test(String(task.endDate ?? term.endDate)),
+          ownEnd === undefined && composite
+            ? composite.endDateOnly
+            : !!end &&
+                /^\d{4}-\d{2}-\d{2}$/.test(
+                  String(task.endDate ?? term.endDate),
+                ),
         ),
         ...(kind ? { period_kind: kind } : {}),
       },

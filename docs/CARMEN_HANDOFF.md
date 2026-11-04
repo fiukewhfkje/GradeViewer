@@ -2,6 +2,10 @@
 
 This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
 
+## Shared follow-up merge — November 4
+
+Main bed8049's IC semester normalization, blank Schoology classes, hide/restore, automatic IC capture and other shared fixes are now incorporated into the held branch. Build/type check, 285 tests, 36 Chromium and 36 WebKit flows, source packaging, dry-run and the isolated-template update/rollback check pass. No Carmen account request or deployment occurred; the captured account/session evidence below is unchanged.
+
 ## Current application work — November 4
 
 The owner authorized finishing Carmen runtime development on `codex/investigate-gpa-carmen`, with no deployment/main merge/release. [The implemented integration](CARMEN_INTEGRATION.md) uses the same secure sign-in/cookie infrastructure as IC, standalone Carmen workspaces, automatic student courses, canonical normalization, a separate Ohio State GPA estimate and bounded HTTP-only 90-minute session checks. Actual enrolled-course, Cloudflare student-endpoint, SSO and keepalive acceptance remain open. Local validation passes: 264 tests, 33 browser flows in each engine, build/type check, 99-file source packaging and isolated-template update/rollback. See [validation](PWA_VALIDATION.md) for limits. The older operator/Muse notes below are historical experiment evidence, not current runtime status or a request to send more messages.

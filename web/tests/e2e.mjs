@@ -113,6 +113,8 @@ async function stop() {
   ]);
 }
 async function check(name, run) {
+  const filter = process.env.GRADEVIEWER_E2E_CHECK;
+  if (filter && !name.includes(filter)) return;
   let timer;
   try {
     await Promise.race([
@@ -219,6 +221,10 @@ try {
     "Settings stays contained across phone, split view, laptop and monitor sizes",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      assert.doesNotMatch(
+        await page.locator(".profile").innerText(),
+        /Grades stay on this device|Your private app/,
+      );
       const sizes = [
         [320, 568],
         [360, 780],
@@ -1756,18 +1762,79 @@ try {
     },
   );
   await check(
-    "selected IC courses share grade UI and survive expiry/reconnect without linking",
+    "IC sign-in finishes automatically and selected courses survive expiry and reconnect",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      const signIn = page.waitForEvent("popup");
+      // Model the external window without navigating a real popup to a synthetic sign-in page.
+      await page.evaluate(() => {
+        window.open = () => {
+          document.body.dataset.campusPopup = "open";
+          return {
+            document: { body: {} },
+            location: {
+              replace(url) {
+                document.body.dataset.campusDestination = url;
+              },
+            },
+            close() {
+              document.body.dataset.campusPopup = "closed";
+            },
+          };
+        };
+      });
+      const connect = page.getByRole("button", {
+        name: "Connect Infinite Campus",
+        exact: true,
+      });
+      const openSignIn = page.getByRole("link", {
+        name: "Open Campus Student",
+      });
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { startLimited: true },
+      });
+      await connect.click();
       await page
-        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
-        .click();
-      const signInPage = await signIn;
-      await signInPage.waitForURL(base + "/api/fixture/portal-window");
+        .getByRole("alert")
+        .filter({ hasText: "Cloudflare’s daily browser time is used up" })
+        .waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        null,
+      );
+      assert.equal(await openSignIn.count(), 0);
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { startLimited: false },
+      });
+      await connect.click();
+      await openSignIn.waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        null,
+      );
+      await openSignIn.click();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-destination"),
+        "/api/fixture/portal-window",
+      );
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        "open",
+      );
+      assert.equal(
+        await page.getByRole("button", { name: "Finish connecting" }).count(),
+        0,
+      );
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { signedIn: true },
+      });
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
+        .getByRole("status")
+        .filter({ hasText: "Infinite Campus connected." })
+        .waitFor();
+      assert.equal(
+        await page.locator("body").getAttribute("data-campus-popup"),
+        "closed",
+      );
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .check();
@@ -1780,10 +1847,64 @@ try {
         .getByRole("button", { name: /Synthetic IC-only course/ });
       await ic.waitFor();
       assert.match(await ic.innerText(), /90/);
+      await page.locator(".gpa-card").evaluate((card) => {
+        card.open = true;
+      });
+      const icGpa = page
+        .locator(".gpa-card li")
+        .filter({ hasText: "Synthetic IC-only course" });
+      assert.match(await icGpa.innerText(), /A-/);
+      assert.doesNotMatch(await icGpa.innerText(), /No semester grade/);
       await ic.click();
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
+      assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByText("Synthetic work", { exact: true }).first().waitFor();
+      await page
+        .getByRole("button", { name: "View All Assignments", exact: true })
+        .click();
+      await page
+        .locator(".pills")
+        .getByRole("button", { name: "Q1", exact: true })
+        .click();
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
+      await page.getByLabel("Practice", { exact: true }).click();
+      await page.getByText("Earlier synthetic work", { exact: true }).waitFor();
+      await page
+        .locator(".pills")
+        .getByRole("button", { name: "Q2", exact: true })
+        .click();
+      assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { courseDelayMs: 1200 },
+      });
+      const chooseIC = page.getByRole("button", {
+        name: "Choose IC courses",
+        exact: true,
+      });
+      await chooseIC.click();
+      await page
+        .getByRole("heading", { name: "Choose your classes", exact: true })
+        .waitFor({ timeout: 500 });
+      await page.getByText("Loading IC courses…", { exact: true }).waitFor();
+      await page.getByText(/both copies count toward GPA/).waitFor();
+      await page
+        .getByRole("switch", { name: /Synthetic IC-only course/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await chooseIC.click();
+      assert.equal(
+        await page
+          .getByRole("switch", { name: /Synthetic IC-only course/ })
+          .isVisible(),
+        true,
+      );
+      assert.equal(
+        await page.getByText("Loading IC courses…", { exact: true }).count(),
+        0,
+      );
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await context.request.post(base + "/api/fixture/campus", {
         data: { failure: true },
       });
@@ -1803,9 +1924,14 @@ try {
       await page
         .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
         .click();
+      await openSignIn.click();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { signedIn: true },
+      });
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
+        .getByRole("status")
+        .filter({ hasText: "Infinite Campus connected." })
+        .waitFor();
       await page
         .getByRole("button", { name: "Choose IC courses", exact: true })
         .click();
@@ -2083,6 +2209,15 @@ try {
       assert.ok(second.x > first.x);
       assert.ok((await page.locator(".app").boundingBox()).width > 900);
       assert.equal(await page.locator(".sidebar-courses").isVisible(), true);
+      assert.equal(await page.locator("header").innerText(), "My grades");
+      assert.doesNotMatch(
+        await page.locator("footer").innerText(),
+        /GradeViewer|at a glance/,
+      );
+      assert.equal(
+        await page.locator("footer img").evaluate((icon) => icon.naturalWidth),
+        192,
+      );
       await cards[0].click();
       assert.equal(
         await page
@@ -2142,6 +2277,118 @@ try {
           .connected,
         false,
       );
+    },
+  );
+  await check(
+    "blank enrollments stay visible; hiding is reversible and preserves GPA",
+    async () => {
+      const fresh = await browser.newContext({
+        ignoreHTTPSErrors: true,
+      });
+      try {
+        const blank = await fresh.newPage();
+        await blank.goto(base);
+        await blank
+          .getByLabel("App password", { exact: true })
+          .fill("synthetic-owner-password-for-tests-only");
+        await blank
+          .getByRole("button", { name: "Unlock app", exact: true })
+          .click();
+        await blank
+          .getByLabel("Schoology API key", { exact: true })
+          .fill("fixture-blank");
+        await blank
+          .getByLabel("Schoology API secret", { exact: true })
+          .fill("fixture-secret");
+        await blank
+          .getByRole("button", { name: "Connect Schoology", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "New synthetic class" })
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 7);
+        await blank.locator(".gpa-card summary").click();
+        await blank
+          .getByRole("button", { name: "Use Dublin GPA scale", exact: true })
+          .click();
+        await blank.locator(".gpa-card summary .grade").waitFor();
+        const gpa = await blank.locator(".gpa-card summary .grade").innerText();
+        for (const title of ["New synthetic class", "AP Biology"]) {
+          await blank
+            .locator(".courses .course")
+            .filter({ hasText: title })
+            .click();
+          if (title === "New synthetic class") {
+            assert.equal(
+              (await blank.locator(".summary .grade").innerText()).trim(),
+              "—",
+            );
+            assert.match(
+              await blank.locator(".graph-section").innerText(),
+              /No grade history in the last 60 days/,
+            );
+          }
+          await blank.getByLabel("Course options", { exact: true }).click();
+          await blank
+            .getByRole("button", { name: "Hide class", exact: true })
+            .click();
+          await blank.locator(".courses").waitFor();
+        }
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        assert.equal(
+          await blank.locator(".gpa-card summary .grade").innerText(),
+          gpa,
+        );
+        await blank.reload();
+        await blank.locator(".courses").waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        await blank
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await blank
+          .locator(".profile")
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await blank
+          .locator(".profile button:not([disabled])")
+          .filter({ hasText: "Refresh grades" })
+          .waitFor({ state: "visible" });
+        for (const width of [320, 768, 1440]) {
+          await blank.setViewportSize({ width, height: 900 });
+          assert.ok(
+            await blank.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          );
+          await blank.screenshot({
+            path: `${directory}/hidden-classes-${width}.png`,
+          });
+        }
+        assert.match(
+          await blank.locator(".hidden-classes").innerText(),
+          /Use Edit courses in GPA/,
+        );
+        for (const title of ["New synthetic class", "AP Biology"])
+          await blank
+            .getByRole("button", { name: `Show ${title}`, exact: true })
+            .click();
+        await blank.locator(".hidden-classes").waitFor({ state: "hidden" });
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "New synthetic class" })
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 7);
+        assert.equal(
+          await blank.locator(".gpa-card summary .grade").innerText(),
+          gpa,
+        );
+      } finally {
+        await fresh.close();
+      }
     },
   );
   assert.deepEqual(errors, []);

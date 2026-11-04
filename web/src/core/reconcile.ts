@@ -1,6 +1,6 @@
 import { type SourceCourse, type Course, graded, hasTitle } from "./model";
 import { safelyCalculate } from "./calculator";
-import { descriptor, related, semester } from "./periods";
+import { descriptor, related, semester, sameClass } from "./periods";
 export function resolveGrades(input: SourceCourse[]): SourceCourse[] {
   const rows = input.map((s) => {
     const c = structuredClone(s);
@@ -106,7 +106,8 @@ export function reconcile(
         ...source,
         assignments: [...rows.values()],
         history,
-        hidden: old?.hidden ?? false,
+        hidden:
+          old?.hidden ?? previous.some((c) => c.hidden && sameClass(c, source)),
         order: old?.order ?? index,
         removed: old?.removed ?? [],
       };

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { readFile, stat } from "node:fs/promises";
 // @ts-expect-error Deployment helper intentionally uses plain JavaScript.
 import { deploy } from "../scripts/deploy.mjs";
+const password = "synthetic-owner-password-at-least-20";
 describe("no-terminal password setup", () => {
   it("accepts a 12-character password and rejects 11 before changing deployment", async () => {
     const calls: string[][] = [];
@@ -12,70 +14,63 @@ describe("no-terminal password setup", () => {
     );
     expect(calls).toHaveLength(0);
     await deploy({ APP_PASSWORD: "test-only123" }, run);
-    expect(calls).toEqual([["secret", "bulk"], ["deploy"]]);
+    expect(calls).toEqual([["deploy", "--secrets-file", expect.any(String)]]);
   });
-  it("sends the password only over stdin and retains Cloudflare authentication", async () => {
-    const calls: {
-      args: string[];
-      env: Record<string, string>;
-      input?: string;
-    }[] = [];
+  it("uploads code and password together after a rollback without a separate secret edit", async () => {
+    let secretsFile = "";
+    let count = 0;
     await deploy(
-      {
-        APP_PASSWORD: "synthetic-owner-password-at-least-20",
-        CLOUDFLARE_API_TOKEN: "synthetic-build-token",
-      },
+      { APP_PASSWORD: password, CLOUDFLARE_API_TOKEN: "synthetic-build-token" },
       async (args: string[], env: Record<string, string>, input?: string) => {
-        calls.push({ args, env, input });
+        count++;
+        // Model Cloudflare refusing a separate secret edit on an older active version.
+        if (args[0] === "secret")
+          throw new Error("Latest version is not deployed");
+        expect(args.slice(0, 2)).toEqual(["deploy", "--secrets-file"]);
+        expect(JSON.stringify([args, env, input])).not.toContain(password);
+        expect(env.CLOUDFLARE_API_TOKEN).toBe("synthetic-build-token");
+        secretsFile = args[2];
+        expect(JSON.parse(await readFile(secretsFile, "utf8"))).toEqual({
+          APP_PASSWORD: password,
+        });
+        expect((await stat(secretsFile)).mode & 0o777).toBe(0o600);
       },
     );
-    expect(calls).toHaveLength(2);
-    expect(JSON.stringify(calls.map((c) => [c.args, c.env]))).not.toContain(
-      "synthetic-owner-password-at-least-20",
-    );
-    expect(JSON.parse(calls[0].input!)).toEqual({
-      APP_PASSWORD: "synthetic-owner-password-at-least-20",
-    });
-    expect(calls[1].env.CLOUDFLARE_API_TOKEN).toBe("synthetic-build-token");
-    expect(calls[1].args).toEqual(["deploy"]);
+    expect(count).toBe(1);
+    await expect(stat(secretsFile)).rejects.toMatchObject({ code: "ENOENT" });
   });
-  it("applies secrets and deployment to the same explicitly selected Worker", async () => {
+  it("targets the explicitly selected Worker with the same code and password upload", async () => {
     const calls: string[][] = [];
     await deploy(
-      { APP_PASSWORD: "synthetic-owner-password-at-least-20" },
+      { APP_PASSWORD: password },
       async (args: string[]) => {
         calls.push(args);
       },
       ["--name", "gradeviewer-preview"],
     );
     expect(calls).toEqual([
-      ["secret", "bulk", "--name", "gradeviewer-preview"],
-      ["deploy", "--name", "gradeviewer-preview"],
+      [
+        "deploy",
+        "--name",
+        "gradeviewer-preview",
+        "--secrets-file",
+        expect.any(String),
+      ],
     ]);
   });
-  it("keeps existing runtime secrets on ordinary redeploy and stops after secret-setup failure", async () => {
+  it("preserves runtime secrets without a build password and removes the temporary file after failure", async () => {
     const calls: string[][] = [];
     await deploy({}, async (args: string[]) => {
       calls.push(args);
     });
     expect(calls).toEqual([["deploy"]]);
-    let deployed = false;
+    let secretsFile = "";
     await expect(
-      deploy(
-        { APP_PASSWORD: "synthetic-owner-password-at-least-20" },
-        async (args: string[]) => {
-          if (args[0] === "secret")
-            throw new Error("synthetic permission error");
-          deployed = true;
-        },
-      ),
-    ).rejects.toThrow();
-    expect(deployed).toBe(false);
-    await expect(
-      deploy({ APP_PASSWORD: "short" }, async () => {
-        deployed = true;
+      deploy({ APP_PASSWORD: password }, async (args: string[]) => {
+        secretsFile = args[2];
+        throw new Error("synthetic deployment failure");
       }),
-    ).rejects.toThrow();
-    expect(deployed).toBe(false);
+    ).rejects.toThrow("synthetic deployment failure");
+    await expect(stat(secretsFile)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

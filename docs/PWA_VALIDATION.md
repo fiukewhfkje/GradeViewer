@@ -1,3 +1,7 @@
+# Main follow-up merge on the held Carmen branch — November 4, 2026
+
+After integrating main bed8049, the held branch passes build/type check, 285 tests, all 36 Chromium and 36 WebKit flows, 101-file source packaging, Worker dry-run and isolated template installation/build/attested-update fixture/configuration-secret retention/rollback. The merged code preserves Carmen-only/combined workspaces, its OSU GPA and 90-minute HTTP checks while retaining the latest independent IC capture, semester normalization and hide/restore behavior. No cloud browser session, Carmen account request, deployment or release was performed for these checks. Main alone is deployed to the owner Worker.
+
 # Shared Settings and startup follow-up on the held Carmen branch
 
 After merging main `f7c57b5`, the Carmen branch passed **269 tests across 20 files**, **35 Chromium and 35 WebKit flows**, build/type checking and **101-file source packaging**. Its existing Carmen-only and combined-account flows passed with the new Settings and browser cache behavior. The verified Cloudflare deployment uses main.
@@ -13,6 +17,22 @@ Browser flows cover both Schoology-first and Carmen-first accounts, preserving w
 The owner-requested ACTIVE saved capture check returned 401 at self-profile in 316 ms; no course/grade request or renewal followed and the independent idle capture was untouched. This is not current blank-grade evidence, student-endpoint acceptance or a measured TTL. Actual enrolled-course schemas/permissions, cloud human sign-in/renewal, long-term keepalive, university acceptance and physical-device usability remain open. See [integration limits](CARMEN_INTEGRATION.md) and [capture evidence](CARMEN_HANDOFF.md).
 
 The owner-only production IC deployment remains separate. A public check at **2026-11-04T17:04:38Z** matched `/assets/index-ClbXMudR.js` (SHA-256 `ffd732b41a995a1c2b7f91cad93fbc944c95d8f3edc76ff9c882802fd95a56dd`), found Infinite Campus UI and no CarmenCanvas UI, and confirmed locked unauthenticated API access. No stable tag, release, student data migration or Carmen deployment occurred.
+
+# IC composite semester follow-up — November 4, 2026
+
+The owner metadata diagnostic passed and restored the normal Worker. It confirmed Final tasks under Q2/Q4 and detail child references spanning their semester quarters. The adapter now derives semester dates/ordinals from those links without copying Schoology totals or guessing weights. It preserves the reported Final grade and assignment/source identities. Regression fixtures use independent synthetic identifiers, dates and grades, including a reported total that differs from an equal quarter average. Missing, repeated, foreign, unresolved or mismatched child references withhold the inferred span.
+
+Build/type check, 207 tests, all 34 Chromium and 34 WebKit flows, 85-file packaging and Worker dry-run pass. The IC browser flow checks the semester GPA row and Q1/Q2 assignment navigation with a consistent semester summary. No Browser Run sessions, new human sign-in, student grade values or provider writes were used. Owner numeric agreement after refresh and additional districts remain acceptance work.
+
+# Blank Schoology enrollments and class hiding — November 4, 2026
+
+Production build/type check, 201 tests, all 33 existing Chromium flows plus a focused blank-course/hide flow, all 34 WebKit flows, 85-file source packaging and Worker dry-run pass. The additional flow checks enrolled classes with no grade row, including no period metadata, blank grade/graph presentation, hide/refresh/reload/restore, unchanged GPA and Settings containment at 320, 768 and 1440 CSS pixels. Representative synthetic screenshots were inspected. Core tests preserve malformed-response rejection, grade-owner alias deduplication, metadata receipt expiry and provider-scoped hiding across new periods. A returning seven-course fixture with two empty gradebooks performs five upstream reads rather than re-fetching their metadata.
+
+The selected IC semester/task investigation remains open. The first owner diagnostic stopped at local source packaging; its corrected repository-root archive and temporary Worker patch/upload dry-run pass. No real IC metadata was obtained from that failed run. These follow-up checks acquire no Browser Run sessions, perform no provider writes, and do not establish a friend account's response format or physical-device acceptance. The stable release remains paused.
+
+# Automatic IC sign-in — November 4, 2026
+
+The synthetic Worker and browser checks cover waiting at district sign-in, the short Student Profile route, verification failure and retry, closure after success, first-time course selection and same-account reconnect with prior selections. The external window is modeled in the synthetic browsers, and the Worker test checks a single browser session is closed. A live Cloudflare probe was rate-limited before it could open a browser. The student's provider responses and local Live View tab closure remain unverified.
 
 # District finder, responsive Settings and cached startup — November 4, 2026
 

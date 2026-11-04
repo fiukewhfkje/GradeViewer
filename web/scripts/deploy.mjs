@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 const wrangler = fileURLToPath(
   new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url),
@@ -31,15 +34,20 @@ export async function deploy(
     throw new Error("Choose an APP_PASSWORD of at least 12 characters.");
   const childEnv = { ...environment };
   delete childEnv.APP_PASSWORD;
-  // Cloudflare's import form exposes build secrets before runtime settings exist.
-  // Apply that one password as a runtime secret without placing it in argv or a file.
-  if (password)
-    await run(
-      ["secret", "bulk", ...args],
-      childEnv,
-      JSON.stringify({ APP_PASSWORD: password }),
-    );
-  await run(["deploy", ...args], childEnv);
+  if (!password) return run(["deploy", ...args], childEnv);
+  // Upload the password with this code version. Separate secret edits can fail
+  // after a rollback or accidentally deploy a different version first.
+  const directory = await mkdtemp(join(tmpdir(), "gradeviewer-deploy-"));
+  try {
+    const secretsFile = join(directory, "secrets.json");
+    await writeFile(secretsFile, JSON.stringify({ APP_PASSWORD: password }), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await run(["deploy", ...args, "--secrets-file", secretsFile], childEnv);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
   await deploy(process.env, invoke, process.argv.slice(2));
