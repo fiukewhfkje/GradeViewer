@@ -1,9 +1,14 @@
 # Next work
 
+## v0.1.10
+
+- [x] Align GPA switches and add a temporary letter-grade what-if estimate.
+- [ ] Confirm signed publication and the owner’s Cloudflare deployment.
+
 ## v0.1.9
 
 - [x] Verify local assignment editing, straight-points grades, the teacher override display and the Dublin semester GPA estimate.
-- [ ] Confirm signed publication and the owner’s Cloudflare deployment.
+- [x] Confirm signed publication and the owner’s Cloudflare deployment.
 - [ ] Compare the estimate with a confirmed same-semester roster and check the editor on a physical phone.
 
 ## Native retirement — October 23, 2026

@@ -1,5 +1,7 @@
 # PWA verification — November 3, 2026
 
+The v0.1.10 development checks cover left-aligned switches, keyboard operation, persistent exclusions, and temporary letter-grade previews. The weighted and unweighted preview uses existing credits and course levels while the current GPA remains visible. Synthetic Chromium and WebKit flows verify that the what-if preview resets after reload.
+
 The v0.1.9 app candidate passed local build and tests, 30 Chromium and 30 WebKit browser flows, and standalone template build, test, dry-run, update and rollback checks. Synthetic browser coverage includes the straight-points calculation with unweighted category labels and no numeric quarter total, a marked override with a separate what-if estimate, caret placement, and persistent GPA settings. The owner also authorized a read-only in-memory comparison with Schoology. No real grades or credentials were retained in the repository. Published provenance and deployment are verified separately after merge.
 
 # PWA verification — October 23, 2026

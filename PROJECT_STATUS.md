@@ -1,12 +1,16 @@
 # Project status — November 3, 2026
 
-## v0.1.9 release candidate
+## v0.1.10 release candidate
+
+The GPA editor uses left-aligned pill switches for course exclusions and credit weighting. What-if GPA accepts temporary letter grades, keeps the current estimate visible, and uses the saved course levels and credits for its separate projection.
+
+## v0.1.9 published
 
 Edit Grade, Drop Assignment and Add Grade are available even when the old comparison could not reproduce Schoology's total. The official grade stays visible alongside the what-if estimate. Explicit teacher overrides are tagged. The score editor opens with the caret at the end. Unweighted categories with absent or zero weights and no percentage averaging or drop rules use straight points.
 
 The Grades screen has a compact Dublin semester GPA estimate with weighted and unweighted results. Course levels, credits and exclusions are under Edit courses. Settings are stored locally for the connected account.
 
-An owner-authorized read-only check verified the points calculation against the matching course's Schoology response. The candidate passed local app tests in Chromium and WebKit and standalone template packaging, installation, update and rollback checks. The release uses the existing signed workflow. Physical phone and independent-account acceptance remain open.
+An owner-authorized read-only check verified the points calculation against the matching course's Schoology response. The candidate passed local app tests in Chromium and WebKit and standalone template packaging, installation, update and rollback checks. The release uses the existing signed workflow. [Signed v0.1.9](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.9) was published from `1efc1ec` and deployed to the owner’s existing Worker. The tested assets matched production. Physical phone and independent-account acceptance remain open.
 
 # Project status — October 23, 2026
 
