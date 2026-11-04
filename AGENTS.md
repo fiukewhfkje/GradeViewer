@@ -4,7 +4,7 @@ GradeViewer is a Schoology-primary React/TypeScript PWA with optional selected I
 
 Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/PWA_HANDOFF.md and docs/PWA_VALIDATION.md before continuing. docs/PRODUCT_BRIEF.md defines the product scope. docs/PWA_PLAN.md preserves historical migration rationale.
 
-- Keep the app fast, simple and independent of Muse. Schoology discovers courses automatically; Infinite Campus imports only selected courses. Do not add course linking or cross-provider assignment merging. No paid tiers, analytics, ads, shared maintainer backend, widgets, planner or speculative features.
+- Keep the app fast, simple and independent of Muse. Schoology discovers courses automatically and omits empty gradebooks; Infinite Campus imports only selected IC-exclusive courses. Do not add blank-course placeholders or class hide/restore controls. Do not add course linking or cross-provider assignment merging. No paid tiers, analytics, ads, shared maintainer backend, widgets, planner or speculative features.
 - `web/src/core/` is the canonical implementation for parsing, reconciliation and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
 - Each user owns the Worker and encrypted Schoology credentials. Grade snapshots, history and hypothetical changes stay in browser-local IndexedDB. Never log credentials, cookies, keys, raw provider responses or student grades. Committed fixtures must be synthetic.
 - Never invent provider data or assume a hypothetical provider failure occurred in a student’s account. Distinguish official docs, fixture tests and student-verified behavior.

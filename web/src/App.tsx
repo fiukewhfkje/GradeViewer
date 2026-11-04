@@ -57,7 +57,6 @@ import {
   exams,
   estimateQuarter,
   latestGradeUpdate,
-  sameClass,
 } from "./core/periods";
 import { hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
@@ -558,9 +557,6 @@ export default function App() {
           if (value !== before.scenarios[id]) scenarios[id] = value;
         const local = new Map(next.courses.map((c) => [c.id, c]));
         const previous = new Map(before.courses.map((c) => [c.id, c]));
-        const visibility = next.courses.filter(
-          (c) => previous.has(c.id) && previous.get(c.id)!.hidden !== c.hidden,
-        );
         next = {
           ...current,
           scenarios,
@@ -577,17 +573,10 @@ export default function App() {
                   ...c,
                   removed:
                     edit.removed !== old.removed ? edit.removed : c.removed,
-                  hidden:
-                    visibility.find((edit) => sameClass(edit, c))?.hidden ??
-                    c.hidden,
+                  hidden: edit.hidden !== old.hidden ? edit.hidden : c.hidden,
                   order: edit.order !== old.order ? edit.order : c.order,
                 }
-              : {
-                  ...c,
-                  hidden:
-                    visibility.find((edit) => sameClass(edit, c))?.hidden ??
-                    c.hidden,
-                };
+              : c;
           }),
         };
       }
@@ -621,19 +610,6 @@ export default function App() {
       ),
     });
   }
-  async function setClassHidden(c: Course, hidden: boolean) {
-    const saved = await persist({
-      ...stateRef.current,
-      courses: stateRef.current.courses.map((x) =>
-        sameClass(x, c) ? { ...x, hidden } : x,
-      ),
-    });
-    if (saved && hidden) setSelected(undefined);
-  }
-  const hiddenClasses = state.courses.filter(
-    (c, index, all) =>
-      c.hidden && all.findIndex((x) => sameClass(x, c)) === index,
-  );
   const original = state.courses.find((c) => c.id === selected),
     course = original
       ? ((view !== "detail"
@@ -928,9 +904,6 @@ export default function App() {
                 Restore Removed Assignments
               </button>
             )}
-            <button onClick={() => void setClassHidden(c, true)}>
-              Hide class
-            </button>
           </Menu>
         </div>
 
@@ -1358,38 +1331,6 @@ export default function App() {
                           </span>
                         </label>
                       </section>
-                      {hiddenClasses.length > 0 && (
-                        <section className="settings-group hidden-classes">
-                          <h2>Hidden classes</h2>
-                          <div className="settings-card">
-                            {hiddenClasses.map((c) => (
-                              <div className="settings-row" key={c.id}>
-                                <span className="settings-label">
-                                  <strong>{c.title}</strong>
-                                  <small>
-                                    {c.fields.provider === "campus"
-                                      ? "Infinite Campus"
-                                      : c.fields.provider === "carmen"
-                                        ? "CarmenCanvas"
-                                        : "Schoology"}
-                                  </small>
-                                </span>
-                                <button
-                                  className="secondary"
-                                  onClick={() => void setClassHidden(c, false)}
-                                  aria-label={`Show ${c.title}`}
-                                >
-                                  Show
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <p className="settings-note">
-                            Hiding only changes your course list. Use Edit
-                            courses in GPA to exclude a class from the estimate.
-                          </p>
-                        </section>
-                      )}
                     </div>
                     <div className="settings-column settings-preferences">
                       <section className="settings-group personal-site">

@@ -23,11 +23,27 @@ const db = () =>
     connection = undefined;
     throw error;
   }));
+function restoreCourseList(s: SavedState): SavedState {
+  if (s.schema !== 1) throw new Error("unsupportedLocalSchema");
+  // Retire the short-lived blank-enrollment/hide feature in cached snapshots
+  // too. Keep real grades, history, scenarios and GPA preferences intact.
+  return {
+    ...s,
+    courses: s.courses
+      .filter(
+        (c) =>
+          !(
+            (c.fields.provider ?? "schoology") === "schoology" &&
+            c.fields.metadata_only === "true"
+          ),
+      )
+      .map((c) => (c.hidden ? { ...c, hidden: false } : c)),
+  };
+}
 export async function load(): Promise<SavedState> {
   const d = await db(),
     s = await d.get("state", "active");
-  if (s && s.schema !== 1) throw new Error("unsupportedLocalSchema");
-  return s ?? emptyState();
+  return restoreCourseList(s ?? emptyState());
 }
 export async function save(s: SavedState) {
   try {
@@ -46,7 +62,8 @@ export async function prepare(p: Pending) {
   }
 }
 export async function pending(): Promise<Pending | undefined> {
-  return (await db()).get("state", "pending");
+  const p: Pending | undefined = await (await db()).get("state", "pending");
+  return p ? { ...p, state: restoreCourseList(p.state) } : undefined;
 }
 export async function activate(s: SavedState) {
   try {

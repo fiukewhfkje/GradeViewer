@@ -2,6 +2,10 @@
 
 This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
 
+## Course-list rollback — November 4
+
+Main f6eeb69 restores omission of empty Schoology gradebooks and removes Hide class, retaining the IC semester/GPA correction. The held branch carries the rollback and its cached-data cleanup. Build/type check, 284 tests, 36 browser flows per engine, packaging and Worker dry-run pass. Carmen remains undeployed; existing capture evidence and account acceptance limits are unchanged.
+
 ## Shared follow-up merge — November 4
 
 Main bed8049's IC semester normalization, blank Schoology classes, hide/restore, automatic IC capture and other shared fixes are now incorporated into the held branch. Build/type check, 285 tests, 36 Chromium and 36 WebKit flows, source packaging, dry-run and the isolated-template update/rollback check pass. No Carmen account request or deployment occurred; the captured account/session evidence below is unchanged.

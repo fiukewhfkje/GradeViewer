@@ -1,3 +1,13 @@
+# Course-list rollback on the held Carmen branch — November 4, 2026
+
+The merged rollback passes build/type check, 284 tests, all 36 Chromium and 36 WebKit flows, 101-file packaging and Worker dry-run. Carmen-only and combined workspaces retain their behavior, while blank Schoology enrollments and class hide controls stay removed. Cached cleanup preserves provider grades, local edits and GPA settings. Main f6eeb69 alone is deployed to the owner Worker; this branch remains undeployed. No new student-provider requests, Browser Run sessions or stable releases were part of these checks.
+
+# Course-list rollback — November 4, 2026
+
+At the owner's request, restored omission of blank Schoology enrollments and removed Hide class/Hidden classes. IC selection and the composite semester normalization remain unchanged. The replacement regression retains a seven-enrollment fixture with two empty gradebooks and verifies that only five normal classes appear, no placeholder metadata is retained, unchanged normal metadata is reused, and hide controls are absent. Cached startup with failed status requests removes a legacy blank placeholder and restores a real class's retired hidden flag. The unit test also covers interrupted recovery and preservation of real grades, history, scenarios and GPA preferences.
+
+Build/type check, 206 tests, all 34 Chromium and 34 WebKit flows, 85-file packaging and Worker dry-run pass. Existing IC coverage still checks the normalized semester total and GPA contribution while switching Q1/Q2 assignments. All checks use local synthetic fixtures, with no Browser Run acquisition or student grade request. No stable release is created.
+
 # Main follow-up merge on the held Carmen branch — November 4, 2026
 
 After integrating main bed8049, the held branch passes build/type check, 285 tests, all 36 Chromium and 36 WebKit flows, 101-file source packaging, Worker dry-run and isolated template installation/build/attested-update fixture/configuration-secret retention/rollback. The merged code preserves Carmen-only/combined workspaces, its OSU GPA and 90-minute HTTP checks while retaining the latest independent IC capture, semester normalization and hide/restore behavior. No cloud browser session, Carmen account request, deployment or release was performed for these checks. Main alone is deployed to the owner Worker.
