@@ -167,10 +167,9 @@ export interface SectionPayload {
 export function parseSection(p: SectionPayload): SourceCourse[] {
   const sectionID = nonempty(p.section.id);
   if (!sectionID) throw new ProviderError("malformed");
-  const gradeRows = collection(p.grades.section);
-  const grades =
-    gradeRows.find((x) => nonempty(x.section_id) === p.owner) ??
-    (gradeRows.length === 0 ? { period: [] } : undefined);
+  const grades = collection(p.grades.section).find(
+    (x) => nonempty(x.section_id) === p.owner,
+  );
   if (!grades || grades.period === undefined)
     throw new ProviderError("malformed");
   if (
@@ -283,14 +282,6 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
       ids.add("p" + id);
     }
   }
-  // Keep an enrolled class visible even before Schoology creates a gradebook.
-  // This local scope carries section metadata, not an invented grading period.
-  if (periods.length === 0)
-    periods.push({
-      period_id: "ungraded",
-      period_title: "Course",
-      assignment: [],
-    });
   return periods.map((period) => {
     const id = nonempty(period.period_id);
     if (!id) throw new ProviderError("malformed");
@@ -312,8 +303,6 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         nonempty(p.section.section_title) ??
         "Course",
     };
-    if (gradeRows.length === 0 || id === "ungraded")
-      fields.metadata_only = "true";
     if (
       [final?.override, final?.is_override].some(
         (v) => v === true || flag(v),

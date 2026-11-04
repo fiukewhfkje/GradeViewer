@@ -1,8 +1,9 @@
 # Current follow-up — November 4
 
-- [x] Retain verified blank Schoology enrollments with no invented grades; reuse their metadata and keep aliases deduplicated.
-- [x] Add reversible class hiding across periods, independently of GPA exclusions.
-- [x] Complete browser checks for blank enrollments, hide/restore persistence, GPA retention and responsive Settings.
+- [x] Restore omission of blank Schoology enrollments and remove class hide/restore controls at the owner's request.
+- [x] Clear the temporary blank placeholders and retired hide flags when reading saved snapshots and interrupted recovery, preserving real grades and edits.
+- [x] Validate the restored course filtering, removed hide controls, cached cleanup and retained IC semester/GPA flow.
+- [ ] Deploy the rollback to the owner Worker and carry it to the undeployed Carmen branch.
 - [x] Read the selected IC course's actual period/task metadata and normalize composite Final semester spans using explicit child references and reported totals.
 - [x] Complete local semester/GPA normalization and browser validation.
 - [x] Deploy the semester correction through bed8049 and verify assets, vault/password bindings, locked APIs and successful main CI.

@@ -1,3 +1,9 @@
+# Course-list rollback — November 4, 2026
+
+At the owner's request, restored omission of blank Schoology enrollments and removed Hide class/Hidden classes. IC selection and the composite semester normalization remain unchanged. The replacement regression retains a seven-enrollment fixture with two empty gradebooks and verifies that only five normal classes appear, no placeholder metadata is retained, unchanged normal metadata is reused, and hide controls are absent. Cached startup with failed status requests removes a legacy blank placeholder and restores a real class's retired hidden flag. The unit test also covers interrupted recovery and preservation of real grades, history, scenarios and GPA preferences.
+
+Build/type check, 206 tests, all 34 Chromium and 34 WebKit flows, 85-file packaging and Worker dry-run pass. Existing IC coverage still checks the normalized semester total and GPA contribution while switching Q1/Q2 assignments. All checks use local synthetic fixtures, with no Browser Run acquisition or student grade request. No stable release is created.
+
 # IC composite semester follow-up — November 4, 2026
 
 The owner metadata diagnostic passed and restored the normal Worker. It confirmed Final tasks under Q2/Q4 and detail child references spanning their semester quarters. The adapter now derives semester dates/ordinals from those links without copying Schoology totals or guessing weights. It preserves the reported Final grade and assignment/source identities. Regression fixtures use independent synthetic identifiers, dates and grades, including a reported total that differs from an equal quarter average. Missing, repeated, foreign, unresolved or mismatched child references withhold the inferred span.

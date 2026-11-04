@@ -29,13 +29,13 @@ export async function readSnapshot(
     roots?: { sections: Page; grades: ReadResult };
   }>("scan/start", { ...credentials, refreshMetadata, includeRoots: true });
   const { scan, account } = started;
-  async function fingerprintGrade(row: Row | undefined) {
+  async function fingerprintGrade(row: Row) {
     return btoa(
       String.fromCharCode(
         ...new Uint8Array(
           await crypto.subtle.digest(
             "SHA-256",
-            new TextEncoder().encode(JSON.stringify(row ?? null)),
+            new TextEncoder().encode(JSON.stringify(row)),
           ),
         ),
       ),
@@ -252,15 +252,13 @@ export async function readSnapshot(
       (a, b) =>
         Number(!previous.metadata?.[a.id]) - Number(!previous.metadata?.[b.id]),
     );
-    const selectedBatches: { id: string; match?: Row; owner: string }[] = [];
+    const selectedBatches: { id: string; match: Row; owner: string }[] = [];
     const fingerprints = new Map<string, string>();
     const candidates: string[] = [],
       reused = new Set<string>();
     for (const { id, match } of batches) {
-      // An empty read can be a real enrollment without a gradebook yet. An
-      // enrollment already represented by a verified grade alias is not another class.
-      if (!match && owners.has(id)) continue;
-      const owner = match ? nonempty(match.section_id) : id;
+      if (!match) continue;
+      const owner = nonempty(match.section_id);
       if (!owner) throw new Error("malformed");
       if (seen.has(owner)) continue;
       seen.add(owner);
@@ -304,7 +302,7 @@ export async function readSnapshot(
         payloads.push({
           p: {
             ...structuredClone(cached.payload),
-            grades: { section: match ? [match] : [] },
+            grades: { section: [match] },
             owner,
             fetched: Date.now(),
           },
@@ -322,7 +320,7 @@ export async function readSnapshot(
         });
       const p = {
         section,
-        grades: { section: match ? [match] : [] },
+        grades: { section: [match] },
         items,
         categories,
         periods,

@@ -958,18 +958,6 @@ svg.spinning {
   flex-direction: row;
   font-weight: 400;
 }
-.hidden-classes .settings-label {
-  overflow-wrap: anywhere;
-}
-.hidden-classes .settings-label strong,
-.hidden-classes .settings-label small {
-  display: block;
-}
-.hidden-classes .settings-label small {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
 .theme-control {
   position: relative;
   display: inline-flex;

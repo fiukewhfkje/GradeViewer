@@ -1,3 +1,9 @@
+# Restore the course list and remove hiding — November 4, 2026
+
+At the owner's request, reversed the blank Schoology enrollment and Hide class feature from fae6184. Discovery again omits verified empty gradebooks, the parser no longer creates metadata-only placeholder scopes, and the additional empty-gradebook metadata receipts are removed. Hide/restore controls and their styles are gone. Cache reads and interrupted snapshot recovery discard only the temporary Schoology placeholders and clear the retired hide flags, so existing cached grade-bearing classes return immediately. Real grades, observations, scenarios, GPA preferences and provider connections remain intact.
+
+The IC composite semester fix from bed8049 is retained unchanged: explicitly selected IC-exclusive classes use the provider's reported Final grade, normalized to the linked semester, for the existing overall grade and GPA behavior. No linking or provider deduplication setup is added. The production build/type check, 206 unit/integration tests, all 34 Chromium and 34 WebKit flows, 85-file source packaging and Worker dry-run pass. The browser regression also verifies cached placeholder removal and restoration of a previously hidden real class when status requests fail. Owner-only deployment is pending. No Browser Run sessions have been acquired; stable publication remains paused and Carmen stays separate and undeployed.
+
 # IC composite semester normalization — November 4, 2026
 
 The corrected owner metadata diagnostic succeeded and restored the normal Worker. It reports Q1–Q4 plus Final tasks attached to Q2 and Q4, with explicit child task links spanning Q1/Q2 and Q3/Q4. The prior adapter retained Final grades but left their semester start/ordinal unknown, preventing association with the normal semester summary and GPA roster.
