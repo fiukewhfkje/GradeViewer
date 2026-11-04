@@ -1,3 +1,7 @@
+## IC composite term metadata — November 4, 2026
+
+An owner-unlocked temporary diagnostic successfully read and sanitized the selected IC course structure, then restored the normal Worker. It exposed four quarter terms and Final tasks under Q2/Q4; detail entries have children linking the constituent quarter/exam tasks. The adapter previously recognized Final as a semester but omitted its start when it was nested under a quarter. The correction derives the semester span/ordinal from canonical same-section child references, preserving the reported Final grade and refusing ambiguous relationships. No student grade values, provider raw responses or session cookies are committed. The [IC composite documentation](https://kb.infinitecampus.com/help/establish-composite-grading-rules) confirms configurable child weights; those weights are not guessed or inferred from Schoology. Additional districts, calculation methods and numeric agreement require their own acceptance evidence.
+
 # Schoology research
 
 ## IC owner-testing implementation — November 4, 2026

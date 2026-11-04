@@ -142,14 +142,19 @@ export function GpaSummary({
                     const { ordinal, start } = descriptor(course);
                     return (
                       <option key={id} value={id}>
-                        Semester {ordinal}
+                        Semester{ordinal === undefined ? "" : ` ${ordinal}`}
                         {start !== undefined ? ` · ${date.format(start)}` : ""}
                       </option>
                     );
                   })}
                 </select>
               ) : (
-                <span>Semester {descriptor(term.course).ordinal}</span>
+                <span>
+                  Semester
+                  {descriptor(term.course).ordinal === undefined
+                    ? ""
+                    : ` ${descriptor(term.course).ordinal}`}
+                </span>
               )}
               {!editing && (
                 <div className="gpa-actions">

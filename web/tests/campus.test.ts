@@ -2,7 +2,12 @@ import "fake-indexeddb/auto";
 import { describe, it, expect } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import { reconcile } from "../src/core/reconcile";
-import { physicalKey, visibleCourses } from "../src/core/periods";
+import {
+  physicalKey,
+  visibleCourses,
+  descriptor,
+  overall,
+} from "../src/core/periods";
 import { calculate, hypothetical } from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
 import { demoCourses } from "../src/core/demo";
@@ -14,6 +19,7 @@ import {
   campusDetail,
   campusPortal,
   campusState,
+  campusCompositeFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
 const parsed = () =>
@@ -25,6 +31,74 @@ const parsed = () =>
     now,
   );
 describe("selected IC normalization", () => {
+  it("maps Q2/Q4 Final tasks to semesters using their explicit child links", () => {
+    const { summary, detail } = campusCompositeFixture();
+    const courses = parseCampus(
+      summary,
+      { "100": detail },
+      ["1:100"],
+      "account",
+      now,
+    );
+    const finals = courses.filter((c) => descriptor(c).kind === "semester");
+    expect(finals.map((c) => descriptor(c).label)).toEqual(["S1", "S2"]);
+    expect(finals[0].term.start).toBe(Date.parse("2026-08-15"));
+    expect(finals[0].term.end).toBe(Date.parse("2026-12-18"));
+    expect(finals[0].grade.percent).toBe(90); // provider total, not an average of the quarters
+    expect(finals[0].assignments).toEqual([]);
+    expect(courses.every((c) => c.term.weight === undefined)).toBe(true);
+    const current = visibleCourses(reconcile(courses), now)[0];
+    expect(descriptor(current).label).toBe("Q2");
+    expect(overall(current, courses).id).toBe(finals[0].id);
+    for (const q of courses.filter((c) =>
+      ["Q1", "Q2"].includes(descriptor(c).label),
+    ))
+      expect(overall(q, courses).id).toBe(finals[0].id);
+    const schoology = demoCourses(now),
+      term = gpaSemesters(schoology, now)[0];
+    const result = estimateGpa([...schoology, ...courses], term, {
+      weighting: "equal",
+      courses: {},
+    });
+    expect(result.rows).toHaveLength(6);
+    expect(
+      result.rows.find((r) => r.title === "Synthetic IC-only course"),
+    ).toMatchObject({ points: 3.67, reason: undefined });
+  });
+  it.each(["missing", "duplicate", "foreign", "wrong-quarter", "self"])(
+    "withholds an inferred semester span for %s child links",
+    (problem) => {
+      const { summary, detail } = campusCompositeFixture();
+      const final = detail.details.find(
+        (entry) => entry.children?.length === 3,
+      )!;
+      if (problem === "missing") delete final.children;
+      else if (problem === "duplicate")
+        final.children!.push({ ...final.children![0] });
+      else if (problem === "foreign") final.children![0].sectionID = 999;
+      else if (problem === "wrong-quarter") final.children![0].termID = 503;
+      else final.children![0].taskID = 4;
+      const courses = parseCampus(
+        summary,
+        { "100": detail },
+        ["1:100"],
+        "account",
+        now,
+      );
+      const s = courses.find((c) => c.term.id === "502:4")!;
+      expect(s.term.start).toBeUndefined();
+      expect(s.grade.percent).toBe(90);
+      expect(
+        gpaSemesters(courses, now).some((term) => term.course.id === s.id),
+      ).toBe(true);
+      const row = estimateGpa(
+        [...demoCourses(now), ...courses],
+        gpaSemesters(demoCourses(now), now)[0],
+        { weighting: "equal", courses: {} },
+      ).rows.find((r) => r.title === s.title);
+      expect(row?.points).toBeUndefined();
+    },
+  );
   it("uses sectionID, scoped identities and normal calculator/GPA behavior", () => {
     expect(campusChoices(campusSummary)[0]).toMatchObject({
       id: "1:100",

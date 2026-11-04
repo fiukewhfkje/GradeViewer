@@ -1,3 +1,9 @@
+# IC composite semester follow-up — November 4, 2026
+
+The owner metadata diagnostic passed and restored the normal Worker. It confirmed Final tasks under Q2/Q4 and detail child references spanning their semester quarters. The adapter now derives semester dates/ordinals from those links without copying Schoology totals or guessing weights. It preserves the reported Final grade and assignment/source identities. Regression fixtures use independent synthetic identifiers, dates and grades, including a reported total that differs from an equal quarter average. Missing, repeated, foreign, unresolved or mismatched child references withhold the inferred span.
+
+Build/type check, 207 tests, all 34 Chromium and 34 WebKit flows, 85-file packaging and Worker dry-run pass. The IC browser flow checks the semester GPA row and Q1/Q2 assignment navigation with a consistent semester summary. No Browser Run sessions, new human sign-in, student grade values or provider writes were used. Owner numeric agreement after refresh and additional districts remain acceptance work.
+
 # Blank Schoology enrollments and class hiding — November 4, 2026
 
 Production build/type check, 201 tests, all 33 existing Chromium flows plus a focused blank-course/hide flow, all 34 WebKit flows, 85-file source packaging and Worker dry-run pass. The additional flow checks enrolled classes with no grade row, including no period metadata, blank grade/graph presentation, hide/refresh/reload/restore, unchanged GPA and Settings containment at 320, 768 and 1440 CSS pixels. Representative synthetic screenshots were inspected. Core tests preserve malformed-response rejection, grade-owner alias deduplication, metadata receipt expiry and provider-scoped hiding across new periods. A returning seven-course fixture with two empty gradebooks performs five upstream reads rather than re-fetching their metadata.

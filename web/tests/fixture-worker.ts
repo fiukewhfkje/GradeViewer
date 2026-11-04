@@ -6,6 +6,7 @@ import {
   campusDetail,
   campusState,
   campusPortal,
+  campusCompositeFixture,
 } from "./campus-fixture";
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
@@ -114,10 +115,12 @@ export class FixtureVault extends CredentialVault {
           await new Promise((resolve) =>
             setTimeout(resolve, Math.min(config.courseDelayMs!, 2000)),
           );
-        return Response.json(campusSummary);
+        return Response.json(campusCompositeFixture().summary);
       }
       if (path.endsWith("/detail/100"))
-        return Response.json(config?.malformed ? [] : campusDetail);
+        return Response.json(
+          config?.malformed ? [] : campusCompositeFixture().detail,
+        );
       return Response.json({}, { status: 404 });
     }
 

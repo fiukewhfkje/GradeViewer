@@ -1841,8 +1841,33 @@ try {
         .getByRole("button", { name: /Synthetic IC-only course/ });
       await ic.waitFor();
       assert.match(await ic.innerText(), /90/);
+      await page.locator(".gpa-card").evaluate((card) => {
+        card.open = true;
+      });
+      const icGpa = page
+        .locator(".gpa-card li")
+        .filter({ hasText: "Synthetic IC-only course" });
+      assert.match(await icGpa.innerText(), /A-/);
+      assert.doesNotMatch(await icGpa.innerText(), /No semester grade/);
       await ic.click();
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
+      assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByText("Synthetic work", { exact: true }).first().waitFor();
+      await page
+        .getByRole("button", { name: "View All Assignments", exact: true })
+        .click();
+      await page
+        .locator(".pills")
+        .getByRole("button", { name: "Q1", exact: true })
+        .click();
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
+      await page.getByLabel("Practice", { exact: true }).click();
+      await page.getByText("Earlier synthetic work", { exact: true }).waitFor();
+      await page
+        .locator(".pills")
+        .getByRole("button", { name: "Q2", exact: true })
+        .click();
+      assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await context.request.post(base + "/api/fixture/campus", {

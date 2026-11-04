@@ -1,3 +1,11 @@
+# IC composite semester normalization — November 4, 2026
+
+The corrected owner metadata diagnostic succeeded and restored the normal Worker. It reports Q1–Q4 plus Final tasks attached to Q2 and Q4, with explicit child task links spanning Q1/Q2 and Q3/Q4. The prior adapter retained Final grades but left their semester start/ordinal unknown, preventing association with the normal semester summary and GPA roster.
+
+The adapter now derives a semester span and ordinal only from a unique, same-section, valid pair of linked quarters, retaining the Final task's reported grade and existing identity. Quarter assignments remain separate. Missing, duplicate, foreign, cyclic/unresolved, non-quarter or inconsistent links do not invent semester metadata. No quarter/exam weights or missing grades are synthesized. This enables the existing overall grade, graph basis and semester GPA logic to use the provider's semester record. Generic GPA labels also avoid undefined ordinals. Synthetic fixtures model this contract with independent names, IDs, dates and grades; the owner's numeric grades were neither returned by the diagnostic nor committed.
+
+Production build/type check, 207 tests, all 34 Chromium and 34 WebKit flows, 85-file source packaging and Worker dry-run pass. Browser coverage now models a Final nested under Q2, verifies the IC GPA contribution, switches Q1/Q2 assignments and retains the same semester summary. No Browser Run sessions were acquired. Owner-only deployment is pending; actual numeric agreement still needs an owner refresh. The stable release remains paused, and Carmen stays separate and undeployed.
+
 # Blank courses and IC semester investigation — November 4, 2026
 
 The owner paused the requested stable release before any version/tag/release changes. Main remains 0.1.10 and Carmen remains on its separate undeployed development branch.
