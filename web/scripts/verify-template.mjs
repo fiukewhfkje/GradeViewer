@@ -5,7 +5,8 @@ import { join, dirname } from "node:path";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 import { sha256, parseJsonc } from "./release-lib.mjs";
-const temporary = await mkdtemp(join(tmpdir(), "gradeviewer-template-"));
+const staging = await mkdtemp(join(tmpdir(), "gradeviewer-template-"));
+const temporary = join(staging, "copy");
 function run(command, args, cwd = temporary, env = {}) {
   const r = spawnSync(command, args, {
     cwd,
@@ -150,5 +151,5 @@ process.exit(valid?0:1);
     "PASS isolated template install/build/dry-run, attested-update fixture, configuration/secret retention and explicit rollback (cryptographic provenance is checked separately in CI).",
   );
 } finally {
-  await rm(temporary, { recursive: true, force: true });
+  await rm(staging, { recursive: true, force: true });
 }

@@ -1,5 +1,12 @@
 # Next work
 
+## Grade editing and GPA development
+
+- [x] Keep assignment edit and drop available when a what-if course total cannot be calculated; place the edit caret after the current score.
+- [x] Add an opt-in Dublin semester GPA estimate with local settings for levels, semester credits and exclusions.
+- [ ] Compare the estimate with an owner-confirmed same-semester roster and check the new score editor on a physical phone.
+- [ ] Owner acceptance before cutting the next stable; Carmen work stays development-only.
+
 ## GPA and Carmen investigation — November 1, 2026
 
 - [x] Fix Muse's reported HTTP proxy gap with one measurement-options helper for both standalone request contexts. Respect environment proxy/bypass settings without logging values. Validate regression, 202 tests/build, actual no-session proxied Canvas 401/JSON, and a private replacement ZIP changing only the lab source and README; preserve all original private state and deadlines.

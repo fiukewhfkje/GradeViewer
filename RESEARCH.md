@@ -1,5 +1,14 @@
 # Schoology research
 
+## Why assignment math can differ from the reported total — November 3, 2026
+
+The [Schoology Grades API](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) returns assignment rows and final grade records separately. The [category API](https://developers.schoology.com/api-documentation/rest-api-v1/grading-categories/) describes points versus percentage averaging, category weights and dropped scores. A normal poll still returns the provider's decision about the total; the app must reconstruct the relevant inputs and rules to predict changes to it.
+
+PowerSchool documents [period/course overrides and optional whole-number rounding](https://uc.powerschool-docs.com/en/schoology/latest/grade-setup-final-grade-settings) and [unrounded inputs in the overall calculation](https://uc.powerschool-docs.com/en/schoology/latest/grade-calculations). A reported 90.00% and local 89.80% differ by 0.20 percentage points. The old UI locked editing whenever the difference exceeded the app's 0.15-point tolerance, either numeric total was unavailable, or the local calculator could not compute a total. The screenshot matches that gate but does not identify its triggering input. The earlier Physics finding below independently verified that a reported total can incorporate work for which the individual scores are unavailable via the student API. No friend account or grade export was accessed.
+
+The branch fix decouples local assignment edits from what-if course totals. Reported grades remain the baseline; a verified calculation can still apply its before/after difference to that baseline. If the reconstruction fails, the edit still saves and the course total stays at the baseline with an explanation.
+
+
 GradeViewer supports Schoology only. The active application is the PWA; the TypeScript core and focused web regressions define current grade behavior. Retired native source remains in Git history. Current deployment and validation evidence is in [PWA validation](docs/PWA_VALIDATION.md). Original-account observations below do not establish access or behavior for every school.
 
 ## GPA and requested Carmen feasibility — November 1, 2026

@@ -1252,3 +1252,58 @@ svg.spinning {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.gpa-card {
+  background: var(--row);
+  border-radius: 16px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.gpa-card > summary {
+  padding: 16px;
+  cursor: pointer;
+}
+.gpa-card > summary > span {
+  display: block;
+  margin: 4px 0 0 1.25em;
+}
+.gpa-content {
+  padding: 0 16px 16px;
+}
+.gpa-content a {
+  color: inherit;
+}
+.gpa-content form > p {
+  margin-top: 8px;
+}
+.gpa-course {
+  min-inline-size: 0;
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.gpa-course legend {
+  font-weight: 600;
+}
+.gpa-course p {
+  margin: 0 0 8px;
+}
+.gpa-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.gpa-fields select,
+.gpa-fields input {
+  width: 100%;
+  min-width: 0;
+}
+.gpa-exclude {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gpa-exclude input {
+  width: auto;
+  min-height: 0;
+}

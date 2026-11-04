@@ -1,3 +1,13 @@
+# Project status — November 3, 2026
+
+## Development: local grade editing and semester GPA
+
+Edit Grade and Drop Assignment are available on editable assignment rows even when the local calculator cannot reproduce the reported Schoology total. Those changes still save locally and can be reset. The app keeps the baseline course total and explains when a what-if total cannot be shown. The score editor places the caret after the existing value when it opens. The screenshot identified the shared UI gate; it did not identify why the particular account’s total failed that gate.
+
+The Grades screen includes an opt-in semester GPA estimate using the published Dublin City Schools scale. It shows weighted and unweighted results, lets students correct suggested levels, and supports equal weighting or entered semester credits and course exclusions. It uses baseline semester grades rather than local scenarios and explains incomplete results. Settings are local to the browser and Schoology account. This is a semester estimate; it does not establish official transcript or cumulative GPA.
+
+Build/type check, 206 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run, source packaging and the isolated template update/rollback fixture pass. Both changes are held on the owner’s development branch for testing. Main, stable releases and production are unchanged. No friend-account or physical-device validation was performed.
+
 # Project status — November 1, 2026
 
 ## Current: Muse VM HTTP proxy correction

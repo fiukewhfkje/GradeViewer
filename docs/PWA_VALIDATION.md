@@ -1,3 +1,7 @@
+# PWA verification — November 3, 2026
+
+The development branch adds a synthetic Schoology course whose reported quarter total differs from its assignment-derived total, plus GPA coverage for Dublin’s published points, plus/minus cutoffs, non-GPA marks, missing and ambiguous semesters, duplicate period views, unequal credits, exclusions and overrides. No real student data or physical device was used.
+
 # Carmen VM HTTP proxy validation — November 1, 2026
 
 The new environment-proxy regression failed before the helper and passes afterward. **202 tests across 16 files** and production build/type check pass. Coverage includes absent/uppercase/lowercase proxy settings, bypass pass-through, wildcard/domain/port Canvas exclusions and nonmatching hosts/ports. Both standalone HTTP contexts share the helper; browser launch/recovery logic and provider requests/policies/dependencies are unchanged.
@@ -35,6 +39,10 @@ Production build/type check and **182 tests across 15 files** passed. New synthe
 Live owner-authorized HTTP checks accepted identity at 19:11:45.934Z in 288 ms, identity/courses at 19:17:05.139Z in 409 ms, and identity/courses at 19:21:01.940Z in 404 ms with schema-valid empty `[]` explicitly confirmed. No browser or relogin was needed. This proves the authenticated course-total request path for an unenrolled account, not enrolled-course parsing, full snapshots, a running five-minute experiment, long-term lifetime or successful silent renewal. Encrypted state and private observations remain outside Git.
 
 At the owner’s request, two spaced fresh idle-browser starts were attempted; Cloudflare rejected both with 429 before OSU navigation. Read-only inventory reported zero active browsers. These are infrastructure failures, not Carmen expiries. There is no second authenticated profile, active two-probe trial, local/VM cron, recurring model task or deployment. The [benchmark](CARMEN_SESSION_BENCHMARK.md) documents the explicit seven-day extension, code-only cron and human/inconclusive recovery; the [support email](CARMEN_SUPPORT_EMAIL.md) is an unsent draft. Application/Worker sources and dependencies are unchanged; app E2E/template/deployment suites were not rerun. The release hold remains in force.
+
+The development branch passed build/type checking, **206 tests**, **30 Chromium and 30 WebKit** HTTPS/Worker browser flows, Worker deployment dry-run, source packaging and an isolated template install/build/test/update/rollback fixture. The new browser flows verify that editing and dropping remain available with a mismatched official total, Backspace removes the last digit immediately, and GPA credit/level settings survive a reload and completed refresh. The phone GPA screenshot was inspected. The template test now places the standalone copy under its own temporary parent so that Carmen's private-directory guard does not confuse the system temp directory with the project root. No Carmen session or production deployment was exercised.
+
+For a local preview, build in `web/` and run `npx wrangler dev --config wrangler.test.jsonc --ip 127.0.0.1 --port 8792 --persist-to .local-test/owner-preview`. Open the local address and choose **Profile → Try sample grades**. The synthetic browser flow also tests a deliberately mismatched Computer Science A quarter total.
 
 # PWA verification — November 1, 2026
 

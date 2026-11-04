@@ -62,6 +62,10 @@ Newly deployed app versions also show a discreet update notice when the app open
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
 
+## Estimated semester GPA
+
+In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see a weighted and unweighted estimate from your Schoology semester grades. Check the suggested course levels, exclude classes that don’t count, and enter semester credits if courses carry different weights. The estimate and its settings stay in your browser and may differ from your official transcript.
+
 ## Your data
 
 Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Changing the app password revokes sessions and requires reconnecting Schoology. Disconnect before switching students.
