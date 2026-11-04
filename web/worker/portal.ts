@@ -546,8 +546,12 @@ export class PortalService {
 
         await this.storage.delete(`portal-${this.kind}-entry`);
         try {
-          await browser.navigate(portal);
-          return { url: await browser.live(), expires: c.pending.expires };
+          const destination = c.account && c.entry ? c.entry : portal;
+          const [, url] = await Promise.all([
+            browser.navigate(destination, "commit"),
+            browser.live(),
+          ]);
+          return { url, expires: c.pending.expires };
         } catch {
           await this.close(s);
           throw new ApiError(502, "browserUnavailable");
@@ -623,6 +627,7 @@ export class PortalService {
       let fresh;
       try {
         fresh = await this.fetch(c);
+        c.needsReconnect = false;
       } catch (error) {
         if (
           !(error instanceof ApiError) ||
@@ -630,8 +635,9 @@ export class PortalService {
         )
           throw error;
         c.needsReconnect = true;
-        // A rejected HTTP session may use the actual captured SSO entry once; network failures never launch a browser.
+        // Carmen can try its captured SSO entry after authentication rejection.
         if (
+          this.kind === "campus" ||
           !c.entry ||
           !c.state ||
           (c.renewalAfter ?? 0) > Date.now() ||

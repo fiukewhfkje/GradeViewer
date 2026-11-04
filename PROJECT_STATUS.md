@@ -1,3 +1,15 @@
+# IC browser use and graph hover — November 4, 2026
+
+The earlier iPhone app opened IC in a local embedded WebKit view and read cookies from that view's private store. The PWA uses temporary Cloudflare Chrome because a website cannot access the separate IC origin's session cookies in a normal browser tab. IC now starts Browser Run only on Connect or Reconnect. Refresh reads use HTTP and show the reconnect action when authentication is rejected. Explicit reconnect uses the remembered SSO entry when available. Live View setup overlaps navigation and opens after the first document commits. No new live Browser Run launch was used to test this change, so the startup time improvement has not been measured against a student sign-in.
+
+The grade graph uses the default mouse cursor and updates the existing grade/date tooltip on hover. The tooltip clears on leaving the plot. Touch capture and keyboard selection continue to work. Synthetic browser fixtures use a loopback sign-in page to avoid the GitHub Linux Chromium renderer crash seen when intercepting a cross-origin popup. The previous WebKit CI and both local browser suites passed.
+
+Production build, **191 tests**, **33 Chromium and 33 WebKit flows**, source packaging and isolated template installation/update/rollback passed. The browser checks verify a normal cursor, moving tooltip without clicks, dismissal on exit, retained touch and keyboard behavior, and the IC sign-in/reconnect flow. A focused regression proves repeat expired refreshes do not acquire Browser Run, even with saved SSO state. Cloudflare account inventory reported zero active browsers during the read-only check.
+
+The owner build deployed `e60028d`. The five live asset hashes, vault fingerprint, secret binding and locked public API were verified. The shared changes passed **269 tests and 35 browser flows per engine** on the held Carmen branch. Its existing maintenance and recovery policies stay scoped to Carmen.
+
+Infinite Campus documents [district-provisioned OneRoster credentials](https://kb.infinitecampus.com/help/oneroster-api). No self-service student authorization handoff was found. A permission-scoped local extension could hand off a session after normal browser sign-in, with the existing Worker continuing HTTP sync. This is an option for removing remote Chrome from interactive setup and requires a separate installation path.
+
 # Carmen development — November 4, 2026
 
 Carmen runtime implementation is now on `codex/investigate-gpa-carmen` only. It shares IC's encrypted cookie/Live View connection infrastructure, fixed-origin read-only Canvas transport, provider-scoped normalization and snapshot retention. Carmen works without Schoology, preserves a stable workspace when Schoology is added/removed, and adds a separate Ohio State GPA card with entered credits and explicit local letter overrides. The Settings connection actions/switches use the polished IC layout. A disableable 90-minute Durable Object identity check retains rotated cookies, backs off bounded failures and pauses rejected access without running Chrome or reading grades.

@@ -1758,16 +1758,13 @@ try {
   await check(
     "selected IC courses share grade UI and survive expiry/reconnect without linking",
     async () => {
-      await context.route("https://live.browser.run/**", (route) =>
-        route.fulfill({
-          contentType: "text/html",
-          body: "<title>Synthetic sign-in</title>",
-        }),
-      );
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const signIn = page.waitForEvent("popup");
       await page
         .getByRole("button", { name: "Connect Infinite Campus", exact: true })
         .click();
+      const signInPage = await signIn;
+      await signInPage.waitForURL(base + "/api/fixture/portal-window");
       await page
         .getByRole("button", { name: "Finish connecting", exact: true })
         .click();
@@ -2097,6 +2094,24 @@ try {
         recentBox = await page.locator(".recent-assignments").boundingBox();
       assert.ok(recentBox.x > graphBox.x + graphBox.width);
       const chart = page.getByRole("slider");
+      assert.equal(
+        await chart.evaluate((el) => getComputedStyle(el).cursor),
+        "default",
+      );
+      await chart.hover({ position: { x: 10, y: 20 } });
+      await page.locator(".chart-tooltip").waitFor();
+      const left = Number(await chart.getAttribute("aria-valuenow"));
+      const bounds = await chart.boundingBox();
+      await chart.hover({ position: { x: bounds.width - 10, y: 20 } });
+      await page.waitForFunction(
+        (left) =>
+          Number(
+            document.querySelector(".chart").getAttribute("aria-valuenow"),
+          ) > left,
+        left,
+      );
+      await page.locator(".graph-section h2").hover();
+      await page.locator(".chart-tooltip").waitFor({ state: "hidden" });
       await chart.press("End");
       const expected = (
         await page.locator(".summary .grade").innerText()

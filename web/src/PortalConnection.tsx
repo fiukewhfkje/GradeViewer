@@ -56,7 +56,7 @@ export function PortalConnection({
     signInWindow.current = popup;
     if (popup) {
       popup.document.title = `${title} sign-in`;
-      popup.document.body.textContent = `Opening secure ${title} sign-in…`;
+      popup.document.body.textContent = `Starting the temporary ${title} sign-in browser…`;
     }
     let pending;
     try {
@@ -296,7 +296,7 @@ export function PortalConnection({
             <p className="portal-description">
               {carmen
                 ? "Connect your Ohio State student courses with your regular school sign-in."
-                : "Find your district and sign in to add classes that only use Infinite Campus."}
+                : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
             </p>
             {carmen ? (
               <p className="muted">

@@ -1,5 +1,12 @@
 # Next work
 
+## IC browser use and graph hover — November 4
+
+- [x] Use Browser Run only for explicit IC sign-in and reconnect. Overlap Live View setup and the first navigation.
+- [x] Show the graph tooltip on mouse hover with the normal cursor. Preserve touch and keyboard input.
+- [ ] Confirm sign-in timing and full SSO using the owner’s district and account.
+
+
 ## IC sign-in, Settings and cached startup — November 4
 
 - [x] Recover the historical district-finder flow and modern Student URL handling. Remove the pasted-address setup.

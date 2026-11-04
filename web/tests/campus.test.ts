@@ -134,6 +134,7 @@ function harness() {
   const data = new Map<string, unknown>();
   let selectedPortal: string | undefined = campusPortal;
   const navigations: string[] = [];
+  let browserCalls = 0;
   let identity = "101",
     failure = false,
     malformed = false;
@@ -162,6 +163,7 @@ function harness() {
   };
   class Service extends PortalService {
     protected async browser(): Promise<PortalBrowser> {
+      browserCalls++;
       return {
         id: "synthetic-browser",
         state: async () => structuredClone(campusState),
@@ -187,6 +189,7 @@ function harness() {
     data,
     calls,
     navigations,
+    browserCalls: () => browserCalls,
     selectPortal: (url?: string) => {
       selectedPortal = url;
     },
@@ -220,20 +223,35 @@ describe("encrypted IC session and selected snapshots", () => {
     await h.service.handle("disconnect");
     expect((await h.service.status()).connected).toBe(false);
   });
-  it("retains selected courses and configured connection when authentication expires", async () => {
+  it("retains selected courses and avoids browser launches on repeated expired refreshes", async () => {
     const h = harness();
     await h.service.handle("start", { portal: campusPortal });
+    h.data.set(
+      "portal-campus-entry",
+      "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1",
+    );
     await h.service.handle("finish");
     await h.service.handle("select", { selected: ["1:100"] });
+    const before = h.browserCalls();
     h.expire();
     await expect(h.service.handle("snapshot")).rejects.toThrow(
       "portalSignInRequired",
     );
+    await expect(h.service.handle("snapshot")).rejects.toThrow(
+      "portalSignInRequired",
+    );
+    expect(h.browserCalls()).toBe(before);
     expect(await h.service.status()).toMatchObject({
       connected: true,
       needsReconnect: true,
       selected: ["1:100"],
     });
+    await h.service.handle("start");
+    expect(h.browserCalls()).toBe(before + 1);
+    expect(h.navigations.at(-1)).toBe(
+      "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1",
+    );
+    await h.service.handle("cancel");
   });
   it("rejects account changes and malformed selected details", async () => {
     const h = harness();

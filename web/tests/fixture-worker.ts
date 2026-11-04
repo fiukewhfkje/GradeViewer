@@ -30,7 +30,7 @@ export class FixtureVault extends CredentialVault {
           id: "synthetic-session",
           state: async () =>
             structuredClone(kind === "carmen" ? canvasState : campusState),
-          live: async () => "https://live.browser.run/ui/view?synthetic=true",
+          live: async () => "/api/fixture/portal-window",
           navigate: async () => {},
           url: () => campusPortal,
           studentPortal: async () => campusPortal,
@@ -48,6 +48,10 @@ export class FixtureVault extends CredentialVault {
     );
   }
   override async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname === "/api/fixture/portal-window")
+      return new Response("<title>Synthetic sign-in</title>", {
+        headers: { "Content-Type": "text/html" },
+      });
     if (
       ["/api/fixture/campus", "/api/fixture/carmen"].includes(
         new URL(request.url).pathname,

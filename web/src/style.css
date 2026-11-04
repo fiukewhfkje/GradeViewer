@@ -505,7 +505,7 @@ select {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  cursor: crosshair;
+  cursor: default;
   border-radius: 16px;
 }
 .chart:focus-visible {
