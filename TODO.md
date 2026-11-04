@@ -1,5 +1,11 @@
 # Next work
 
+## v0.1.9
+
+- [x] Verify local assignment editing, straight-points grades, the teacher override display and the Dublin semester GPA estimate.
+- [ ] Confirm signed publication and the owner’s Cloudflare deployment.
+- [ ] Compare the estimate with a confirmed same-semester roster and check the editor on a physical phone.
+
 ## Native retirement — October 23, 2026
 
 - [x] Remove Swift sources, GradeCore package, Xcode project, signing configuration, native assets, tests, fixtures and helper scripts; retain them in Git history.

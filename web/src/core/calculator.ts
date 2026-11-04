@@ -117,6 +117,30 @@ export function safelyCalculate(c: SourceCourse, h?: Scenario) {
     return undefined;
   }
 }
+export function reportedGradeSupportsTotalPoints(c: SourceCourse) {
+  const reported = c.grade.percent;
+  if (
+    c.method !== "equalCategories" ||
+    reported === undefined ||
+    c.fields.overall_override === "true" ||
+    c.fields.grade_rules_inferred === "true" ||
+    c.categories.some(
+      (category) => category.method !== "points" || category.dropLowest !== 0,
+    ) ||
+    new Set(c.assignments.map((assignment) => assignment.id)).size !==
+      c.assignments.length
+  )
+    return false;
+  const categoryGrade = safelyCalculate(c);
+  const pointsGrade = safelyCalculate({ ...c, method: "points" });
+  if (categoryGrade === undefined || pointsGrade === undefined) return false;
+  const atHundredths = (percent: number) => Math.round(percent * 100);
+  return (
+    atHundredths(pointsGrade) === atHundredths(reported) &&
+    atHundredths(categoryGrade) !== atHundredths(reported) &&
+    (!Number.isInteger(reported) || Math.round(categoryGrade) !== reported)
+  );
+}
 export function reliable(c: SourceCourse) {
   const n = safelyCalculate(c);
   return (
@@ -126,14 +150,17 @@ export function reliable(c: SourceCourse) {
   );
 }
 export function hypothetical(c: SourceCourse, h: Scenario) {
-  if (!reliable(c)) return undefined;
-  try {
-    return (
-      c.grade.percent! + calculate(c, normalizeScenario(c, h)) - calculate(c)
-    );
-  } catch {
-    return undefined;
-  }
+  const edited = safelyCalculate(c, normalizeScenario(c, h));
+  if (edited === undefined) return;
+  const original = safelyCalculate(c);
+  const delta = original === undefined ? undefined : edited - original;
+  return {
+    percent:
+      c.grade.percent !== undefined && delta !== undefined
+        ? c.grade.percent + delta
+        : edited,
+    delta,
+  };
 }
 export function requiredFinal(current: number, target: number, weight: number) {
   if (

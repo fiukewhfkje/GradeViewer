@@ -51,6 +51,8 @@ You can now use GradeViewer at your bookmarked address. To install it on your ph
 
 Your copy checks verified official stable releases daily at **12:00 AM Eastern**, following EST/EDT. Cloudflare deploys a verified source update to your existing address. GitHub scheduling and deployment can run late.
 
+To check for a release immediately on your own copy, open that repository on GitHub and choose **Actions → Update GradeViewer → Run workflow**. Leave the version blank for the current stable release, or enter a specific stable version. When the Cloudflare build finishes, open **Profile → Check for updates → Update now** in the app.
+
 In **Profile → Check for updates**:
 
 - **Up to date:** no newer official stable release exists.
@@ -61,6 +63,10 @@ In **Profile → Check for updates**:
 Newly deployed app versions also show a discreet update notice when the app opens or returns to the foreground. Other tabs keep their open forms until you accept an update in each tab.
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
+
+## Estimated semester GPA
+
+In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see a weighted and unweighted estimate from your Schoology semester grades. Check the suggested course levels, exclude classes that don’t count, and enter semester credits if courses carry different weights. The estimate and its settings stay in your browser and may differ from your official transcript.
 
 ## Your data
 

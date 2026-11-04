@@ -1,9 +1,11 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
   type ReactNode,
   type FormEvent,
+  type RefObject,
 } from "react";
 import {
   ChevronRight,
@@ -52,9 +54,10 @@ import {
   estimateQuarter,
   latestGradeUpdate,
 } from "./core/periods";
-import { reliable, hypothetical, requiredFinal } from "./core/calculator";
+import { hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
 import { GradeGraph } from "./GradeGraph";
+import { GpaSummary } from "./GpaSummary";
 import { version } from "../package.json";
 import {
   checkForAppUpdate,
@@ -125,15 +128,24 @@ function Dialog({
   title,
   children,
   close,
+  initialInput,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
+  initialInput?: RefObject<HTMLInputElement | null>;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-  }, []);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    const input = initialInput?.current;
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }, [initialInput]);
   return (
     <dialog ref={ref} onCancel={close} aria-label={title}>
       <div className="dialog-heading">
@@ -438,6 +450,7 @@ export default function App() {
         next = {
           ...current,
           scenarios,
+          gpa: next.gpa !== before.gpa ? next.gpa : current.gpa,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -457,9 +470,11 @@ export default function App() {
       apply(next);
       channel.current?.postMessage("local");
       saveFailed.current = false;
+      return true;
     } catch (e) {
       saveFailed.current = true;
       setError(errorMessage(e));
+      return false;
     } finally {
       pendingSaves.current--;
     }
@@ -560,13 +575,11 @@ export default function App() {
               {!readOnly && (
                 <Menu label={"Options for " + a.title}>
                   <button
-                    disabled={!reliable(calculationSource(c))}
                     onClick={() => setModal({ kind: "edit", assignment: a })}
                   >
                     Edit Grade
                   </button>
                   <button
-                    disabled={!reliable(calculationSource(c))}
                     onClick={() =>
                       saveScenario(c, {
                         ...s,
@@ -641,7 +654,7 @@ export default function App() {
     const groups: { id: string; title: string; rows: Assignment[] }[] = [];
     if (added.length)
       groups.push({ id: "added", title: "Added Grades", rows: added });
-    if (c.method === "points" || !c.categories.length) {
+    if (!c.categories.length) {
       if (actual.length)
         groups.push({ id: "total", title: "Total Points", rows: actual });
     } else {
@@ -703,23 +716,19 @@ export default function App() {
     const base = whole ? overall(c, state.courses) : c,
       est = estimateQuarter(c, state.courses),
       s = scenario(c),
-      q =
-        changed(s) && reliable(calculationSource(c))
-          ? hypothetical(calculationSource(c), s)
+      hasChanges = changed(s),
+      q = hasChanges ? hypothetical(calculationSource(c), s) : undefined,
+      scale =
+        base.id === c.id ? undefined : semesterScale(c, base, state.courses),
+      semesterDelta =
+        q?.delta !== undefined && scale !== undefined
+          ? q.delta * scale
           : undefined,
-      scale = base.id === c.id ? 1 : semesterScale(c, base, state.courses),
-      sim =
-        q !== undefined &&
-        scale !== undefined &&
-        base.grade.percent !== undefined &&
-        c.grade.percent !== undefined
-          ? base.grade.percent + (q - c.grade.percent) * scale
-          : undefined;
-    const showScenario =
-      changed(s) &&
-      reliable(calculationSource(c)) &&
-      scale !== undefined &&
-      (sim === undefined || Math.abs(sim - (base.grade.percent ?? 0)) >= 0.005);
+      projected =
+        semesterDelta !== undefined && base.grade.percent !== undefined,
+      sim = projected ? base.grade.percent! + semesterDelta : q?.percent,
+      delta = projected ? semesterDelta : q?.delta,
+      simulatedPeriod = descriptor(projected ? base : c).label;
     const age = updateAge(latestGradeUpdate(c, state.courses));
     return (
       <>
@@ -731,6 +740,11 @@ export default function App() {
                 ? descriptor(base).label + " overall"
                 : descriptor(c).label}
             </small>
+            {base.fields.overall_override === "true" && (
+              <small>
+                <span className="override-tag">Teacher override</span>
+              </small>
+            )}
             {age && (
               <small className={age.fresh ? "updated fresh" : "updated"}>
                 <span>{age.text}</span>
@@ -738,24 +752,12 @@ export default function App() {
               </small>
             )}
           </div>
-          {showScenario ? (
-            <div className="scenario-grade" aria-label="What-If grade">
-              <strong>{percentText(sim)}</strong>
-              {sim !== undefined && base.grade.percent !== undefined && (
-                <small className="scenario-delta">
-                  {sim - base.grade.percent >= 0 ? "+" : ""}
-                  {(sim - base.grade.percent).toFixed(2)}%
-                </small>
-              )}
-            </div>
-          ) : (
-            <Grade
-              percent={base.grade.percent ?? est?.percent}
-              letter={base.grade.letter}
-              estimate={base.grade.percent === undefined && !!est}
-              digits={base.grade.percent === undefined && est ? est.digits : 2}
-            />
-          )}
+          <Grade
+            percent={base.grade.percent ?? est?.percent}
+            letter={base.grade.letter}
+            estimate={base.grade.percent === undefined && !!est}
+            digits={base.grade.percent === undefined && est ? est.digits : 2}
+          />
           <Menu label="Course options">
             <button
               onClick={() => {
@@ -765,12 +767,7 @@ export default function App() {
             >
               View All Assignments
             </button>
-            <button
-              disabled={!reliable(calculationSource(c))}
-              onClick={() => setModal({ kind: "add" })}
-            >
-              Add Grade
-            </button>
+            <button onClick={() => setModal({ kind: "add" })}>Add Grade</button>
             <button
               onClick={() => {
                 setView("categories");
@@ -796,6 +793,24 @@ export default function App() {
           </Menu>
         </div>
 
+        {sim !== undefined && (
+          <div className="scenario-grade what-if" aria-label="What-If grade">
+            <small>What-if · {simulatedPeriod}</small>
+            <strong>{percentText(sim)}</strong>
+            {delta !== undefined && (
+              <small className="scenario-delta">
+                {delta >= 0 ? "+" : ""}
+                {delta.toFixed(2)}%
+              </small>
+            )}
+          </div>
+        )}
+        {hasChanges && sim === undefined && (
+          <p className="muted">
+            Changes apply to assignments only. A what-if course grade is
+            unavailable.
+          </p>
+        )}
         {base.grade.percent === undefined && est && (
           <p className="muted">
             * Estimated from {est.semester} and reported period weights. Rounded
@@ -1343,6 +1358,12 @@ export default function App() {
                 </div>
               ) : !course ? (
                 <>
+                  <GpaSummary
+                    key={state.account ?? "demo"}
+                    courses={state.courses}
+                    settings={state.gpa}
+                    save={(gpa) => persist({ ...stateRef.current, gpa })}
+                  />
                   <div className="courses">
                     {visibleCourses(state.courses).map((c) => {
                       const grade = overall(c, state.courses).grade,
@@ -1759,7 +1780,8 @@ function ScoreDialog({
     [possible, setPossible] = useState("100"),
     [category, setCategory] = useState(
       course.categories.find((c) => !c.excluded)?.id ?? "",
-    );
+    ),
+    scoreField = useRef<HTMLInputElement>(null);
   const n = scoreInput(earned),
     p = scoreInput(possible),
     valid =
@@ -1768,9 +1790,15 @@ function ScoreDialog({
         (title.trim() &&
           p !== undefined &&
           p > 0 &&
-          (course.method === "points" || category)));
+          (course.method === "points" ||
+            category ||
+            !course.categories.some((c) => !c.excluded))));
   return (
-    <Dialog title={a ? "Edit Assignment Grade" : "Add Grade"} close={close}>
+    <Dialog
+      title={a ? "Edit Assignment Grade" : "Add Grade"}
+      close={close}
+      initialInput={a ? scoreField : undefined}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -1810,10 +1838,10 @@ function ScoreDialog({
         <label>
           Score
           <input
+            ref={scoreField}
             inputMode="decimal"
             value={earned}
             onChange={(e) => setEarned(e.target.value)}
-            autoFocus={!!a}
           />
         </label>
         {a ? (

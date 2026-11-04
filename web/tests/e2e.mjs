@@ -286,8 +286,10 @@ try {
         }
       };
       page.on("request", request);
-      const send = (type, x = 30, y = 170) =>
-        touch
+      let pullY = 170;
+      const send = (type, x = 30, offset = 0) => {
+        const y = pullY + offset;
+        return touch
           ? touch.send("Input.dispatchTouchEvent", {
               type,
               touchPoints:
@@ -317,12 +319,17 @@ try {
               },
               { type, x, y },
             );
+      };
       try {
         await page.evaluate(() =>
           document.querySelector(".app-scroll").scrollTo(0, 0),
         );
+        // Begin on a course card, below any controls above the grid.
+        pullY = Math.ceil(
+          (await page.locator(".courses .course").first().boundingBox()).y + 20,
+        );
         await send("touchStart");
-        await send("touchMove", 30, 195);
+        await send("touchMove", 30, 25);
         await send("touchEnd");
         // Dispatch the horizontal case to the app directly: Chromium otherwise
         // turns this into its browser-history navigation gesture.
@@ -344,7 +351,7 @@ try {
           }
         });
         await send("touchStart");
-        await send("touchMove", 30, 330);
+        await send("touchMove", 30, 160);
         await send("touchCancel");
         await page.waitForTimeout(100);
         assert.equal(scans, 0);
@@ -384,7 +391,7 @@ try {
           ),
         );
         await send("touchStart");
-        await send("touchMove", 30, 330);
+        await send("touchMove", 30, 160);
         await send("touchEnd");
         assert.equal(scans, 0);
         await page.setViewportSize({ width: 390, height: 844 });
@@ -395,8 +402,8 @@ try {
         );
         await page.waitForTimeout(100);
         await send("touchStart");
-        await send("touchMove", 30, 250);
-        await send("touchMove", 30, 330);
+        await send("touchMove", 30, 80);
+        await send("touchMove", 30, 160);
         await page
           .locator('.pull-refresh[data-phase="pulling"][data-visible="true"]')
           .waitFor();
@@ -412,7 +419,7 @@ try {
         await send("touchEnd");
         await page.locator('.pull-refresh[data-phase="refreshing"]').waitFor();
         await send("touchStart");
-        await send("touchMove", 30, 330);
+        await send("touchMove", 30, 160);
         await send("touchEnd");
         await committed;
         await page.unroute("**/api/scan/roots");
@@ -451,6 +458,104 @@ try {
         await group.locator(":scope > summary").click();
   }
   let cId, assignmentTitle;
+  await check(
+    "straight-points edits project alongside an official semester override",
+    async () => {
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /Computer Science A/ })
+        .click();
+      const baseline = await page.locator(".summary .grade").innerText();
+      const assignment = page.locator(".assignment").first();
+      const menu = assignment.locator(".menu summary");
+      const score = assignment.locator(".score");
+      const original = await score.innerText();
+      await menu.click();
+      await page
+        .getByRole("button", { name: "Edit Grade", exact: true })
+        .click();
+      const input = page.getByLabel("Score", { exact: true });
+      const initial = await input.inputValue();
+      assert.ok(initial.length >= 2);
+      assert.deepEqual(
+        await input.evaluate((el) => [
+          el === document.activeElement,
+          el.selectionStart,
+          el.selectionEnd,
+        ]),
+        [true, initial.length, initial.length],
+      );
+      await page.keyboard.press("Backspace");
+      assert.equal(await input.inputValue(), initial.slice(0, -1));
+      await page.getByRole("button", { name: "Save", exact: true }).click();
+      const whatIf = page.getByLabel("What-If grade", { exact: true });
+      await whatIf.waitFor();
+      assert.match(await whatIf.innerText(), /What-if · S1/);
+      const pointsChange = Number(initial.slice(0, -1)) - Number(initial);
+      assert.equal(
+        await whatIf.locator(".scenario-delta").innerText(),
+        ((pointsChange / 320) * 100 * 0.5).toFixed(2) + "%",
+      );
+      assert.equal(
+        await page.getByText("Teacher override", { exact: true }).count(),
+        1,
+      );
+      assert.match(
+        await score.innerText(),
+        new RegExp("^" + initial.slice(0, -1) + "/"),
+      );
+      assert.equal(await page.locator(".summary .grade").innerText(), baseline);
+      await menu.click();
+      await page
+        .getByRole("button", { name: "Drop Assignment", exact: true })
+        .click();
+      await page.locator(".assignment.dropped").waitFor();
+      await menu.click();
+      await page
+        .getByRole("button", { name: "Reset Assignment", exact: true })
+        .click();
+      await page.locator(".assignment.dropped").waitFor({ state: "detached" });
+      assert.equal(await score.innerText(), original);
+      await page.getByLabel("Close course", { exact: true }).click();
+    },
+  );
+  await check(
+    "semester GPA settings survive a refresh and reload",
+    async () => {
+      const card = page.locator(".gpa-card");
+      await card.locator("summary").click();
+      await card.getByRole("button", { name: "Use Dublin GPA scale" }).click();
+      await card.getByRole("button", { name: "Edit courses" }).click();
+      const biology = card.getByRole("group", { name: "AP Biology" });
+      await card.getByLabel("Weight by semester credits").check();
+      await biology.getByLabel("Level").selectOption("honors");
+      await biology.getByLabel("Semester credits").fill("0.5");
+      await card.getByRole("button", { name: "Save GPA settings" }).click();
+      await card
+        .getByText("Credits needed", { exact: false })
+        .first()
+        .waitFor();
+      assert.match(await card.locator("summary").innerText(), /4\.50 \/ 4\.00/);
+      const refreshed = page.waitForResponse(
+        (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+      );
+      await page.reload();
+      await card.getByText("4.50 / 4.00").waitFor();
+      await refreshed;
+      await card.locator("summary").click();
+      await page.screenshot({ path: directory + "/semester-gpa.png" });
+      await card.getByRole("button", { name: "Edit courses" }).click();
+      assert.equal(await biology.getByLabel("Level").inputValue(), "honors");
+      assert.equal(
+        await biology.getByLabel("Semester credits").inputValue(),
+        "0.5",
+      );
+      await card.locator("summary").click();
+      await page.waitForFunction(
+        () => !document.querySelector(".desktop-refresh")?.disabled,
+      );
+    },
+  );
   await check("same home/detail overall and graph", async () => {
     const homeGrade = await page
       .locator(".courses")
@@ -1347,7 +1452,9 @@ try {
           engine === "chromium"
             ? await installed.newCDPSession(appPage)
             : undefined;
-        const send = async (type, y = 180) => {
+        let pullY = 0;
+        const send = async (type, offset = 0) => {
+          const y = pullY + offset;
           if (touch)
             return touch.send("Input.dispatchTouchEvent", {
               type,
@@ -1386,12 +1493,16 @@ try {
           await appPage
             .locator(".app-scroll")
             .evaluate((el) => el.scrollTo(0, 0));
+          pullY = Math.ceil(
+            (await appPage.locator(".courses .course").first().boundingBox())
+              .y + 20,
+          );
           await send("touchStart");
-          await send("touchMove", 260);
-          await send("touchMove", 350);
+          await send("touchMove", 80);
+          await send("touchMove", 170);
         };
         await pull();
-        await send("touchMove", 190); // Reversing below the threshold disarms it.
+        await send("touchMove", 10); // Reversing below the threshold disarms it.
         await send("touchEnd");
         await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
         assert.equal(scans, 0);

@@ -4,7 +4,8 @@ import {
   type SourceCourse,
   hasTitle,
 } from "./model";
-import { titleDates } from "./periods";
+import { descriptor, titleDates } from "./periods";
+import { reportedGradeSupportsTotalPoints } from "./calculator";
 export type Row = Record<string, unknown>;
 export class ProviderError extends Error {
   constructor(
@@ -201,12 +202,27 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         [1, 2].includes(number(r.calculation_type) ?? -1),
     ),
     options = p.section.options ? object(p.section.options) : {},
+    weighting = options.weighted_grading_categories,
+    // Student responses can use zero placeholders for every unweighted category.
+    // Keep the groups for display while calculating their assignment points together.
+    pointsOnly =
+      (weighting === false ||
+        ["0", "false"].includes(nonempty(weighting)?.toLowerCase() ?? "")) &&
+      categories.length > 0 &&
+      categories.every(
+        (category) =>
+          (category.weight === undefined || category.weight === 0) &&
+          category.method === "points" &&
+          category.dropLowest === 0,
+      ),
     method =
-      !known || options.weighted_grading_categories == null
+      !known || weighting == null
         ? "unknown"
-        : flag(options.weighted_grading_categories)
+        : weighting === true || flag(weighting)
           ? "weightedCategories"
-          : "equalCategories";
+          : pointsOnly
+            ? "points"
+            : "equalCategories";
   const metadata = (r: Row, period: string): Row => {
     const id = nonempty(r.assignment_id)!,
       key = `${kind(r)}:${id}`,
@@ -288,10 +304,13 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         "Course",
     };
     if (
-      ["override", "override_grade", "grade_override"].some(
-        (k) => nonempty(final?.[k]) !== undefined,
+      [final?.override, final?.is_override].some(
+        (v) => v === true || flag(v),
       ) ||
-      flag(final?.is_override)
+      ["override_grade", "grade_override"].some((k) => {
+        const value = nonempty(final?.[k]);
+        return value !== undefined && value.toLowerCase() !== "false";
+      })
     )
       fields.overall_override = "true";
     if (gradeText && scale !== 0) {
@@ -399,7 +418,7 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
         fields: { assignment_id: itemID(item)!, type: kind(item) },
       });
     }
-    return {
+    const course: SourceCourse = {
       id: `schoology:${p.owner}:${id}`,
       title: fields.course_name,
       teacher:
@@ -423,5 +442,12 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
       fields,
       catalog,
     };
+    if (
+      descriptor(course).kind === "quarter" &&
+      reportedGradeSupportsTotalPoints(course)
+    ) {
+      course.method = "points";
+    }
+    return course;
   });
 }
