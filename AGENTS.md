@@ -11,6 +11,7 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Preserve the last successful snapshot on a provider failure. A successful empty response must be schema-valid before removing records. Hypothetical edits must never call provider write endpoints.
 - Keep calculated graph points separate from observed history and never invent missing dates. The tooltip shows grade/date only, per the user’s preference.
 - Use synthetic tests and headless CLI browsers. No connected-browser/computer-use or mouse/keyboard GUI automation.
+- Validate browser-dependent behavior with local synthetic fixtures first. Use the owner's Cloudflare Browser Run quota only when a necessary check cannot be performed locally or answered through read-only diagnostics. For that check, use a single short session with a defined timeout, explicitly close it on success or failure, and verify cleanup. Avoid repeated live probes while diagnosing a failure.
 - Keep `web/` buildable as an isolated template root. Run appropriate `npm run build`, `npm test`, browser and release-package checks from `web/`; keep CI proportional and do not reintroduce cross-language comparisons.
 - Preserve the existing Worker, URL, vault, password, sessions and signed source-update verification boundary during updates. Use existing merge/deployment workflows; repository cleanup alone does not require a new stable tag.
 - Use focused commits and preserve Git history. The PWA migration is already merged; do not repeat its merge or recreate published tags.
