@@ -633,6 +633,7 @@ footer svg {
   font-size: 25px;
   height: 28px;
   line-height: 28px;
+  white-space: nowrap;
 }
 dialog {
   border: 1px solid var(--line);
@@ -844,26 +845,60 @@ svg.spinning {
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
-/* Inset grouped settings follow the native Profile. */
+/* Settings uses independent columns sized by available content, including split views. */
+.profile {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+  container: settings / inline-size;
+}
+.settings-screen header {
+  max-width: 1040px;
+  margin-inline: auto;
+}
+.settings-layout {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.settings-column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+@container settings (min-width: 700px) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    gap: 28px;
+  }
+}
+
 .profile .settings-group {
-  margin: 0 0 20px;
+  margin: 0;
+  min-width: 0;
 }
 .profile .settings-group > h2 {
-  margin: 0 0 8px 16px;
+  margin: 0 0 10px 2px;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.45px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.8px;
   text-transform: uppercase;
 }
 .settings-card {
-  border-radius: 16px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.025);
   background: var(--row);
   overflow: hidden;
 }
 .settings-icon {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--bg);
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -874,21 +909,28 @@ svg.spinning {
 .site-heading {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  min-height: 56px;
+  gap: 12px;
+  padding: 18px;
+  min-height: 72px;
+  flex-wrap: wrap;
 }
 .connection-heading > strong,
 .settings-label {
   flex: 1;
+  min-width: 90px;
   font-size: 16px;
   font-weight: 500;
 }
 .connection-heading .connection {
-  font-size: 13px;
-  margin: 0;
+  font-size: 11px;
+  margin: 0 0 0 auto;
   gap: 6px;
   color: var(--muted);
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--bg);
+  white-space: nowrap;
 }
 .connection-heading .status-dot {
   background: var(--muted);
@@ -927,13 +969,26 @@ svg.spinning {
   flex-direction: row;
   font-weight: 400;
 }
-.settings-row select {
-  min-height: 36px;
-  border: 0;
-  padding: 6px 4px;
+.theme-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   color: var(--muted);
-  background: transparent;
-  font-size: 15px;
+}
+.theme-control select {
+  appearance: none;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  padding: 8px 32px 8px 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 14px;
+}
+.theme-control svg {
+  position: absolute;
+  right: 10px;
+  pointer-events: none;
 }
 .profile .settings-card form {
   padding: 18px;
@@ -960,13 +1015,15 @@ svg.spinning {
   font-size: 14px;
 }
 .site-card .button-row {
-  margin: 8px 12px 12px;
+  margin: 12px 16px 16px;
 }
 .site-card .button-row > * {
-  background: transparent;
-  min-height: 40px;
-  padding: 8px;
-  font-size: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 13px;
 }
 .site-card > button {
   border-top: 1px solid var(--line);
@@ -990,7 +1047,7 @@ svg.spinning {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.8;
-  padding-bottom: 8px;
+  padding: 24px 8px 8px;
 }
 @media (prefers-reduced-motion: reduce) {
   .refresh-content,
@@ -1050,7 +1107,8 @@ svg.spinning {
   .app,
   .course-screen {
     max-width: 1540px;
-    margin-left: 240px;
+    width: calc(100% - 240px);
+    margin-left: calc(240px + max(0px, (100vw - 240px - 1540px) / 2));
     margin-right: auto;
     padding: 22px 40px 40px;
   }
@@ -1227,20 +1285,6 @@ svg.spinning {
   }
   .assignment {
     min-height: 82px;
-  }
-  .profile {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px 28px;
-    align-items: start;
-  }
-  .profile .settings-group {
-    margin-top: 0;
-  }
-  .profile-footnote,
-  .profile > .settings-note,
-  .profile > .update-result {
-    grid-column: 1 / -1;
   }
   .gate {
     min-height: 380px;
@@ -1424,8 +1468,7 @@ svg.spinning {
 }
 
 .portal-heading {
-  padding: 16px;
-  border-bottom: 1px solid var(--line);
+  padding: 18px;
 }
 .portal-heading .connection {
   margin-left: auto;
@@ -1433,10 +1476,11 @@ svg.spinning {
   font-size: 11px;
 }
 .portal-body {
-  padding: 18px 16px;
+  border-top: 1px solid var(--line);
+  padding: 18px;
 }
 .portal-description {
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.5;
@@ -1460,7 +1504,7 @@ svg.spinning {
 }
 .portal-connect {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 16px;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -1468,8 +1512,8 @@ svg.spinning {
 }
 .portal-action {
   width: 100%;
-  min-height: 62px;
-  padding: 14px 16px;
+  min-height: 56px;
+  padding: 16px 18px;
   gap: 12px;
   text-align: left;
 }
@@ -1605,4 +1649,37 @@ svg.spinning {
   font-size: 13px;
   color: var(--blue);
   margin: 0 0 14px 34px;
+}
+
+.profile button,
+.profile a {
+  overflow-wrap: anywhere;
+}
+.settings-screen .button-row {
+  flex-wrap: wrap;
+}
+.settings-screen .button-row > * {
+  min-width: 0;
+}
+.settings-screen input {
+  max-width: 100%;
+}
+.settings-screen .connection-heading > strong {
+  font-weight: 650;
+  font-size: 15px;
+}
+.settings-screen .site-heading > strong {
+  font-weight: 650;
+  font-size: 15px;
+}
+.settings-screen .settings-card > .portal-progress {
+  margin: 0;
+  padding: 12px 18px;
+}
+@media (hover: hover) {
+  .settings-action:hover,
+  .app-actions .settings-card > button:hover,
+  .portal-disconnect:hover {
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+  }
 }

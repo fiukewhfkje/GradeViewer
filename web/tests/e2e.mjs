@@ -216,6 +216,127 @@ try {
     await page.screenshot({ path: directory + "/home-light.png" });
   });
   await check(
+    "Settings stays contained across phone, split view, laptop and monitor sizes",
+    async () => {
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const sizes = [
+        [320, 568],
+        [360, 780],
+        [390, 844],
+        [600, 800],
+        [768, 1024],
+        [900, 700],
+        [1024, 768],
+        [1280, 800],
+        [1440, 900],
+        [1920, 1080],
+        [2560, 1440],
+        [3840, 2160],
+      ];
+      for (const theme of ["light", "dark"]) {
+        await page.getByLabel("Theme", { exact: true }).selectOption(theme);
+        for (const [width, height] of sizes) {
+          await page.setViewportSize({ width, height });
+          await page.locator(".app-scroll").evaluate((e) => e.scrollTo(0, 0));
+          const result = await page.evaluate(() => {
+            const profile = document.querySelector(".profile"),
+              p = profile.getBoundingClientRect();
+            const cards = [...document.querySelectorAll(".settings-card")].map(
+              (e) => e.getBoundingClientRect(),
+            );
+            const headings = [
+              ...document.querySelectorAll(".connection-heading"),
+            ];
+            const overlaps = headings.some((h) => {
+              const nodes = [...h.children].map((e) =>
+                e.getBoundingClientRect(),
+              );
+              return nodes.some((a, i) =>
+                nodes
+                  .slice(i + 1)
+                  .some(
+                    (b) =>
+                      Math.min(a.right, b.right) >
+                        Math.max(a.left, b.left) + 1 &&
+                      Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top) + 1,
+                  ),
+              );
+            });
+            const controls = [
+              ...profile.querySelectorAll("button,input,select,a"),
+            ].filter((e) => e.getBoundingClientRect().width > 0);
+            return {
+              overflow:
+                profile.scrollWidth > profile.clientWidth + 1 ||
+                cards.some(
+                  (r) =>
+                    r.left < p.left - 1 ||
+                    r.right > p.right + 1 ||
+                    r.left < 0 ||
+                    r.right > innerWidth + 1,
+                ),
+              overlaps,
+              wide: p.width > 1041,
+              smallControls: controls
+                .filter((e) => e.getBoundingClientRect().height < 32)
+                .map((e) => [
+                  e.textContent.trim(),
+                  e.getBoundingClientRect().height,
+                ]),
+            };
+          });
+          assert.equal(result.overflow, false, `${theme} ${width}: overflow`);
+          assert.equal(
+            result.overlaps,
+            false,
+            `${theme} ${width}: heading overlap`,
+          );
+          assert.equal(result.wide, false);
+          assert.deepEqual(
+            result.smallControls,
+            [],
+            `${theme} ${width}: small controls`,
+          );
+          await page.evaluate(
+            () =>
+              new Promise((r) =>
+                requestAnimationFrame(() => requestAnimationFrame(r)),
+              ),
+          );
+          await page.screenshot({
+            path: `${directory}/settings-${width}-${theme}.png`,
+          });
+        }
+      }
+      await page
+        .getByRole("button", { name: "Update connection", exact: true })
+        .click();
+      for (const width of [320, 768, 1024, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(
+          await page.evaluate(
+            () =>
+              document.querySelector(".profile").scrollWidth <=
+              document.querySelector(".profile").clientWidth + 1,
+          ),
+          true,
+        );
+        await page.evaluate(
+          () =>
+            new Promise((r) =>
+              requestAnimationFrame(() => requestAnimationFrame(r)),
+            ),
+        );
+        await page.screenshot({
+          path: `${directory}/settings-form-${width}.png`,
+        });
+      }
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+    },
+  );
+  await check(
     "returning startup shows saved grades during a slow refresh with one status check",
     async () => {
       await page.waitForFunction(
@@ -240,20 +361,14 @@ try {
           .waitFor({ timeout: 1800 });
         const visibleMs = Math.round(performance.now() - started);
         assert.equal(await page.locator(".gate").count(), 0);
-        assert.match(
-          await page.locator(".refresh-status").innerText(),
-          /Updating grades/,
-        );
+        assert.equal(await page.locator(".refresh-status").count(), 0);
         await page
           .locator(".courses")
           .getByRole("button", { name: /AP Biology/ })
           .click();
         await page.getByRole("slider").press("End");
         await page.waitForFunction(
-          () =>
-            !document
-              .querySelector(".refresh-status")
-              ?.textContent.includes("Updating grades"),
+          () => !document.querySelector(".desktop-refresh")?.disabled,
         );
         assert.equal(await page.locator(".chart-tooltip").count(), 1);
         assert.equal(statuses, 1);
@@ -269,6 +384,57 @@ try {
           data: { ms: 0 },
         });
       }
+    },
+  );
+  await check(
+    "cached grades appear before delayed authentication and explicit lock prevents a cached flash",
+    async () => {
+      let statusAnswered = false;
+      const delay = async (route) => {
+        await new Promise((r) => setTimeout(r, 2000));
+        statusAnswered = true;
+        await route.continue();
+      };
+      await page.route("**/api/status", delay);
+      try {
+        await page.reload();
+        await page
+          .locator(".courses")
+          .getByRole("button", { name: /AP Biology/ })
+          .waitFor({ timeout: 1500 });
+        assert.equal(statusAnswered, false);
+        assert.equal(await page.locator(".gate").count(), 0);
+        assert.equal(await page.locator(".refresh-status").count(), 0);
+        await page.waitForFunction(
+          () => !document.querySelector(".desktop-refresh")?.disabled,
+        );
+      } finally {
+        await page.unrouteAll({ behavior: "wait" });
+      }
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.getByRole("button", { name: "Lock app", exact: true }).click();
+      await page.getByLabel("App password", { exact: true }).waitFor();
+      await page.unroute("**/api/logout");
+      await page.route("**/api/status", delay);
+      try {
+        await page.reload();
+        await page.waitForTimeout(300);
+        assert.equal(await page.locator(".course").count(), 0);
+        await page.getByLabel("App password", { exact: true }).waitFor();
+      } finally {
+        await page.unrouteAll({ behavior: "wait" });
+      }
+      await page
+        .getByLabel("App password", { exact: true })
+        .fill("synthetic-owner-password-for-tests-only");
+      await page
+        .getByRole("button", { name: "Unlock app", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
     },
   );
   await check(
@@ -679,14 +845,13 @@ try {
       });
       const started = Date.now();
       try {
+        const refreshing = page.waitForRequest((r) =>
+          r.url().endsWith("/api/scan/start"),
+        );
         await page.evaluate(() =>
           document.dispatchEvent(new Event("visibilitychange")),
         );
-        await page.waitForFunction(() =>
-          document
-            .querySelector(".refresh-status")
-            ?.textContent.includes("Updating grades"),
-        );
+        await refreshing;
         assert.equal(
           await page.getByLabel("Name", { exact: true }).inputValue(),
           "Saved while refreshing",
@@ -1134,7 +1299,7 @@ try {
     },
   );
   await check(
-    "offline shell gates stale grades and preserves saved snapshot",
+    "previously unlocked browser opens saved grades offline without a loading gate",
     async () => {
       await page.evaluate(async () => {
         await navigator.serviceWorker.register("/sw.js");
@@ -1150,7 +1315,12 @@ try {
       await page
         .getByRole("button", { name: "Settings", exact: true })
         .waitFor();
-      assert.equal(await page.locator(".course").count(), 0);
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      assert.equal(await page.locator(".course").count(), 5);
+      assert.equal(await page.locator(".gate").count(), 0);
       await page.getByRole("alert").waitFor();
       assert.match(
         await page.locator("body").innerText(),
@@ -1589,11 +1759,6 @@ try {
         }),
       );
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page
-        .getByLabel("Campus Student sign-in address", { exact: true })
-        .fill(
-          "https://fixture.infinitecampus.org/campus/portal/students/fixture.jsp",
-        );
       await page
         .getByRole("button", { name: "Connect Infinite Campus", exact: true })
         .click();

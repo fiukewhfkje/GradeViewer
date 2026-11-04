@@ -18,8 +18,7 @@ export function PortalConnection({
   disabled: boolean;
   refresh: () => Promise<void>;
 }) {
-  const [portal, setPortal] = useState(status?.portal ?? ""),
-    [busy, setBusy] = useState(false),
+  const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [login, setLogin] = useState<{ url: string; expires: number }>(),
     [courses, setCourses] = useState<CampusChoice[]>(),
@@ -47,11 +46,14 @@ export function PortalConnection({
   async function start() {
     const popup = window.open("about:blank", "_blank");
     signInWindow.current = popup;
+    if (popup) {
+      popup.document.title = "Infinite Campus sign-in";
+      popup.document.body.textContent =
+        "Opening secure Infinite Campus sign-in…";
+    }
     let pending;
     try {
-      pending = await api<{ url: string; expires: number }>("campus/start", {
-        ...(status?.connected ? {} : { portal }),
-      });
+      pending = await api<{ url: string; expires: number }>("campus/start", {});
     } catch (e) {
       popup?.close();
       throw e;
@@ -91,8 +93,8 @@ export function PortalConnection({
               <div>
                 <strong>Finish signing in</strong>
                 <p>
-                  Complete your school’s sign-in in the other window, then
-                  return here.
+                  Find your district, choose Campus Student, and complete your
+                  school’s sign-in. Then return here.
                 </p>
               </div>
             </div>
@@ -248,26 +250,12 @@ export function PortalConnection({
         ) : (
           <div className="portal-body">
             <p className="portal-description">
-              Schoology covers most classes. Add Infinite Campus for teachers
-              who only post grades there.
+              Find your district and sign in to add classes that only use
+              Infinite Campus.
             </p>
-            <label className="portal-address">
-              Campus Student sign-in address
-              <input
-                type="url"
-                aria-label="Campus Student sign-in address"
-                autoComplete="url"
-                placeholder="Your district’s Campus Student URL"
-                value={portal}
-                onChange={(e) => setPortal(e.target.value)}
-              />
-              <small>
-                Copy the address of your school’s Campus Student login page.
-              </small>
-            </label>
             <button
               className="primary portal-connect"
-              disabled={disabled || busy || !portal}
+              disabled={disabled || busy}
               onClick={() => void run(start)}
             >
               <LogIn size={18} />

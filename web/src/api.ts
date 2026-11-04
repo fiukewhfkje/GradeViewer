@@ -20,6 +20,7 @@ export interface Status {
   authenticated: boolean;
   connected: boolean;
   account?: string;
+  sessionExpires?: number;
   revision?: string;
   cooldown?: number;
 }
@@ -32,7 +33,7 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
       headers: data === undefined ? {} : { "Content-Type": "application/json" },
       body: data === undefined ? undefined : JSON.stringify(data),
       cache: "no-store",
-      signal: AbortSignal.timeout(35000),
+      signal: AbortSignal.timeout(path === "campus/start" ? 75_000 : 35_000),
     });
   } catch {
     throw new RequestError("networkUnavailable");
@@ -52,6 +53,8 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  portalChooseStudent:
+    "Choose your district and open Campus Student in the sign-in window, then finish connecting.",
   invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
   schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
   portalSignInRequired:

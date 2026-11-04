@@ -66,3 +66,42 @@ export async function clear() {
   const d = await db();
   await d.clear("state");
 }
+
+// This receipt unlocks only this browser's existing local cache. Provider/API
+// access still requires the live HttpOnly session. Explicit Lock always wins.
+export interface BrowserAccess {
+  locked: boolean;
+  account?: string;
+  expires?: number;
+}
+export async function access(): Promise<BrowserAccess | undefined> {
+  return (await db()).get("state", "access");
+}
+export async function rememberAccess(account?: string, expires?: number) {
+  if (!account || !expires || expires <= Date.now()) return;
+  const d = await db(),
+    tx = d.transaction("state", "readwrite");
+  const previous: BrowserAccess | undefined = await tx.store.get("access");
+  if (!previous?.locked)
+    await tx.store.put({ locked: false, account, expires }, "access");
+  await tx.done;
+}
+export async function lock() {
+  await (await db()).put("state", { locked: true }, "access");
+}
+export async function unlock() {
+  await (await db()).delete("state", "access");
+}
+export function canReadCache(
+  state: SavedState,
+  receipt?: BrowserAccess,
+  now = Date.now(),
+) {
+  return (
+    !!state.account &&
+    state.courses.length > 0 &&
+    !receipt?.locked &&
+    receipt?.account === state.account &&
+    (receipt.expires ?? 0) > now
+  );
+}

@@ -1,3 +1,11 @@
+# IC sign-in and responsive Settings follow-up — November 4, 2026
+
+The owner's screenshot showed oversized two-column Settings groups and the pasted district URL setup. Git history at b0fdea5 confirms that the native Find your district action opened https://www.infinitecampus.com/login, tracked the selected Student portal through SSO and supported modern nav-wrapper URLs. October 1–2 records include successful native reconnection/renewal and retained connections; they do not establish a 30-day session or current web-account acceptance.
+
+The web flow now starts at the official district finder without a pasted URL, tracks Student destinations in all browser context pages/popups, recognizes legacy and modern Student routes and strips transient SAML material. Finish connecting verifies the chosen origin/student before saving it; reconnect remembers the district. Settings now has bounded content width, independent columns based on available space, consistent card headings/status/actions and compact website controls. The persistent Updating grades label and blocking loading screen are removed. Previously unlocked browsers restore their account-matched local cache before network verification; an explicit local lock, expiry or account mismatch prevents restoration. Server/provider authentication is unchanged.
+
+Build, 191 tests, 33 browser flows in Chromium and WebKit, source packaging and isolated template install/update/rollback passed. The layout matrix covers 12 viewport sizes from 320×568 to 3840×2160 in light and dark, with additional expanded-form checks. The public district finder and Live View opened through the owner’s Browser Run binding in 4.1 seconds including cleanup. Actual student SSO and grades remain acceptance work. Deployment is through the existing owner build.
+
 # Project status — November 4, 2026
 
 ## Owner IC deployment verified

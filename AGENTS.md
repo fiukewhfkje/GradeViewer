@@ -18,3 +18,5 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Widgets are intentionally removed. Do not restore widget routes or native extensions.
 
 - November 4 authorization: implement IC on main and deploy only to the owner’s existing Cloudflare Worker for testing, with no new stable tag/release. Finish Carmen on `codex/investigate-gpa-carmen` without deploying it. Keep only those two branches. The proposed 90-minute Carmen HTTP keepalive is an unverified lifetime experiment, not a promise that requests reset the server idle timeout.
+
+- November 4 presentation follow-up: restore the IC district-finder browser flow, support modern Student home destinations, and keep Settings contained from phone through large monitor. The owner explicitly requested immediate cached grades and removal of the persistent updating/loading UI. An unexpired account-matched browser unlock receipt permits local cached startup before the network check; explicit Lock, receipt expiry and account mismatch must still block it. Provider/API authentication remains unchanged. Keep Carmen undeployed.

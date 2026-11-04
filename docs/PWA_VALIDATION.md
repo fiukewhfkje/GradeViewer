@@ -1,3 +1,11 @@
+# District finder, responsive Settings and cached startup — November 4, 2026
+
+Production build/type check, **191 tests across 15 files**, **33 Chromium and 33 WebKit HTTPS/Worker flows**, **85-file source packaging**, isolated template install/build/Worker dry-run/update/rollback and a zero-finding dependency audit passed. Settings coverage checks light/dark layout and control sizes at 320, 360, 390, 600, 768, 900, 1024, 1280, 1440, 1920, 2560 and 3840 CSS pixels, including expanded forms at four widths. Representative screenshots were inspected. WebKit exposed a native select sizing issue, corrected by styling the select consistently.
+
+A delayed Worker status regression verifies that saved grades render before the network check finishes. Previously unlocked browsers can open saved grades offline, while an explicit local lock blocks cached presentation even when the logout request fails. The receipt is account-bound and expires with the verified server session. API requests continue to require server authentication. Existing installations obtain their first receipt on a successful session check after the update. Normal background refresh has no updating label or blocking screen.
+
+Synthetic IC tests cover discovery without a pasted URL, a pending selection, modern Student routes, sanitized SAML redirects and same-account reconnect. A temporary local Worker with the owner’s real Browser Run binding opened the public Infinite Campus district finder, obtained a valid Live View URL and closed its browser in 4.1 seconds. Actual district SSO, student grades and physical-device behavior still need student acceptance.
+
 # November 4, 2026 — selected IC classes and Settings polish
 
 Owner-only deployment of `9266c32` passed through the existing Cloudflare build. All five public assets match the tested build at [the existing site](https://gradeviewer.fiukewhfkje.workers.dev); the vault binding fingerprint is unchanged, password remains secret-bound and unauthenticated APIs are locked. No stable release/tag or actual student sign-in/grade verification is claimed.

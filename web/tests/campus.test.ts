@@ -132,6 +132,8 @@ describe("selected IC normalization", () => {
 });
 function harness() {
   const data = new Map<string, unknown>();
+  let selectedPortal: string | undefined = campusPortal;
+  const navigations: string[] = [];
   let identity = "101",
     failure = false,
     malformed = false;
@@ -165,7 +167,10 @@ function harness() {
         state: async () => structuredClone(campusState),
         live: async () =>
           "https://live.browser.run/ui/view?mode=tab&synthetic=true",
-        navigate: async () => {},
+        navigate: async (url) => {
+          navigations.push(url);
+        },
+        studentPortal: async () => selectedPortal,
         url: () => campusPortal,
         ready: async () => {},
         close: async () => {},
@@ -181,6 +186,10 @@ function harness() {
     ),
     data,
     calls,
+    navigations,
+    selectPortal: (url?: string) => {
+      selectedPortal = url;
+    },
     changeIdentity: () => {
       identity = "202";
     },
@@ -337,5 +346,55 @@ describe("IC account reset and local privacy", () => {
     )[0];
     expect(course.grade.percent).toBe(90);
     expect(course.method).toBe("unknown");
+  });
+});
+
+describe("district finder sign-in and modern Student URLs", () => {
+  it("opens the official district finder without a pasted URL, then verifies the selected district", async () => {
+    const h = harness();
+    await h.service.handle("start");
+    expect(h.navigations).toEqual(["https://www.infinitecampus.com/login"]);
+    await h.service.handle("finish");
+    expect((await h.service.status()).portal).toBe(campusPortal);
+    await h.service.handle("start");
+    expect(h.navigations[1]).toBe(campusPortal);
+  });
+  it("keeps sign-in pending until a Student portal is selected", async () => {
+    const h = harness();
+    h.selectPortal(undefined);
+    await h.service.handle("start");
+    await expect(h.service.handle("finish")).rejects.toThrow(
+      "portalChooseStudent",
+    );
+    expect((await h.service.status()).connected).toBe(false);
+    h.selectPortal(campusPortal);
+    await h.service.handle("finish");
+    expect((await h.service.status()).connected).toBe(true);
+  });
+  it("recognizes the historical modern home and safely discards transient SAML fields", async () => {
+    const { observedCampusPortal } = await import("../worker/campus-url");
+    const modern =
+      "https://fixture.infinitecampus.org/campus/nav-wrapper/student/portal/student/home?appName=fixture";
+    expect(campusURL(modern).href).toBe(modern);
+    expect(
+      observedCampusPortal(
+        modern + "&SAMLResponse=private&RelayState=private#secret",
+      ),
+    ).toBe(modern);
+    expect(
+      observedCampusPortal(
+        "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1&SAMLRequest=private",
+      ),
+    ).toBe(campusPortal);
+    expect(
+      observedCampusPortal(
+        "https://evil.test/campus/portal/students/fixture.jsp",
+      ),
+    ).toBeUndefined();
+    expect(
+      observedCampusPortal(
+        "https://fixture.infinitecampus.org/campus/nav-wrapper/parent/portal/student/home",
+      ),
+    ).toBeUndefined();
   });
 });
