@@ -2,7 +2,7 @@
 
 ## Development: local grade editing and semester GPA
 
-The official grade stays visible alongside what-if results. The what-if calculator applies the assignment delta without comparing the two original totals against a tolerance. It projects the delta through the declared semester weights when available and otherwise labels the edited period. A confirmed override gets a Teacher override badge and supports what-if edits. Add Grade, Edit Grade and Drop Assignment save locally. The score editor opens with the caret at the end. Sample mode demonstrates a synthetic AP Physics 1 teacher override at 90% alongside an editable what-if estimate.
+The official grade stays visible alongside what-if results. The what-if calculator applies the assignment delta without comparing the two original totals against a tolerance. It projects the delta through the declared semester weights when available and otherwise labels the edited period. A confirmed override gets a Teacher override badge and supports what-if edits. Add Grade, Edit Grade and Drop Assignment save locally. The score editor opens with the caret at the end. Sample mode demonstrates a synthetic AP Physics 1 teacher override at 90% alongside an editable what-if estimate. The what-if delta uses a percent sign.
 
 The opt-in Dublin semester GPA card opens to a compact course list. The level, credit and exclusion controls are behind Edit courses, and credit inputs appear in credit mode. The estimate uses baseline semester grades and keeps settings local to the browser and Schoology account.
 

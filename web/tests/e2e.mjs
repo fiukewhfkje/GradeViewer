@@ -712,7 +712,7 @@ try {
       await page.getByLabel("What-If grade", { exact: true }).waitFor();
       assert.match(
         await page.locator(".scenario-delta").innerText(),
-        /^-\d+\.\d{2} pp$/,
+        /^-\d+\.\d{2}%$/,
       );
       await page
         .getByRole("button", { name: "View All Assignments", exact: true })

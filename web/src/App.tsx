@@ -800,7 +800,7 @@ export default function App() {
             {delta !== undefined && (
               <small className="scenario-delta">
                 {delta >= 0 ? "+" : ""}
-                {delta.toFixed(2)} pp
+                {delta.toFixed(2)}%
               </small>
             )}
           </div>
