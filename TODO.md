@@ -10,6 +10,7 @@
 
 - [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.
 - [x] Validate automatic capture, close and normalization in local Chromium with an HttpOnly fixture. Prepare an opt-in local check for the account holder.
+- [x] Confirm automatic capture, local Chrome closure and a normalized snapshot of one real class with the owner’s district sign-in.
 - [ ] Verify a real district sign-in reaches the course picker after Browser Run capacity is available. Check local Live View closure on desktop and phone.
 
 ## IC browser use and graph hover — November 4

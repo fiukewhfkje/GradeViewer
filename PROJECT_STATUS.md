@@ -1,6 +1,6 @@
 # Local IC sign-in check — November 4, 2026
 
-An ignored workspace diagnostic uses local Chromium and a simulated Browser Run transport to drive the existing capture and grade code. The headless synthetic run verified automatic recognition of a short Student Profile URL in a second tab, capture and use of an HttpOnly cookie, local browser shutdown and a normalized class snapshot after shutdown. An opt-in account-holder run uses a temporary local Chrome window for manual school sign-in. It keeps the GradeViewer session in memory and reports stages only. Live district access and Cloudflare Live View still need acceptance. This check created no remote browser sessions and made no production runtime changes.
+An ignored workspace diagnostic uses local Chromium and a simulated Browser Run transport to drive the existing capture and grade code. The headless synthetic run verified automatic recognition of a short Student Profile URL in a second tab, capture and use of an HttpOnly cookie, local browser shutdown and a normalized class snapshot after shutdown. The owner then signed in manually through the diagnostic and reported successful automatic capture, grade verification, local Chrome closure and normalization of one real class after closure. The diagnostic keeps the GradeViewer session in memory and reports stages only. The deployed Worker’s Live View handoff and cleanup still need a live check. The local check created no remote browser sessions.
 
 # IC sign-in startup feedback — November 4, 2026
 
