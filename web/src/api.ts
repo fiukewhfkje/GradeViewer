@@ -45,7 +45,7 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
 const messages: Record<string, string> = {
   networkUnavailable:
     "Unable to reach your site. Check your internet connection and retry.",
-  unlockRequired: "Unlock your app in Profile.",
+  unlockRequired: "Unlock your app in Settings.",
   incorrectAppPassword: "That app password was not accepted.",
   loginLimited: "Too many attempts. Please wait before trying again.",
   deploymentPasswordRequired:

@@ -1,3 +1,9 @@
+# November 4, 2026 — IC reassessment and Settings rename
+
+Reviewed the retired IC parser, transport, WebKit/Keychain capture, renewal, reconciliation/matching tests and removal audit, plus current core/refresh/persistence/GPA and official IC/browser documentation. Four in-memory synthetic probes against the existing TypeScript core reproduced provider-ID collisions, hardcoded Schoology observation attribution, replacement of absent provider partitions and cross-provider period-label filtering. These establish required extension points, not current Schoology regressions or an implemented IC provider. No student account, cookies, private capture, Cloudflare browser or production state was accessed. [Findings and owner-selected course/reconnect design](INFINITE_CAMPUS_REASSESSMENT.md).
+
+Renamed the app's Profile tab to Settings, including navigation icon/accessibility/help, current onboarding docs and existing browser test selectors. Production build/type check and all **213 tests across 17 files** pass. **30 Chromium and 30 WebKit HTTPS/Worker browser flows**, source packaging (**88 files**) and formatting pass. Synthetic 320px-phone and desktop Settings screenshots were inspected; local document links and Git whitespace checks pass. No physical-device acceptance is claimed. No provider, credential, persistence schema, calculator, production deployment or release changed; the existing development-branch hold remains in place.
+
 # PWA verification — November 3, 2026
 
 The development branch adds a synthetic Schoology course whose reported quarter total differs from its assignment-derived total, plus GPA coverage for Dublin’s published points, plus/minus cutoffs, non-GPA marks, missing and ambiguous semesters, duplicate period views, unequal credits, exclusions and overrides. No real student data or physical device was used.

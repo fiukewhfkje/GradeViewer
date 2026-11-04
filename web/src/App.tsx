@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   RefreshCw,
   User,
+  Settings,
   MoreVertical,
   X,
   ArrowRight,
@@ -999,7 +1000,7 @@ export default function App() {
                 )}
                 <h1>
                   {tab === "profile"
-                    ? "Profile"
+                    ? "Settings"
                     : selected
                       ? view === "detail"
                         ? original?.title
@@ -1334,7 +1335,7 @@ export default function App() {
                       </h2>
                       <p>
                         Your saved data is retained. Retry or check your
-                        connection in Profile.
+                        connection in Settings.
                       </p>
                       {deadline > Date.now() && (
                         <p>
@@ -1351,7 +1352,7 @@ export default function App() {
                             : void refresh().catch(() => {})
                         }
                       >
-                        {locked && status ? "Open Profile" : "Retry"}
+                        {locked && status ? "Open Settings" : "Retry"}
                       </button>
                     </>
                   )}
@@ -1483,15 +1484,15 @@ export default function App() {
             </button>
             <button
               className={tab === "profile" ? "active" : ""}
-              aria-label="Profile"
+              aria-label="Settings"
               aria-pressed={tab === "profile"}
               onClick={() => {
                 setTab("profile");
                 setSelected(undefined);
               }}
             >
-              <User strokeWidth={1.4} />
-              <span>profile</span>
+              <Settings strokeWidth={1.4} />
+              <span>settings</span>
             </button>
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
@@ -1539,7 +1540,7 @@ export default function App() {
         <Dialog title="Add to Home Screen" close={() => setInstall(false)}>
           <p>
             GradeViewer works in your web browser, or as an app on your phone.
-            Your personal address is always in Profile.
+            Your personal address is always in Settings.
           </p>
           <h3>iPhone / iPad</h3>
           <p>

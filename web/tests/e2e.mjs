@@ -437,7 +437,7 @@ try {
         assert.equal(manual, true);
         assert.equal(await page.locator(".course").count(), 5);
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         assert.equal(
           await page
@@ -876,13 +876,13 @@ try {
   await check(
     "phone layout, dark mode, personal URL and installation help",
     async () => {
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       assert.equal(
         await page.getByLabel("Website address", { exact: true }).inputValue(),
         base,
       );
       await page.getByLabel("Theme", { exact: true }).selectOption("dark");
-      await page.screenshot({ path: directory + "/profile-dark.png" });
+      await page.screenshot({ path: directory + "/settings-dark.png" });
       await page
         .getByRole("button", { name: "Add to Home Screen", exact: true })
         .click();
@@ -900,12 +900,12 @@ try {
         ),
         true,
       );
-      await page.screenshot({ path: directory + "/profile-small-dark.png" });
+      await page.screenshot({ path: directory + "/settings-small-dark.png" });
       await page.setViewportSize({ width: 390, height: 844 });
     },
   );
   await check(
-    "Profile update check reports current version and offline state",
+    "Settings update check reports current version and offline state",
     async () => {
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
@@ -1050,7 +1050,7 @@ try {
   await check(
     "interrupted local activation recovers the prepared snapshot on reload",
     async () => {
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1142,7 +1142,7 @@ try {
       await context.setOffline(true);
       await page.reload();
       await page
-        .getByRole("button", { name: "Profile", exact: true })
+        .getByRole("button", { name: "Settings", exact: true })
         .waitFor();
       assert.equal(await page.locator(".course").count(), 0);
       await page.getByRole("alert").waitFor();
@@ -1182,7 +1182,7 @@ try {
       const originalIndex = await readFile("dist/index.html"),
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1223,7 +1223,7 @@ try {
         execFileSync("node", ["scripts/service-worker.mjs"]);
         await page.waitForTimeout(500);
         await freshPage
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await freshPage
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1249,7 +1249,7 @@ try {
           .waitFor();
         // This page shares the original tab's worker and really changes its controller.
         await otherTab
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await otherTab
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1296,7 +1296,7 @@ try {
         );
         await page.getByRole("button", { name: "Cancel", exact: true }).click();
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await page
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1335,14 +1335,14 @@ try {
     },
   );
   await check(
-    "failure retains records and Profile/Retry remain usable",
+    "failure retains records and Settings/Retry remain usable",
     async () => {
       // A server-side fixture works with service workers in both engines.
       // Browser request interception does not cover WebKit service-worker fetches.
       await context.request.post(base + "/api/fixture/failure", {
         data: { enabled: true },
       });
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
@@ -1357,7 +1357,7 @@ try {
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.getByText("Showing saved grades.", { exact: false }).waitFor();
       assert.equal(await page.locator(".course").count(), 5);
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("heading", { name: "Your personal website", exact: true })
         .waitFor();
@@ -1574,7 +1574,7 @@ try {
     },
   );
   await check("disconnect clears data and revokes sessions", async () => {
-    await page.getByRole("button", { name: "Profile", exact: true }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await page
       .getByRole("button", { name: "Disconnect and clear data", exact: true })
@@ -1618,7 +1618,7 @@ try {
       await cards[0].click();
       assert.equal(
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .isVisible(),
         true,
       );
@@ -1643,8 +1643,8 @@ try {
         .filter({ hasText: "AP Physics 1" })
         .click();
       assert.match(await page.locator("header h1").innerText(), /AP Physics 1/);
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
-      await page.screenshot({ path: directory + "/desktop-profile.png" });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.screenshot({ path: directory + "/desktop-settings.png" });
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,

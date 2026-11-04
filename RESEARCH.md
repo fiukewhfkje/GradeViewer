@@ -1,5 +1,9 @@
 # Schoology research
 
+## Selected Infinite Campus courses — November 4, 2026
+
+The owner's requested [IC reassessment](docs/INFINITE_CAMPUS_REASSESSMENT.md) finds a practical narrower design: keep automatic Schoology courses and optionally select additional IC classes in Settings, with no linking or assignment deduplication. Normalize each selected IC gradebook independently for the existing course and semester GPA UI. Git history establishes successful native JSON reads/cookie renewal and an account-specific redundancy decision, not a 30-day lifetime or another student's coverage. Current PWA single-provider assumptions and unsupported IC calculation/semester cases need explicit handling. The owner wants silent renewal followed by a streamlined human reconnect only when necessary, retaining selections and local data. IC PWA authentication/portability and actual timing remain unverified; no live account was read and no IC feature is enabled. The Profile-to-Settings rename is implemented separately on the development branch.
+
 ## Why assignment math can differ from the reported total — November 3, 2026
 
 The [Schoology Grades API](https://developers.schoology.com/api-documentation/rest-api-v1/user-grades/) returns assignment rows and final grade records separately. The [category API](https://developers.schoology.com/api-documentation/rest-api-v1/grading-categories/) describes points versus percentage averaging, category weights and dropped scores. A normal poll still returns the provider's decision about the total; the app must reconstruct the relevant inputs and rules to predict changes to it.

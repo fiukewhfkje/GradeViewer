@@ -41,9 +41,9 @@ Follow these steps in order. Everything happens in your browser.
 
 5. **Deploy and save your website.** Click **Deploy** and wait for a successful deployment. If Cloudflare asks you to choose a `workers.dev` subdomain, choose an available name. Open the website address Cloudflare gives you and bookmark it. It will look like `https://gradeviewer.your-name.workers.dev`.
 
-6. **Connect Schoology.** On your new website, open **Profile** and unlock with the `APP_PASSWORD` you saved in step 4. Tap **Get my Schoology keys**, sign in to Schoology, and follow the instructions to connect your personal API key and secret. Your school must allow personal API access.
+6. **Connect Schoology.** On your new website, open **Settings** and unlock with the `APP_PASSWORD` you saved in step 4. Tap **Get my Schoology keys**, sign in to Schoology, and follow the instructions to connect your personal API key and secret. Your school must allow personal API access.
 
-You can now use GradeViewer at your bookmarked address. To install it on your phone, open **Profile → Add to Home Screen** and follow the instructions there. Future updates are automatic; you do not repeat setup.
+You can now use GradeViewer at your bookmarked address. To install it on your phone, open **Settings → Add to Home Screen** and follow the instructions there. Future updates are automatic; you do not repeat setup.
 
 **Why create the GitHub copy first?** It includes automatic updates. The old **Deploy to Cloudflare** import can omit the updater. [Setup details and verification](https://github.com/fiukewhfkje/GradeViewer/blob/main/docs/AUTOMATIC_UPDATES.md).
 
@@ -51,7 +51,7 @@ You can now use GradeViewer at your bookmarked address. To install it on your ph
 
 Your copy checks verified official stable releases daily at **12:00 AM Eastern**, following EST/EDT. Cloudflare deploys a verified source update to your existing address. GitHub scheduling and deployment can run late.
 
-In **Profile → Check for updates**:
+In **Settings → Check for updates**:
 
 - **Up to date:** no newer official stable release exists.
 - **Update available:** a newer release is waiting for your copy's scheduled update/deployment.

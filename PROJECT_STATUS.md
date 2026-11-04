@@ -1,3 +1,13 @@
+# Project status — November 4, 2026
+
+## Infinite Campus reassessment and Settings rename
+
+The owner reported a friend's class whose teacher posts only in Infinite Campus and requested investigation. [The reassessment](docs/INFINITE_CAMPUS_REASSESSMENT.md) traces the historical parser, matching problems, native cookie capture/renewal and October 8 removal. That removal followed an account-specific redundancy audit; it did not establish universal Schoology coverage. The owner chose an optional IC course checklist in Settings, with Schoology discovery unchanged and no linking, mapping or cross-provider deduplication. Selected IC classes should share the course/GPA UI when their own semester data and grading rules support it. Quarter-only grades remain incomplete for semester GPA.
+
+The intended IC recovery is one bounded silent SSO renewal, followed only when needed by a streamlined Reconnect Infinite Campus action, preserving selected courses, saved grades and local edits. Schoology remains independently usable. Historical native renewal and relaunch tests passed, but no 30-day lifetime was measured. The PWA cannot directly reuse native WebKit cookie capture; actual IC login/account binding, Worker HTTP portability, renewal, timing and phone behavior remain unverified. Four synthetic probes confirmed current single-provider assumptions in physical identities, history attribution, snapshot replacement and home period filtering. No friend account, private capture or live IC session was accessed.
+
+Renamed the current Profile tab to **Settings**, including its navigation icon/accessibility label, heading, unlock/recovery/address help, browser selectors and current setup/product docs. IC connection/course selection/GPA integration is still proposed; no IC provider is enabled. Production remains unchanged and all work stays on `codex/investigate-gpa-carmen`. Build/type check, 213 tests, 30 Chromium and 30 WebKit browser flows, 88-file source packaging, formatting, local-document links and whitespace checks pass. Synthetic phone/desktop Settings screenshots were inspected; physical-device and IC live validation remain open. See [validation](docs/PWA_VALIDATION.md).
+
 # Project status — November 3, 2026
 
 ## v0.1.10 published

@@ -1,5 +1,14 @@
 # Next work
 
+## Selected Infinite Campus courses and Settings — November 4, 2026
+
+- [x] Reassess IC using Git history, the current PWA core, official documentation and synthetic probes. Record the account-specific removal decision, historical native SSO evidence and unmeasured session lifetime in [the report](docs/INFINITE_CAMPUS_REASSESSMENT.md).
+- [x] Rename Profile to Settings with a settings icon and matching navigation/help/docs/browser selectors. Keep the change on the development branch.
+- [x] Record the owner's selected-course design: optional IC connection/checklist in Settings; Schoology stays automatic; no linking, mapping screens or cross-provider deduplication. Use the same grade/GPA UI for supported normalized IC data.
+- [x] Record the owner's fast reconnect requirement: silent renewal first, one-click normal sign-in when needed, automatic resume with selections/history/local edits retained, and independent usable Schoology data. No 30-day lifetime or renewal-speed guarantee is established.
+- [ ] With explicit account-holder consent, prove an IC PWA-compatible sign-in/capture path, verified same-student binding, Worker HTTP reads/rotation and silent/human reconnect. Do not reuse Carmen sessions or assume the retired native WebKit capture works in a PWA.
+- [ ] Once access is proven and implementation is requested, add strict IC normalization, saved selected-section configuration, provider-scoped identities/history/snapshot partitions and period visibility. Reuse existing course/GPA controls with valid semester data; retain incomplete states when only quarter grades or unsupported rules are available. Add synthetic failure/empty/reconnect-retention and browser coverage. No IC runtime feature is implemented yet.
+
 ## Grade editing and GPA development
 
 - [x] Keep assignment edit and drop available when a what-if course total cannot be calculated; place the edit caret after the current score.
