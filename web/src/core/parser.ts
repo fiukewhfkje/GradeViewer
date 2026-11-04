@@ -37,7 +37,7 @@ export function number(v: unknown): number | undefined {
   return s !== undefined && Number.isFinite(Number(s)) ? Number(s) : undefined;
 }
 export const flag = (v: unknown) =>
-  text(v) === "1" || text(v)?.toLowerCase() === "true";
+  v === true || text(v) === "1" || text(v)?.toLowerCase() === "true";
 export function date(v: unknown): number | undefined {
   const s = nonempty(v);
   if (!s) return;

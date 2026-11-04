@@ -1422,3 +1422,187 @@ svg.spinning {
 .gpa-projection .grade {
   color: var(--blue);
 }
+
+.portal-heading {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.portal-heading .connection {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.portal-body {
+  padding: 18px 16px;
+}
+.portal-description {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.portal-address {
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.portal-address input {
+  width: 100%;
+  min-width: 0;
+  font-weight: 400;
+  font-size: 14px;
+}
+.portal-address small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 400;
+}
+.portal-connect {
+  width: 100%;
+  margin-top: 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.portal-action {
+  width: 100%;
+  min-height: 62px;
+  padding: 14px 16px;
+  gap: 12px;
+  text-align: left;
+}
+.portal-action > svg:first-child {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.portal-action > span {
+  flex: 1;
+}
+.portal-action strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.portal-action small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.portal-disconnect {
+  width: 100%;
+  text-align: left;
+  padding: 15px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.portal-selection-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.portal-selection-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.portal-selection-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.portal-count {
+  margin-left: auto;
+  white-space: nowrap;
+  color: var(--muted);
+  padding-top: 2px;
+  font-size: 12px;
+}
+.portal-selection fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.portal-course-list {
+  border-top: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+.portal-course {
+  display: flex;
+  flex-direction: row;
+  text-align: left;
+  gap: 12px;
+  padding: 16px 0;
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+}
+.portal-course-name {
+  min-width: 0;
+  flex: 1;
+}
+.portal-course-name strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.portal-course-name small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.portal-body .button-row {
+  margin-top: 12px;
+  gap: 10px;
+}
+.portal-body .button-row > button {
+  flex: 1;
+  font-size: 14px;
+  padding: 12px 8px;
+}
+.portal-notice {
+  margin: 0;
+  padding: 14px 16px;
+  color: var(--muted);
+  background: var(--bg);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.portal-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.portal-login-note {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.portal-login-note > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.portal-login-note strong {
+  font-size: 15px;
+}
+.portal-login-note p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.portal-reopen {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--blue);
+  margin: 0 0 14px 34px;
+}

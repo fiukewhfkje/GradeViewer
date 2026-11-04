@@ -1,6 +1,6 @@
 # Architecture
 
-GradeViewer is a Schoology-only React/TypeScript PWA. `web/` is the self-contained build, deployment and template root. The retired Swift app and its build/test infrastructure remain in Git history. `web/src/core/` owns current grade behavior; no Swift or macOS tooling is needed.
+GradeViewer is a Schoology-primary React/TypeScript PWA with optional selected Infinite Campus courses. `web/` is the self-contained build, deployment and template root. The retired Swift app and its build/test infrastructure remain in Git history. `web/src/core/` owns current grade behavior; no Swift or macOS tooling is needed.
 
 ## Browser and Worker
 
@@ -33,3 +33,7 @@ The static-only service worker caches the app shell, never API responses. Contro
 GitHub template-first setup copies the root updater launcher; Cloudflare connects that repository with root `web`. Signed source releases update each copy through GitHub Actions at midnight America/New_York; Cloudflare Builds deploys to its existing address. Exact official repository/workflow/tag/commit provenance and file hashes are verified before writes. Personal configuration, secrets and workflow permissions are preserved. Initial template copies may initialize a short root README; later owner edits remain untouched. See [automatic updates](docs/AUTOMATIC_UPDATES.md).
 
 Build, unit/security/integration tests, synthetic Chromium/WebKit flows and release packaging use Node tooling from `web/`. Migration-only Swift comparisons were removed after their final 1,200-case pass; focused calculator regressions remain in `web/tests/core.test.ts`. Physical phone, independent-account setup and performance claims require their own evidence. See [current status](PROJECT_STATUS.md) and [validation](docs/PWA_VALIDATION.md).
+
+## Optional Infinite Campus
+
+`PortalService` shares the owner-authenticated Worker boundary and existing encryption, retaining browser/session cookies and a selected-course checklist in a separate encrypted record. Cloudflare Browser Run supplies human sign-in, with four-minute cleanup and bounded renewal/budgets. HTTP grade reads use tough-cookie, fixed district paths, student binding, schema limits and selected sectionID details. Grades remain local. The TypeScript IC adapter supplies provider-scoped physical/assignment identities and reported-grade provenance. Provider refreshes retain one another’s snapshots on failures; no course linking or assignment merging exists. GPA reuses supported semester grades and groups compatible IC/Schoology semester windows without changing existing Schoology settings keys. Actual IC roster identity/schema and PWA SSO compatibility are not yet student-verified. No Carmen provider is deployed.

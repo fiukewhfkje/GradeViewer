@@ -1,5 +1,55 @@
 # Next work
 
+## IC owner testing and Carmen development — November 4, 2026
+
+- [x] Implement the optional Settings IC course checklist, shared course/GPA model, independent snapshot/history identities, read-only session transport and reconnect retention. Polish the connection card/actions and replace native checkboxes with styled switches.
+- [x] Keep only main and the Carmen investigative branch locally/remotely; retain clean old release worktrees detached.
+- [x] Complete cross-browser/source verification: 186 tests, 31 flows in each engine, source packaging, Worker dry-run, zero-vulnerability dependency audit and isolated-template update/rollback pass.
+- [x] Verify real synthetic cookie restore/persistent CDP capture/Live View/cleanup and deploy IC through main to the owner’s existing Worker. Five asset hashes, unchanged vault binding, secret-password presence and locked unauthenticated API verify; no stable tag/release was created.
+- [ ] Owner/friend acceptance: actual district login, strict IC roster identity shape, assignment/period/rule compatibility, selected-class GPA and physical phone/reconnect behavior. No live IC account was available during implementation.
+- [ ] Finish Carmen on codex/investigate-gpa-carmen using documented Canvas schemas and synthetic fixtures; no deployment. Keep 90-minute HTTP session maintenance bounded and distinguish an attempted keepalive from verified session extension. The owner will arrange enrolled-course testing later.
+
+
+## v0.1.10
+
+- [x] Align GPA switches and add a temporary letter-grade what-if estimate.
+- [ ] Confirm signed publication and the owner’s Cloudflare deployment.
+
+## v0.1.9
+
+- [x] Verify local assignment editing, straight-points grades, the teacher override display and the Dublin semester GPA estimate.
+- [x] Confirm signed publication and the owner’s Cloudflare deployment.
+- [ ] Compare the estimate with a confirmed same-semester roster and check the editor on a physical phone.
+
+## Native retirement — October 23, 2026
+
+- [x] Remove Swift sources, GradeCore package, Xcode project, signing configuration, native assets, tests, fixtures and helper scripts; retain them in Git history.
+- [x] Remove native build caches and project-local signing overrides.
+- [x] Remove the macOS/Swift CI job and all cross-language calculator comparison machinery. The final 1,200 synthetic comparisons passed; the owner requested removing them rather than maintaining a frozen corpus. Keep focused web calculator regressions.
+- [x] Replace native development instructions and architecture with the active PWA model; remove obsolete native setup instructions and links.
+- [x] Verify the integrated v0.1.8 web-only production build, 152 tests, 28 flows per browser, Worker dry-run, source packaging and isolated-template update/rollback; record actual local evidence.
+
+## October 20 responsiveness and stable release (completed)
+
+- [x] Add a desktop sidebar/course grid and wider course/Profile layouts; inspect synthetic screenshots.
+- [x] Show authenticated account-matched saved grades during background refresh, remove duplicate startup status reads and defer optional returning-open title traversal.
+- [x] Keep held graph selection during vertical drift, follow display frames and scale the tracing marker to the desktop plot.
+- [x] Replace quarter-to-quarter graph jumps with guarded weighted semester progression and authoritative semester observations.
+- [x] Separate update activation/loading state, wait for controller takeover and avoid offering the running shell again.
+- [x] Preserve open courses/forms across another tab's refresh and merge local edits saved during a refresh.
+- [x] Finish local browser/template checks, remote release gates, signed stable v0.1.8 publication and immediate deployment to the existing owner URL. Final CI passes 152 tests, 28 flows per browser, 119 Swift tests and 1,200 calculation comparisons; live assets and real published provenance verify.
+- [x] Verify the retained real production v0.1.7 PWA installs v0.1.8 with identical synthetic local state and second-tab form retention, explicit activation in both tabs, and no repeated update notice.
+- [ ] Complete physical iPhone/Android acceptance and measure real account latency; synthetic startup/gesture/browser evidence does not establish those results.
+
+## Remaining PWA follow-ups
+
+- [ ] Observe the brother’s natural midnight Eastern stable-update check. The intended October 18, 2026 run has no recorded acceptance evidence; do not infer success from its date passing.
+- [ ] Complete independent-account Cloudflare signup/setup, Schoology connection, automatic update and rollback, including real credential/local-state retention. Prior maintainer-account and synthetic checks do not establish that full chain.
+- [ ] Validate physical iPhone Safari/Home Screen and Android installation, scrolling/pull refresh, course/back/graph/keyboard, foreground return, storage and updates. Headless emulation is limited evidence.
+- [ ] Improve and measure expired-metadata/late-open refresh toward the requested couple-second target while retaining complete fresh reads and fixed TTL. Last recorded natural-expiry sample: 3.043 seconds / six calls; phone startup/render timing remains unmeasured.
+
+Preserve account-bound read-only complete snapshots, reversible local changes, the existing Worker/vault/password and signed source-update verification. Never invent provider omissions, missing scores/dates or successful validation. Earlier native/migration checklists remain in Git history; current evidence is in [PROJECT_STATUS.md](PROJECT_STATUS.md) and [PWA_VALIDATION.md](docs/PWA_VALIDATION.md).
+
 ## Selected Infinite Campus courses and Settings — November 4, 2026
 
 - [x] Reassess IC using Git history, the current PWA core, official documentation and synthetic probes. Record the account-specific removal decision, historical native SSO evidence and unmeasured session lifetime in [the report](docs/INFINITE_CAMPUS_REASSESSMENT.md).

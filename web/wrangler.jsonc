@@ -3,6 +3,8 @@
   "name": "gradeviewer",
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "browser": { "binding": "BROWSER" },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -2,6 +2,7 @@
   "name": "gradeviewer-tests",
   "main": "tests/fixture-worker.ts",
   "compatibility_date": "2026-10-16",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

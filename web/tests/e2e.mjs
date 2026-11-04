@@ -427,6 +427,12 @@ try {
           () => !document.querySelector(".desktop-refresh")?.disabled,
         );
         await page.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        // WebKit can publish the idle state one frame before the CSS transition finishes.
+        await page.waitForFunction(
+          () =>
+            getComputedStyle(document.querySelector(".refresh-content"))
+              .transform === "matrix(1, 0, 0, 1, 0, 0)",
+        );
         assert.equal(
           await page
             .locator(".refresh-content")
@@ -882,7 +888,7 @@ try {
         base,
       );
       await page.getByLabel("Theme", { exact: true }).selectOption("dark");
-      await page.screenshot({ path: directory + "/settings-dark.png" });
+      await page.screenshot({ path: directory + "/profile-dark.png" });
       await page
         .getByRole("button", { name: "Add to Home Screen", exact: true })
         .click();
@@ -900,7 +906,7 @@ try {
         ),
         true,
       );
-      await page.screenshot({ path: directory + "/settings-small-dark.png" });
+      await page.screenshot({ path: directory + "/profile-small-dark.png" });
       await page.setViewportSize({ width: 390, height: 844 });
     },
   );
@@ -1573,6 +1579,88 @@ try {
       }
     },
   );
+  await check(
+    "selected IC courses share grade UI and survive expiry/reconnect without linking",
+    async () => {
+      await context.route("https://live.browser.run/**", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: "<title>Synthetic sign-in</title>",
+        }),
+      );
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByLabel("Campus Student sign-in address", { exact: true })
+        .fill(
+          "https://fixture.infinitecampus.org/campus/portal/students/fixture.jsp",
+        );
+      await page
+        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Finish connecting", exact: true })
+        .click();
+      await page
+        .getByRole("switch", { name: /Synthetic IC-only course/ })
+        .check();
+      await page
+        .getByRole("button", { name: "Save IC courses", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      const ic = page
+        .locator(".courses")
+        .getByRole("button", { name: /Synthetic IC-only course/ });
+      await ic.waitFor();
+      assert.match(await ic.innerText(), /90/);
+      await ic.click();
+      await page.getByText("Synthetic work", { exact: true }).first().waitFor();
+      await page.getByLabel("Close course", { exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { failure: true },
+      });
+      await page
+        .getByRole("button", { name: "Refresh grades", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: /Infinite Campus/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await ic.waitFor();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { failure: false },
+      });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Finish connecting", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Choose IC courses", exact: true })
+        .click();
+      assert.equal(
+        await page
+          .getByRole("switch", { name: /Synthetic IC-only course/ })
+          .isChecked(),
+        true,
+      );
+      await page.screenshot({ path: directory + "/settings-campus.png" });
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Disconnect Infinite Campus",
+          exact: true,
+        })
+        .click();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 5,
+      );
+    },
+  );
   await check("disconnect clears data and revokes sessions", async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
@@ -1644,7 +1732,7 @@ try {
         .click();
       assert.match(await page.locator("header h1").innerText(), /AP Physics 1/);
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page.screenshot({ path: directory + "/desktop-settings.png" });
+      await page.screenshot({ path: directory + "/desktop-profile.png" });
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,

@@ -84,7 +84,8 @@ export function calculate(
   )
     throw new CalculationError("invalidInput");
   if (!rows.length) throw new CalculationError("noGradedAssignments");
-  if (c.method === "points") return aggregate(rows, "points");
+  if (c.method === "points" || c.method === "percent")
+    return aggregate(rows, c.method);
   let sum = 0,
     weight = 0;
   for (const category of c.categories.filter((k) => !k.excluded)) {

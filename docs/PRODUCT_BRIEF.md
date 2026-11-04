@@ -1,10 +1,10 @@
 # GradeViewer product brief
 
-GradeViewer is a simple, personal Schoology grade viewer. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
+GradeViewer is a simple, personal Schoology grade viewer with optional selected Infinite Campus classes. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
 
 ## Product and ownership
 
-- Schoology is the only supported provider. Personal student API access must be permitted by the school.
+- Schoology discovers courses automatically; personal student API access must be permitted by the school. Optional Infinite Campus classes are selected in Settings. Keep the setup free of course linking, mappings and cross-provider assignment deduplication. IC is currently for owner testing, with district compatibility unverified.
 - Each user owns their Cloudflare deployment and encrypted credentials. Grade snapshots, history and hypothetical changes stay in that browser.
 - No subscriptions, ads, analytics, central student-data service, Muse dependency, widgets or speculative features.
 - Browser and installed Home Screen modes should feel like the native app. Keep the app fast, restrained and easy to use.

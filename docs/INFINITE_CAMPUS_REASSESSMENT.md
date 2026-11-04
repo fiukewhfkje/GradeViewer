@@ -1,5 +1,7 @@
 # Infinite Campus reassessment — November 4, 2026
 
+Implementation follow-up: the owner subsequently requested implementing IC on main and deploying only to their existing Worker for testing, without a stable release. The Settings connection/checklist, strict IC adapter, shared course/GPA UI, independent snapshot partitions and bounded browser/HTTP session flow are now implemented. Actual IC district/identity compatibility remains unverified; the roster parser accepts only a single explicit student identity and rejects unsupported shapes. The remainder preserves the original investigation and its evidence limits; current test/deployment status is in [PROJECT_STATUS.md](../PROJECT_STATUS.md). Carmen stays development-only.
+
 ## Decision and owner preferences
 
 An optional IC connection with a saved course checklist is a reasonable way to cover a class whose teacher uses only IC. Keep Schoology's automatic course discovery. In **Settings → Infinite Campus**, sign in and select the additional IC classes to include. Do not introduce course linking, mapping screens, fuzzy matching, assignment deduplication, or automatic source switching. The owner explicitly rejected linking as setup overhead.

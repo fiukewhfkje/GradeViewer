@@ -48,12 +48,48 @@ function semesterKey(c: SourceCourse) {
     : JSON.stringify([ordinal, c.term.id]);
 }
 
+// IC and Schoology can expose different first/last instructional days for the same semester.
+// Group their semester windows, never their course identities or assignment records.
+function campusSemesterMatches(a: SourceCourse, b: SourceCourse) {
+  const providers = new Set([
+    a.fields.provider ?? "schoology",
+    b.fields.provider ?? "schoology",
+  ]);
+  if (!providers.has("campus") || !providers.has("schoology")) return false;
+  const x = descriptor(a),
+    y = descriptor(b);
+  if (
+    x.kind !== "semester" ||
+    y.kind !== "semester" ||
+    x.ordinal === undefined ||
+    x.ordinal !== y.ordinal ||
+    x.start === undefined ||
+    x.end === undefined ||
+    y.start === undefined ||
+    y.end === undefined
+  )
+    return false;
+  const duration = Math.max(x.end - x.start, y.end - y.start);
+  return (
+    duration > 0 &&
+    Math.min(x.end, y.end) - Math.max(x.start, y.start) >= duration * 0.75
+  );
+}
 export function gpaSemesters(courses: SourceCourse[], now = Date.now()) {
   const terms = new Map<string, SourceCourse>();
-  for (const c of courses) {
+  const ordered = [...courses].sort(
+    (a, b) =>
+      Number(a.fields.provider === "campus") -
+      Number(b.fields.provider === "campus"),
+  );
+  for (const c of ordered) {
     const id = semesterKey(c);
-    if (id !== undefined && (boundary(c, false) ?? -Infinity) <= now)
-      terms.set(id, c);
+    if (id !== undefined && (boundary(c, false) ?? -Infinity) <= now) {
+      const matches = [...terms.values()].filter((t) =>
+        campusSemesterMatches(c, t),
+      );
+      if (matches.length !== 1) terms.set(id, c);
+    }
   }
   return [...terms]
     .map(([id, course]) => ({ id, course }))
@@ -82,7 +118,8 @@ export function estimateGpa(
   >();
   for (const c of courses) {
     const d = descriptor(c),
-      isSemester = semesterKey(c) === term.id;
+      isSemester =
+        semesterKey(c) === term.id || campusSemesterMatches(c, term.course);
     const isQuarter =
       d.kind === "quarter" &&
       start !== undefined &&

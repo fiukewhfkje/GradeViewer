@@ -536,7 +536,14 @@ export async function readSnapshot(
       account,
       metadata,
       courses: reconcile(
-        sources,
+        [
+          ...sources,
+          ...(preserved.account === account
+            ? preserved.courses.filter(
+                (c) => c.fields.provider && c.fields.provider !== "schoology",
+              )
+            : []),
+        ],
         preserved.account === account ? preserved.courses : [],
       ),
       scenarios: preserved.account === account ? preserved.scenarios : {},

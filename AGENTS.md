@@ -1,10 +1,10 @@
 # GradeViewer development instructions
 
-GradeViewer is a Schoology-only React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The Swift app, GradeCore, Xcode project, native tests and migration-only calculator comparisons were retired on October 23, 2026 at the owner’s request. Their sources remain in Git history; do not restore native tooling or parity CI.
+GradeViewer is a Schoology-primary React/TypeScript PWA with optional selected Infinite Campus courses in `web/`, backed by a user-owned Cloudflare Worker. The Swift app, GradeCore, Xcode project, native tests and migration-only calculator comparisons were retired on October 23, 2026 at the owner’s request. Their sources remain in Git history; do not restore native tooling or parity CI.
 
 Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/PWA_HANDOFF.md and docs/PWA_VALIDATION.md before continuing. docs/PRODUCT_BRIEF.md defines the product scope. docs/PWA_PLAN.md preserves historical migration rationale.
 
-- Keep the app fast, simple, Schoology-only and independent of Muse. No paid tiers, analytics, ads, shared maintainer backend, widgets, planner or speculative features.
+- Keep the app fast, simple and independent of Muse. Schoology discovers courses automatically; Infinite Campus imports only selected courses. Do not add course linking or cross-provider assignment merging. No paid tiers, analytics, ads, shared maintainer backend, widgets, planner or speculative features.
 - `web/src/core/` is the canonical implementation for parsing, reconciliation and calculations. Never sum deduplicated presentation variants as separate calculator contributions.
 - Each user owns the Worker and encrypted Schoology credentials. Grade snapshots, history and hypothetical changes stay in browser-local IndexedDB. Never log credentials, cookies, keys, raw provider responses or student grades. Committed fixtures must be synthetic.
 - Never invent provider data or assume a hypothetical provider failure occurred in a student’s account. Distinguish official docs, fixture tests and student-verified behavior.
@@ -19,3 +19,5 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - Before continuing isolated Carmen diagnostics, read `docs/CARMEN_HANDOFF.md` for the persistent private storage path, actual capture status, evidence, commands and blockers. Never assume a session exists from a directory/key alone; keep private state outside Git.
 - Update PROJECT_STATUS.md and TODO.md before ending. Keep docs honest about credentials, district access, physical-device acceptance, deployment and validation limits.
 - Widgets are intentionally removed. Do not restore widget routes or native extensions.
+
+- November 4 authorization: implement IC on main and deploy only to the owner’s existing Cloudflare Worker for testing, with no new stable tag/release. Finish Carmen on `codex/investigate-gpa-carmen` without deploying it. Keep only those two branches. The proposed 90-minute Carmen HTTP keepalive is an unverified lifetime experiment, not a promise that requests reset the server idle timeout.

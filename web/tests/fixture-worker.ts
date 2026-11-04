@@ -1,3 +1,11 @@
+import { PortalService } from "../worker/portal";
+import type { PortalBrowser } from "../worker/portal-browser";
+import {
+  campusSummary,
+  campusDetail,
+  campusState,
+  campusPortal,
+} from "./campus-fixture";
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
 import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
@@ -10,11 +18,41 @@ let releaseFixture: {
 export class FixtureVault extends CredentialVault {
   constructor(
     private fixtureState: DurableObjectState,
-    env: Env,
+    private fixtureEnv: Env,
   ) {
-    super(fixtureState, env);
+    super(fixtureState, fixtureEnv);
+  }
+  protected override portals() {
+    class FixturePortal extends PortalService {
+      protected override async browser(): Promise<PortalBrowser> {
+        return {
+          id: "synthetic-session",
+          state: async () => structuredClone(campusState),
+          live: async () => "https://live.browser.run/ui/view?synthetic=true",
+          navigate: async () => {},
+          url: () => campusPortal,
+          ready: async () => {},
+          close: async () => {},
+        };
+      }
+    }
+    return new FixturePortal(
+      this.fixtureState.storage,
+      this.fixtureEnv.APP_PASSWORD,
+      undefined,
+      this.upstream,
+    );
   }
   override async fetch(request: Request): Promise<Response> {
+    if (
+      new URL(request.url).pathname === "/api/fixture/campus" &&
+      request.method === "POST"
+    ) {
+      const value = await request.json();
+      await this.fixtureState.storage.put("synthetic-campus", value);
+      return Response.json({ ok: true });
+    }
+
     if (
       new URL(request.url).pathname === "/api/fixture/delay" &&
       request.method === "POST"
@@ -40,6 +78,21 @@ export class FixtureVault extends CredentialVault {
     return super.fetch(request);
   }
   protected upstream = async (request: Request): Promise<Response> => {
+    if (new URL(request.url).hostname === "fixture.infinitecampus.org") {
+      const config = await this.fixtureState.storage.get<{
+        failure?: boolean;
+        malformed?: boolean;
+      }>("synthetic-campus");
+      if (config?.failure) return Response.json({}, { status: 401 });
+      const path = new URL(request.url).pathname;
+      if (path.endsWith("/roster"))
+        return Response.json({ personID: "synthetic-campus-student" });
+      if (path.endsWith("/grades")) return Response.json(campusSummary);
+      if (path.endsWith("/detail/100"))
+        return Response.json(config?.malformed ? [] : campusDetail);
+      return Response.json({}, { status: 404 });
+    }
+
     if (new URL(request.url).pathname.endsWith("/users/me")) {
       const delay = await this.fixtureState.storage.get<number>(
         "synthetic-provider-delay",

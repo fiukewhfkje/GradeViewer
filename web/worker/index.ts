@@ -1,3 +1,5 @@
+import { PortalService } from "./portal";
+import type { PortalBinding } from "./portal-browser";
 import {
   hash,
   equal,
@@ -18,6 +20,7 @@ import {
 import { latestRelease } from "./updates";
 export interface Env {
   APP_PASSWORD: string;
+  BROWSER?: PortalBinding;
   VAULT: DurableObjectNamespace;
   ASSETS: FetcherAssets;
 }
@@ -149,6 +152,19 @@ export class CredentialVault {
     private env: Env,
   ) {}
   protected upstream: Fetcher = fetch;
+  protected portals() {
+    return new PortalService(
+      this.ctx.storage,
+      this.env.APP_PASSWORD,
+      this.env.BROWSER,
+      this.upstream,
+    );
+  }
+  async alarm() {
+    const result = this.queue.then(() => this.portals().expire());
+    this.queue = result.catch(() => {});
+    await result;
+  }
   fetch(request: Request): Promise<Response> {
     const result = this.queue.then(() => this.handle(request));
     this.queue = result.catch(() => {});
@@ -446,6 +462,9 @@ export class CredentialVault {
         result = json({ ok: true }, 200, { "Set-Cookie": setCookie(id) });
       } else if (route === "status" && !post) {
         result = json({
+          ...(authenticated
+            ? { portals: { campus: await this.portals().status() } }
+            : {}),
           authenticated,
           connected: authenticated && !!vault.credentials,
           account: authenticated ? vault.account : undefined,
@@ -454,10 +473,16 @@ export class CredentialVault {
         });
       } else {
         if (!authenticated) throw new ApiError(401, "unlockRequired");
-        if (route === "logout" && post) {
+        if (route.startsWith("campus/") && post) {
+          if (!vault.account) throw new ApiError(409, "schoologyFirst");
+          result = json(
+            await this.portals().handle(route.slice(7), await body(request)),
+          );
+        } else if (route === "logout" && post) {
           delete vault.sessions[session];
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "disconnect" && post) {
+          await this.portals().handle("disconnect");
           vault = initial();
           vault.passwordHash = fingerprint;
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
@@ -777,6 +802,7 @@ export default {
     const secured = new Response(response.body, response);
     secured.headers.set("X-Content-Type-Options", "nosniff");
     secured.headers.set("Referrer-Policy", "no-referrer");
+    secured.headers.set("Cross-Origin-Opener-Policy", "same-origin");
     secured.headers.set("X-Frame-Options", "DENY");
     secured.headers.set(
       "Permissions-Policy",

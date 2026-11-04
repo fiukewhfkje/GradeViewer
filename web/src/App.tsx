@@ -1,3 +1,5 @@
+import { PortalConnection } from "./PortalConnection";
+import { refreshCampus } from "./portal-refresh";
 import {
   useState,
   useEffect,
@@ -266,23 +268,44 @@ export default function App() {
           setFresh(true);
           return;
         }
-        if (s.cooldown && s.cooldown > Date.now())
-          throw new RequestError(
-            "rateLimited",
-            Math.ceil((s.cooldown - Date.now()) / 1000),
-          );
-        const next = await readSnapshot(
-          stateRef.current,
-          s,
-          credentials,
-          manual,
-        );
+        let schoologyError: unknown;
+        let next = stateRef.current;
+        try {
+          if (s.cooldown && s.cooldown > Date.now())
+            throw new RequestError(
+              "rateLimited",
+              Math.ceil((s.cooldown - Date.now()) / 1000),
+            );
+          next = await readSnapshot(stateRef.current, s, credentials, manual);
+        } catch (e) {
+          if (credentials || stateRef.current.account !== s.account) throw e;
+          schoologyError = e;
+        }
         apply(next);
         setFresh(true);
-        setDeadline(0);
+        const portalStatus = s;
+        setStatus(portalStatus);
+        if (
+          portalStatus.portals?.campus?.connected ||
+          next.courses.some((c) => c.fields.provider === "campus")
+        ) {
+          try {
+            apply(await refreshCampus(next, portalStatus.portals?.campus));
+          } catch (e) {
+            setError(errorMessage(e));
+          }
+        }
+        if (schoologyError) {
+          setError(errorMessage(schoologyError));
+          if (
+            schoologyError instanceof RequestError &&
+            schoologyError.retryAfter
+          )
+            setDeadline(Date.now() + schoologyError.retryAfter * 1000);
+        } else setDeadline(0);
         channel.current?.postMessage("saved");
         setStatus({
-          ...s,
+          ...portalStatus,
           connected: true,
           account: next.account,
           cooldown: undefined,
@@ -1143,6 +1166,15 @@ export default function App() {
                       )}
                     </div>
                   </section>
+                  {!demo && !locked && (
+                    <PortalConnection
+                      status={status?.portals?.campus}
+                      disabled={busy || !status?.connected}
+                      refresh={async () => {
+                        await refresh(undefined, true);
+                      }}
+                    />
+                  )}
                   <section className="settings-group">
                     <h2>Appearance</h2>
                     <label className="settings-card settings-row">
