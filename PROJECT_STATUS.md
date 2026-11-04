@@ -1,3 +1,9 @@
+# IC Worker transport correction — November 4, 2026
+
+The owner’s local-to-Worker import reached its verification stage and failed with portalUnavailable. Cleanup restored the normal Worker version. A credential-free remote runtime reproduction established that invoking the stored global fetch as a service method throws Illegal invocation in Workerd. An ordinary function call reaches the district and receives its expected unauthenticated response. PortalService now invokes the injected transport without a receiver. The existing IC session fixture now enforces the receiver requirement and fails before the fix. Build, 194 tests, source packaging and Worker dry-run passed. No Browser Run sessions were acquired.
+
+The ignored import helper now uploads its temporary Worker while the owner signs in and closes the local Campus window immediately after capturing the authenticated profile and scoped cookies. It then verifies and persists the session on the Worker and restores the normal version. This improves the helper’s sequencing. Actual import persistence and deployed Live View closure still await an owner run.
+
 # Local IC sign-in check — November 4, 2026
 
 An ignored workspace diagnostic uses local Chromium and a simulated Browser Run transport to drive the existing capture and grade code. The headless synthetic run verified automatic recognition of a short Student Profile URL in a second tab, capture and use of an HttpOnly cookie, local browser shutdown and a normalized class snapshot after shutdown. The owner then signed in manually through the diagnostic and reported successful automatic capture, grade verification, local Chrome closure and normalization of one real class after closure. The diagnostic keeps the GradeViewer session in memory and reports stages only. The deployed Worker’s Live View handoff and cleanup still need a live check. The local check created no remote browser sessions.

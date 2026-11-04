@@ -6,6 +6,9 @@
 
 ## Automatic IC sign-in — November 4
 
+- [x] Fix Workerd’s Illegal invocation in the IC transport and reproduce the correction in the remote runtime without credentials or Browser Run.
+- [x] Overlap local import deployment with sign-in and close the captured local Campus window before import verification.
+
 - [x] Prepare the temporary browser in Settings before offering the sign-in link. Report startup and daily quota errors without opening a blank tab.
 
 - [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.

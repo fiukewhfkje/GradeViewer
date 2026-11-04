@@ -151,7 +151,9 @@ function harness(withBinding = false) {
     delete: async (k: string) => data.delete(k),
     setAlarm: async () => {},
   } as unknown as DurableObjectStorage;
-  const upstream = async (req: Request) => {
+  const upstream = async function (this: unknown, req: Request) {
+    // Workerd's global fetch rejects a receiver other than the global object.
+    if (this !== undefined) throw new TypeError("Illegal invocation");
     const u = new URL(req.url);
     calls.push(u.pathname);
     expect(req.method).toBe("GET");

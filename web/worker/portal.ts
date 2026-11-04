@@ -192,7 +192,9 @@ export class PortalService {
       throw new ApiError(400, "invalidRequest");
     let r: Response;
     try {
-      r = await this.upstream(
+      // Invoke a supplied global fetch without binding it to this service.
+      const upstream = this.upstream;
+      r = await upstream(
         new Request(u, {
           headers: {
             Accept: "application/json",
