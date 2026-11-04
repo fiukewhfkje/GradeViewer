@@ -1,8 +1,14 @@
+# Cloudflare automatic deployment correction — November 4, 2026
+
+The owner’s build log shows successful dependency installation, type checking and Vite compilation. Deployment failed at the helper’s separate secret bulk command because Cloudflare refuses secret edits when its latest uploaded Worker version is not active. The temporary IC import’s rollback exposed that version mismatch. This was a deployment-sequencing bug. The GitHub check’s start/completion timestamp did not describe the full build duration.
+
+The deploy helper now supplies APP_PASSWORD with code through Wrangler’s secrets-file option in one deployment. It uses an owner-only temporary JSON file outside the repository, removes the password from the child environment and command arguments, and deletes the file on success or failure. Deployments without a build password keep their existing behavior. Production build, 198 tests, source packaging and a synthetic-password deployment dry-run passed. An automatic build is the remaining verification.
+
 # Graph window and IC course selection — November 4, 2026
 
 Graphs display the last 60 days while retaining full local history. A single dated point stays a horizontal line, and an ungraded class shows an empty state. Supported dated assignment calculations can supply initial progression before observed grade changes accumulate. Missing semester and quarter ordinals use generic period labels, fixing Sundefined for ungraded IC courses.
 
-The IC connection and picker explain that IC courses are separate from Schoology and duplicate selections both count toward GPA. The picker opens before its first course request finishes, supports cancelling that initial load, and reuses its course list during the current Settings visit. The requested website and device-storage footnotes are removed. Production build, 198 tests, 33 Chromium and 33 WebKit HTTPS integration flows, source packaging and the isolated template install, dry-run, update and rollback check passed. The browser regression injects 1.2 seconds of provider latency to check that the picker appears immediately and reopening uses cached choices. No Browser Run sessions were acquired.
+The IC connection and picker explain that IC courses are separate from Schoology and duplicate selections both count toward GPA. The picker opens before its first course request finishes, supports cancelling that initial load, and reuses its course list during the current Settings visit. The requested website and device-storage footnotes are removed. Production build, 198 tests, 33 Chromium and 33 WebKit HTTPS integration flows, source packaging and the isolated template install, dry-run, update and rollback check passed. The browser regression injects 1.2 seconds of provider latency to check that the picker appears immediately and reopening uses cached choices. No Browser Run sessions were acquired. The owner Worker deployed 62d27af through the CLI after its automatic secret update failed. All six public asset hashes and the existing vault/password bindings matched; unauthenticated APIs remained locked.
 
 # IC Worker transport correction — November 4, 2026
 

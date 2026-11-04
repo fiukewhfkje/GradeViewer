@@ -1,5 +1,10 @@
 # Next work
 
+## Automatic Cloudflare builds — November 4
+
+- [x] Diagnose the rollback/version conflict at the separate secret upload and deploy code plus password in one operation.
+- [ ] Observe a successful automatic Cloudflare build with the corrected deployment helper.
+
 ## Graphs and IC selection — November 4
 
 - [x] Show generic labels for unnumbered periods and limit displayed graph points to the last 60 days. Keep single-point lines and stored history.
