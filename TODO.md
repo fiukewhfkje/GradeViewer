@@ -3,7 +3,7 @@
 ## Automatic Cloudflare builds — November 4
 
 - [x] Diagnose the rollback/version conflict at the separate secret upload and deploy code plus password in one operation.
-- [ ] Observe a successful automatic Cloudflare build with the corrected deployment helper.
+- [x] Observe a successful automatic Cloudflare build with the corrected deployment helper and verify the live assets and existing vault/password bindings.
 
 ## Graphs and IC selection — November 4
 
