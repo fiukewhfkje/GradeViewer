@@ -1897,6 +1897,15 @@ try {
       assert.ok(second.x > first.x);
       assert.ok((await page.locator(".app").boundingBox()).width > 900);
       assert.equal(await page.locator(".sidebar-courses").isVisible(), true);
+      assert.equal(await page.locator("header").innerText(), "My grades");
+      assert.doesNotMatch(
+        await page.locator("footer").innerText(),
+        /GradeViewer|at a glance/,
+      );
+      assert.equal(
+        await page.locator("footer img").evaluate((icon) => icon.naturalWidth),
+        192,
+      );
       await cards[0].click();
       assert.equal(
         await page

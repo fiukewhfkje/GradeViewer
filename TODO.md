@@ -1,5 +1,9 @@
 # Next work
 
+## Desktop app polish — November 4
+
+- [x] Replace the sidebar lettermark with the app icon, remove duplicate labels and the tagline, and tighten desktop spacing.
+
 ## Automatic IC sign-in — November 4
 
 - [x] Recognize the short Student Profile URL, verify and close the temporary browser automatically, and show the result in Settings.

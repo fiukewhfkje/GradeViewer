@@ -1,8 +1,12 @@
+# Desktop app polish — November 4, 2026
+
+The desktop sidebar now uses the installed GradeViewer icon. The page header keeps its title, and the sidebar omits the duplicate branding, version line and tagline. The version remains available in Settings. Desktop navigation and course cards use tighter spacing with a divider above the course shortcuts. Production build, 192 tests, source packaging and 33 synthetic HTTPS integration flows in each of Chromium and WebKit passed.
+
 # Automatic IC sign-in — November 4, 2026
 
 The owner reached the signed-in Student Profile at the short Campus nav-wrapper URL. GradeViewer now recognizes that URL as a candidate and uses a bounded Worker alarm during explicit sign-in to verify the student and grades read, save the encrypted session and close the temporary cloud browser. Settings confirms success and opens the first-time course picker automatically. The app also tries to close the local Live View window, which can remain open when isolated by the browser.
 
-A first-time connection can bind to the authenticated Student Profile when the district schedule omits a usable student ID. Reconnect requires the same verified identity and keeps selected classes. Capture and grade-service failures have distinct retry messages. Synthetic tests cover the short wrapper, delayed verification, retry, session closure and reconnect. The live binding probe was rate-limited before acquisition, so live district grade verification remains open. Local build and type check, 192 tests, and 33 Chromium and 33 WebKit integration flows passed.
+A first-time connection can bind to the authenticated Student Profile when the district schedule omits a usable student ID. Reconnect requires the same verified identity and keeps selected classes. Capture and grade-service failures have distinct retry messages. Synthetic tests cover the short wrapper, delayed verification, retry, session closure and reconnect. The live binding probe was rate-limited before acquisition, so live district grade verification remains open. Local build and type check, 192 tests, and 33 Chromium and 33 WebKit integration flows passed. Source packaging and the isolated template install, dry run, update and rollback also passed. The owner’s existing Worker deployed commit `2d2252f` through Cloudflare Builds. All five public asset hashes matched, the vault binding fingerprint matched, APP_PASSWORD remained secret-bound and unauthenticated APIs stayed locked.
 
 # IC browser use and graph hover — November 4, 2026
 

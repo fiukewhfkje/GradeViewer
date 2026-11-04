@@ -1090,7 +1090,7 @@ export default function App() {
           >
             <header>
               <div>
-                {selected ? (
+                {selected && (
                   <button
                     className="back"
                     aria-label="Back"
@@ -1102,8 +1102,6 @@ export default function App() {
                     <ChevronLeft />
                     {view === "detail" ? "My grades" : original?.title}
                   </button>
-                ) : (
-                  <span className="brand">GradeViewer</span>
                 )}
                 <h1>
                   {tab === "profile"
@@ -1588,9 +1586,13 @@ export default function App() {
             </main>
           </div>
           <footer>
-            <div className="sidebar-brand">
-              <span className="sidebar-mark">G</span>GradeViewer
-            </div>
+            <img
+              className="sidebar-brand"
+              src="/icon-192.png"
+              alt=""
+              width={56}
+              height={56}
+            />
             <button
               className={tab === "grades" ? "active" : ""}
               aria-label="Grades"
@@ -1635,11 +1637,6 @@ export default function App() {
                     </span>
                   </button>
                 ))}
-            </div>
-            <div className="sidebar-footnote">
-              GradeViewer {version}
-              <br />
-              Your grades, at a glance.
             </div>
           </footer>
         </div>
