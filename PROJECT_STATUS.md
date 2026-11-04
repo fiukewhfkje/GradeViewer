@@ -8,6 +8,8 @@ The opt-in Dublin semester GPA card opens to a compact course list. The level, c
 
 Build/type check, 207 tests, 30 browser flows each in Chromium and WebKit, Worker dry-run and source packaging pass. The owner authorized a read-only Schoology check. The returned final-grade records contained no explicit override fields. No grade values or credentials were retained in the repository. The work stays on the development branch for owner testing.
 
+A follow-up screenshot comparison reproduced the Q2 value shown by GradeViewer by summing the visible scored assignments as points. The Schoology screenshot showed the quarter's semester weight and no numeric quarter total. The old branch used category rules for its edit check, so matching the visible point sum does not establish what the old calculator returned. The affected snapshot's provider metadata was unavailable. No student scores were retained in the repository.
+
 # Project status — November 1, 2026
 
 ## Current: Muse VM HTTP proxy correction
