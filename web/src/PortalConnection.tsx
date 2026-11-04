@@ -49,7 +49,7 @@ export function PortalConnection({
     if (popup) {
       popup.document.title = "Infinite Campus sign-in";
       popup.document.body.textContent =
-        "Opening secure Infinite Campus sign-in…";
+        "Starting the temporary Infinite Campus sign-in browser…";
     }
     let pending;
     try {
@@ -251,7 +251,8 @@ export function PortalConnection({
           <div className="portal-body">
             <p className="portal-description">
               Find your district and sign in to add classes that only use
-              Infinite Campus.
+              Infinite Campus. The temporary sign-in browser closes when you
+              finish.
             </p>
             <button
               className="primary portal-connect"

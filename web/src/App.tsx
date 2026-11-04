@@ -331,7 +331,7 @@ export default function App() {
           return;
         apply(next);
         setFresh(true);
-        const portalStatus = s;
+        let portalStatus = s;
         setStatus(portalStatus);
         if (
           portalStatus.portals?.campus?.connected ||
@@ -340,6 +340,19 @@ export default function App() {
           try {
             apply(await refreshCampus(next, portalStatus.portals?.campus));
           } catch (e) {
+            if (
+              e instanceof RequestError &&
+              e.code === "portalSignInRequired" &&
+              s.portals?.campus
+            ) {
+              portalStatus = {
+                ...s,
+                portals: {
+                  ...s.portals,
+                  campus: { ...s.portals.campus, needsReconnect: true },
+                },
+              };
+            }
             setError(errorMessage(e));
           }
         }

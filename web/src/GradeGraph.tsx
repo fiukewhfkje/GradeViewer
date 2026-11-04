@@ -3,6 +3,9 @@ import type { Course } from "./core/model";
 import { gradeCurve, progression } from "./core/progression";
 import { descriptor, overall } from "./core/periods";
 
+const position = (x: number, rect: DOMRect) =>
+  Math.max(0, Math.min(1, (x - rect.left) / Math.max(1, rect.width)));
+
 export const GradeGraph = memo(function GradeGraph({
   course,
   all,
@@ -17,7 +20,7 @@ export const GradeGraph = memo(function GradeGraph({
   const [selection, setSelection] = useState<number>();
   const pointer = useRef<{ id: number; rect: DOMRect } | undefined>(undefined),
     frame = useRef<number | undefined>(undefined),
-    pending = useRef(1);
+    pendingX = useRef(0);
   const labels = useMemo(
     () =>
       curve.points.map((point) => ({
@@ -65,28 +68,34 @@ export const GradeGraph = memo(function GradeGraph({
           )}
           aria-valuetext={`${value}% on ${date}`}
           onPointerDown={(e) => {
-            if (e.button !== 0 || pointer.current) return;
+            if (e.pointerType === "mouse" || e.button !== 0 || pointer.current)
+              return;
             e.preventDefault();
             e.currentTarget.setPointerCapture(e.pointerId);
             const rect = e.currentTarget.getBoundingClientRect();
             pointer.current = { id: e.pointerId, rect };
-            setSelection(
-              Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
-            );
+            setSelection(position(e.clientX, rect));
           }}
           onPointerMove={(e) => {
-            if (pointer.current?.id !== e.pointerId) return;
-            const rect = pointer.current.rect;
-            pending.current = Math.max(
-              0,
-              Math.min(1, (e.clientX - rect.left) / rect.width),
-            );
-            // Match the display's frame rate and avoid layout reads per input sample.
+            const held = pointer.current;
+            if (held ? held.id !== e.pointerId : e.pointerType !== "mouse")
+              return;
+            const target = e.currentTarget;
+            pendingX.current = e.clientX;
+            // Update once per frame. Touch capture keeps its original plot bounds.
             if (frame.current === undefined)
               frame.current = requestAnimationFrame(() => {
                 frame.current = undefined;
-                setSelection(pending.current);
+                setSelection(
+                  position(
+                    pendingX.current,
+                    held?.rect ?? target.getBoundingClientRect(),
+                  ),
+                );
               });
+          }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse" && !pointer.current) clearSelection();
           }}
           onPointerUp={(e) => {
             if (pointer.current?.id === e.pointerId) clearSelection();
@@ -107,7 +116,7 @@ export const GradeGraph = memo(function GradeGraph({
             else if (e.key === "Home") next = 0;
             else if (e.key === "End") next = 1;
             else if (e.key === "Escape") {
-              setSelection(undefined);
+              clearSelection();
               return;
             } else return;
             e.preventDefault();

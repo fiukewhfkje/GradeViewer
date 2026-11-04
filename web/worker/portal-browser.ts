@@ -27,10 +27,12 @@ export interface PortalBrowser {
   id: string;
   state(): Promise<BrowserState>;
   live(): Promise<string>;
-  navigate(url: string): Promise<void>;
+  navigate(
+    url: string,
+    waitUntil?: "commit" | "domcontentloaded",
+  ): Promise<void>;
   url(): string;
   studentPortal?(): Promise<string | undefined>;
-  ready(origin: string): Promise<void>;
   close(): Promise<void>;
 }
 export async function portalBrowser(
@@ -146,9 +148,9 @@ export async function portalBrowser(
           throw new Error("browserUnavailable");
         return u.href;
       },
-      navigate: async (url) => {
+      navigate: async (url, waitUntil = "domcontentloaded") => {
         await page.goto(url, {
-          waitUntil: "domcontentloaded",
+          waitUntil,
           timeout: 20_000,
         });
       },
@@ -158,14 +160,6 @@ export async function portalBrowser(
           .reverse()
           .map((p) => observedCampusPortal(p.url()))
           .find(Boolean) ?? selectedPortal,
-      ready: async (origin) => {
-        await page.waitForURL(
-          (u) =>
-            u.origin === origin &&
-            /\/(?:student\/home|portal\/student\/home)/.test(u.pathname),
-          { timeout: 10_000 },
-        );
-      },
       close: async () => {
         await bounded(binding.closeSession(sessionID!));
       },

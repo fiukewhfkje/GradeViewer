@@ -6,7 +6,6 @@ import { ApiError, type Fetcher } from "./provider";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import {
   portalBrowser,
-  type PortalBrowser,
   type BrowserState,
   type PortalBinding,
 } from "./portal-browser";
@@ -21,14 +20,12 @@ export interface PortalConnection {
   needsReconnect?: boolean;
   cooldown?: number;
   lastVerified?: number;
-  renewalAfter?: number;
   pending?: { id: string; expires: number; started: number };
 }
 interface PortalStore {
   connection?: PortalConnection;
   browserDay?: string;
   browserMs: number;
-  renewalMs?: number;
 }
 export function browserJar(state: BrowserState, origin: string) {
   if (state.cookies.length > 400) throw new ApiError(502, "malformedCampus");
@@ -273,7 +270,6 @@ export class PortalService {
       if (s.browserDay !== today) {
         s.browserDay = today;
         s.browserMs = 0;
-        s.renewalMs = 0;
       }
       if (c?.pending && c.pending.expires < Date.now()) await this.close(s);
       if (action === "status") return this.status();
@@ -313,8 +309,12 @@ export class PortalService {
         await this.storage.setAlarm(c.pending.expires);
         await this.storage.delete("portal-campus-entry");
         try {
-          await browser.navigate(portal);
-          return { url: await browser.live(), expires: c.pending.expires };
+          const destination = c.account && c.entry ? c.entry : portal;
+          const [, url] = await Promise.all([
+            browser.navigate(destination, "commit"),
+            browser.live(),
+          ]);
+          return { url, expires: c.pending.expires };
         } catch {
           await this.close(s);
           throw new ApiError(502, "browserUnavailable");
@@ -386,47 +386,8 @@ export class PortalService {
           "portalRateLimited",
           Math.ceil((c.cooldown - Date.now()) / 1000),
         );
-      let fresh;
-      try {
-        fresh = await this.fetch(c);
-      } catch (error) {
-        if (
-          !(error instanceof ApiError) ||
-          error.code !== "portalSignInRequired"
-        )
-          throw error;
-        c.needsReconnect = true;
-        // A rejected HTTP session may use the actual captured SSO entry once; network failures never launch a browser.
-        if (
-          !c.entry ||
-          !c.state ||
-          (c.renewalAfter ?? 0) > Date.now() ||
-          (s.renewalMs ?? 0) + 25_000 > 120_000 ||
-          s.browserMs + 25_000 > 540_000
-        )
-          throw error;
-        c.renewalAfter = Date.now() + 5 * 60_000;
-        let browser: PortalBrowser | undefined;
-        const began = Date.now();
-        try {
-          browser = await this.browser(c.state);
-          await browser.navigate(c.entry);
-          await browser.ready(campusURL(c.portal).origin);
-          const state = await browser.state(),
-            jar = browserJar(state, campusURL(c.portal).origin);
-          await this.verify(c, jar);
-          c.jar = jar.serializeSync();
-          c.state = state;
-          c.needsReconnect = false;
-          fresh = await this.fetch(c);
-        } catch {
-          throw error;
-        } finally {
-          await browser?.close().catch(() => {});
-          s.browserMs += Date.now() - began;
-          s.renewalMs = (s.renewalMs ?? 0) + Date.now() - began;
-        }
-      }
+      const fresh = await this.fetch(c);
+      c.needsReconnect = false;
       if (action === "courses")
         return { courses: fresh.choices, selected: c.selected };
       if (action === "select") {
@@ -482,6 +443,12 @@ export class PortalService {
     } catch (error) {
       if (error instanceof ApiError && error.code === "portalRateLimited" && c)
         c.cooldown = Date.now() + (error.retryAfter ?? 60) * 1000;
+      if (
+        error instanceof ApiError &&
+        error.code === "portalSignInRequired" &&
+        c?.account
+      )
+        c.needsReconnect = true;
       if (error instanceof ApiError) throw error;
       if (
         error instanceof Error &&

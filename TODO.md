@@ -1,11 +1,18 @@
 # Next work
 
+## IC browser use and graph hover — November 4
+
+- [x] Use Browser Run only for explicit IC sign-in and reconnect. Overlap Live View setup and the first navigation.
+- [x] Show the graph tooltip on mouse hover with the normal cursor. Preserve touch and keyboard input.
+- [ ] Confirm sign-in timing and full SSO using the owner’s district and account.
+
+
 ## IC sign-in, Settings and cached startup — November 4
 
 - [x] Recover the historical district-finder flow and modern Student URL handling. Remove the pasted-address setup.
 - [x] Rework Settings into bounded, independently flowing columns and remove repeated grade-loading UI. Add account/expiry-bound immediate local cache restoration with an explicit local lock.
 - [x] Validate both themes across 12 phone/split/tablet/laptop/monitor sizes, expanded forms, cached-before-status startup, offline reuse and locking.
-- [ ] Deploy this IC/UI follow-up to the existing owner Worker without a release, then merge it into the held Carmen branch without deploying Carmen.
+- [x] Deploy the IC/UI follow-up to the existing owner Worker and carry it to the held Carmen branch.
 
 
 ## IC owner testing and Carmen development — November 4, 2026
