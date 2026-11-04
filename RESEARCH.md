@@ -1,5 +1,9 @@
 # Schoology research
 
+## IC owner-testing implementation — November 4, 2026
+
+The owner requested optional selected IC classes on main without a stable release. The Settings card, strict adapter, independent snapshots/history and shared course/GPA controls are implemented; see [the reassessment](docs/INFINITE_CAMPUS_REASSESSMENT.md). Real Cloudflare binding checks use synthetic cookies only. Student/district IC roster identity, grade shape and human SSO still require acceptance testing. Published stable releases remain Schoology-only; Carmen stays on the investigative branch and is not deployed.
+
 GradeViewer supports Schoology only. The active application is the PWA; the TypeScript core and focused web regressions define current grade behavior. Retired native source remains in Git history. Current deployment and validation evidence is in [PWA validation](docs/PWA_VALIDATION.md). Original-account observations below do not establish access or behavior for every school.
 
 ## Verified grade behavior — October 15, 2026

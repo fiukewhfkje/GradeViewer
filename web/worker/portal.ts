@@ -1,0 +1,468 @@
+import { Cookie, CookieJar } from "tough-cookie";
+import { seal, unseal, hash, type Envelope } from "./crypto";
+import { ApiError, type Fetcher } from "./provider";
+import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
+import {
+  portalBrowser,
+  type PortalBrowser,
+  type BrowserState,
+  type PortalBinding,
+} from "./portal-browser";
+
+export interface PortalConnection {
+  portal: string;
+  account?: string;
+  state?: BrowserState;
+  jar?: ReturnType<CookieJar["serializeSync"]>;
+  selected: string[];
+  entry?: string;
+  needsReconnect?: boolean;
+  cooldown?: number;
+  lastVerified?: number;
+  renewalAfter?: number;
+  pending?: { id: string; expires: number; started: number };
+}
+interface PortalStore {
+  connection?: PortalConnection;
+  browserDay?: string;
+  browserMs: number;
+  renewalMs?: number;
+}
+export function campusURL(input: unknown) {
+  if (typeof input !== "string" || input.length > 1000)
+    throw new ApiError(400, "invalidCampusURL");
+  const u = new URL(input);
+  if (
+    u.protocol !== "https:" ||
+    u.username ||
+    u.password ||
+    u.port ||
+    u.hash ||
+    !/^([a-z0-9-]+\.)+infinitecampus\.(org|com)$/.test(u.hostname) ||
+    !/^\/campus\/portal\/students\/[a-zA-Z0-9_-]+\.jsp$/.test(u.pathname) ||
+    u.search
+  )
+    throw new ApiError(400, "invalidCampusURL");
+  return u;
+}
+export function browserJar(state: BrowserState, origin: string) {
+  if (state.cookies.length > 400) throw new ApiError(502, "malformedCampus");
+  const jar = new CookieJar();
+  for (const c of state.cookies) {
+    if (c.expires >= 0 && c.expires <= Date.now() / 1000) continue;
+    if (c.name.length + c.value.length > 10000)
+      throw new ApiError(502, "malformedCampus");
+    const domain = c.domain.replace(/^\./, "");
+    // Only Campus cookies enter Campus HTTP requests. IdP cookies stay in encrypted browser state.
+    if (
+      new URL(origin).hostname !== domain &&
+      !new URL(origin).hostname.endsWith("." + domain)
+    )
+      continue;
+    jar.setCookieSync(
+      new Cookie({
+        key: c.name,
+        value: c.value,
+        domain,
+        hostOnly: !c.domain.startsWith("."),
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        sameSite: c.sameSite.toLowerCase(),
+        ...(c.expires > 0 ? { expires: new Date(c.expires * 1000) } : {}),
+      }),
+      origin + c.path,
+    );
+  }
+  return jar;
+}
+export class PortalService {
+  constructor(
+    protected storage: DurableObjectStorage,
+    protected password: string,
+    protected binding?: PortalBinding,
+    protected upstream: Fetcher = fetch,
+  ) {}
+  protected async browser(saved?: BrowserState, id?: string) {
+    if (!this.binding) throw new ApiError(503, "browserUnavailable");
+    return portalBrowser(this.binding, saved, id, (entry) => {
+      void this.storage.put("portal-campus-entry", entry);
+    });
+  }
+  private async load(): Promise<PortalStore> {
+    const encrypted = await this.storage.get<Envelope>("portal-campus");
+    if (!encrypted) return { browserMs: 0 };
+    try {
+      return await unseal<PortalStore>(encrypted, this.password);
+    } catch {
+      throw new ApiError(409, "portalPasswordChanged");
+    }
+  }
+  private async save(s: PortalStore) {
+    await this.storage.put("portal-campus", await seal(s, this.password));
+  }
+  async status() {
+    try {
+      const s = await this.load(),
+        c = s.connection;
+      return {
+        connected: !!c?.account,
+        needsReconnect: !!c?.needsReconnect,
+        selected: c?.selected ?? [],
+        portal: c?.portal,
+        lastVerified: c?.lastVerified,
+        cooldown: c?.cooldown,
+      };
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "portalPasswordChanged")
+        return { connected: true, needsReconnect: true, selected: [] };
+      throw error;
+    }
+  }
+  private async close(s: PortalStore) {
+    const p = s.connection?.pending;
+    if (!p) return;
+    try {
+      if (this.binding) await this.binding.closeSession(p.id);
+      else {
+        const browser = await this.browser(undefined, p.id);
+        await browser.close();
+      }
+    } catch {
+      /* Browser may already have expired. */
+    }
+    s.browserMs += Math.max(0, Date.now() - p.started) - 240_000;
+    delete s.connection!.pending;
+  }
+  async expire() {
+    const s = await this.load();
+    if (s.connection?.pending && s.connection.pending.expires <= Date.now()) {
+      await this.close(s);
+      await this.save(s);
+    }
+  }
+  private async read(
+    c: PortalConnection,
+    path: string,
+    jar: CookieJar,
+  ): Promise<unknown> {
+    const portal = campusURL(c.portal),
+      u = new URL("/campus/" + path, portal);
+    if (
+      !/^resources\/portal\/(?:roster|grades(?:\/detail\/[\w-]{1,100})?)$/.test(
+        path,
+      )
+    )
+      throw new ApiError(400, "invalidRequest");
+    let r: Response;
+    try {
+      r = await this.upstream(
+        new Request(u, {
+          headers: {
+            Accept: "application/json",
+            Cookie: jar.getCookieStringSync(u.href),
+          },
+          redirect: "manual",
+          signal: AbortSignal.timeout(15_000),
+        }),
+      );
+    } catch {
+      throw new ApiError(502, "portalUnavailable");
+    }
+    for (const cookie of r.headers.getSetCookie()) {
+      try {
+        jar.setCookieSync(cookie, u.href);
+      } catch {
+        throw new ApiError(502, "malformedCampus");
+      }
+    }
+    if ([301, 302, 303, 307, 308].includes(r.status)) {
+      const location = r.headers.get("Location");
+      await r.body?.cancel();
+      const target = location ? new URL(location, u) : undefined;
+      if (
+        !target ||
+        target.origin !== u.origin ||
+        !/\/campus\/(portal|SSO|verify)/.test(target.pathname)
+      )
+        throw new ApiError(502, "invalidPortalRedirect");
+      throw new ApiError(401, "portalSignInRequired");
+    }
+    if (r.status === 401) {
+      await r.body?.cancel();
+      throw new ApiError(401, "portalSignInRequired");
+    }
+    if (r.status === 429) {
+      await r.body?.cancel();
+      throw new ApiError(
+        429,
+        "portalRateLimited",
+        Math.min(3600, Math.max(1, Number(r.headers.get("Retry-After")) || 60)),
+      );
+    }
+    if (!r.ok) {
+      await r.body?.cancel();
+      throw new ApiError(
+        r.status === 403 ? 403 : 502,
+        r.status === 403 ? "portalAccessDenied" : "portalUnavailable",
+      );
+    }
+    if (!r.headers.get("Content-Type")?.includes("application/json")) {
+      await r.body?.cancel();
+      throw new ApiError(502, "malformedCampus");
+    }
+    const reader = r.body?.getReader();
+    if (!reader) throw new ApiError(502, "malformedCampus");
+    let text = "",
+      size = 0;
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 2_000_000) {
+        await reader.cancel();
+        throw new ApiError(502, "portalTooLarge");
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    try {
+      return JSON.parse(text + decoder.decode());
+    } catch {
+      throw new ApiError(502, "malformedCampus");
+    }
+  }
+  private async verify(c: PortalConnection, jar: CookieJar) {
+    const roster = await this.read(c, "resources/portal/roster", jar);
+    const account = (
+      await hash(campusURL(c.portal).origin + "\0" + campusStudent(roster))
+    ).replace(/[^a-zA-Z0-9]/g, "");
+    if (c.account && c.account !== account)
+      throw new ApiError(409, "portalAccountChanged");
+    return account;
+  }
+  private async fetch(c: PortalConnection) {
+    if (!c.jar) throw new ApiError(401, "portalSignInRequired");
+    const jar = CookieJar.deserializeSync(c.jar);
+    try {
+      const account = await this.verify(c, jar),
+        summary = await this.read(c, "resources/portal/grades", jar);
+      const choices = campusChoices(summary),
+        details: Record<string, unknown> = {};
+      // Keep request and memory amplification bounded. Discovery does not request assignment details.
+      return { account, summary, choices, details, jar };
+    } finally {
+      c.jar = jar.serializeSync();
+    }
+  }
+  async handle(action: string, b: Record<string, unknown> = {}) {
+    let s: PortalStore;
+    try {
+      s = await this.load();
+    } catch (error) {
+      if (action !== "disconnect") throw error;
+      await this.storage.delete("portal-campus");
+      return { ok: true };
+    }
+    let c = s.connection;
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      if (s.browserDay !== today) {
+        s.browserDay = today;
+        s.browserMs = 0;
+        s.renewalMs = 0;
+      }
+      if (c?.pending && c.pending.expires < Date.now()) await this.close(s);
+      if (action === "status") return this.status();
+      if (action === "disconnect") {
+        await this.close(s);
+        s = { browserMs: s.browserMs, browserDay: s.browserDay };
+        return { ok: true };
+      }
+      if (action === "cancel") {
+        await this.close(s);
+        return { ok: true };
+      }
+      if (action === "start") {
+        const portal = campusURL(b.portal ?? c?.portal).href;
+        if (c?.account && c.portal !== portal)
+          throw new ApiError(409, "portalDisconnectFirst");
+        if (c?.pending) await this.close(s);
+        if (s.browserMs + 240_000 > 540_000)
+          throw new ApiError(429, "portalBrowserBudget", 3600);
+        c ??= { portal, selected: [] };
+        s.connection = c;
+        const began = Date.now();
+        s.browserMs += 240_000;
+        await this.save(s);
+        const browser = await this.browser(c.state);
+        c.pending = {
+          id: browser.id,
+          started: began,
+          expires: began + 240_000,
+        };
+        await this.save(s);
+        await this.storage.setAlarm(c.pending.expires);
+        await this.storage.delete("portal-campus-entry");
+        try {
+          await browser.navigate(portal);
+          return { url: await browser.live(), expires: c.pending.expires };
+        } catch {
+          await this.close(s);
+          throw new ApiError(502, "browserUnavailable");
+        }
+      }
+      if (!c) throw new ApiError(409, "portalConnectRequired");
+      if (action === "finish") {
+        if (!c.pending) throw new ApiError(409, "portalSignInExpired");
+        const browser = await this.browser(undefined, c.pending.id),
+          state = await browser.state();
+        const jar = browserJar(state, campusURL(c.portal).origin),
+          account = await this.verify(c, jar);
+        campusChoices(await this.read(c, "resources/portal/grades", jar));
+        // Retain only actual sign-in origins; never passwords, form state or page content.
+        const permitted = (host: string) =>
+          host === campusURL(c!.portal).hostname ||
+          /(^|\.)(google\.com|microsoftonline\.com|live\.com|duosecurity\.com|osu\.edu|instructure\.com)$/.test(
+            host,
+          );
+        c.state = {
+          cookies: state.cookies.filter((x) =>
+            permitted(x.domain.replace(/^\./, "")),
+          ),
+          origins: state.origins.filter((x) => {
+            try {
+              return permitted(new URL(x.origin).hostname);
+            } catch {
+              return false;
+            }
+          }),
+        };
+        if (JSON.stringify(c.state).length > 1_000_000)
+          throw new ApiError(502, "portalTooLarge");
+        const entry = await this.storage.get<string>("portal-campus-entry");
+        if (entry && new URL(entry).origin === campusURL(c.portal).origin)
+          c.entry = entry;
+        c.account = account;
+        c.jar = jar.serializeSync();
+        c.needsReconnect = false;
+        c.lastVerified = Date.now();
+        await this.close(s);
+        return { ok: true };
+      }
+      if (c.cooldown && c.cooldown > Date.now())
+        throw new ApiError(
+          429,
+          "portalRateLimited",
+          Math.ceil((c.cooldown - Date.now()) / 1000),
+        );
+      let fresh;
+      try {
+        fresh = await this.fetch(c);
+      } catch (error) {
+        if (
+          !(error instanceof ApiError) ||
+          error.code !== "portalSignInRequired"
+        )
+          throw error;
+        c.needsReconnect = true;
+        // A rejected HTTP session may use the actual captured SSO entry once; network failures never launch a browser.
+        if (
+          !c.entry ||
+          !c.state ||
+          (c.renewalAfter ?? 0) > Date.now() ||
+          (s.renewalMs ?? 0) + 25_000 > 120_000 ||
+          s.browserMs + 25_000 > 540_000
+        )
+          throw error;
+        c.renewalAfter = Date.now() + 5 * 60_000;
+        let browser: PortalBrowser | undefined;
+        const began = Date.now();
+        try {
+          browser = await this.browser(c.state);
+          await browser.navigate(c.entry);
+          await browser.ready(campusURL(c.portal).origin);
+          const state = await browser.state(),
+            jar = browserJar(state, campusURL(c.portal).origin);
+          await this.verify(c, jar);
+          c.jar = jar.serializeSync();
+          c.state = state;
+          c.needsReconnect = false;
+          fresh = await this.fetch(c);
+        } catch {
+          throw error;
+        } finally {
+          await browser?.close().catch(() => {});
+          s.browserMs += Date.now() - began;
+          s.renewalMs = (s.renewalMs ?? 0) + Date.now() - began;
+        }
+      }
+      if (action === "courses")
+        return { courses: fresh.choices, selected: c.selected };
+      if (action === "select") {
+        if (
+          !Array.isArray(b.selected) ||
+          b.selected.length > 20 ||
+          b.selected.some(
+            (x) =>
+              typeof x !== "string" || !fresh.choices.some((y) => y.id === x),
+          ) ||
+          new Set(b.selected).size !== b.selected.length
+        )
+          throw new ApiError(400, "invalidRequest");
+        c.selected = b.selected as string[];
+        return { ok: true };
+      }
+      if (action === "snapshot") {
+        const live = fresh.choices.filter((x) => c!.selected.includes(x.id));
+        if (live.length > 20) throw new ApiError(400, "portalTooManyCourses");
+        // At most 20 detail reads plus identity/discovery, below a Worker subrequest budget.
+        try {
+          let aggregate = JSON.stringify(fresh.summary).length;
+          for (let offset = 0; offset < live.length; offset += 3)
+            await Promise.all(
+              live.slice(offset, offset + 3).map(async (x) => {
+                const detail = await this.read(
+                  c!,
+                  "resources/portal/grades/detail/" + x.section,
+                  fresh.jar,
+                );
+                aggregate += JSON.stringify(detail).length;
+                if (aggregate > 4_000_000)
+                  throw new ApiError(502, "portalTooLarge");
+                fresh.details[x.section] = detail;
+              }),
+            );
+        } finally {
+          c.jar = fresh.jar.serializeSync();
+        }
+        const fetched = Date.now();
+        const courses = parseCampus(
+          fresh.summary,
+          fresh.details,
+          c.selected,
+          fresh.account,
+          fetched,
+        );
+        c.lastVerified = fetched;
+        c.needsReconnect = false;
+        return { account: fresh.account, courses };
+      }
+      throw new ApiError(404, "notFound");
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "portalRateLimited" && c)
+        c.cooldown = Date.now() + (error.retryAfter ?? 60) * 1000;
+      if (error instanceof ApiError) throw error;
+      if (
+        error instanceof Error &&
+        ["campusIdentityUnsupported", "malformedCampus", "malformed"].includes(
+          error.message,
+        )
+      )
+        throw new ApiError(502, error.message);
+      throw new ApiError(502, "portalUnavailable");
+    } finally {
+      await this.save(s);
+    }
+  }
+}

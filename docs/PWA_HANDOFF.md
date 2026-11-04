@@ -1,3 +1,7 @@
+# November 4 testing follow-up
+
+Main now includes the optional selected-IC Settings flow for the owner’s Cloudflare testing, with no stable tag/release. Preserve the existing deployment/password/vault. Actual IC district/identity/phone acceptance remains open. Carmen work must stay on codex/investigate-gpa-carmen and must not deploy. The older migration handoff below is historical; PROJECT_STATUS.md and AGENTS.md contain the current authorization and evidence.
+
 # Current handoff — October 23, 2026
 
 GradeViewer is now a web-only React/TypeScript PWA in `web/`, backed by each user’s Cloudflare Worker. The owner requested retirement of all Swift sources, native dependencies/tests/build setup and migration-only calculator comparisons. Their final 1,200 synthetic comparisons passed before removal. No frozen comparison corpus or native CI dependency remains; focused calculator tests stay in the ordinary web suite. Native history is available at commit `4100e615130b407a4dc5b2901f936d39c789482a` and earlier.

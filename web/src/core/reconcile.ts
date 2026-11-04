@@ -89,7 +89,7 @@ export function reconcile(
         source.fields.grade_basis !== "calculated" &&
         (g.percent !== undefined || g.letter) &&
         (!last ||
-          last.provider !== "schoology" ||
+          last.provider !== (source.fields.provider ?? "schoology") ||
           last.grade.letter !== g.letter ||
           (last.grade.percent === undefined) !== (g.percent === undefined) ||
           (g.percent !== undefined &&
@@ -100,7 +100,7 @@ export function reconcile(
           id: crypto.randomUUID(),
           date: now,
           grade: { ...g },
-          provider: "schoology",
+          provider: source.fields.provider ?? "schoology",
         });
       return {
         ...source,

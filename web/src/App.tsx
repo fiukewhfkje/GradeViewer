@@ -1,3 +1,5 @@
+import { PortalConnection } from "./PortalConnection";
+import { refreshCampus } from "./portal-refresh";
 import {
   useState,
   useEffect,
@@ -12,6 +14,7 @@ import {
   ChevronLeft,
   RefreshCw,
   User,
+  Settings,
   MoreVertical,
   X,
   ArrowRight,
@@ -265,23 +268,44 @@ export default function App() {
           setFresh(true);
           return;
         }
-        if (s.cooldown && s.cooldown > Date.now())
-          throw new RequestError(
-            "rateLimited",
-            Math.ceil((s.cooldown - Date.now()) / 1000),
-          );
-        const next = await readSnapshot(
-          stateRef.current,
-          s,
-          credentials,
-          manual,
-        );
+        let schoologyError: unknown;
+        let next = stateRef.current;
+        try {
+          if (s.cooldown && s.cooldown > Date.now())
+            throw new RequestError(
+              "rateLimited",
+              Math.ceil((s.cooldown - Date.now()) / 1000),
+            );
+          next = await readSnapshot(stateRef.current, s, credentials, manual);
+        } catch (e) {
+          if (credentials || stateRef.current.account !== s.account) throw e;
+          schoologyError = e;
+        }
         apply(next);
         setFresh(true);
-        setDeadline(0);
+        const portalStatus = s;
+        setStatus(portalStatus);
+        if (
+          portalStatus.portals?.campus?.connected ||
+          next.courses.some((c) => c.fields.provider === "campus")
+        ) {
+          try {
+            apply(await refreshCampus(next, portalStatus.portals?.campus));
+          } catch (e) {
+            setError(errorMessage(e));
+          }
+        }
+        if (schoologyError) {
+          setError(errorMessage(schoologyError));
+          if (
+            schoologyError instanceof RequestError &&
+            schoologyError.retryAfter
+          )
+            setDeadline(Date.now() + schoologyError.retryAfter * 1000);
+        } else setDeadline(0);
         channel.current?.postMessage("saved");
         setStatus({
-          ...s,
+          ...portalStatus,
           connected: true,
           account: next.account,
           cooldown: undefined,
@@ -999,7 +1023,7 @@ export default function App() {
                 )}
                 <h1>
                   {tab === "profile"
-                    ? "Profile"
+                    ? "Settings"
                     : selected
                       ? view === "detail"
                         ? original?.title
@@ -1142,6 +1166,15 @@ export default function App() {
                       )}
                     </div>
                   </section>
+                  {!demo && !locked && (
+                    <PortalConnection
+                      status={status?.portals?.campus}
+                      disabled={busy || !status?.connected}
+                      refresh={async () => {
+                        await refresh(undefined, true);
+                      }}
+                    />
+                  )}
                   <section className="settings-group">
                     <h2>Appearance</h2>
                     <label className="settings-card settings-row">
@@ -1334,7 +1367,7 @@ export default function App() {
                       </h2>
                       <p>
                         Your saved data is retained. Retry or check your
-                        connection in Profile.
+                        connection in Settings.
                       </p>
                       {deadline > Date.now() && (
                         <p>
@@ -1351,7 +1384,7 @@ export default function App() {
                             : void refresh().catch(() => {})
                         }
                       >
-                        {locked && status ? "Open Profile" : "Retry"}
+                        {locked && status ? "Open Settings" : "Retry"}
                       </button>
                     </>
                   )}
@@ -1483,15 +1516,15 @@ export default function App() {
             </button>
             <button
               className={tab === "profile" ? "active" : ""}
-              aria-label="Profile"
+              aria-label="Settings"
               aria-pressed={tab === "profile"}
               onClick={() => {
                 setTab("profile");
                 setSelected(undefined);
               }}
             >
-              <User strokeWidth={1.4} />
-              <span>profile</span>
+              <Settings strokeWidth={1.4} />
+              <span>settings</span>
             </button>
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
@@ -1539,7 +1572,7 @@ export default function App() {
         <Dialog title="Add to Home Screen" close={() => setInstall(false)}>
           <p>
             GradeViewer works in your web browser, or as an app on your phone.
-            Your personal address is always in Profile.
+            Your personal address is always in Settings.
           </p>
           <h3>iPhone / iPad</h3>
           <p>

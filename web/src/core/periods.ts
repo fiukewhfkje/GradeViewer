@@ -28,6 +28,12 @@ export function descriptor(c: SourceCourse) {
     kind = "quarter";
     ordinal = +q[1];
   } else if (n === "final" || n.includes("year")) kind = "year";
+  if (
+    ["quarter", "semester", "exam", "year", "other"].includes(
+      c.fields.period_kind,
+    )
+  )
+    kind = c.fields.period_kind as PeriodKind;
   const dates = titleDates(c.term.name);
   return {
     kind,
@@ -82,7 +88,10 @@ export function includesHistory(c: SourceCourse, date: number) {
   return end !== undefined && (dateOnly(c, true) ? date < end : date <= end);
 }
 export const physicalKey = (c: SourceCourse) =>
-  c.fields.grade_section_id ?? c.fields.section_id ?? c.id;
+  c.fields.physical_key ??
+  c.fields.grade_section_id ??
+  c.fields.section_id ??
+  c.id;
 export function related<T extends SourceCourse>(c: T, all: T[]): T[] {
   return all.filter((x) => physicalKey(x) === physicalKey(c));
 }
@@ -297,7 +306,20 @@ export function estimateQuarter(c: SourceCourse, all: SourceCourse[]) {
     semester: descriptor(s).label,
   };
 }
-export function visibleCourses(all: Course[], now = Date.now()) {
+export function visibleCourses(all: Course[], now = Date.now()): Course[] {
+  const providers = [
+    ...new Set(all.map((c) => c.fields.provider ?? "schoology")),
+  ];
+  return providers
+    .flatMap((p) =>
+      visibleProviderCourses(
+        all.filter((c) => (c.fields.provider ?? "schoology") === p),
+        now,
+      ),
+    )
+    .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+}
+function visibleProviderCourses(all: Course[], now = Date.now()) {
   const terms = [...new Set(all.map((c) => c.term.name))].sort(
     (a, b) =>
       (all.find((c) => c.term.name === b)?.term.start ?? -Infinity) -

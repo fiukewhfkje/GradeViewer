@@ -427,6 +427,12 @@ try {
           () => !document.querySelector(".desktop-refresh")?.disabled,
         );
         await page.locator('.pull-refresh[data-phase="idle"]').waitFor();
+        // WebKit can publish the idle state one frame before the CSS transition finishes.
+        await page.waitForFunction(
+          () =>
+            getComputedStyle(document.querySelector(".refresh-content"))
+              .transform === "matrix(1, 0, 0, 1, 0, 0)",
+        );
         assert.equal(
           await page
             .locator(".refresh-content")
@@ -437,7 +443,7 @@ try {
         assert.equal(manual, true);
         assert.equal(await page.locator(".course").count(), 5);
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         assert.equal(
           await page
@@ -876,7 +882,7 @@ try {
   await check(
     "phone layout, dark mode, personal URL and installation help",
     async () => {
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       assert.equal(
         await page.getByLabel("Website address", { exact: true }).inputValue(),
         base,
@@ -905,7 +911,7 @@ try {
     },
   );
   await check(
-    "Profile update check reports current version and offline state",
+    "Settings update check reports current version and offline state",
     async () => {
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
@@ -1050,7 +1056,7 @@ try {
   await check(
     "interrupted local activation recovers the prepared snapshot on reload",
     async () => {
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1142,7 +1148,7 @@ try {
       await context.setOffline(true);
       await page.reload();
       await page
-        .getByRole("button", { name: "Profile", exact: true })
+        .getByRole("button", { name: "Settings", exact: true })
         .waitFor();
       assert.equal(await page.locator(".course").count(), 0);
       await page.getByRole("alert").waitFor();
@@ -1182,7 +1188,7 @@ try {
       const originalIndex = await readFile("dist/index.html"),
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1223,7 +1229,7 @@ try {
         execFileSync("node", ["scripts/service-worker.mjs"]);
         await page.waitForTimeout(500);
         await freshPage
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await freshPage
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1249,7 +1255,7 @@ try {
           .waitFor();
         // This page shares the original tab's worker and really changes its controller.
         await otherTab
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await otherTab
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1296,7 +1302,7 @@ try {
         );
         await page.getByRole("button", { name: "Cancel", exact: true }).click();
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .click();
         await page
           .getByRole("button", { name: "Check for updates", exact: true })
@@ -1335,14 +1341,14 @@ try {
     },
   );
   await check(
-    "failure retains records and Profile/Retry remain usable",
+    "failure retains records and Settings/Retry remain usable",
     async () => {
       // A server-side fixture works with service workers in both engines.
       // Browser request interception does not cover WebKit service-worker fetches.
       await context.request.post(base + "/api/fixture/failure", {
         data: { enabled: true },
       });
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
@@ -1357,7 +1363,7 @@ try {
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.getByText("Showing saved grades.", { exact: false }).waitFor();
       assert.equal(await page.locator(".course").count(), 5);
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("heading", { name: "Your personal website", exact: true })
         .waitFor();
@@ -1573,8 +1579,90 @@ try {
       }
     },
   );
+  await check(
+    "selected IC courses share grade UI and survive expiry/reconnect without linking",
+    async () => {
+      await context.route("https://live.browser.run/**", (route) =>
+        route.fulfill({
+          contentType: "text/html",
+          body: "<title>Synthetic sign-in</title>",
+        }),
+      );
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByLabel("Campus Student sign-in address", { exact: true })
+        .fill(
+          "https://fixture.infinitecampus.org/campus/portal/students/fixture.jsp",
+        );
+      await page
+        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Finish connecting", exact: true })
+        .click();
+      await page
+        .getByRole("switch", { name: /Synthetic IC-only course/ })
+        .check();
+      await page
+        .getByRole("button", { name: "Save IC courses", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      const ic = page
+        .locator(".courses")
+        .getByRole("button", { name: /Synthetic IC-only course/ });
+      await ic.waitFor();
+      assert.match(await ic.innerText(), /90/);
+      await ic.click();
+      await page.getByText("Synthetic work", { exact: true }).first().waitFor();
+      await page.getByLabel("Close course", { exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { failure: true },
+      });
+      await page
+        .getByRole("button", { name: "Refresh grades", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: /Infinite Campus/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await ic.waitFor();
+      await context.request.post(base + "/api/fixture/campus", {
+        data: { failure: false },
+      });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Finish connecting", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Choose IC courses", exact: true })
+        .click();
+      assert.equal(
+        await page
+          .getByRole("switch", { name: /Synthetic IC-only course/ })
+          .isChecked(),
+        true,
+      );
+      await page.screenshot({ path: directory + "/settings-campus.png" });
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      await page
+        .getByRole("button", {
+          name: "Disconnect Infinite Campus",
+          exact: true,
+        })
+        .click();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 5,
+      );
+    },
+  );
   await check("disconnect clears data and revokes sessions", async () => {
-    await page.getByRole("button", { name: "Profile", exact: true }).click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await page
       .getByRole("button", { name: "Disconnect and clear data", exact: true })
@@ -1618,7 +1706,7 @@ try {
       await cards[0].click();
       assert.equal(
         await page
-          .getByRole("button", { name: "Profile", exact: true })
+          .getByRole("button", { name: "Settings", exact: true })
           .isVisible(),
         true,
       );
@@ -1643,7 +1731,7 @@ try {
         .filter({ hasText: "AP Physics 1" })
         .click();
       assert.match(await page.locator("header h1").innerText(), /AP Physics 1/);
-      await page.getByRole("button", { name: "Profile", exact: true }).click();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page.screenshot({ path: directory + "/desktop-profile.png" });
       assert.equal(
         await page.evaluate(

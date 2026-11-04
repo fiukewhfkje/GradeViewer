@@ -1,10 +1,10 @@
 # GradeViewer product brief
 
-GradeViewer is a simple, personal Schoology grade viewer. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
+GradeViewer is a simple, personal Schoology grade viewer with optional selected Infinite Campus classes. The active product is the React/TypeScript PWA in `web/`, backed by a user-owned Cloudflare Worker. The TypeScript core and focused web regressions define current behavior; the retired native app remains in Git history. Earlier superseded requirements remain in Git history.
 
 ## Product and ownership
 
-- Schoology is the only supported provider. Personal student API access must be permitted by the school.
+- Schoology discovers courses automatically; personal student API access must be permitted by the school. Optional Infinite Campus classes are selected in Settings. Keep the setup free of course linking, mappings and cross-provider assignment deduplication. IC is currently for owner testing, with district compatibility unverified.
 - Each user owns their Cloudflare deployment and encrypted credentials. Grade snapshots, history and hypothetical changes stay in that browser.
 - No subscriptions, ads, analytics, central student-data service, Muse dependency, widgets or speculative features.
 - Browser and installed Home Screen modes should feel like the native app. Keep the app fast, restrained and easy to use.
@@ -17,11 +17,11 @@ Preserve semester summaries, quarter assignment scopes and read-only exam placem
 
 ## Presentation
 
-Use the native app's warm light/dark palette, green grades, course cards, compact course navigation, neutral filled progression chart and collapsible assignment groups. Support system, light and dark appearance. Profile uses grouped connection, appearance, personal website and app controls. Provide a copyable/openable personal address, Home Screen installation help and a Check for updates action that installs a ready app-shell update without losing local data.
+Use the native app's warm light/dark palette, green grades, course cards, compact course navigation, neutral filled progression chart and collapsible assignment groups. Support system, light and dark appearance. Settings uses grouped connection, appearance, personal website and app controls. Provide a copyable/openable personal address, Home Screen installation help and a Check for updates action that installs a ready app-shell update without losing local data.
 
 Desktop uses a persistent navigation/course sidebar, a course-card grid and side-by-side grade/graph and recent-assignment panels. Phone navigation stays compact. A held chart owns its touch gesture, including vertical finger drift; selection follows display frames and clears on release or cancellation.
 
-On phones, pull down from the top to reveal a spinner, release past the threshold to refresh, hold the indicator until completion and settle smoothly. There are no pull/release text prompts. A cancelled or short gesture must not refresh. Normal scrolling, chart gestures and form controls keep their interactions. Browser refresh and app refresh must not compete. Desktop and accessible Profile controls provide manual refresh too.
+On phones, pull down from the top to reveal a spinner, release past the threshold to refresh, hold the indicator until completion and settle smoothly. There are no pull/release text prompts. A cancelled or short gesture must not refresh. Normal scrolling, chart gestures and form controls keep their interactions. Browser refresh and app refresh must not compete. Desktop and accessible Settings controls provide manual refresh too.
 
 ## Refresh and persistence
 

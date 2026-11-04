@@ -41,9 +41,9 @@ Follow these steps in order. Everything happens in your browser.
 
 5. **Deploy and save your website.** Click **Deploy** and wait for a successful deployment. If Cloudflare asks you to choose a `workers.dev` subdomain, choose an available name. Open the website address Cloudflare gives you and bookmark it. It will look like `https://gradeviewer.your-name.workers.dev`.
 
-6. **Connect Schoology.** On your new website, open **Profile** and unlock with the `APP_PASSWORD` you saved in step 4. Tap **Get my Schoology keys**, sign in to Schoology, and follow the instructions to connect your personal API key and secret. Your school must allow personal API access.
+6. **Connect Schoology.** On your new website, open **Settings** and unlock with the `APP_PASSWORD` you saved in step 4. Tap **Get my Schoology keys**, sign in to Schoology, and follow the instructions to connect your personal API key and secret. Your school must allow personal API access.
 
-You can now use GradeViewer at your bookmarked address. To install it on your phone, open **Profile → Add to Home Screen** and follow the instructions there. Future updates are automatic; you do not repeat setup.
+You can now use GradeViewer at your bookmarked address. To install it on your phone, open **Settings → Add to Home Screen** and follow the instructions there. Future updates are automatic; you do not repeat setup.
 
 **Why create the GitHub copy first?** It includes automatic updates. The old **Deploy to Cloudflare** import can omit the updater. [Setup details and verification](docs/AUTOMATIC_UPDATES.md).
 
@@ -51,9 +51,9 @@ You can now use GradeViewer at your bookmarked address. To install it on your ph
 
 Your copy checks verified official stable releases daily at **12:00 AM Eastern**, following EST/EDT. Cloudflare deploys a verified source update to your existing address. GitHub scheduling and deployment can run late.
 
-To check for a release immediately on your own copy, open that repository on GitHub and choose **Actions → Update GradeViewer → Run workflow**. Leave the version blank for the current stable release, or enter a specific stable version. When the Cloudflare build finishes, open **Profile → Check for updates → Update now** in the app.
+To check for a release immediately on your own copy, open that repository on GitHub and choose **Actions → Update GradeViewer → Run workflow**. Leave the version blank for the current stable release, or enter a specific stable version. When the Cloudflare build finishes, open **Settings → Check for updates → Update now** in the app.
 
-In **Profile → Check for updates**:
+In **Settings → Check for updates**:
 
 - **Up to date:** no newer official stable release exists.
 - **Update available:** a newer release is waiting for your copy's scheduled update/deployment.
@@ -63,6 +63,10 @@ In **Profile → Check for updates**:
 Newly deployed app versions also show a discreet update notice when the app opens or returns to the foreground. Other tabs keep their open forms until you accept an update in each tab.
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
+
+## Optional Infinite Campus classes
+
+In **Settings → Additional classes**, connect your district’s Campus Student login and choose the IC-only classes to include. These use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. A reconnect keeps your selected classes and local data. This is an unreleased testing feature; district sign-in and identity compatibility still need account testing.
 
 ## Estimated semester GPA
 

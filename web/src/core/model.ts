@@ -44,7 +44,8 @@ export interface SourceCourse {
   grade: Grade;
   categories: Category[];
   assignments: Assignment[];
-  method: "points" | "weightedCategories" | "equalCategories" | "unknown";
+  method:
+    "points" | "percent" | "weightedCategories" | "equalCategories" | "unknown";
   fetched: number;
   fields: Record<string, string>;
   catalog?: Assignment[];

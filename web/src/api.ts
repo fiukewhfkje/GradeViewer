@@ -7,7 +7,16 @@ export class RequestError extends Error {
     super(code);
   }
 }
+export interface PortalStatus {
+  connected: boolean;
+  needsReconnect: boolean;
+  selected: string[];
+  portal?: string;
+  lastVerified?: number;
+  cooldown?: number;
+}
 export interface Status {
+  portals?: { campus?: PortalStatus };
   authenticated: boolean;
   connected: boolean;
   account?: string;
@@ -43,9 +52,34 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
+  schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
+  portalSignInRequired:
+    "Infinite Campus needs you to sign in again. Your saved grades are retained.",
+  portalSignInExpired: "That sign-in window expired. Open sign-in again.",
+  portalAccountChanged:
+    "This is a different Infinite Campus student. Disconnect Infinite Campus before switching students.",
+  portalDisconnectFirst:
+    "Disconnect Infinite Campus before changing districts.",
+  campusIdentityUnsupported:
+    "This district returned an unsupported student identity. The connection was not changed.",
+  malformedCampus:
+    "Infinite Campus returned an unsupported response. Your saved grades are retained.",
+  portalUnavailable:
+    "Infinite Campus could not be reached. Your saved grades are retained.",
+  portalAccessDenied:
+    "Infinite Campus denied access. Your saved grades are retained.",
+  portalRateLimited:
+    "Infinite Campus is limiting requests. Please wait and retry.",
+  portalBrowserBudget:
+    "Sign-in is temporarily unavailable. Please try again later.",
+  browserUnavailable:
+    "The sign-in window could not open. Please wait and retry.",
+  portalPasswordChanged:
+    "Your app password changed. Reconnect Infinite Campus.",
   networkUnavailable:
     "Unable to reach your site. Check your internet connection and retry.",
-  unlockRequired: "Unlock your app in Profile.",
+  unlockRequired: "Unlock your app in Settings.",
   incorrectAppPassword: "That app password was not accepted.",
   loginLimited: "Too many attempts. Please wait before trying again.",
   deploymentPasswordRequired:
