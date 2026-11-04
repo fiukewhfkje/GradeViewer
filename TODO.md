@@ -5,6 +5,7 @@
 - [x] Keep assignment edit and drop available when a what-if course total cannot be calculated; place the edit caret after the current score.
 - [x] Show the official grade with a separate what-if projection, including explicitly marked teacher overrides.
 - [x] Add the Dublin GPA estimate and move course levels, semester credits and exclusions behind Edit courses.
+- [x] Align GPA switches and add a temporary letter-grade what-if estimate.
 - [x] Show a teacher override example in sample mode and use % for the what-if delta.
 - [x] Reproduce the straight-points mismatch and use the points calculation when it uniquely matches a reported quarter total.
 - [x] Verify the matching course’s metadata read-only and use straight points when weighting is off and category weights are zero or absent.

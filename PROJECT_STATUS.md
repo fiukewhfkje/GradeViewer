@@ -1,5 +1,11 @@
 # Project status — November 3, 2026
 
+## Development GPA controls and preview
+
+The semester GPA editor uses left-aligned pill switches for exclusions and credit weighting. What-if GPA accepts temporary letter grades and shows a separate estimate using the saved course levels and credits. Excluded and non-GPA courses remain outside the estimate. The preview does not change saved grades or settings.
+
+Build, 213 tests, 30 browser flows each in Chromium and WebKit, source packaging, and desktop and narrow-phone preview checks passed. The update is on the development branch.
+
 ## v0.1.9 published
 
 [Stable v0.1.9](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.1.9) is published. [PR #18](https://github.com/fiukewhfkje/GradeViewer/pull/18) merged as `1efc1ec3ac82a4556ace5298fbd26336bac87e68` with the assignment editing, straight-points and GPA changes. [Release CI](https://github.com/fiukewhfkje/GradeViewer/actions/runs/41756174474) passed 162 tests and 30 browser flows each in Chromium and WebKit. The signed updater installed the actual published assets into an isolated v0.1.8 copy and retained its synthetic personal config and secret.

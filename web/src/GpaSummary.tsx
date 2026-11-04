@@ -1,9 +1,16 @@
-import { useState, type FormEvent } from "react";
+import {
+  useState,
+  type ComponentProps,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { type Course } from "./core/model";
 import {
   estimateGpa,
+  gpaLetters,
   gpaSemesters,
   type CourseLevel,
+  type GpaLetter,
   type GpaSettings,
 } from "./core/gpa";
 import { descriptor } from "./core/periods";
@@ -21,6 +28,19 @@ const date = new Intl.DateTimeFormat(undefined, {
   timeZone: "UTC",
 });
 
+function GpaToggle({
+  children,
+  ...props
+}: Omit<ComponentProps<"input">, "type"> & { children: ReactNode }) {
+  return (
+    <label className="gpa-check">
+      <input {...props} type="checkbox" role="switch" />
+      <span className="gpa-toggle-track" aria-hidden="true" />
+      {children}
+    </label>
+  );
+}
+
 export function GpaSummary({
   courses,
   settings,
@@ -34,10 +54,16 @@ export function GpaSummary({
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [weighting, setWeighting] = useState(settings?.weighting ?? "equal");
+  const [projectedGrades, setProjectedGrades] =
+    useState<Partial<Record<string, GpaLetter>>>();
   const terms = gpaSemesters(courses);
   const term = terms.find(({ id }) => id === period) ?? terms[0];
   if (!term) return null;
   const result = settings && estimateGpa(courses, term, settings);
+  const projection =
+    settings &&
+    projectedGrades &&
+    estimateGpa(courses, term, settings, projectedGrades);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!settings || !result || saving) return;
@@ -107,7 +133,10 @@ export function GpaSummary({
                   aria-label="Semester"
                   value={term.id}
                   disabled={editing}
-                  onChange={(e) => setPeriod(e.target.value)}
+                  onChange={(e) => {
+                    setPeriod(e.target.value);
+                    if (projectedGrades) setProjectedGrades({});
+                  }}
                 >
                   {terms.map(({ id, course }) => {
                     const { ordinal, start } = descriptor(course);
@@ -123,15 +152,27 @@ export function GpaSummary({
                 <span>Semester {descriptor(term.course).ordinal}</span>
               )}
               {!editing && (
-                <button
-                  className="gpa-edit"
-                  onClick={() => {
-                    setWeighting(settings.weighting);
-                    setEditing(true);
-                  }}
-                >
-                  Edit courses
-                </button>
+                <div className="gpa-actions">
+                  {!projectedGrades && (
+                    <button
+                      className="gpa-edit"
+                      onClick={() => {
+                        setWeighting(settings.weighting);
+                        setEditing(true);
+                      }}
+                    >
+                      Edit courses
+                    </button>
+                  )}
+                  <button
+                    className="gpa-edit"
+                    onClick={() =>
+                      setProjectedGrades(projectedGrades ? undefined : {})
+                    }
+                  >
+                    {projectedGrades ? "Done" : "What-if GPA"}
+                  </button>
+                </div>
               )}
             </div>
             {result.incomplete > 0 && (
@@ -143,18 +184,16 @@ export function GpaSummary({
             )}
             {editing ? (
               <form key={term.id} onSubmit={submit}>
-                <label className="gpa-check">
-                  <input
-                    type="checkbox"
-                    name="weighting"
-                    value="credits"
-                    checked={weighting === "credits"}
-                    onChange={(e) =>
-                      setWeighting(e.target.checked ? "credits" : "equal")
-                    }
-                  />
+                <GpaToggle
+                  name="weighting"
+                  value="credits"
+                  checked={weighting === "credits"}
+                  onChange={(e) =>
+                    setWeighting(e.target.checked ? "credits" : "equal")
+                  }
+                >
                   Weight by semester credits
-                </label>
+                </GpaToggle>
                 {result.rows.map((row) => (
                   <fieldset key={row.key} className="gpa-course">
                     <legend>{row.title}</legend>
@@ -188,14 +227,12 @@ export function GpaSummary({
                         />
                       </label>
                     </div>
-                    <label className="gpa-check">
-                      <input
-                        type="checkbox"
-                        name={row.key + ":exclude"}
-                        defaultChecked={row.override?.excluded}
-                      />
+                    <GpaToggle
+                      name={row.key + ":exclude"}
+                      defaultChecked={row.override?.excluded}
+                    >
                       Exclude from GPA
-                    </label>
+                    </GpaToggle>
                   </fieldset>
                 ))}
                 <div className="button-row">
@@ -213,21 +250,64 @@ export function GpaSummary({
                 </div>
               </form>
             ) : (
-              <ul className="gpa-list">
-                {result.rows.map((row) => (
-                  <li key={row.key}>
-                    <span>
-                      {row.title}
-                      <small>
-                        {row.reason ??
-                          labels[row.override?.level ?? row.suggested]}
-                        {row.conflict && " · Letter and percent differ"}
-                      </small>
+              <>
+                {projection && (
+                  <div
+                    className="gpa-projection"
+                    role="status"
+                    aria-label="What-if GPA estimate"
+                  >
+                    <strong>What-if GPA</strong>
+                    <span className="grade">
+                      {projection.weighted === undefined
+                        ? "Unavailable"
+                        : `${projection.weighted.toFixed(2)} / ${projection.unweighted!.toFixed(2)}`}
                     </span>
-                    <strong>{row.grade ?? "—"}</strong>
-                  </li>
-                ))}
-              </ul>
+                    {projection.incomplete > 0 && (
+                      <small className="muted">Partial estimate</small>
+                    )}
+                  </div>
+                )}
+                <ul className="gpa-list">
+                  {result.rows.map((row) => (
+                    <li key={row.key}>
+                      <span>
+                        {row.title}
+                        <small>
+                          {row.reason ??
+                            labels[row.override?.level ?? row.suggested]}
+                          {row.conflict && " · Letter and percent differ"}
+                        </small>
+                      </span>
+                      {projectedGrades && row.canProject ? (
+                        <select
+                          className="gpa-letter"
+                          aria-label={`What-if grade for ${row.title}`}
+                          value={projectedGrades[row.key] ?? ""}
+                          onChange={(e) => {
+                            const letter = gpaLetters.find(
+                              (value) => value === e.target.value,
+                            );
+                            setProjectedGrades({
+                              ...projectedGrades,
+                              [row.key]: letter,
+                            });
+                          }}
+                        >
+                          <option value="">
+                            {row.grade ? `${row.grade} (current)` : "No grade"}
+                          </option>
+                          {gpaLetters.map((letter) => (
+                            <option key={letter}>{letter}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <strong>{row.grade ?? "—"}</strong>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
             <p className="muted">
               <a href={dublinGuide} target="_blank" rel="noopener noreferrer">

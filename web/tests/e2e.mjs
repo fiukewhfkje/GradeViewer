@@ -527,15 +527,39 @@ try {
       await card.getByRole("button", { name: "Use Dublin GPA scale" }).click();
       await card.getByRole("button", { name: "Edit courses" }).click();
       const biology = card.getByRole("group", { name: "AP Biology" });
-      await card.getByLabel("Weight by semester credits").check();
+      const creditToggle = card.getByRole("switch", {
+        name: "Weight by semester credits",
+      });
+      await creditToggle.focus();
+      await page.keyboard.press("Space");
+      assert.equal(await creditToggle.isChecked(), true);
       await biology.getByLabel("Level").selectOption("honors");
       await biology.getByLabel("Semester credits").fill("0.5");
+      const physics = card.getByRole("group", { name: "AP Physics 1" });
+      await physics.getByText("Exclude from GPA", { exact: true }).click();
+      assert.equal(await physics.getByRole("switch").isChecked(), true);
       await card.getByRole("button", { name: "Save GPA settings" }).click();
       await card
         .getByText("Credits needed", { exact: false })
         .first()
         .waitFor();
       assert.match(await card.locator("summary").innerText(), /4\.50 \/ 4\.00/);
+      await card
+        .getByRole("button", { name: "What-if GPA", exact: true })
+        .click();
+      const projected = card.getByRole("status", {
+        name: "What-if GPA estimate",
+      });
+      await card
+        .getByLabel("What-if grade for AP Biology", { exact: true })
+        .selectOption("B+");
+      assert.match(await projected.innerText(), /3\.83 \/ 3\.33/);
+      assert.match(await card.locator("summary").innerText(), /4\.50 \/ 4\.00/);
+      assert.equal(
+        await card.getByLabel("What-if grade for AP Physics 1").count(),
+        0,
+      );
+      await page.screenshot({ path: directory + "/semester-gpa-what-if.png" });
       const refreshed = page.waitForResponse(
         (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
       );
@@ -544,7 +568,9 @@ try {
       await refreshed;
       await card.locator("summary").click();
       await page.screenshot({ path: directory + "/semester-gpa.png" });
+      assert.equal(await projected.count(), 0);
       await card.getByRole("button", { name: "Edit courses" }).click();
+      assert.equal(await physics.getByRole("switch").isChecked(), true);
       assert.equal(await biology.getByLabel("Level").inputValue(), "honors");
       assert.equal(
         await biology.getByLabel("Semester credits").inputValue(),

@@ -26,6 +26,8 @@ const scale = [
   ["D-", 60, 0.67],
   ["F", 0, 0],
 ] as const;
+export type GpaLetter = (typeof scale)[number][0];
+export const gpaLetters = scale.map(([letter]) => letter);
 
 export function suggestLevel(title: string): CourseLevel {
   const name = normalize(title);
@@ -71,6 +73,7 @@ export function estimateGpa(
   courses: SourceCourse[],
   term: GpaSemester,
   settings: GpaSettings,
+  projectedGrades: Partial<Record<string, GpaLetter>> = {},
 ) {
   const { start, end } = descriptor(term.course);
   const roster = new Map<
@@ -107,7 +110,15 @@ export function estimateGpa(
         suggested = suggestLevel(title),
         level = override?.level ?? suggested,
         credits = override?.credits,
-        mark = course?.grade.letter?.trim().toUpperCase().replaceAll("−", "-"),
+        reportedMark = course?.grade.letter
+          ?.trim()
+          .toUpperCase()
+          .replaceAll("−", "-"),
+        nonGpa =
+          !!reportedMark && /^(S|U|P|PASS|NP|WAIVED)$/.test(reportedMark),
+        canProject = !override?.excluded && !nonGpa && semesters.length <= 1,
+        projection = canProject ? projectedGrades[key] : undefined,
+        mark = projection ?? reportedMark,
         percent = course?.grade.percent,
         fromPercent =
           percent !== undefined && Number.isFinite(percent)
@@ -117,9 +128,8 @@ export function estimateGpa(
         weight = settings.weighting === "equal" ? 1 : credits;
       let reason: string | undefined;
       if (override?.excluded) reason = "Excluded";
-      else if (mark && /^(S|U|P|PASS|NP|WAIVED)$/.test(mark))
-        reason = "Non-GPA grade";
-      else if (!course)
+      else if (nonGpa) reason = "Non-GPA grade";
+      else if (!course && !projection)
         reason = semesters.length
           ? "Multiple semester grades"
           : "No semester grade";
@@ -146,13 +156,19 @@ export function estimateGpa(
       return {
         key,
         title,
+        canProject,
         suggested,
         override,
         reason,
         percent,
         grade: mark ?? grade?.[0],
         inferredGrade: !mark && !!fromPercent,
-        conflict: !!mark && !!grade && !!fromPercent && grade !== fromPercent,
+        conflict:
+          !projection &&
+          !!mark &&
+          !!grade &&
+          !!fromPercent &&
+          grade !== fromPercent,
         weightedPoints: points === undefined ? undefined : points + bonus,
         points,
       };

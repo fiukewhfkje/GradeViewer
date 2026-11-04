@@ -126,6 +126,41 @@ describe("Dublin semester GPA", () => {
     ).toBeUndefined();
   });
 
+  it("projects selected letters without changing the semester grades or course settings", () => {
+    const courses = [
+      semester("1", "AP Science", { percent: 95 }),
+      semester("2", "Literature", {}),
+      semester("3", "Non-credit", { letter: "P" }),
+      semester("4", "Studio", { letter: "B" }),
+    ];
+    const { term, rows } = estimate(courses);
+    const key = (title: string) => rows.find((row) => row.title === title)!.key;
+    const settings = {
+      weighting: "credits" as const,
+      courses: {
+        [key("AP Science")]: { credits: 1 },
+        [key("Literature")]: { credits: 2 },
+        [key("Non-credit")]: { credits: 1 },
+        [key("Studio")]: { credits: 1, excluded: true },
+      },
+    };
+    const original = structuredClone({ courses, settings });
+    const result = estimateGpa(courses, term, settings, {
+      [key("AP Science")]: "B+",
+      [key("Literature")]: "A",
+      [key("Non-credit")]: "A",
+      [key("Studio")]: "A",
+    });
+    expect(result.weighted).toBeCloseTo((4.33 + 8) / 3);
+    expect(result.unweighted).toBeCloseTo((3.33 + 8) / 3);
+    expect(result.incomplete).toBe(0);
+    expect(
+      result.rows.find((row) => row.title === "AP Science")?.conflict,
+    ).toBe(false);
+    expect({ courses, settings }).toEqual(original);
+    expect(estimateGpa(courses, term, settings).weighted).toBe(5);
+  });
+
   it("suggests levels without awarding AP weight for Pre-AP or a substring", () => {
     expect(
       [
