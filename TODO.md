@@ -1,4 +1,4 @@
-# Stable 0.1.11 follow-up — November 4
+# Stable 0.2.0 follow-up — November 4
 
 - [x] Remove idle polling, repeated visible-event scans, automatic cooldown-expiry retry and inline 429 retry; retain fresh opens/returns and manual refresh.
 - [x] Refresh only IC for IC settings actions, preserving Schoology cooldown and provider/account boundaries.
