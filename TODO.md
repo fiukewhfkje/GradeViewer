@@ -3,6 +3,7 @@
 - [x] Read both saved Worker records without provider requests or Browser Run. IC: 42/42 successful checks, 24 alarms; Carmen: 11 successful checks after the original setup 403, five alarms, successful fresh connection and empty course discovery. Both have about 9h 19m sampled verified uptime and no automatic recovery attempts.
 - [x] Separate overnight alarm events from manual/foreground activity. Carmen's five alarms follow 90-minute intervals; retained IC alarms follow about 20 minutes with one successful 24m 27s gap of unknown cause.
 - [x] Re-read saved diagnostics at 08:44 EST: unchanged recent successes and zero automatic re-login/recovery attempts. Confirm the Worker uses encrypted cookie jars; operator diagnostics cannot expose cookie values or establish individual rotations. No new provider probe or experiment change.
+- [x] Clarify counter semantics from source: 24 scheduled IC alarm checks plus 18 app-driven checks, including automatic app-open/foreground refresh and provider Settings actions. These are not counts of manual refresh presses; `manual` identifies Check connection, while grade refresh uses `foreground`. Preserve no idle grade polling.
 - [ ] Continue observing multi-day session survival, actual recovery outcomes and human-action frequency. The first overnight result does not prove idle extension or enrolled Carmen grade compatibility.
 
 # Parallel session checks — November 4
