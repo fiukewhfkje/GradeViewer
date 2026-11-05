@@ -1,3 +1,8 @@
+# IC graph follow-up — November 4
+
+- [x] Trace flat semester graphs with dated assignments to the explicit-weight reconstruction gate; run the 44 existing graph/IC tests.
+- [ ] Normalize verified, parent-specific IC composite calculation weights so compatible dated assignment prefixes can reconstruct semester history. Preserve observed history, baseline validation and withholding when rules are incomplete; do not infer weights from matching totals.
+
 # Stable 0.2.0 follow-up — November 4
 
 - [x] Remove idle polling, repeated visible-event scans, automatic cooldown-expiry retry and inline 429 retry; retain fresh opens/returns and manual refresh.
