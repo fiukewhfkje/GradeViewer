@@ -1,6 +1,6 @@
 # Carmen development integration — November 4, 2026
 
-This implementation is developed on `codex/investigate-gpa-carmen`. The owner authorized an experimental deployment to their existing Worker only; deployment verification is pending. It is not released or merged to main. Main contains the owner's selected Infinite Campus testing feature. No Carmen student records are committed.
+This implementation is developed on `codex/investigate-gpa-carmen`. At the owner's request, development commit 963efe8 is deployed as 0.2.2-alpha.0 only to their [existing Worker](https://gradeviewer.fiukewhfkje.workers.dev). Six public asset hashes, preserved vault/password/browser bindings, locked APIs and the private read-only diagnostic capability verify successfully. It is not a published prerelease, stable release or main merge. Main/stable retain Schoology with selected Infinite Campus courses. No real Carmen request was made during deployment verification; the diagnostic record is empty until fresh human sign-in starts the experiment. No Carmen student records are committed.
 
 ## Connection and refresh
 

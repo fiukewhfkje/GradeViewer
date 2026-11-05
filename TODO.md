@@ -6,7 +6,8 @@
 - [x] Keep Settings minimal; store detailed diagnostics on the Worker with a narrowly scoped private operator retrieval key, honest health indicators and recovery documentation; correct the unconditional 24-hour MFA assumption.
 - [x] Pass build/type check and 294 local tests.
 - [x] Complete headless Chromium/WebKit (37 flows each), isolated package/update and Worker checks; inspect compact phone Settings and 320/768/1440 containment.
-- [ ] Deploy only to the owner’s existing Worker and verify assets/vault/password/auth boundaries.
+- [x] Deploy development 963efe8 (0.2.2-alpha.0) only to the existing owner Worker; verify six asset hashes, unchanged vault/password/browser bindings, locked APIs and read-only private operator retrieval. Main/stable remain unchanged.
+- [x] Pass hosted development CI in both browser engines (run 41964207144), with release jobs skipped.
 - [ ] Owner completes fresh Carmen sign-in to begin measurements; no old Mac/Muse session is imported.
 - [ ] Observe actual recovery outcomes and human-action frequency over time; do not promise two-week uptime.
 
@@ -24,7 +25,7 @@
 
 - [x] Carry main 0.2.0 refresh/CI changes into the Carmen development branch without merging Carmen into main.
 - [x] Validate both provider-specific callbacks, 285 tests, 37 flows per browser, build, packaging and Worker dry-run.
-- [ ] Keep Carmen undeployed and outside stable publication pending enrolled-account acceptance and explicit release authorization.
+- [x] Keep Carmen outside main/stable publication; the latest owner-only deployment exception supersedes the earlier undeployed hold. Enrolled-account acceptance and any broader release remain pending.
 
 # Stable 0.2.0 follow-up — November 4
 
