@@ -4,8 +4,8 @@
 - [x] Refresh only IC for IC settings actions, preserving Schoology cooldown and provider/account boundaries.
 - [x] Replace fixed browser-test delays with controlled fixture responses/alarms and consolidate duplicate CI checks.
 - [x] Complete build/type check, 207 tests, all 35 flows in each browser, package/dry-run, isolated-template update/rollback and production dependency audit.
-- [ ] Complete hosted CI and measure the new workflow.
-- [ ] Publish the owner-authorized stable main release, verify provenance/assets and the existing owner Worker, and carry shared changes onto the undeployed Carmen branch.
+- [x] Complete hosted CI and measure the new workflow: 2:00 overall and 44/46-second browser suites in the first completed run.
+- [x] Publish v0.2.0 from main 4f8da78, verify downloaded provenance/hashes/latest status and the existing owner Worker, and carry shared fixes onto the undeployed Carmen branch at 9d542bb.
 
 # Current follow-up — November 4
 
@@ -18,7 +18,7 @@
 - [x] Deploy the semester correction through bed8049 and verify assets, vault/password bindings, locked APIs and successful main CI.
 - [ ] Confirm semester display/GPA with an owner refresh; no numeric student-grade capture was used for this fix.
 - [x] Deploy the blank-course/hide follow-up only to the owner's existing Worker; verify assets and vault/password/auth boundaries. Keep Carmen separate and undeployed.
-- [ ] Resume the stable release only after the owner lifts the latest stop.
+- [x] The owner lifted the main release hold; v0.2.0 is published. Carmen remains held and undeployed.
 
 # Next work
 
