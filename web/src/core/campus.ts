@@ -1,4 +1,5 @@
 import type { Assignment, Category, SourceCourse } from "./model";
+import { semester } from "./periods";
 import {
   collection,
   object,
@@ -22,6 +23,15 @@ const list = (v: unknown): Row[] => {
   if (!Array.isArray(v)) return bad();
   return collection(v);
 };
+// Calculation flags may be exposed by the task rather than repeated on every
+// category. Conflicting or unrecognized declarations do not establish a rule.
+function ruleFlag(values: unknown[]) {
+  const declared = values.filter((v) => v !== undefined && v !== null);
+  if (!declared.length) return;
+  if (declared.some((v) => !/^(?:true|false|0|1)$/i.test(String(v)))) return;
+  const flags = declared.map(flag);
+  return new Set(flags).size === 1 ? flags[0] : undefined;
+}
 export interface CampusChoice {
   id: string;
   section: string;
@@ -104,6 +114,7 @@ function compositeSemester(
   if (children.length < 2 || children.length > 6) return;
   const seen = new Set<string>();
   const spans: { start: number; end: number }[] = [];
+  const components: { term: string; task: string; weight?: number }[] = [];
   const quarters: {
     ordinal: number;
     start: number;
@@ -132,6 +143,11 @@ function compositeSemester(
           taskID,
     );
     if (targets.length !== 1) return;
+    components.push({
+      term: termID,
+      task: taskID,
+      weight: number(child.calculationWeight),
+    });
     const target = targets[0];
     const start = date(target.term.startDate),
       end = date(target.term.endDate);
@@ -169,6 +185,7 @@ function compositeSemester(
     end: last.end,
     startDateOnly: first.startDateOnly,
     endDateOnly: last.endDateOnly,
+    components,
   };
 }
 export function parseCampus(
@@ -184,6 +201,10 @@ export function parseCampus(
     return bad();
   const output: SourceCourse[] = [],
     rows = campusRows(summary);
+  const composites = new Map<
+    string,
+    NonNullable<ReturnType<typeof compositeSemester>>
+  >();
   for (const row of rows) {
     const { school, term, course, task } = row;
     const physical = id(school.schoolID) + ":" + id(course.sectionID);
@@ -197,7 +218,14 @@ export function parseCampus(
     const categories: Category[] = [],
       assignments: Assignment[] = [];
     const weighted: boolean[] = [];
-    let unknownRules = false;
+    const unsupported = (rules: Row) =>
+      [
+        rules.isComposite,
+        rules.hasCompositeTasks,
+        rules.isRollup,
+        rules.cumulativeGrading,
+      ].some(flag) || (number(rules.maxAssignments) ?? 0) > 0;
+    let unknownRules = unsupported(task);
     for (const entry of entries) {
       const scope = object(entry.task);
       if (
@@ -205,6 +233,7 @@ export function parseCampus(
         id(scope.taskID ?? scope.gradingTaskID) !== taskID
       )
         continue;
+      if (unsupported(scope)) unknownRules = true;
       for (const cat of list(entry.categories)) {
         const cid =
           namespace +
@@ -212,14 +241,36 @@ export function parseCampus(
           id(cat.categoryID ?? cat.groupID ?? cat._id);
         if (!nonempty(cat.name) || categories.some((c) => c.id === cid))
           return bad();
-        if (cat.isWeighted === undefined) unknownRules = true;
-        else weighted.push(flag(cat.isWeighted));
+        const categoryWeighted = ruleFlag([
+          cat.isWeighted,
+          task.groupWeighted,
+          scope.groupWeighted,
+        ]);
+        if (categoryWeighted === undefined) unknownRules = true;
+        else weighted.push(categoryWeighted);
         const drop = number(cat.dropLowest ?? cat.dropLowestScore) ?? 0;
         if (!Number.isSafeInteger(drop) || drop < 0) return bad();
-        const percent = flag(cat.useScorePercent ?? cat.usePercent);
+        const percentDeclarations = [
+          cat.useScorePercent,
+          cat.usePercent,
+          task.usePercent,
+          scope.usePercent,
+        ];
+        const percent = ruleFlag(percentDeclarations);
+        if (
+          percent === undefined &&
+          percentDeclarations.some((v) => v !== undefined && v !== null)
+        )
+          unknownRules = true;
         if (
           cat.calculationType !== undefined &&
           !["points", "percent"].includes(String(cat.calculationType))
+        )
+          unknownRules = true;
+        if (
+          cat.calculationType !== undefined &&
+          percent !== undefined &&
+          (cat.calculationType === "percent") !== percent
         )
           unknownRules = true;
         categories.push({
@@ -269,8 +320,6 @@ export function parseCampus(
         }
       }
     }
-    if (task.isComposite || task.isRollup || task.cumulativeGrading)
-      unknownRules = true;
     const progress =
       number(task.progressPercent) !== undefined ||
       nonempty(task.progressScore) !== undefined;
@@ -285,6 +334,7 @@ export function parseCampus(
       ownEnd = date(task.endDate);
     const composite =
       kind === "semester" ? compositeSemester(row, entries, rows) : undefined;
+    if (composite) composites.set(namespace, composite);
     const start =
       ownStart ??
       (kind === "semester" && !/^s(?:emester)?\s*\d/i.test(termName)
@@ -351,6 +401,42 @@ export function parseCampus(
         ...(kind ? { period_kind: kind } : {}),
       },
     });
+  }
+  // calculationWeight belongs to an edge in a composite, not to a quarter in
+  // isolation. Use it only when all links resolve to this unique semester.
+  for (const [parentID, composite] of composites) {
+    const parent = output.find((c) => c.id === parentID)!;
+    const children = composite.components.map((component) => ({
+      component,
+      course: output.find(
+        (c) =>
+          c.fields.physical_key === parent.fields.physical_key &&
+          c.term.id === component.term + ":" + component.task,
+      ),
+    }));
+    if (
+      children.some(
+        ({ course }) => !course || semester(course, output)?.id !== parentID,
+      )
+    )
+      continue;
+    if (
+      children.some(
+        ({ component }) =>
+          component.weight === undefined || component.weight < 0,
+      ) ||
+      !children.some(({ component }) => component.weight! > 0) ||
+      children.some(
+        ({ component, course }) =>
+          course!.term.weight !== undefined &&
+          course!.term.weight !== component.weight,
+      )
+    ) {
+      for (const { course } of children) delete course!.term.weight;
+      continue;
+    }
+    for (const { component, course } of children)
+      course!.term.weight = component.weight;
   }
   return output;
 }

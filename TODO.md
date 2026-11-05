@@ -1,7 +1,12 @@
 # IC graph follow-up — November 4
 
+- [x] Read task-level category/score-percent options and backfill fresh IC semester curves through the existing baseline-checked calculator.
+- [x] Validate 209 tests, both full 35-flow browser suites, packaging and Worker dry-run locally without Browser Run.
+- [x] Complete isolated-template install/build/update-fixture/configuration-secret retention/rollback checks.
+- [ ] Complete hosted checks, deploy the owner patch and publish/verify 0.2.1.
+- [ ] Confirm the owner graph after a normal IC refresh; new account results were not captured during this fix.
 - [x] Trace flat semester graphs with dated assignments to the explicit-weight reconstruction gate; run the 44 existing graph/IC tests.
-- [ ] Normalize verified, parent-specific IC composite calculation weights so compatible dated assignment prefixes can reconstruct semester history. Preserve observed history, baseline validation and withholding when rules are incomplete; do not infer weights from matching totals.
+- [x] Normalize verified, parent-specific IC composite calculation weights so compatible dated assignment prefixes can reconstruct semester history. Preserve observed history, baseline validation and withholding when rules are incomplete; do not infer weights from matching totals.
 
 # Stable 0.2.0 follow-up — November 4
 
