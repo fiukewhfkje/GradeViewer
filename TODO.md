@@ -1,3 +1,13 @@
+# IC graph follow-up — November 4
+
+- [x] Read task-level category/score-percent options and backfill fresh IC semester curves through the existing baseline-checked calculator.
+- [x] Validate 209 tests, both full 35-flow browser suites, packaging and Worker dry-run locally without Browser Run.
+- [x] Complete isolated-template install/build/update-fixture/configuration-secret retention/rollback checks.
+- [x] Complete both hosted browser suites, verify the existing owner deployment and publish signed v0.2.1 from aad372b; downloaded hashes/provenance/latest-stable status pass.
+- [ ] Confirm the owner graph after a normal IC refresh; new account results were not captured during this fix.
+- [x] Trace flat semester graphs with dated assignments to the explicit-weight reconstruction gate; run the 44 existing graph/IC tests.
+- [x] Normalize verified, parent-specific IC composite calculation weights so compatible dated assignment prefixes can reconstruct semester history. Preserve observed history, baseline validation and withholding when rules are incomplete; do not infer weights from matching totals.
+
 # Held Carmen branch sync — November 4
 
 - [x] Carry main 0.2.0 refresh/CI changes into the Carmen development branch without merging Carmen into main.
@@ -10,8 +20,8 @@
 - [x] Refresh only IC for IC settings actions, preserving Schoology cooldown and provider/account boundaries.
 - [x] Replace fixed browser-test delays with controlled fixture responses/alarms and consolidate duplicate CI checks.
 - [x] Complete build/type check, 207 tests, all 35 flows in each browser, package/dry-run, isolated-template update/rollback and production dependency audit.
-- [ ] Complete hosted CI and measure the new workflow.
-- [ ] Publish the owner-authorized stable main release, verify provenance/assets and the existing owner Worker, and carry shared changes onto the undeployed Carmen branch.
+- [x] Complete hosted CI and measure the new workflow: 2:00 overall and 44/46-second browser suites in the first completed run.
+- [x] Publish v0.2.0 from main 4f8da78, verify downloaded provenance/hashes/latest status and the existing owner Worker, and carry shared fixes onto the undeployed Carmen branch at 9d542bb.
 
 # Current follow-up — November 4
 
@@ -24,7 +34,7 @@
 - [x] Deploy the semester correction through bed8049 and verify assets, vault/password bindings, locked APIs and successful main CI.
 - [ ] Confirm semester display/GPA with an owner refresh; no numeric student-grade capture was used for this fix.
 - [x] Deploy the blank-course/hide follow-up only to the owner's existing Worker; verify assets and vault/password/auth boundaries. Keep Carmen separate and undeployed.
-- [ ] Resume the stable release only after the owner lifts the latest stop.
+- [x] The owner lifted the main release hold; v0.2.0 is published. Carmen remains held and undeployed.
 
 # Next work
 

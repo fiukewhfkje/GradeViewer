@@ -11,6 +11,7 @@ import {
 import { calculate, hypothetical } from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
 import { demoCourses } from "../src/core/demo";
+import { recentProgression } from "../src/core/progression";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
 import { portalBrowser } from "../worker/portal-browser";
@@ -20,6 +21,7 @@ import {
   campusPortal,
   campusState,
   campusCompositeFixture,
+  campusBackfillFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
 const parsed = () =>
@@ -31,6 +33,87 @@ const parsed = () =>
     now,
   );
 describe("selected IC normalization", () => {
+  it("backfills dated semester events using task category options and explicit composite child weights", () => {
+    const { summary, detail } = campusBackfillFixture();
+    const before = JSON.stringify({ summary, detail });
+    const sources = parseCampus(
+      summary,
+      { "100": detail },
+      ["1:100"],
+      "account",
+      now,
+    );
+    const courses = reconcile(sources, [], now);
+    const q1 = courses.find((c) => c.term.id === "501:1")!;
+    const q2 = courses.find((c) => c.term.id === "502:1")!;
+    const final = overall(q2, courses);
+    expect([q1.method, q2.method]).toEqual([
+      "weightedCategories",
+      "weightedCategories",
+    ]);
+    expect([q1.term.weight, q2.term.weight]).toEqual([3, 4]);
+    expect([calculate(q1), calculate(q2)]).toEqual([82, 96]);
+    const points = recentProgression(q2, courses, now);
+    expect(points.map((p) => p.date)).toEqual(
+      ["2026-09-10", "2026-09-20", "2026-09-25", "2026-10-05", "2026-10-20"]
+        .map(Date.parse)
+        .concat(now),
+    );
+    const expected = [50, 70, 82, (82 * 3 + 100 * 4) / 7, 90, 90];
+    points.forEach((p, i) => expect(p.percent).toBeCloseTo(expected[i]));
+    expect(points.slice(0, -1).every((p) => p.calculated)).toBe(true);
+    expect(points.at(-1)?.calculated).toBe(false);
+    expect(final.history).toHaveLength(1);
+    expect(final.grade.percent).toBe(90);
+    expect(JSON.stringify({ summary, detail })).toBe(before);
+  });
+  it("withholds composite backfill for missing/conflicting rules, invalid weights and incompatible totals", () => {
+    for (const problem of [
+      "missing",
+      "negative",
+      "conflicting",
+      "baseline",
+      "ambiguous",
+    ]) {
+      const { summary, detail } = campusBackfillFixture();
+      const final = detail.details.find(
+        (entry) => entry.task.termID === 502 && entry.task.taskID === 4,
+      )!;
+      if (problem === "missing") delete final.children![0].calculationWeight;
+      if (problem === "negative") final.children![0].calculationWeight = -1;
+      if (problem === "conflicting")
+        detail.details[0].categories[0].isWeighted = false;
+      if (problem === "baseline")
+        summary[0].terms[1].courses[0].gradingTasks.find(
+          (t) => t.taskID === 4,
+        )!.progressPercent = 91;
+      if (problem === "ambiguous") {
+        const duplicate = { ...final.task, taskID: 6 };
+        summary[0].terms[1].courses[0].gradingTasks.push(duplicate);
+        detail.details.push({ ...structuredClone(final), task: duplicate });
+      }
+      const courses = reconcile(
+        parseCampus(summary, { "100": detail }, ["1:100"], "account", now),
+        [],
+        now,
+      );
+      const q2 = courses.find((c) => c.term.id === "502:1")!;
+      if (problem === "ambiguous") {
+        expect(courses.every((c) => c.term.weight === undefined)).toBe(true);
+        continue;
+      }
+      const points = recentProgression(q2, courses, now);
+      if (problem === "conflicting") {
+        expect(
+          points.filter((p) => p.date < Date.parse("2026-10-02")),
+          problem,
+        ).toEqual([]);
+      } else {
+        expect(points, problem).toHaveLength(1);
+        expect(points[0].calculated, problem).toBe(false);
+      }
+    }
+  });
   it("maps Q2/Q4 Final tasks to semesters using their explicit child links", () => {
     const { summary, detail } = campusCompositeFixture();
     const courses = parseCampus(
@@ -189,20 +272,33 @@ describe("selected IC normalization", () => {
     expect(() => campusStudent([])).toThrow();
   });
   it("calculates unweighted score percentages without raw-point/category reweighting", () => {
-    const detail = structuredClone(campusDetail),
-      cat = detail.details[0].categories[0];
-    Object.assign(cat, { useScorePercent: true });
-    cat.assignments.push({
-      ...cat.assignments[0],
-      objectSectionID: 8,
-      scorePoints: 0,
-      totalPoints: 100,
-    });
-    expect(
-      calculate(
-        parseCampus(campusSummary, { "100": detail }, ["1:100"], "account")[0],
-      ),
-    ).toBe(45);
+    for (const rules of ["category", "task"]) {
+      const detail = structuredClone(campusDetail),
+        cat = detail.details[0].categories[0];
+      if (rules === "category") Object.assign(cat, { useScorePercent: true });
+      else
+        Object.assign(detail.details[0].task, {
+          groupWeighted: false,
+          usePercent: true,
+        });
+      cat.assignments.push({
+        ...cat.assignments[0],
+        objectSectionID: 8,
+        scorePoints: 0,
+        totalPoints: 100,
+      });
+      expect(
+        calculate(
+          parseCampus(
+            campusSummary,
+            { "100": detail },
+            ["1:100"],
+            "account",
+          )[0],
+        ),
+        rules,
+      ).toBe(45);
+    }
   });
 });
 function harness(withBinding = false) {

@@ -1929,6 +1929,18 @@ try {
       await ic.click();
       assert.match(await page.locator(".summary").innerText(), /S1 overall/);
       assert.match(await page.locator(".summary .grade").innerText(), /90/);
+      // A first IC connection has no prior local observations. Provider-dated
+      // assignments still reconstruct the semester through both weight levels.
+      const icChart = page.getByRole("slider", {
+        name: "Explore grade history",
+      });
+      assert.ok(Number(await icChart.getAttribute("aria-valuemax")) >= 5);
+      await icChart.focus();
+      await icChart.press("Home");
+      assert.match(await page.locator(".chart-tooltip").innerText(), /50\.00/);
+      await icChart.press("End");
+      assert.match(await page.locator(".chart-tooltip").innerText(), /90\.00/);
+      await icChart.press("Escape");
       await page.getByText("Synthetic work", { exact: true }).first().waitFor();
       await page
         .getByRole("button", { name: "View All Assignments", exact: true })
