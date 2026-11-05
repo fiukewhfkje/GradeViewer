@@ -1,3 +1,9 @@
+# Parallel overnight diagnostics — November 5
+
+- [x] Read both saved Worker records without provider requests or Browser Run. IC: 42/42 successful checks, 24 alarms; Carmen: 11 successful checks after the original setup 403, five alarms, successful fresh connection and empty course discovery. Both have about 9h 19m sampled verified uptime and no automatic recovery attempts.
+- [x] Separate overnight alarm events from manual/foreground activity. Carmen's five alarms follow 90-minute intervals; retained IC alarms follow about 20 minutes with one successful 24m 27s gap of unknown cause.
+- [ ] Continue observing multi-day session survival, actual recovery outcomes and human-action frequency. The first overnight result does not prove idle extension or enrolled Carmen grade compatibility.
+
 # Parallel session checks — November 4
 
 - [x] Read the actual saved Carmen failure: first profile GET returned 403 before course discovery; do not label this an expired session or proven permission denial.
@@ -5,7 +11,7 @@
 - [x] Add independent IC 20-minute HTTP maintenance, pause/reconnect controls and compact health/uptime; retain Carmen's 90-minute experiment.
 - [x] Store separate private IC/Carmen diagnostics readable after provider rejection, with no grade/cookie/identity contents.
 - [x] Validate and deploy owner development commit 479149d. Verify both private diagnostic reads and the existing app/vault authorization boundaries.
-- [ ] Fresh human sign-ins verify Carmen's corrected request and begin the parallel live lifetime test. Neither idle extension nor a universal 30-minute IC session is established.
+- [x] Fresh Carmen sign-in and subsequent IC/Carmen automatic successes begin the parallel live lifetime test, verified from saved November 5 diagnostics. Neither idle extension nor a universal 30-minute IC session is established.
 
 # Carmen owner-only experiment — November 4
 
@@ -17,7 +23,7 @@
 - [x] Complete headless Chromium/WebKit (37 flows each), isolated package/update and Worker checks; inspect compact phone Settings and 320/768/1440 containment.
 - [x] Deploy development 963efe8 (0.2.2-alpha.0) only to the existing owner Worker; verify six asset hashes, unchanged vault/password/browser bindings, locked APIs and read-only private operator retrieval. Main/stable remain unchanged.
 - [x] Pass hosted development CI in both browser engines (run 41964207144), with release jobs skipped.
-- [ ] Owner completes fresh Carmen sign-in to begin measurements; no old Mac/Muse session is imported.
+- [x] Owner completes fresh Carmen sign-in to begin measurements; November 5 saved diagnostics confirm the connection and overnight checks. No old Mac/Muse session was imported.
 - [ ] Observe actual recovery outcomes and human-action frequency over time; do not promise two-week uptime.
 
 # IC graph follow-up — November 4
