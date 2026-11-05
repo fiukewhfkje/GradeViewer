@@ -67,6 +67,8 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  portalRequestBlocked:
+    "Carmen rejected GradeViewer’s connection check. Your browser sign-in may still be active. Details were saved for troubleshooting.",
   portalTimeout:
     "The grade service took too long to respond. Your saved grades are retained.",
   malformedCanvas:

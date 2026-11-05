@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import { reconcile } from "../src/core/reconcile";
 import {
@@ -24,6 +24,7 @@ import {
   campusBackfillFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
+afterEach(() => vi.useRealTimers());
 const parsed = () =>
   parseCampus(
     campusSummary,
@@ -410,6 +411,59 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
+  it.each([false, true])(
+    "checks IC at 20 minutes without a browser or grade freshness change (profile-bound %s)",
+    async (profileBound) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+      const h = harness();
+      if (profileBound) h.setStudentNumber("123456");
+      await h.service.handle("start", { portal: campusPortal });
+      await h.service.handle("finish");
+      await h.service.handle("select", { selected: ["1:100"] });
+      const verified = (await h.service.status()).lastVerified,
+        browsers = h.browserCalls();
+      h.calls.length = 0;
+      vi.setSystemTime(now + 19 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      vi.setSystemTime(now + 20 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([
+        profileBound
+          ? "/campus/resources/portal/grades"
+          : "/campus/resources/portal/roster",
+      ]);
+      expect(h.browserCalls()).toBe(browsers);
+      expect((await h.service.status()).diagnostics?.backgroundChecks).toBe(1);
+      expect(await h.service.status()).toMatchObject({
+        selected: ["1:100"],
+        maintenance: true,
+        lastVerified: verified,
+        lastKeepalive: now + 20 * 60000,
+        nextMaintenance: now + 40 * 60000,
+      });
+      await h.service.handle("maintenance", { enabled: false });
+      h.calls.length = 0;
+      vi.setSystemTime(now + 50 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      await h.service.handle("maintenance", { enabled: true });
+      h.expire();
+      vi.setSystemTime(now + 70 * 60000);
+      await h.service.expire();
+      expect(await h.service.status()).toMatchObject({
+        needsReconnect: true,
+        nextMaintenance: undefined,
+        selected: ["1:100"],
+      });
+      h.calls.length = 0;
+      vi.setSystemTime(now + 90 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      expect(h.browserCalls()).toBe(browsers);
+    },
+  );
   it.each([
     ["429: Browser time limit exceeded for today", "portalBrowserDailyLimit"],
     ["429: Too many requests", "portalBrowserRateLimited"],

@@ -1,8 +1,9 @@
 // Owner-only operator utility. The capability reads sanitized diagnostics only.
 import { readFile, lstat, realpath } from "node:fs/promises";
 import { resolve, relative, sep, isAbsolute } from "node:path";
-const [url, file] = process.argv.slice(2);
+const [url, file, provider = "carmen"] = process.argv.slice(2);
 try {
+  if (!["carmen", "campus"].includes(provider)) throw new Error();
   const target = new URL(url);
   if (
     target.protocol !== "https:" ||
@@ -31,7 +32,7 @@ try {
     throw new Error();
   const key = (await readFile(path, "utf8")).trim();
   if (!/^[a-f0-9]{64}$/.test(key)) throw new Error();
-  const response = await fetch(new URL("api/carmen/diagnostics", target), {
+  const response = await fetch(new URL(`api/${provider}/diagnostics`, target), {
     headers: { Authorization: "Bearer " + key },
     cache: "no-store",
     redirect: "error",

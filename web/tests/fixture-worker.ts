@@ -164,6 +164,13 @@ export class FixtureVault extends CredentialVault {
   }
   protected upstream = async (request: Request): Promise<Response> => {
     if (new URL(request.url).hostname === "osu.instructure.com") {
+      if (
+        !request.headers.get("User-Agent")?.startsWith("GradeViewer/") ||
+        request.headers.get("X-Requested-With") !== "XMLHttpRequest" ||
+        request.headers.get("Referer") !== "https://osu.instructure.com/" ||
+        request.headers.get("X-CSRF-Token") !== "synthetic/csrf+token="
+      )
+        return Response.json({ status: "unauthorized" }, { status: 403 });
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
         malformed?: boolean;

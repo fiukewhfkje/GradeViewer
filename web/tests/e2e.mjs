@@ -260,6 +260,13 @@ try {
       body: "{}",
     });
     assert.equal(forbiddenWrite.status, 401);
+    const icDiagnosticURL = base + "/api/campus/diagnostics";
+    assert.equal((await fetch(icDiagnosticURL)).status, 401);
+    const icDiagnostic = await fetch(icDiagnosticURL, {
+      headers: operatorHeaders,
+    });
+    assert.equal(icDiagnostic.status, 200);
+    assert.deepEqual(await icDiagnostic.json(), { diagnostics: null });
     const shell = await fetch(base);
     assert.match(
       shell.headers.get("Content-Security-Policy"),
@@ -1990,6 +1997,37 @@ try {
       assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const icConnection = page
+          .locator(".portal-connection")
+          .filter({ hasText: "Infinite Campus" }),
+        icMaintenance = icConnection.getByRole("switch", {
+          name: "Keep connected",
+          exact: true,
+        });
+      assert.equal(await icMaintenance.isChecked(), true);
+      let maintenanceScans = 0;
+      const countMaintenanceScans = (request) => {
+        if (request.url().endsWith("/api/scan/start")) maintenanceScans++;
+      };
+      page.on("request", countMaintenanceScans);
+      await icMaintenance.uncheck();
+      await page.waitForFunction(
+        async () =>
+          !(await (await fetch("/api/status")).json()).portals.campus
+            .maintenance,
+      );
+      await icMaintenance.check();
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.campus
+            .maintenance,
+      );
+      page.off("request", countMaintenanceScans);
+      assert.equal(
+        maintenanceScans,
+        0,
+        "IC maintenance settings must not scan Schoology",
+      );
       await context.request.post(base + "/api/fixture/campus", {
         data: { courseDelayMs: 1200 },
       });

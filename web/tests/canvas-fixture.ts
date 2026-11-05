@@ -90,6 +90,16 @@ export const canvasDetails = () => ({
 export const canvasState: BrowserState = {
   cookies: [
     {
+      name: "_csrf_token",
+      value: "synthetic%2Fcsrf%2Btoken%3D",
+      domain: "osu.instructure.com",
+      path: "/",
+      expires: -1,
+      secure: true,
+      httpOnly: false,
+      sameSite: "Lax",
+    },
+    {
       name: "_normandy_session",
       value: "synthetic-canvas-session",
       domain: "osu.instructure.com",

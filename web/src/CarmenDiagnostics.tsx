@@ -12,16 +12,25 @@ function uptime(ms: number) {
       : `${minutes}m`;
 }
 
-export function carmenHealth(status: PortalStatus, now = Date.now()) {
+export function carmenHealth(
+  status: PortalStatus,
+  now = Date.now(),
+  intervalMinutes = 90,
+) {
   const d = status.diagnostics,
     fault = d?.currentFailure;
   if (!status.connected) return { label: "Not connected", tone: "neutral" };
   if (fault?.category === "accessDenied")
     return { label: "Access denied", tone: "error" };
+  if (fault?.category === "requestBlocked")
+    return { label: "Check blocked", tone: "warning" };
   if (status.needsReconnect) return { label: "Sign-in needed", tone: "error" };
   if (fault?.stage === "profile" || fault?.stage === "browser")
     return { label: "Access unconfirmed", tone: "warning" };
-  if (d?.lastSuccessAt && now - d.lastSuccessAt <= 95 * 60000)
+  if (
+    d?.lastSuccessAt &&
+    now - d.lastSuccessAt <= (intervalMinutes + 5) * 60000
+  )
     return { label: "Alive", tone: "alive" };
   return { label: "Check overdue", tone: "warning" };
 }
@@ -30,11 +39,13 @@ export function CarmenDiagnostics({
   busy,
   check,
   refresh,
+  provider = "carmen",
 }: {
   status: PortalStatus;
   busy: boolean;
   check: () => void;
   refresh: () => void;
+  provider?: "carmen" | "campus";
 }) {
   const [now, setNow] = useState(Date.now());
   const dueRefresh = useEffectEvent(refresh);
@@ -62,7 +73,8 @@ export function CarmenDiagnostics({
     return () => clearTimeout(timer);
   }, [status.nextMaintenance, status.maintenance, busy]);
   const d = status.diagnostics,
-    health = carmenHealth(status, now);
+    title = provider === "campus" ? "Infinite Campus" : "Carmen",
+    health = carmenHealth(status, now, provider === "campus" ? 20 : 90);
   const reason =
     status.recoveryBlocked === "duo"
       ? "Sign in again to approve Duo."
@@ -73,12 +85,14 @@ export function CarmenDiagnostics({
           : status.needsReconnect
             ? "Sign in again to restore the connection."
             : d?.currentFailure?.category === "rateLimit"
-              ? "Carmen is limiting requests. Checks will wait."
+              ? `${title} is limiting requests. Checks will wait.`
               : d?.currentFailure?.category === "accessDenied"
-                ? "Carmen denied access."
-                : d?.currentFailure
-                  ? "The last connection check failed. Details are saved for troubleshooting."
-                  : undefined;
+                ? `${title} denied access.`
+                : d?.currentFailure?.category === "requestBlocked"
+                  ? `${title} blocked the connection check. Details are saved for troubleshooting.`
+                  : d?.currentFailure
+                    ? "The last connection check failed. Details are saved for troubleshooting."
+                    : undefined;
   return (
     <div className="portal-body carmen-diagnostics">
       <div className="carmen-health-heading">

@@ -39,6 +39,17 @@ export interface CarmenDiagnostics {
   firstRejection?: CarmenEvent;
   lastFailure?: CarmenEvent;
   currentFailure?: CarmenEvent;
+  lastHttpRejection?: {
+    at: number;
+    stage: CarmenStage;
+    httpStatus: number;
+    responseType: string;
+    reason: string;
+    sessionCookiePresent: boolean;
+    csrfCookiePresent: boolean;
+    csrfHeaderSent: boolean;
+    clientHeaderSent: boolean;
+  };
   events: CarmenEvent[];
 }
 export function newCarmenDiagnostics(now: number): CarmenDiagnostics {
@@ -99,6 +110,7 @@ export function carmenFailure(code: string, status?: number) {
   const categories: Record<string, string> = {
     portalSignInRequired: "authentication",
     portalAccessDenied: "accessDenied",
+    portalRequestBlocked: "requestBlocked",
     portalAccountChanged: "accountChanged",
     portalRateLimited: "rateLimit",
     portalTimeout: "timeout",

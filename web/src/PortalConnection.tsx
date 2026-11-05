@@ -354,53 +354,56 @@ export function PortalConnection({
               <span>Reconnect {title}</span>
               <ChevronRight size={18} />
             </button>
-            {carmen && (
-              <div className="portal-body">
+            <div className="portal-body">
+              {carmen && (
                 <p className="portal-description">
                   Your student courses sync automatically.
                 </p>
-                <label className="gpa-check">
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={maintenance}
-                    disabled={disabled || busy}
-                    onChange={(e) => {
-                      const enabled = e.target.checked;
-                      setMaintenance(enabled);
-                      void run(async () => {
-                        try {
-                          await api("campus/maintenance", { enabled });
-                          await refreshStatus();
-                        } catch (error) {
-                          setMaintenance(!!status.maintenance);
-                          throw error;
-                        }
-                      });
-                    }}
-                  />
-                  <span className="gpa-toggle-track" aria-hidden="true" />
-                  <span>Keep connected</span>
-                </label>
-                <p className="muted">Automatic session checks and reconnect.</p>
-              </div>
-            )}
-            {carmen && (
-              <CarmenDiagnostics
-                status={status}
-                busy={disabled || busy}
-                refresh={() => void run(refreshStatus)}
-                check={() =>
-                  void run(async () => {
-                    try {
-                      await api("campus/check", {});
-                    } finally {
-                      await refreshStatus();
-                    }
-                  }, "Checking session…")
-                }
-              />
-            )}
+              )}
+              <label className="gpa-check">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={maintenance}
+                  disabled={disabled || busy}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    setMaintenance(enabled);
+                    void run(async () => {
+                      try {
+                        await api("campus/maintenance", { enabled });
+                        await refreshStatus();
+                      } catch (error) {
+                        setMaintenance(!!status.maintenance);
+                        throw error;
+                      }
+                    });
+                  }}
+                />
+                <span className="gpa-toggle-track" aria-hidden="true" />
+                <span>Keep connected</span>
+              </label>
+              <p className="muted">
+                {carmen
+                  ? "Automatic session checks and reconnect."
+                  : "Checks the IC connection every 20 minutes."}
+              </p>
+            </div>
+            <CarmenDiagnostics
+              provider={provider}
+              status={status}
+              busy={disabled || busy}
+              refresh={() => void run(refreshStatus)}
+              check={() =>
+                void run(async () => {
+                  try {
+                    await api("campus/check", {});
+                  } finally {
+                    await refreshStatus();
+                  }
+                }, "Checking session…")
+              }
+            />
             <button
               className="portal-disconnect danger"
               disabled={disabled || busy}

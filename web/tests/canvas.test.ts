@@ -1,10 +1,16 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { canvasChoices, canvasStudent, parseCanvas } from "../src/core/canvas";
-import { canvasNext, canvasCoursesPath, canvasURL } from "../worker/canvas";
+import {
+  canvasNext,
+  canvasCoursesPath,
+  canvasURL,
+  canvasRejection,
+  canvasSessionHeaders,
+} from "../worker/canvas";
 import { calculate } from "../src/core/calculator";
 import { estimateGpa, gpaSemesters } from "../src/core/gpa";
-import { PortalService } from "../worker/portal";
+import { PortalService, browserJar } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
 import { unseal, type Envelope } from "../worker/crypto";
 import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
@@ -193,6 +199,7 @@ function harness() {
     blocked: CarmenRecoveryStep = "unknown",
     hanging = false,
     networkError: string | undefined,
+    rejection: Response | undefined,
     empty = false,
     nextLink: string | undefined;
   const storage = {
@@ -241,9 +248,25 @@ function harness() {
     expect(req.method).toBe("GET");
     expect(u.origin).toBe("https://osu.instructure.com");
     expect(req.headers.get("Cookie")).not.toContain("idp");
+    expect(req.headers.get("User-Agent")).toMatch(/^GradeViewer\//);
+    expect(req.headers.get("X-Requested-With")).toBe("XMLHttpRequest");
+    expect(req.headers.get("Referer")).toBe("https://osu.instructure.com/");
+    const csrf = req.headers
+      .get("Cookie")
+      ?.match(/(?:^|; )_csrf_token=([^;]+)/)?.[1];
+    expect(csrf).toBeTruthy();
+    expect(req.headers.get("X-CSRF-Token")).toBe(decodeURIComponent(csrf!));
+    if (rejection) return rejection.clone();
     if (failure)
       return Response.json(
-        {},
+        failure === 403
+          ? {
+              status: "unauthorized",
+              errors: [
+                { message: "user not authorized to perform that action" },
+              ],
+            }
+          : {},
         {
           status: failure,
           headers: failure === 429 ? { "Retry-After": "120" } : {},
@@ -253,10 +276,16 @@ function harness() {
       return Response.json(
         { id: identity },
         {
-          headers: {
-            "Set-Cookie":
+          headers: [
+            [
+              "Set-Cookie",
               "_normandy_session=synthetic-rotated; Path=/; Secure; HttpOnly",
-          },
+            ],
+            [
+              "Set-Cookie",
+              "_csrf_token=synthetic%2Frotated%3D; Path=/; Secure",
+            ],
+          ],
         },
       );
     if (u.pathname === "/api/v1/courses")
@@ -313,6 +342,9 @@ function harness() {
     fail: (s: number) => {
       failure = s;
     },
+    reject: (response: Response) => {
+      rejection = response;
+    },
     change: () => {
       identity = 99;
     },
@@ -332,6 +364,66 @@ async function connect(h: ReturnType<typeof harness>) {
   await h.service.handle("finish");
 }
 describe("encrypted Carmen session and HTTP maintenance", () => {
+  it("records an initial HTML verification rejection without inventing a permission error or opening recovery", async () => {
+    const h = harness();
+    await h.service.handle("start");
+    h.reject(
+      new Response(
+        "<html>Request blocked. private synthetic error must not persist</html>",
+        { status: 403, headers: { "Content-Type": "text/html" } },
+      ),
+    );
+    await expect(h.service.handle("finish")).rejects.toThrow(
+      "portalRequestBlocked",
+    );
+    const status = await h.service.status();
+    expect(status.connected).toBe(false);
+    expect(status.diagnostics?.lastHttpRejection).toMatchObject({
+      stage: "profile",
+      httpStatus: 403,
+      responseType: "html",
+      reason: "challenge",
+      sessionCookiePresent: true,
+      csrfCookiePresent: true,
+      csrfHeaderSent: true,
+      clientHeaderSent: true,
+    });
+    expect(status.diagnostics?.recoveriesAttempted).toBe(0);
+    expect(JSON.stringify(status.diagnostics)).not.toMatch(
+      /private synthetic|synthetic-canvas-session|synthetic%2F|<html>/,
+    );
+    expect(h.browsers).toBe(2);
+    await h.service.handle("cancel");
+  });
+  it("scopes session headers and classifies bounded rejections without retaining provider text", async () => {
+    const jar = browserJar(canvasState, "https://osu.instructure.com");
+    expect(() =>
+      canvasSessionHeaders(
+        jar,
+        new URL("https://other.instructure.com/api/v1/users/self/profile"),
+      ),
+    ).toThrow("invalidRequest");
+    expect(
+      await canvasRejection(
+        Response.json({
+          status: "unauthorized",
+          errors: [{ message: "user not authorized to perform that action" }],
+        }),
+      ),
+    ).toEqual({ responseType: "json", reason: "permission" });
+    expect(
+      await canvasRejection(
+        Response.json({ message: "private unrecognized error" }),
+      ),
+    ).toEqual({ responseType: "json", reason: "unknown" });
+    expect(
+      await canvasRejection(
+        new Response("<html>private page</html>", {
+          headers: { "Content-Type": "text/html", "cf-mitigated": "challenge" },
+        }),
+      ),
+    ).toEqual({ responseType: "html", reason: "challenge" });
+  });
   it("connects without Schoology, discovers all courses, encrypts and rotates scoped cookies", async () => {
     const h = harness();
     await connect(h);

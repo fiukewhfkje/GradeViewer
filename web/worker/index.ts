@@ -414,7 +414,9 @@ export class CredentialVault {
       // Separate read-only operator capability: this route reads sanitized
       // diagnostics only and cannot access sessions, cookies, grades or providers.
       if (
-        new URL(request.url).pathname === "/api/carmen/diagnostics" &&
+        ["/api/carmen/diagnostics", "/api/campus/diagnostics"].includes(
+          new URL(request.url).pathname,
+        ) &&
         request.method === "GET"
       ) {
         const expected = this.env.CARMEN_DIAGNOSTICS_KEY;
@@ -428,7 +430,11 @@ export class CredentialVault {
           throw new ApiError(401, "diagnosticsUnauthorized");
         return json({
           diagnostics:
-            (await this.ctx.storage.get("carmen-diagnostics")) ?? null,
+            (await this.ctx.storage.get(
+              new URL(request.url).pathname.includes("/campus/")
+                ? "campus-diagnostics"
+                : "carmen-diagnostics",
+            )) ?? null,
         });
       }
       if (!this.env.APP_PASSWORD || this.env.APP_PASSWORD.length < 12)

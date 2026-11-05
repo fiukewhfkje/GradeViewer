@@ -1,3 +1,12 @@
+# Parallel session checks — November 4
+
+- [x] Read the actual saved Carmen failure: first profile GET returned 403 before course discovery; do not label this an expired session or proven permission denial.
+- [x] Correct Canvas request headers and add bounded, sanitized rejection details without launching another cloud browser.
+- [x] Add independent IC 20-minute HTTP maintenance, pause/reconnect controls and compact health/uptime; retain Carmen's 90-minute experiment.
+- [x] Store separate private IC/Carmen diagnostics readable after provider rejection, with no grade/cookie/identity contents.
+- [ ] Finish validation and deploy only the owner development experiment; keep main/stable unchanged.
+- [ ] Fresh human sign-ins verify Carmen's corrected request and begin the parallel live lifetime test. Neither idle extension nor a universal 30-minute IC session is established.
+
 # Carmen owner-only experiment — November 4
 
 - [x] Keep main/stable separate and incorporate current shared fixes into Carmen development.

@@ -4,6 +4,8 @@ import {
   canvasAllowed,
   canvasNext,
   canvasCoursesPath,
+  canvasSessionHeaders,
+  canvasRejection,
 } from "./canvas";
 
 import { campusURL, campusLogin, campusHome } from "./campus-url";
@@ -119,17 +121,16 @@ export class PortalService {
     type: Parameters<typeof carmenEvent>[1]["type"],
     extra: Partial<Parameters<typeof carmenEvent>[1]> = {},
   ) {
-    if (this.kind === "carmen")
-      carmenEvent(this.diagnostics(c), {
-        at: Date.now(),
-        type,
-        trigger: this.trigger,
-        stage: this.stage,
-        ...extra,
-      });
+    carmenEvent(this.diagnostics(c), {
+      at: Date.now(),
+      type,
+      trigger: this.trigger,
+      stage: this.stage,
+      ...extra,
+    });
   }
   private failure(c: PortalConnection, error: unknown) {
-    if (this.kind !== "carmen" || this.recordedError === error) return;
+    if (this.recordedError === error) return;
     this.recordedError = error;
     const detail = carmenFailure(
       error instanceof ApiError ? error.code : "unexpectedFailure",
@@ -152,6 +153,9 @@ export class PortalService {
     return this.kind === "carmen"
       ? canvasCoursesPath
       : "resources/portal/grades";
+  }
+  private get maintenanceInterval() {
+    return (this.kind === "campus" ? 20 : 90) * 60_000;
   }
   private choices(summary: unknown) {
     return this.kind === "carmen"
@@ -277,11 +281,12 @@ export class PortalService {
   }
   private async save(s: PortalStore) {
     await this.storage.put(`portal-${this.kind}`, await seal(s, this.password));
-    if (this.kind === "carmen") {
-      if (s.connection?.diagnostics)
-        await this.storage.put("carmen-diagnostics", s.connection.diagnostics);
-      else await this.storage.delete("carmen-diagnostics");
-    }
+    if (s.connection?.diagnostics)
+      await this.storage.put(
+        `${this.kind}-diagnostics`,
+        s.connection.diagnostics,
+      );
+    else await this.storage.delete(`${this.kind}-diagnostics`);
     await this.storage.put("portal-browser-budget", {
       browserDay: s.browserDay,
       browserMs: s.browserMs,
@@ -302,6 +307,14 @@ export class PortalService {
     try {
       const s = await this.load(),
         c = s.connection;
+      // Upgrade an existing IC connection once, without a provider request.
+      // Explicitly paused connections retain their saved preference.
+      if (this.kind === "campus" && c?.account && c.maintenance === undefined) {
+        c.maintenance = true;
+        if (!c.needsReconnect && c.jar)
+          c.nextMaintenance = Date.now() + this.maintenanceInterval;
+        await this.save(s);
+      }
       return {
         connected: !!c?.account,
         needsReconnect: !!c?.needsReconnect,
@@ -312,7 +325,7 @@ export class PortalService {
         maintenance: !!c?.maintenance,
         nextMaintenance: c?.nextMaintenance,
         lastKeepalive: c?.lastKeepalive,
-        diagnostics: this.kind === "carmen" ? c?.diagnostics : undefined,
+        diagnostics: c?.diagnostics,
         recoveryBlocked:
           this.kind === "carmen" ? c?.recoveryBlocked : undefined,
       };
@@ -425,7 +438,7 @@ export class PortalService {
       c.maintenanceFailures = 0;
       delete c.recoveryBlocked;
       if (c.maintenance && !c.maintenancePaused)
-        c.nextMaintenance = Date.now() + 90 * 60_000;
+        c.nextMaintenance = Date.now() + this.maintenanceInterval;
       this.event(c, "httpSuccess", { stage: "profile", httpStatus: 200 });
       this.event(c, "recovered", {
         stage: "browser",
@@ -500,7 +513,7 @@ export class PortalService {
       }
     }
   }
-  private async expireCarmen() {
+  private async expireMaintenance() {
     this.requests = 0;
     this.bytes = 0;
     this.trigger = "alarm";
@@ -515,7 +528,6 @@ export class PortalService {
     try {
       if (c?.pending && c.pending.expires <= Date.now()) await this.close(s);
       if (
-        this.kind !== "carmen" ||
         !c?.maintenance ||
         c.maintenancePaused ||
         !c.nextMaintenance ||
@@ -533,11 +545,19 @@ export class PortalService {
       }
       let jar = CookieJar.deserializeSync(c.jar);
       try {
-        await this.verify(c, jar);
+        if (this.kind === "campus" && c.profileAccount) {
+          // The authenticated Student Profile bound this jar at sign-in. Some
+          // district rosters omit identity, so validate the existing grades
+          // collection without assignment details or changing local snapshots.
+          this.diagnostics(c).profileChecks++;
+          this.diagnostics(c).backgroundChecks++;
+          campusChoices(await this.read(c, this.summaryPath, jar));
+          this.event(c, "httpSuccess", { stage: "courses", httpStatus: 200 });
+        } else await this.verify(c, jar);
         c.lastKeepalive = Date.now();
         c.maintenanceFailures = 0;
         c.needsReconnect = false;
-        c.nextMaintenance = Date.now() + 90 * 60_000;
+        c.nextMaintenance = Date.now() + this.maintenanceInterval;
       } catch (error) {
         this.failure(c, error);
         if (error instanceof ApiError && error.code === "portalRateLimited")
@@ -545,6 +565,7 @@ export class PortalService {
         if (
           error instanceof ApiError &&
           error.code === "portalSignInRequired" &&
+          this.kind === "carmen" &&
           (await this.recover(s, c))
         ) {
           jar = CookieJar.deserializeSync(c.jar!);
@@ -574,9 +595,7 @@ export class PortalService {
     }
   }
   async expire() {
-    if (this.kind === "carmen") return this.expireCarmen();
-    const s = await this.load();
-    await this.monitorSignIn(s);
+    return this.expireMaintenance();
   }
   private async monitorSignIn(s: PortalStore) {
     const c = s.connection,
@@ -643,9 +662,9 @@ export class PortalService {
     u: URL,
     jar: CookieJar,
   ): Promise<{ data: unknown; link: string | null }> {
-    this.stage = u.pathname.endsWith("/profile")
+    this.stage = /\/(profile|roster)$/.test(u.pathname)
       ? "profile"
-      : u.pathname.endsWith("/courses")
+      : /\/(courses|grades)$/.test(u.pathname)
         ? "courses"
         : "assignments";
     this.httpStatus = undefined;
@@ -661,10 +680,13 @@ export class PortalService {
       throw new ApiError(400, "invalidRequest");
     let r: Response;
     const request = new Request(u, {
-      headers: {
-        Accept: "application/json",
-        Cookie: jar.getCookieStringSync(u.href),
-      },
+      headers:
+        this.kind === "carmen"
+          ? canvasSessionHeaders(jar, u)
+          : {
+              Accept: "application/json",
+              Cookie: jar.getCookieStringSync(u.href),
+            },
       redirect: "manual",
       signal: AbortSignal.timeout(15_000),
     });
@@ -719,6 +741,28 @@ export class PortalService {
       );
     }
     if (!r.ok) {
+      if (r.status === 403 && this.kind === "carmen") {
+        const rejection = await canvasRejection(r),
+          cookies = jar.getCookiesSync(u.href);
+        this.diagnostics(c).lastHttpRejection = {
+          at: Date.now(),
+          stage: this.stage,
+          httpStatus: r.status,
+          ...rejection,
+          sessionCookiePresent: cookies.some((x) =>
+            ["_normandy_session", "canvas_session"].includes(x.key),
+          ),
+          csrfCookiePresent: cookies.some((x) => x.key === "_csrf_token"),
+          csrfHeaderSent: request.headers.has("X-CSRF-Token"),
+          clientHeaderSent: request.headers.has("User-Agent"),
+        };
+        throw new ApiError(
+          403,
+          rejection.reason === "permission"
+            ? "portalAccessDenied"
+            : "portalRequestBlocked",
+        );
+      }
       await r.body?.cancel();
       if (r.status === 404 && path === "resources/portal/roster")
         throw new ApiError(502, "campusIdentityUnsupported");
@@ -757,7 +801,7 @@ export class PortalService {
     }
   }
   private async verify(c: PortalConnection, jar: CookieJar, observe = true) {
-    if (this.kind === "carmen" && observe) {
+    if (observe) {
       this.diagnostics(c).profileChecks++;
       if (this.trigger === "alarm") this.diagnostics(c).backgroundChecks++;
     }
@@ -780,12 +824,15 @@ export class PortalService {
     if (observe)
       this.event(c, "httpSuccess", { stage: "profile", httpStatus: 200 });
     if (c.maintenance && !c.maintenancePaused)
-      c.nextMaintenance = Date.now() + 90 * 60_000;
+      c.nextMaintenance = Date.now() + this.maintenanceInterval;
     return account;
   }
   private async fetch(c: PortalConnection) {
     if (!c.jar) throw new ApiError(401, "portalSignInRequired");
     const jar = CookieJar.deserializeSync(c.jar);
+    const profileBound =
+      this.kind === "campus" && !!c.profileAccount && !!c.account;
+    if (profileBound) this.diagnostics(c).profileChecks++;
     try {
       // A profile-bound jar was created only after verifying the Student Profile
       // and a successful grades read. It cannot be replaced by an HTTP refresh.
@@ -796,11 +843,13 @@ export class PortalService {
         summary = await this.read(c, this.summaryPath, jar);
       const choices = this.choices(summary),
         details: Record<string, unknown> = {};
-      if (this.kind === "carmen") {
-        this.diagnostics(c).courseCount = choices.length;
-        this.diagnostics(c).lastCourseReadAt = Date.now();
-        this.event(c, "coursesRead", { stage: "courses", httpStatus: 200 });
-      }
+      if (profileBound)
+        this.event(c, "httpSuccess", { stage: "courses", httpStatus: 200 });
+      this.diagnostics(c).courseCount = choices.length;
+      this.diagnostics(c).lastCourseReadAt = Date.now();
+      this.event(c, "coursesRead", { stage: "courses", httpStatus: 200 });
+      if (this.kind === "campus" && c.maintenance && !c.maintenancePaused)
+        c.nextMaintenance = Date.now() + this.maintenanceInterval;
       // Keep request and memory amplification bounded. Discovery does not request assignment details.
       return { account, summary, choices, details, jar };
     } finally {
@@ -822,8 +871,7 @@ export class PortalService {
     } catch (error) {
       if (action !== "disconnect") throw error;
       await this.storage.delete(`portal-${this.kind}`);
-      if (this.kind === "carmen")
-        await this.storage.delete("carmen-diagnostics");
+      await this.storage.delete(`${this.kind}-diagnostics`);
       return { ok: true };
     }
     let c = s.connection;
@@ -981,7 +1029,7 @@ export class PortalService {
             c.maintenance ??= true;
             c.maintenanceFailures = 0;
             c.nextMaintenance = c.maintenance
-              ? Date.now() + 90 * 60_000
+              ? Date.now() + this.maintenanceInterval
               : undefined;
             c.entry = c.portal;
             delete c.recoveryBlocked;
@@ -1122,6 +1170,13 @@ export class PortalService {
           c.jar = jar.serializeSync();
           c.needsReconnect = false;
           c.lastVerified = Date.now();
+          c.maintenance ??= true;
+          c.maintenanceFailures = 0;
+          delete c.maintenancePaused;
+          c.nextMaintenance = c.maintenance
+            ? Date.now() + this.maintenanceInterval
+            : undefined;
+          this.event(c, "connected", { trigger: "manual", stage: "profile" });
           if (p.attempt) c.completed = { attempt: p.attempt, firstConnection };
           // Persist the verified cookies before stopping the remote Chrome session.
           await this.save(s);
@@ -1147,13 +1202,15 @@ export class PortalService {
           if (c.pending) await browser.detach?.().catch(() => {});
         }
       }
-      if (action === "maintenance" && this.kind === "carmen") {
+      if (action === "maintenance") {
         if (typeof b.enabled !== "boolean")
           throw new ApiError(400, "invalidRequest");
         c.maintenance = b.enabled;
         delete c.maintenancePaused;
         c.maintenanceFailures = 0;
-        c.nextMaintenance = b.enabled ? Date.now() + 90 * 60_000 : undefined;
+        c.nextMaintenance = b.enabled
+          ? Date.now() + this.maintenanceInterval
+          : undefined;
         this.event(c, b.enabled ? "resumed" : "paused");
         return { ok: true };
       }
@@ -1178,7 +1235,7 @@ export class PortalService {
         if (!(await this.recover(s, c))) throw error;
         fresh = await this.fetch(c);
       }
-      if (action === "check" && this.kind === "carmen")
+      if (action === "check")
         return { ok: true, courseCount: fresh.choices.length };
       if (action === "courses")
         return { courses: fresh.choices, selected: c.selected };

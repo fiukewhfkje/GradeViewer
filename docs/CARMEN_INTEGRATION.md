@@ -1,5 +1,9 @@
 # Carmen development integration — November 4, 2026
 
+Latest follow-up: the owner's fresh dashboard sign-in produced HTTP 403 on the Worker's first profile read, before courses. The original record contains no response classification, so its exact source remains unknown. Canvas requests now include the app's honest User-Agent, XHR header, decoded scoped CSRF token and same-origin referrer; no password, Duo, access-control or challenge is bypassed. A bounded rejection classifier stores only fixed enums and header/cookie presence booleans, distinguishing explicit Canvas permission errors from unknown/HTML/challenge responses. This correction passes synthetic checks but needs another human sign-in to establish real access. See PROJECT_STATUS.md for current deployment/validation evidence.
+
+The owner also authorized a parallel IC 20-minute HTTP experiment with separate diagnostics. The existing private key can read exactly `/api/carmen/diagnostics` and `/api/campus/diagnostics`. Append `campus` to the operator command below to inspect IC; no other endpoint accepts that capability. IC has no automatic browser recovery. Both use compact Settings health and total verified uptime while details stay on the Worker.
+
 This implementation is developed on `codex/investigate-gpa-carmen`. At the owner's request, development commit 963efe8 is deployed as 0.2.2-alpha.0 only to their [existing Worker](https://gradeviewer.fiukewhfkje.workers.dev). Six public asset hashes, preserved vault/password/browser bindings, locked APIs and the private read-only diagnostic capability verify successfully. It is not a published prerelease, stable release or main merge. Main/stable retain Schoology with selected Infinite Campus courses. No real Carmen request was made during deployment verification; the diagnostic record is empty until fresh human sign-in starts the experiment. No Carmen student records are committed.
 
 ## Connection and refresh

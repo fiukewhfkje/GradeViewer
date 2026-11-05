@@ -1362,6 +1362,7 @@ export default function App() {
                       {!demo && !locked && (
                         <PortalConnection
                           status={status?.portals?.campus}
+                          refreshStatus={refreshStatus}
                           disabled={
                             !(status?.schoologyConnected ?? status?.connected)
                           }
