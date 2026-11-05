@@ -1,3 +1,15 @@
+# Carmen owner-only experiment — November 4
+
+- [x] Keep main/stable separate and incorporate current shared fixes into Carmen development.
+- [x] Add reversible main-LMS selection without disconnecting either provider or deleting saved data.
+- [x] Add 90-minute HTTP maintenance with bounded silent recovery and explicit human-action stops.
+- [x] Keep Settings minimal; store detailed diagnostics on the Worker with a narrowly scoped private operator retrieval key, honest health indicators and recovery documentation; correct the unconditional 24-hour MFA assumption.
+- [x] Pass build/type check and 294 local tests.
+- [x] Complete headless Chromium/WebKit (37 flows each), isolated package/update and Worker checks; inspect compact phone Settings and 320/768/1440 containment.
+- [ ] Deploy only to the owner’s existing Worker and verify assets/vault/password/auth boundaries.
+- [ ] Owner completes fresh Carmen sign-in to begin measurements; no old Mac/Muse session is imported.
+- [ ] Observe actual recovery outcomes and human-action frequency over time; do not promise two-week uptime.
+
 # IC graph follow-up — November 4
 
 - [x] Read task-level category/score-percent options and backfill fresh IC semester curves through the existing baseline-checked calculator.

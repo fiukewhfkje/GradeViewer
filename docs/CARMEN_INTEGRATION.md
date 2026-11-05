@@ -1,10 +1,10 @@
 # Carmen development integration — November 4, 2026
 
-This implementation is held on `codex/investigate-gpa-carmen`. It is not deployed, released or merged to main. Main contains the owner's selected Infinite Campus testing feature. No Carmen student records are committed.
+This implementation is developed on `codex/investigate-gpa-carmen`. The owner authorized an experimental deployment to their existing Worker only; deployment verification is pending. It is not released or merged to main. Main contains the owner's selected Infinite Campus testing feature. No Carmen student records are committed.
 
 ## Connection and refresh
 
-Settings has a CarmenCanvas connection card with the same polished sign-in/actions/switches as IC. Carmen can be the only provider; Schoology keys are optional. The owner completes OSU login/MFA in the existing bounded Cloudflare Live View window, returns to GradeViewer and chooses Finish connecting. GradeViewer never enters or stores a university password. The Worker encrypts scoped session cookies and sign-in browser state using the existing app password. Only Canvas cookies enter HTTP grade requests; identity-provider cookies remain in encrypted browser state. HTTP cookie rotations are retained for later requests and browser restoration.
+Settings has a CarmenCanvas connection card with the same sign-in flow as IC. Carmen can be the only provider; Schoology keys are optional. The owner completes OSU login/MFA in the bounded Cloudflare Live View window; GradeViewer verifies the connection and closes that window automatically. GradeViewer never enters or stores a university password. The Worker encrypts scoped session cookies and sign-in browser state using the existing app password. Only Canvas cookies enter HTTP grade requests; identity-provider cookies remain in encrypted browser state. HTTP cookie rotations are retained for later requests and browser restoration.
 
 The provider origin is fixed to `https://osu.instructure.com`. All provider requests are GETs, follow a fixed route/query allowlist, and never forward cookies through HTTP redirects. Same-account self-profile verification precedes discovery. RFC Link pagination uses `http-link-header` (MIT), restricted to the original same-origin collection and authorization/filter parameters, at most 20 pages, 45 requests and 4 MB per operation. At most 20 courses sync, with three detail jobs in flight. Oversized, incomplete, ambiguous or invalid responses fail without replacing local grades. A genuine empty course list only clears Carmen after successful identity verification and schema validation.
 
@@ -26,13 +26,47 @@ A separate Ohio State semester GPA card uses the [Registrar's letter points](htt
 
 The owner enters credits from the schedule. Percent-only Carmen totals do not imply a universal Ohio State letter cutoff; a missing letter stays incomplete unless the user enters a clearly labeled local GPA letter override. What-if letters are temporary. All GPA settings and predictions stay in IndexedDB and never write to Canvas. This is an estimate, not an official transcript calculation.
 
-## Session checks and reconnect
+## Owner-only experiment and switching LMS
 
-The owner requested a 90-minute session check. Successful human connection enables it, with an immediate Settings switch to disable it. The existing Durable Object alarm makes only a self-profile HTTP read, retains cookie rotation and verifies the same account. It never opens a browser, reads grades, handles MFA or invents refreshed-grade timestamps. Foreground verification postpones the next background check. Rate limits are honored; transient failures have bounded retries, and rejected/denied/changed-account access pauses checks. No external scheduler or model runs on ticks.
+Settings explicitly labels Carmen **Experimental**. “Use Carmen as main LMS” selects the university course list and Ohio State GPA; switching it off restores Schoology and selected IC courses. The preference is local to that browser. Both provider connections, cached snapshots, observations, scenarios and GPA settings remain saved. Ordinary foreground/manual refresh reads the selected LMS only. Each provider still replaces only its own snapshot partition. Other devices share the same encrypted Worker connection and alarm rather than creating independent background loops.
 
-Foreground authentication rejection may try one bounded silent SSO recovery using retained state and shared IC/Carmen browser budgets. If SSO needs human action, Reconnect CarmenCanvas opens normal login again, retaining local grades and preferences. No browser keepalive loop runs while the app is closed. Background HTTP activity may or may not extend OSU's session; that must be measured separately.
+Switching views does **not** stop Carmen maintenance. “Keep connected” pauses/resumes that separately; disconnect stops it and removes the Carmen connection. The experiment starts after a fresh successful human sign-in, not from the older Mac/Muse benchmark captures. A schema-valid empty course list is a successful connected result. It does not require an enrolled gradebook to measure authentication.
 
-The owner's service-desk email reports a two-hour Carmen idle setting but explicitly says activity/reset behavior across Canvas, the browser, Duo and Shibboleth is unpredictable. It does not endorse this integration or provide student developer tokens. The UI discloses experimental/unsupported status. No ticket, email address or personal correspondence is committed.
+## Streamlined initial sign-in
+
+The same IC sign-in infrastructure prepares the cloud browser before offering Open CarmenCanvas. The owner handles Ohio State credentials, Duo and policies directly. While this explicit sign-in is pending, the existing alarm observes the browser’s page destinations, verifies same-account HTTP profile/course access, saves scoped encrypted cookies, closes the temporary cloud browser and tells the PWA to close its sign-in view automatically. Sign-in attempts have a four-minute deadline. A transient verification failure can be retried without discarding the last successful connection.
+
+## Background checks and bounded silent recovery
+
+A Durable Object alarm runs 90 minutes after the most recent successful authenticated profile request. It performs a small self-profile GET, retains rotated cookies and verifies the same account; it does not fetch grades, keep a browser open, run a model, or need a separate cron Worker. Foreground checks are distinguished from alarm checks in diagnostics and postpone the next tick. Nominal background activity is 16 HTTP checks per day. [Durable Object alarm invocations count as requests](https://developers.cloudflare.com/durable-objects/platform/pricing/); normal successful HTTP checks consume no Browser Run time.
+
+Only a confirmed authentication rejection (401 or a recognized sign-in redirect) may invoke the shared silent recovery path. Both foreground and background recovery restore the encrypted browser state, navigate the captured Carmen entry, and re-verify the same account. The browser work has a 25-second deadline, short bounded classification/cleanup, a 30-second inactivity lease, five-minute retry spacing and shared IC/Carmen limits. It reserves a conservative 60-second allowance before acquisition and refunds unused time only after confirmed closure; recovery has a 120-second rolling-24-hour allowance as well as the shared daily browser allowance. A close failure pauses maintenance and retains the reservation. These are application wall-time safeguards, not a claim about exact Cloudflare billing or other workloads in the account.
+
+No password is entered or stored and no Duo approval or policy acceptance is automated. If the restored SSO session can continue without human input, recovery can succeed; a valid remembered-Duo browser alone does not guarantee a valid SSO session. Known password, Duo and policy screens block further automatic recovery until manual reconnect. Denied access (403), throttling (429), network errors, timeouts, invalid responses and account changes are distinct from session expiry; they do not trigger a browser. Transient maintenance errors have at most three attempts; retries honor the saved cooldown, and persistent failures pause rather than loop.
+
+The dated [February 11, 2025 OSU announcement](https://it.osu.edu/news/2025/02/11/updates-buckeyepass-mean-youll-authenticate-less-often) extends remembered authentication to **7 days in familiar/trusted locations** and requires reauthentication from a new place. The [general BuckeyePass FAQ](https://it.osu.edu/security/services/buckeyepass) still contains older 24-hour language and explicitly separates MFA from application timeouts. Therefore the earlier documentation’s unconditional 24-hour framing was incomplete: daily manual login is not established, and seven days is not guaranteed for a Cloudflare browser. OSU’s [two-hour Carmen inactivity announcement](https://it.osu.edu/news/2025/08/18/technology-updates-autumn-2025) does not establish that these HTTP requests reset that idle timer. Multi-week unattended operation remains the experiment’s question, not a promised capability.
+
+## Simple Settings and private diagnostics
+
+At the owner’s request, Settings shows only the experimental LMS toggle, connection/reconnect controls, “Keep connected”, a compact Alive/Sign-in needed/Access denied/Access unconfirmed/Check overdue indicator, the last verified time, total verified uptime, a short actionable failure reason and “Check connection”. There is no statistics dashboard, explanation accordion, timeline or diagnostic export in the product UI. Uptime sums elapsed spans between successful checks, ends at the last successful check, survives automatic recovery, and excludes failed/recovery gaps. It starts at zero and advances at successful checks; sampled endpoints cannot prove continuous availability between them. The indicator ages locally and re-reads saved Worker status shortly after the expected alarm, with at most three delayed-alarm reads. Those status reads never probe Carmen or refresh grades.
+
+Detailed records remain on the owner’s Worker. They include experiment/session start, successful/attempted HTTP checks, background checks, manual sign-ins, silent recovery attempts/successes, last course read/count including zero, first failure/authentication rejection and the last 32 structured events. Recovery starts a new session segment while the overall experiment start/counters remain. Fixed codes/categories/stages, actual HTTP statuses and elapsed times distinguish expired authentication, denied access, throttling, provider/network/timeout/response failures, Duo/password/policy screens and cleanup/budget failures. No identity, grades, provider bodies, cookie values, SSO URLs or page text are stored in diagnostics. A sanitized copy persists under the private Durable Object key `carmen-diagnostics`, independently of Carmen access, until explicit disconnect. The underlying cookie/browser state remains encrypted separately.
+
+Operator retrieval uses `GET /api/carmen/diagnostics` and a dedicated random `CARMEN_DIAGNOSTICS_KEY` secret provisioned for this owner-only deployment. It is a read-only capability for this sanitized record: it cannot authenticate the app, read cookies/grades, call a provider, change maintenance, or disconnect a session. It is never sent to the PWA or committed. Normal app authentication/origin checks remain required for every other API. Retrieval therefore still works after Carmen/SSO expires, without logging into Carmen again. Cloudflare’s telemetry query API rejected this Mac’s current CLI credential with 403; this implementation does not enable broad request logs or depend on that unavailable permission or log retention.
+
+The owner’s local operator key is retained with mode 600 outside Git:
+
+```text
+/Users/ashtonchang/Library/Application Support/GradeViewer/CarmenWorkerExperiment/diagnostics-key
+```
+
+From `web/`, an authorized future investigation can read only the saved record:
+
+```sh
+node scripts/read-carmen-diagnostics.mjs https://gradeviewer.fiukewhfkje.workers.dev/ "/Users/ashtonchang/Library/Application Support/GradeViewer/CarmenWorkerExperiment/diagnostics-key"
+```
+
+The utility rejects insecure URLs, redirects, in-repository files, symlinks and non-private key files, and never prints the key. Do not paste key values or fetch provider/session endpoints while investigating. A failure timestamp is when rejection was observed, not the exact expiry time. The prior successful check and rejection bound that interval; successful silent recovery is separate from the original session surviving. Multi-week unattended operation and actual human-action frequency still require the owner’s fresh sign-in and observation.
 
 ## Actual account evidence
 

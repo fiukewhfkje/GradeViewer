@@ -119,6 +119,16 @@ async function stop() {
     clearTimeout(timer);
   }
 }
+async function completeCarmenSignIn(page, client) {
+  await page
+    .getByRole("link", { name: "Open CarmenCanvas", exact: true })
+    .click();
+  await client.post(base + "/api/fixture/carmen", { data: { signedIn: true } });
+  await page
+    .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
+    .waitFor();
+  await page.waitForFunction(() => !document.querySelector(".portal-progress"));
+}
 async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
   if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
@@ -229,6 +239,27 @@ try {
     console.error("Synthetic page error:", e.message);
   });
   await check("private API and security headers", async () => {
+    const diagnosticsURL = base + "/api/carmen/diagnostics";
+    assert.equal((await fetch(diagnosticsURL)).status, 401);
+    const operatorHeaders = {
+      Authorization:
+        "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    };
+    const diagnostic = await fetch(diagnosticsURL, {
+      headers: operatorHeaders,
+    });
+    assert.equal(diagnostic.status, 200);
+    assert.deepEqual(await diagnostic.json(), { diagnostics: null });
+    const forbiddenWrite = await fetch(base + "/api/carmen/disconnect", {
+      method: "POST",
+      headers: {
+        ...operatorHeaders,
+        Origin: base,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(forbiddenWrite.status, 401);
     const shell = await fetch(base);
     assert.match(
       shell.headers.get("Content-Security-Policy"),
@@ -2050,7 +2081,7 @@ try {
     },
   );
   await check(
-    "adding Carmen preserves the existing Schoology account and isolates provider failures",
+    "Carmen experiment switches LMS views without losing sessions, grades or diagnostics",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       const before = await (
@@ -2064,47 +2095,100 @@ try {
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
+      await completeCarmenSignIn(page, context.request);
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
-        .waitFor();
-      assert.equal(
-        (await (await context.request.get(base + "/api/status")).json())
-          .account,
-        before.account,
-      );
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .check();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(
-        () => document.querySelectorAll(".courses .course").length === 6,
+        () => document.querySelectorAll(".courses .course").length === 1,
       );
       page.off("request", countSchoology);
       assert.equal(
         schoologyScans,
         0,
-        "Carmen connection must not refresh Schoology",
+        "Connecting/switching to Carmen must not scan Schoology",
       );
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /Synthetic Carmen Calculus/ })
+        .waitFor();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await context.request.post(base + "/api/fixture/failure", {
-        data: { enabled: true },
+      await page.getByText("Alive", { exact: true }).waitFor();
+      await page.getByText(/Total verified uptime · \d+m/).waitFor();
+      assert.equal(
+        await page.locator(".carmen-history, .carmen-stats").count(),
+        0,
+      );
+      for (const width of [320, 768, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(
+          await page
+            .locator(".profile")
+            .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+          true,
+        );
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .locator(".portal-connection")
+        .filter({ hasText: "CarmenCanvas" })
+        .screenshot({ path: directory + "/settings-carmen-experiment.png" });
+      await context.request.post(base + "/api/fixture/carmen", {
+        data: { empty: true },
       });
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
       await page
-        .getByRole("alert")
-        .filter({ hasText: /Schoology/ })
-        .waitFor();
+        .getByRole("button", { name: "Check connection", exact: true })
+        .click();
+      await page.waitForFunction(
+        () => !document.querySelector(".portal-progress"),
+      );
+      await page.getByText("Alive", { exact: true }).waitFor();
+      assert.equal(
+        (await (await context.request.get(base + "/api/status")).json()).portals
+          .carmen.diagnostics.courseCount,
+        0,
+      );
+      const operatorResult = await (
+        await fetch(base + "/api/carmen/diagnostics", {
+          headers: {
+            Authorization:
+              "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          },
+        })
+      ).json();
+      assert.equal(operatorResult.diagnostics.courseCount, 0);
+      assert.doesNotMatch(
+        JSON.stringify(operatorResult),
+        /synthetic-canvas-session|_normandy_session|Synthetic Carmen Calculus|"subject"|"cookies"/,
+      );
       await page.getByRole("button", { name: "Grades", exact: true }).click();
-      assert.equal(await page.locator(".courses .course").count(), 6);
+      await page
+        .getByRole("heading", { name: "No Carmen grades yet", exact: true })
+        .waitFor();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .uncheck();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 5,
+      );
+      const after = await (
+        await context.request.get(base + "/api/status")
+      ).json();
+      assert.equal(after.account, before.account);
+      assert.equal(after.schoologyConnected, true);
+      assert.equal(after.portals.carmen.connected, true);
+      assert.equal(after.portals.carmen.maintenance, true);
+      await page.reload();
       await page
         .locator(".courses")
-        .getByRole("button", { name: /Synthetic Carmen Calculus/ })
+        .getByRole("button", { name: /AP Biology/ })
         .waitFor();
-      await context.request.post(base + "/api/fixture/failure", {
-        data: { enabled: false },
-      });
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page
         .getByRole("button", { name: "Disconnect CarmenCanvas", exact: true })
@@ -2152,29 +2236,30 @@ try {
         .getByRole("button", { name: "Unlock app", exact: true })
         .click();
       await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .check();
+      await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
+      await completeCarmenSignIn(page, context.request);
       await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
-      await page
-        .getByRole("switch", { name: "Keep my session active", exact: true })
+        .getByRole("switch", { name: "Keep connected", exact: true })
         .waitFor();
       assert.equal(
         await page
-          .getByRole("switch", { name: "Keep my session active", exact: true })
+          .getByRole("switch", { name: "Keep connected", exact: true })
           .isChecked(),
         true,
       );
       await page
-        .getByRole("switch", { name: "Keep my session active", exact: true })
+        .getByRole("switch", { name: "Keep connected", exact: true })
         .uncheck();
       await page.waitForFunction(
         () => !document.querySelector(".portal-progress"),
       );
       assert.equal(
         await page
-          .getByRole("switch", { name: "Keep my session active", exact: true })
+          .getByRole("switch", { name: "Keep connected", exact: true })
           .isChecked(),
         false,
       );
@@ -2235,9 +2320,7 @@ try {
       await page
         .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
         .click();
-      await page
-        .getByRole("button", { name: "Finish connecting", exact: true })
-        .click();
+      await completeCarmenSignIn(page, context.request);
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .account,
@@ -2253,7 +2336,7 @@ try {
         .getByRole("button", { name: "Connect Schoology", exact: true })
         .click();
       await page.waitForFunction(
-        () => document.querySelectorAll(".courses .course").length === 6,
+        () => document.querySelectorAll(".courses .course").length === 1,
       );
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page

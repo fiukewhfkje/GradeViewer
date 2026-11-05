@@ -2,9 +2,9 @@
 
 GradeViewer is a Schoology-primary React/TypeScript PWA with optional selected Infinite Campus courses. `web/` is the self-contained build, deployment and template root. The retired Swift app and its build/test infrastructure remain in Git history. `web/src/core/` owns current grade behavior; no Swift or macOS tooling is needed.
 
-## Held Carmen branch
+## Owner-only Carmen experiment
 
-The investigative branch adds Carmen as a provider partition, sharing PortalService's encrypted sessions, cookie jar, identity checks, browser restoration and request budgets with IC. Campus remains opt-in selected courses; Carmen auto-discovers student courses. A stable workspace identity permits Carmen without Schoology while preserving existing Schoology-first browser account keys. HTTP-only Durable Object alarms perform opt-out 90-minute identity checks, pause on rejected access and never fetch grades or launch Chrome. Ohio State GPA settings/letter points are separate from Dublin's. See [the implementation and evidence limits](docs/CARMEN_INTEGRATION.md). Carmen must not deploy or enter main under the current release hold.
+The investigative branch adds Carmen as a provider partition, sharing PortalService's encrypted sessions, cookie jar, identity checks, browser restoration and request budgets with IC. Campus remains opt-in selected courses; Carmen auto-discovers student courses. A local main-LMS switch changes the visible courses/GPA and foreground refresh target without deleting either provider. A stable workspace identity permits Carmen without Schoology while preserving existing Schoology-first browser account keys. Durable Object alarms perform opt-out 90-minute HTTP identity checks without fetching grades. Confirmed authentication rejection alone permits one bounded browser recovery; credentials, Duo, policies, cleanup failures and budgets stop it. Ohio State GPA settings/letter points are separate from Dublin's. Settings shows compact health and sampled uptime; detailed sanitized diagnostics persist separately from encrypted cookies and have a dedicated read-only operator capability. See [the implementation and evidence limits](docs/CARMEN_INTEGRATION.md). Only the owner's existing Worker is authorized for experimental deployment; Carmen stays out of main and releases.
 
 ## Browser and Worker
 

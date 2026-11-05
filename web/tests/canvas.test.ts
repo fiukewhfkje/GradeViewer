@@ -8,6 +8,13 @@ import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
 import { unseal, type Envelope } from "../worker/crypto";
 import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
+import {
+  carmenEvent,
+  carmenFailure,
+  newCarmenDiagnostics,
+  type CarmenRecoveryStep,
+} from "../src/core/carmen-diagnostics";
+import { carmenHealth } from "../src/CarmenDiagnostics";
 const now = Date.parse("2026-11-04T12:00:00Z");
 const parse = (details = canvasDetails(), courses = canvasCourses) =>
   parseCanvas(courses, details, "synthetic-account", "77", now);
@@ -180,6 +187,12 @@ function harness() {
     failure = 0,
     identity = 77,
     browsers = 0,
+    closed = 0,
+    restoreOnNavigate = false,
+    signedIn = false,
+    blocked: CarmenRecoveryStep = "unknown",
+    hanging = false,
+    networkError: string | undefined,
     empty = false,
     nextLink: string | undefined;
   const storage = {
@@ -200,14 +213,29 @@ function harness() {
         id: "synthetic",
         state: async () => structuredClone(canvasState),
         live: async () => "https://live.browser.run/ui/view?synthetic=true",
-        navigate: async () => {},
+        navigate: async () => {
+          if (restoreOnNavigate) failure = 0;
+        },
         url: () => "https://osu.instructure.com/",
-        ready: async () => {},
-        close: async () => {},
+        studentPortal: async () =>
+          signedIn ? "https://osu.instructure.com/" : undefined,
+        ready: async () => {
+          if (hanging) await new Promise(() => {});
+          if (blocked !== "unknown")
+            throw new Error("private synthetic page text must not persist");
+        },
+        recoveryStep: async () => blocked,
+        close: async () => {
+          closed++;
+        },
       };
     }
   }
   const upstream = async (req: Request) => {
+    if (networkError)
+      throw Object.assign(new Error("private transport details"), {
+        name: networkError,
+      });
     const u = new URL(req.url);
     calls.push(u.pathname);
     expect(req.method).toBe("GET");
@@ -264,6 +292,24 @@ function harness() {
     get browsers() {
       return browsers;
     },
+    get closed() {
+      return closed;
+    },
+    restore: () => {
+      restoreOnNavigate = true;
+    },
+    signIn: () => {
+      signedIn = true;
+    },
+    block: (step: CarmenRecoveryStep) => {
+      blocked = step;
+    },
+    hang: () => {
+      hanging = true;
+    },
+    network: (name: string) => {
+      networkError = name;
+    },
     fail: (s: number) => {
       failure = s;
     },
@@ -319,6 +365,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       lastVerified: verified,
       lastKeepalive: now + 90 * 60000,
       nextMaintenance: now + 180 * 60000,
+      diagnostics: { verifiedUptimeMs: 90 * 60000 },
     });
   });
   it("foreground sync defers ping and disabling maintenance prevents it", async () => {
@@ -336,7 +383,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     expect(h.calls).toEqual([]);
   });
   it.each([401, 403])(
-    "pauses expired/denied background access (%s) without SSO automation",
+    "bounds expired-session recovery and never renews denied access (%s)",
     async (status) => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(now);
@@ -345,7 +392,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       h.fail(status);
       vi.setSystemTime(now + 90 * 60000);
       await h.service.expire();
-      expect(h.browsers).toBe(3);
+      expect(h.browsers).toBe(status === 401 ? 4 : 3);
       expect(await h.service.status()).toMatchObject({
         connected: true,
         needsReconnect: true,
@@ -353,6 +400,204 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       });
     },
   );
+  it("automatically captures a completed Carmen sign-in and closes its browser", async () => {
+    const h = harness();
+    const start = (await h.service.handle("start")) as { attempt: string };
+    await h.service.expire();
+    expect((await h.service.status()).connected).toBe(false);
+    h.signIn();
+    await h.service.expire();
+    expect(
+      await h.service.handle("progress", { attempt: start.attempt }),
+    ).toMatchObject({ state: "connected", firstConnection: true });
+    expect(h.closed).toBe(1);
+    expect((await h.service.status()).diagnostics?.manualConnections).toBe(1);
+  });
+  it("records the rejected session separately from a successful bounded background SSO recovery", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
+    h.fail(401);
+    h.restore();
+    vi.setSystemTime(now + 90 * 60000);
+    h.alarm();
+    await h.service.expire();
+    const status = await h.service.status(),
+      d = status.diagnostics!;
+    expect(status).toMatchObject({
+      needsReconnect: false,
+      nextMaintenance: now + 180 * 60000,
+    });
+    expect(d).toMatchObject({
+      recoveriesAttempted: 1,
+      recoveriesSucceeded: 1,
+      verifiedUptimeMs: 0,
+      sessionStartedAt: now + 90 * 60000,
+      firstRejection: {
+        category: "authentication",
+        httpStatus: 401,
+        sessionAgeMs: 90 * 60000,
+      },
+    });
+    expect(d.currentFailure).toBeUndefined();
+    expect(h.closed).toBe(2);
+    expect(carmenHealth(status, now + 90 * 60000).label).toBe("Alive");
+    expect(JSON.stringify(d)).not.toMatch(
+      /synthetic-canvas-session|synthetic-rotated|private synthetic|\.instructure\.com/,
+    );
+  });
+  it("stops on Duo, preserves the failure reason and avoids another automatic browser", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
+    h.fail(401);
+    h.block("duo");
+    vi.setSystemTime(now + 90 * 60000);
+    await h.service.expire();
+    const status = await h.service.status();
+    expect(status.diagnostics?.currentFailure).toMatchObject({
+      code: "recoveryDuo",
+      category: "humanRequired",
+      stage: "browser",
+    });
+    expect(status.nextMaintenance).toBeUndefined();
+    expect(carmenHealth(status).label).toBe("Sign-in needed");
+    vi.setSystemTime(now + 100 * 60000);
+    await expect(h.service.handle("check")).rejects.toThrow(
+      "portalSignInRequired",
+    );
+    expect(h.browsers).toBe(4);
+  });
+  it("closes a stalled recovery at its deadline and does not keep retrying", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
+    h.fail(401);
+    h.hang();
+    vi.setSystemTime(now + 90 * 60000);
+    const attempt = h.service.expire();
+    await vi.waitFor(() => expect(h.browsers).toBe(4));
+    await vi.advanceTimersByTimeAsync(25_000);
+    await attempt;
+    expect(h.closed).toBe(2);
+    expect((await h.service.status()).diagnostics?.currentFailure?.code).toBe(
+      "recoveryTimedOut",
+    );
+    await h.service.expire();
+    expect(h.browsers).toBe(4);
+  });
+  it("retains bounded diagnostics and does not label stale or failed access alive", () => {
+    const d = newCarmenDiagnostics(now);
+    for (let i = 0; i < 100; i++)
+      carmenEvent(d, {
+        at: now + i,
+        type: "httpSuccess",
+        trigger: "alarm",
+        stage: "profile",
+      });
+    expect(d.events).toHaveLength(32);
+    expect(d.profileSuccesses).toBe(100);
+    expect(d.verifiedUptimeMs).toBe(99);
+    expect(carmenFailure("private-cookie=secret")).toEqual({
+      code: "unexpectedFailure",
+      category: "unknown",
+    });
+    expect(
+      carmenHealth(
+        {
+          connected: true,
+          needsReconnect: false,
+          selected: [],
+          diagnostics: d,
+        },
+        now + 96 * 60000,
+      ).label,
+    ).toBe("Check overdue");
+    carmenEvent(d, {
+      at: now + 100,
+      type: "failure",
+      trigger: "alarm",
+      stage: "profile",
+      category: "network",
+      code: "portalUnavailable",
+    });
+    carmenEvent(d, {
+      at: now + 200,
+      type: "httpSuccess",
+      trigger: "manual",
+      stage: "profile",
+    });
+    expect(d.verifiedUptimeMs).toBe(99);
+    carmenEvent(d, {
+      at: now + 201,
+      type: "failure",
+      trigger: "manual",
+      stage: "profile",
+      category: "network",
+      code: "portalUnavailable",
+    });
+    expect(
+      carmenHealth(
+        {
+          connected: true,
+          needsReconnect: false,
+          selected: [],
+          diagnostics: d,
+        },
+        now + 100,
+      ).label,
+    ).toBe("Access unconfirmed");
+  });
+  it("distinguishes denied, throttled, server, network and timed-out checks without browser recovery", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    for (const [failure, category] of [
+      [403, "accessDenied"],
+      [429, "rateLimit"],
+      [503, "server"],
+      ["TypeError", "network"],
+      ["TimeoutError", "timeout"],
+    ] as const) {
+      vi.setSystemTime(now);
+      const h = harness();
+      await connect(h);
+      if (typeof failure === "number") h.fail(failure);
+      else h.network(failure);
+      vi.setSystemTime(now + 90 * 60000);
+      await h.service.expire();
+      const d = (await h.service.status()).diagnostics!;
+      expect(d.currentFailure).toMatchObject({
+        stage: "profile",
+        category,
+        sessionAgeMs: 90 * 60000,
+      });
+      expect(d.currentFailure?.httpStatus).toBe(
+        typeof failure === "number" ? failure : undefined,
+      );
+      expect(h.browsers).toBe(3);
+      expect(JSON.stringify(d)).not.toContain("private transport details");
+    }
+  });
+  it("keeps the rolling recovery budget across midnight without launching another browser", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
+    h.data.set("portal-browser-budget", {
+      browserDay: "2026-11-04",
+      browserMs: 0,
+      recoveryHistory: [{ at: now, ms: 120000 }],
+    });
+    h.fail(401);
+    vi.setSystemTime(Date.parse("2026-11-05T00:01:00Z"));
+    await h.service.expire();
+    expect(h.browsers).toBe(3);
+    expect((await h.service.status()).diagnostics?.currentFailure?.code).toBe(
+      "portalBrowserBudget",
+    );
+  });
   it("bounds transient retries and honors cooldown", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);

@@ -1,3 +1,7 @@
+import type {
+  CarmenDiagnostics,
+  CarmenRecoveryStep,
+} from "./core/carmen-diagnostics";
 export class RequestError extends Error {
   constructor(
     public code: string,
@@ -15,6 +19,8 @@ export interface PortalStatus {
   maintenance?: boolean;
   nextMaintenance?: number;
   lastKeepalive?: number;
+  diagnostics?: CarmenDiagnostics;
+  recoveryBlocked?: CarmenRecoveryStep;
   portal?: string;
   lastVerified?: number;
   cooldown?: number;
@@ -61,6 +67,8 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  portalTimeout:
+    "The grade service took too long to respond. Your saved grades are retained.",
   malformedCanvas:
     "Carmen returned an unsupported response. Your saved grades are retained.",
   portalTooLarge:

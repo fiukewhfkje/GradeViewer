@@ -53,7 +53,9 @@ try {
   const publicKey = await readFile("scripts/release-public-key.pem");
   const stub = join(temporary, ".local-test/release-fixtures");
   await mkdir(stub, { recursive: true });
-  const current = source.version;
+  // Exercise the stable updater even when the local package is an unpublished
+  // experimental build. These versions belong only to the signed local fixture.
+  const current = source.version.split("-")[0];
   const pieces = current.split(".").map(Number);
   const newer = `${pieces[0]}.${pieces[1]}.${pieces[2] + 1}`;
   for (const version of [newer, current]) {

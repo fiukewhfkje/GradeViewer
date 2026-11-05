@@ -132,6 +132,7 @@ function harness() {
       put: async (k: string, v: unknown) => {
         values.set(k, structuredClone(v));
       },
+      delete: async (k: string) => values.delete(k),
     };
   const env = { APP_PASSWORD: password } as Env;
   let upstreamCalls = 0;
@@ -278,7 +279,7 @@ describe("owner authentication and persistent lifecycle", () => {
   it("disconnect revokes all sessions and ciphertext", async () => {
     const h = harness();
     await h.send("login", { password });
-    await h.send("disconnect", {});
+    expect((await h.send("disconnect", {})).status).toBe(200);
     const data = (await (await h.send("status")).json()) as any;
     expect(data.authenticated).toBe(false);
     expect(JSON.stringify([...h.values.values()])).not.toContain("credentials");

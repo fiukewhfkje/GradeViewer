@@ -20,6 +20,7 @@ import {
 import { latestRelease } from "./updates";
 export interface Env {
   APP_PASSWORD: string;
+  CARMEN_DIAGNOSTICS_KEY?: string;
   BROWSER?: PortalBinding;
   VAULT: DurableObjectNamespace;
   ASSETS: FetcherAssets;
@@ -410,6 +411,26 @@ export class CredentialVault {
   private async handle(request: Request) {
     let vault: Vault | undefined;
     try {
+      // Separate read-only operator capability: this route reads sanitized
+      // diagnostics only and cannot access sessions, cookies, grades or providers.
+      if (
+        new URL(request.url).pathname === "/api/carmen/diagnostics" &&
+        request.method === "GET"
+      ) {
+        const expected = this.env.CARMEN_DIAGNOSTICS_KEY;
+        const supplied = request.headers.get("Authorization") ?? "";
+        if (
+          !expected ||
+          expected.length < 32 ||
+          supplied.length > 256 ||
+          !(await equal(supplied, "Bearer " + expected))
+        )
+          throw new ApiError(401, "diagnosticsUnauthorized");
+        return json({
+          diagnostics:
+            (await this.ctx.storage.get("carmen-diagnostics")) ?? null,
+        });
+      }
       if (!this.env.APP_PASSWORD || this.env.APP_PASSWORD.length < 12)
         throw new ApiError(503, "deploymentPasswordRequired");
       vault = (await this.ctx.storage.get<Vault>("vault")) ?? initial();

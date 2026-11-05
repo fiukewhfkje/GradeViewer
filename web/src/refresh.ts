@@ -29,7 +29,12 @@ export async function readSnapshot(
           ? latest
           : previous.account === status.account
             ? previous
-            : { schema: 1 as const, courses: [], scenarios: {} };
+            : {
+                schema: 1 as const,
+                courses: [],
+                scenarios: {},
+                primaryLms: !previous.account ? previous.primaryLms : undefined,
+              };
     const next = {
       ...base,
       account: status.account,
@@ -564,6 +569,10 @@ export async function readSnapshot(
       ),
       carmenGpa:
         preserved.account === account ? preserved.carmenGpa : undefined,
+      primaryLms:
+        preserved.account === account || !preserved.account
+          ? preserved.primaryLms
+          : undefined,
       scenarios: preserved.account === account ? preserved.scenarios : {},
       ...(preserved.account === account && preserved.gpa
         ? { gpa: preserved.gpa }

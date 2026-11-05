@@ -66,7 +66,7 @@ Already installed through the old Cloudflare button? A copy without the updater 
 
 ## Carmen development branch
 
-CarmenCanvas is implemented for local testing on `codex/investigate-gpa-carmen` only. It has secure school sign-in, automatic course discovery, independent saved grades, session checks and an Ohio State GPA estimate. It has not been deployed or released; OSU enrolled-course compatibility and session extension remain unverified. [Integration details](docs/CARMEN_INTEGRATION.md).
+CarmenCanvas remains on `codex/investigate-gpa-carmen`, outside main and published releases. The owner authorized an experiment on their existing Worker: an experimental main-LMS switch preserves both connections, automatic sign-in capture closes the temporary browser, and 90-minute HTTP checks record connection health with bounded silent SSO recovery. Settings stays compact; detailed private diagnostics remain on the Worker. OSU enrolled-course compatibility and long-term session extension remain unverified. [Integration details and operator retrieval](docs/CARMEN_INTEGRATION.md).
 
 ## Optional Infinite Campus classes
 

@@ -15,6 +15,7 @@ import {
   type PortalStatus,
 } from "./api";
 import type { CampusChoice } from "./core/campus";
+import { CarmenDiagnostics } from "./CarmenDiagnostics";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
@@ -24,11 +25,13 @@ export function PortalConnection({
   disabled,
   refresh,
   provider = "campus",
+  refreshStatus = refresh,
 }: {
   provider?: "campus" | "carmen";
   status?: PortalStatus;
   disabled: boolean;
   refresh: () => Promise<void>;
+  refreshStatus?: () => Promise<void>;
 }) {
   const carmen = provider === "carmen",
     title = carmen ? "CarmenCanvas" : "Infinite Campus";
@@ -127,7 +130,7 @@ export function PortalConnection({
   const count = status?.selected.length ?? 0;
   return (
     <section className="settings-group">
-      <h2>{carmen ? "University courses" : "Additional classes"}</h2>
+      <h2>{carmen ? "Carmen · Experimental" : "Additional classes"}</h2>
       <div className="settings-card portal-connection" aria-busy={busy}>
         <div className="connection-heading portal-heading">
           <span className="settings-icon">
@@ -168,7 +171,7 @@ export function PortalConnection({
                 </strong>
                 <p>
                   {carmen ? (
-                    "Complete Ohio State sign-in in the other window, then return here."
+                    "Complete Ohio State sign-in in the other window. GradeViewer will verify the connection and close the temporary browser automatically."
                   ) : (
                     <>
                       Find your district and complete your school’s sign-in.
@@ -317,7 +320,7 @@ export function PortalConnection({
           </div>
         ) : status?.connected ? (
           <>
-            {status.needsReconnect && (
+            {!carmen && status.needsReconnect && (
               <p className="portal-notice" role="status">
                 Sign in again to refresh {carmen ? "Carmen" : "IC"} grades. Your
                 selected classes and saved grades are retained.
@@ -368,7 +371,7 @@ export function PortalConnection({
                       void run(async () => {
                         try {
                           await api("campus/maintenance", { enabled });
-                          await refresh();
+                          await refreshStatus();
                         } catch (error) {
                           setMaintenance(!!status.maintenance);
                           throw error;
@@ -377,13 +380,26 @@ export function PortalConnection({
                     }}
                   />
                   <span className="gpa-toggle-track" aria-hidden="true" />
-                  <span>Keep my session active</span>
+                  <span>Keep connected</span>
                 </label>
-                <p className="muted">
-                  Checks your session every 90 minutes. OSU may still require
-                  sign-in again. Failed access pauses background checks.
-                </p>
+                <p className="muted">Automatic session checks and reconnect.</p>
               </div>
+            )}
+            {carmen && (
+              <CarmenDiagnostics
+                status={status}
+                busy={disabled || busy}
+                refresh={() => void run(refreshStatus)}
+                check={() =>
+                  void run(async () => {
+                    try {
+                      await api("campus/check", {});
+                    } finally {
+                      await refreshStatus();
+                    }
+                  }, "Checking session…")
+                }
+              />
             )}
             <button
               className="portal-disconnect danger"
@@ -408,14 +424,6 @@ export function PortalConnection({
                 ? "Connect your Ohio State student courses with your regular school sign-in."
                 : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
             </p>
-            {carmen ? (
-              <p className="muted">
-                Experimental · OSU does not support this integration. Your
-                Worker stores encrypted session cookies, never your university
-                password. Background checks start after connecting and can be
-                turned off here.
-              </p>
-            ) : null}
             <button
               className="primary portal-connect"
               disabled={disabled || busy}

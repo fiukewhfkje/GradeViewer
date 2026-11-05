@@ -4,6 +4,8 @@ The owner screenshot shows category weights in Campus Student; the earlier sanit
 
 # Carmen implementation decisions — November 4, 2026
 
+The owner subsequently authorized an experiment on their Worker only. The newer [February 11, 2025 BuckeyePass announcement](https://it.osu.edu/news/2025/02/11/updates-buckeyepass-mean-youll-authenticate-less-often) describes seven-day remembered authentication in familiar trusted locations, correcting the earlier blanket 24-hour assumption. Neither that announcement nor the older FAQ establishes cloud-browser trust or a Canvas/SSO session lifetime. The [two-hour Carmen idle setting](https://it.osu.edu/news/2025/08/18/technology-updates-autumn-2025) does not guarantee HTTP probes reset it. Routine checks use the existing Durable Object alarm and no browser; authenticated rejection alone permits tightly budgeted silent restoration. Private diagnostics distinguish original-session rejection, successful recovery and human-action stops. Multi-week continuity remains unmeasured.
+
 The [Carmen integration notes](docs/CARMEN_INTEGRATION.md) link current primary Canvas API and Ohio State GPA sources and separate documented contracts from synthetic tests and the owner's account evidence. PortalService reuses the existing Playwright, tough-cookie and encrypted Worker vault infrastructure; `http-link-header` adds only the standard RFC Link parser (MIT). The owner-supplied service-desk email gives a two-hour idle setting but no reliable activity/reset contract. One explicitly requested ACTIVE HTTP check returned 401 before courses, not a new empty grade response. No background lifetime or enrolled-grade behavior has been measured by this implementation.
 
 ## IC composite term metadata — November 4, 2026

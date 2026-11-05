@@ -5,6 +5,7 @@ import type {
   Browser,
   BrowserContext,
 } from "@cloudflare/playwright";
+import type { CarmenRecoveryStep } from "../src/core/carmen-diagnostics";
 export type PortalBinding = BrowserWorker &
   Pick<BrowserRun, "acquire" | "closeSession" | "getLiveView" | "devtools">;
 export interface BrowserState {
@@ -34,6 +35,7 @@ export interface PortalBrowser {
   url(): string;
   studentPortal?(): Promise<string | undefined>;
   ready(origin: string): Promise<void>;
+  recoveryStep?(): Promise<CarmenRecoveryStep>;
   studentNumber?(origin: string): Promise<string | undefined>;
   detach?(): Promise<void>;
   close(): Promise<void>;
@@ -50,6 +52,7 @@ export async function portalBrowser(
   session?: string,
   onEntry?: (url: string) => void,
   onStudentPortal?: (url: string, sessionID: string) => void,
+  keepAlive = 240_000,
 ): Promise<PortalBrowser> {
   let browser: Browser | undefined;
   let sessionID = session;
@@ -72,7 +75,7 @@ export async function portalBrowser(
   }
   try {
     if (!sessionID) {
-      const acquisition = binding.acquire({ keepAlive: 240_000 });
+      const acquisition = binding.acquire({ keepAlive });
       void acquisition.then(
         (result) => {
           if (acquisitionExpired)
@@ -209,6 +212,35 @@ export async function portalBrowser(
                 !/^\/(login|saml2|SAML2)/.test(u.pathname))),
           { timeout: 10_000 },
         );
+      },
+      recoveryStep: async () => {
+        for (const open of [...context.pages()].reverse().slice(0, 6)) {
+          if (/(^|\.)duosecurity\.com$/.test(new URL(open.url()).hostname))
+            return "duo";
+          const step = await bounded(
+            open.evaluate(() => {
+              if (
+                document.querySelector('iframe[src*="duosecurity.com"]') ||
+                /duo security|verify with duo|duo push/i.test(
+                  document.body?.innerText ?? "",
+                )
+              )
+                return "duo" as const;
+              if (document.querySelector('input[type="password"]'))
+                return "credentials" as const;
+              if (
+                /accept.*(?:policy|terms)|agree.*terms/i.test(
+                  document.body?.innerText ?? "",
+                )
+              )
+                return "policy" as const;
+              return "unknown" as const;
+            }),
+            1500,
+          ).catch(() => "unknown" as const);
+          if (step !== "unknown") return step;
+        }
+        return "unknown";
       },
       close: async () => {
         await bounded(binding.closeSession(sessionID!));

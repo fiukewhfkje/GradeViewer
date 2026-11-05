@@ -184,6 +184,7 @@ export default function App() {
     [copied, setCopied] = useState(false),
     [update, setUpdate] = useState<ServiceWorker>(),
     [checkingUpdate, setCheckingUpdate] = useState(false),
+    [switchingLms, setSwitchingLms] = useState(false),
     [applyingUpdate, setApplyingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
     [installation, setInstallation] = useState<Installation>(),
@@ -241,7 +242,7 @@ export default function App() {
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
-    scope: "all" | "campus" | "carmen" = "all",
+    scope: "active" | "all" | "campus" | "carmen" = "active",
   ) {
     if (flight.current) return flight.current;
     if (demoRef.current) return;
@@ -312,9 +313,18 @@ export default function App() {
           setFresh(true);
           return;
         }
-        const portalOnly = scope !== "all" && latest.account === s.account;
+        const target = credentials
+          ? "schoology"
+          : scope === "active"
+            ? (latest.primaryLms ?? stateRef.current.primaryLms) === "carmen"
+              ? "carmen"
+              : "schoology"
+            : scope;
+        const portalOnly = target === "campus" || target === "carmen";
         let schoologyError: unknown;
         let next = stateRef.current;
+        if (portalOnly && latest.account !== s.account)
+          next = await readSnapshot(next, { ...s, schoologyConnected: false });
         try {
           if (!portalOnly) {
             if (s.cooldown && s.cooldown > Date.now())
@@ -339,7 +349,7 @@ export default function App() {
         let portalFailed = false;
         setStatus(portalStatus);
         if (
-          (scope === "all" || scope === "campus") &&
+          (target === "all" || target === "schoology" || target === "campus") &&
           (portalStatus.portals?.campus?.connected ||
             next.courses.some((c) => c.fields.provider === "campus"))
         ) {
@@ -352,7 +362,7 @@ export default function App() {
           }
         }
         if (
-          (scope === "all" || scope === "carmen") &&
+          (target === "all" || target === "carmen") &&
           (portalStatus.portals?.carmen?.connected ||
             next.courses.some((c) => c.fields.provider === "carmen"))
         ) {
@@ -385,7 +395,7 @@ export default function App() {
         setCachedUnlocked(true);
         channel.current?.postMessage("saved");
         setStatus({
-          ...(credentials || portalFailed
+          ...(credentials || portalFailed || target === "carmen"
             ? await api<Status>("status")
             : portalStatus),
           connected: true,
@@ -556,6 +566,10 @@ export default function App() {
             next.carmenGpa !== before.carmenGpa
               ? next.carmenGpa
               : current.carmenGpa,
+          primaryLms:
+            next.primaryLms !== before.primaryLms
+              ? next.primaryLms
+              : current.primaryLms,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -601,7 +615,13 @@ export default function App() {
       ),
     });
   }
-  const original = state.courses.find((c) => c.id === selected),
+  const usingCarmen = !demo && state.primaryLms === "carmen";
+  const workspaceCourses = state.courses.filter((c) =>
+    usingCarmen
+      ? c.fields.provider === "carmen"
+      : c.fields.provider !== "carmen",
+  );
+  const original = workspaceCourses.find((c) => c.id === selected),
     course = original
       ? ((view !== "detail"
           ? state.courses.find((c) => c.id === period)
@@ -1045,7 +1065,33 @@ export default function App() {
     !locked &&
     !demo &&
     (!!status?.connected || cachedUnlocked) &&
-    deadline <= Date.now();
+    (usingCarmen || deadline <= Date.now());
+  async function refreshStatus() {
+    const current = await api<Status>("status");
+    if (!current.authenticated) {
+      await refresh();
+      return;
+    }
+    setStatus(current);
+  }
+  async function switchLms(carmen: boolean) {
+    const before = stateRef.current.primaryLms;
+    const next: SavedState = {
+      ...stateRef.current,
+      primaryLms: carmen ? "carmen" : "schoology",
+    };
+    setSwitchingLms(true);
+    setError("");
+    const saving = persist(next);
+    apply(next);
+    setSelected(undefined);
+    setPeriod(undefined);
+    try {
+      if (!(await saving)) apply({ ...stateRef.current, primaryLms: before });
+    } finally {
+      setSwitchingLms(false);
+    }
+  }
   const pull = usePullRefresh(
     app,
     canRefresh && tab === "grades" && fresh && !modal && !install,
@@ -1218,6 +1264,41 @@ export default function App() {
                 <>
                   <div className="settings-layout">
                     <div className="settings-column settings-connections">
+                      {!demo && !locked && (
+                        <section className="settings-group">
+                          <h2>Experimental</h2>
+                          <div className="settings-card portal-body">
+                            <label className="gpa-check carmen-mode">
+                              <input
+                                type="checkbox"
+                                role="switch"
+                                checked={usingCarmen}
+                                disabled={busy || switchingLms}
+                                onChange={(event) =>
+                                  void switchLms(event.target.checked).catch(
+                                    (e) => setError(errorMessage(e)),
+                                  )
+                                }
+                              />
+                              <span
+                                className="gpa-toggle-track"
+                                aria-hidden="true"
+                              />
+                              <span>
+                                <strong>Use Carmen as main LMS</strong>
+                                <small>
+                                  {usingCarmen
+                                    ? "Showing university courses"
+                                    : "Showing Schoology and selected IC courses"}
+                                </small>
+                              </span>
+                            </label>
+                            <p className="muted">
+                              Your Schoology and Carmen connections stay saved.
+                            </p>
+                          </div>
+                        </section>
+                      )}
                       <section className="settings-group">
                         <h2>Connections</h2>
                         <div className="settings-card">
@@ -1294,7 +1375,8 @@ export default function App() {
                         <PortalConnection
                           provider="carmen"
                           status={status?.portals?.carmen}
-                          disabled={!status?.authenticated}
+                          refreshStatus={refreshStatus}
+                          disabled={!status?.authenticated || busy}
                           refresh={async () => {
                             await flight.current?.catch(() => {});
                             await refresh(undefined, true, "carmen");
@@ -1520,27 +1602,31 @@ export default function App() {
                 )
               ) : !course ? (
                 <>
-                  <GpaSummary
-                    key={state.account ?? "demo"}
-                    courses={state.courses.filter(
-                      (c) => c.fields.provider !== "carmen",
-                    )}
-                    settings={state.gpa}
-                    save={(gpa) => persist({ ...stateRef.current, gpa })}
-                  />
-                  <GpaSummary
-                    key={(state.account ?? "demo") + ":carmen"}
-                    policy="osu"
-                    courses={state.courses.filter(
-                      (c) => c.fields.provider === "carmen",
-                    )}
-                    settings={state.carmenGpa}
-                    save={(carmenGpa) =>
-                      persist({ ...stateRef.current, carmenGpa })
-                    }
-                  />
+                  {!usingCarmen && (
+                    <GpaSummary
+                      key={state.account ?? "demo"}
+                      courses={state.courses.filter(
+                        (c) => c.fields.provider !== "carmen",
+                      )}
+                      settings={state.gpa}
+                      save={(gpa) => persist({ ...stateRef.current, gpa })}
+                    />
+                  )}
+                  {usingCarmen && (
+                    <GpaSummary
+                      key={(state.account ?? "demo") + ":carmen"}
+                      policy="osu"
+                      courses={state.courses.filter(
+                        (c) => c.fields.provider === "carmen",
+                      )}
+                      settings={state.carmenGpa}
+                      save={(carmenGpa) =>
+                        persist({ ...stateRef.current, carmenGpa })
+                      }
+                    />
+                  )}
                   <div className="courses">
-                    {visibleCourses(state.courses).map((c) => {
+                    {visibleCourses(workspaceCourses).map((c) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));
                       return (
@@ -1572,9 +1658,18 @@ export default function App() {
                       );
                     })}
                   </div>
-                  {!state.courses.length && (
+                  {!workspaceCourses.length && (
                     <div className="gate">
-                      <h2>No grades yet</h2>
+                      <h2>
+                        {usingCarmen ? "No Carmen grades yet" : "No grades yet"}
+                      </h2>
+                      {usingCarmen && (
+                        <p>
+                          {status?.portals?.carmen?.connected
+                            ? "The connection can still be checked in Settings even when your course list is empty."
+                            : "Connect CarmenCanvas in Settings to start the session experiment."}
+                        </p>
+                      )}
                       <button
                         className="primary"
                         onClick={() => setTab("profile")}
@@ -1675,7 +1770,7 @@ export default function App() {
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
               {fresh &&
-                visibleCourses(state.courses).map((c) => (
+                visibleCourses(workspaceCourses).map((c) => (
                   <button
                     key={c.id}
                     aria-current={

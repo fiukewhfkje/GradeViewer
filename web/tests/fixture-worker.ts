@@ -51,12 +51,14 @@ export class FixtureVault extends CredentialVault {
             structuredClone(kind === "carmen" ? canvasState : campusState),
           live: async () => "/api/fixture/portal-window",
           navigate: async () => {
-            await storage.delete("synthetic-campus-signed-in");
+            await storage.delete(`synthetic-${kind}-signed-in`);
           },
           url: () => campusPortal,
           studentPortal: async () =>
-            (await storage.get("synthetic-campus-signed-in"))
-              ? new URL("/campus/nav-wrapper", campusPortal).href
+            (await storage.get(`synthetic-${kind}-signed-in`))
+              ? kind === "carmen"
+                ? "https://osu.instructure.com/"
+                : new URL("/campus/nav-wrapper", campusPortal).href
               : undefined,
           ready: async () => {},
           close: async () => {},
@@ -124,7 +126,9 @@ export class FixtureVault extends CredentialVault {
       );
       if (value && typeof value === "object" && "signedIn" in value) {
         await this.fixtureState.storage.put(
-          "synthetic-campus-signed-in",
+          new URL(request.url).pathname.endsWith("carmen")
+            ? "synthetic-carmen-signed-in"
+            : "synthetic-campus-signed-in",
           value.signedIn,
         );
         // Drive the same alarm path deterministically after the synthetic

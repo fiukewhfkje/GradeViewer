@@ -1,3 +1,7 @@
+# New owner Worker experiment — November 4, 2026
+
+The owner now authorizes deploying the development branch to their Worker only, with a reversible main-LMS toggle, 90-minute HTTP checks, bounded silent SSO recovery and private diagnostic indicators. This overrides this file’s older deployment hold for that experiment only. Main and published stable releases remain Carmen-free. See [current integration behavior](CARMEN_INTEGRATION.md). The new experiment requires fresh human sign-in; do not request, import or contaminate the older Mac/Muse captures below. Those older captures/authorization deadlines are a separate historical benchmark. Deployment/actual account startup evidence belongs in PROJECT_STATUS.md and TODO.md.
+
 # Carmen diagnostic handoff — November 1, 2026, after 7 PM EST
 
 This is the starting point for a fresh thread. Read AGENTS.md, this file, [the protocol](CARMEN_SESSION_BENCHMARK.md) and [the Muse handoff](CARMEN_MUSE_HANDOFF.md). Inspect Git/filesystem state before treating a saved status as current.
