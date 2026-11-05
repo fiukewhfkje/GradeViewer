@@ -132,16 +132,6 @@ export async function readSnapshot(
             await new Promise((r) => setTimeout(r, 150));
             continue;
           }
-          if (
-            !optional &&
-            e instanceof RequestError &&
-            e.code === "rateLimited" &&
-            (e.retryAfter ?? 999) <= 10 &&
-            attempt === 0
-          ) {
-            await new Promise((r) => setTimeout(r, e.retryAfter! * 1000 + 50));
-            continue;
-          }
           throw e;
         }
       }

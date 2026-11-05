@@ -1,3 +1,12 @@
+# Stable 0.1.11 follow-up — November 4
+
+- [x] Remove idle polling, repeated visible-event scans, automatic cooldown-expiry retry and inline 429 retry; retain fresh opens/returns and manual refresh.
+- [x] Refresh only IC for IC settings actions, preserving Schoology cooldown and provider/account boundaries.
+- [x] Replace fixed browser-test delays with controlled fixture responses/alarms and consolidate duplicate CI checks.
+- [x] Complete build/type check, 207 tests, all 35 flows in each browser, package/dry-run, isolated-template update/rollback and production dependency audit.
+- [ ] Complete hosted CI and measure the new workflow.
+- [ ] Publish the owner-authorized stable main release, verify provenance/assets and the existing owner Worker, and carry shared changes onto the undeployed Carmen branch.
+
 # Current follow-up — November 4
 
 - [x] Restore omission of blank Schoology enrollments and remove class hide/restore controls at the owner's request.

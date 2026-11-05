@@ -15,6 +15,7 @@ describe("complete snapshot and cache integration", () => {
     redirects = false,
     large = false,
     limited = false,
+    limitSeconds = 30,
     active = 0,
     maximumActive = 0,
     batches: string[][] = [],
@@ -29,6 +30,7 @@ describe("complete snapshot and cache integration", () => {
     cookie = "";
     omitBulkOwner = false;
     slow = limited = redirects = large = false;
+    limitSeconds = 30;
     active = maximumActive = 0;
     batches = [];
     metadataCompleted = 0;
@@ -70,14 +72,18 @@ describe("complete snapshot and cache integration", () => {
             // Hold successful peers until the fixture's 429 has reached the
             // transport. Otherwise crypto/timer scheduling can legitimately
             // finish a peer and start another read before the cooldown arrives.
-            if (limited && !requestURL.pathname.endsWith("/grade_items"))
+            if (
+              limited &&
+              /^\/v1\/sections\//.test(requestURL.pathname) &&
+              !requestURL.pathname.endsWith("/grade_items")
+            )
               await cooldownDelivered;
             if (slow) await new Promise((r) => setTimeout(r, 5));
             response =
               limited && new URL(req.url).pathname.endsWith("/grade_items")
                 ? new Response("synthetic cooldown", {
                     status: 429,
-                    headers: { "Retry-After": "30" },
+                    headers: { "Retry-After": String(limitSeconds) },
                   })
                 : await original(req);
             if (limited && response.status === 429)
@@ -303,6 +309,18 @@ describe("complete snapshot and cache integration", () => {
     requests = 0;
     await readSnapshot(warm, await status(), undefined, true);
     expect(requests).toBe(23);
+  });
+  it("does not retry a short provider rate limit inside the same scan", async () => {
+    limited = true;
+    limitSeconds = 1;
+    await expect(
+      readSnapshot(emptyState(), await status(), {
+        key: "fixture",
+        secret: "fixture-secret",
+      }),
+    ).rejects.toMatchObject({ code: "rateLimited" });
+    expect(requests).toBeLessThanOrEqual(8); // three roots, then at most five batch peers
+    expect((await status()).connected).toBe(false);
   });
   it("omits blank enrollments while retaining normal gradebooks and metadata reuse", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {
