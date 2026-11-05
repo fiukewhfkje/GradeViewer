@@ -19,6 +19,17 @@ let releaseFixture: {
   failure?: boolean;
 } = { version };
 export class FixtureVault extends CredentialVault {
+  private gates = new Map<
+    string,
+    { promise: Promise<void>; release: () => void; waiting: boolean }
+  >();
+  private async waitForGate(kind: string) {
+    const gate = this.gates.get(kind);
+    if (gate) {
+      gate.waiting = true;
+      await gate.promise;
+    }
+  }
   constructor(
     private fixtureState: DurableObjectState,
     private fixtureEnv: Env,
@@ -61,6 +72,39 @@ export class FixtureVault extends CredentialVault {
     );
   }
   override async fetch(request: Request): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (path === "/api/fixture/gate") {
+      const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
+      if (!["provider", "status"].includes(kind))
+        return Response.json({}, { status: 400 });
+      if (request.method === "POST") {
+        const { held } = (await request.json()) as { held: boolean };
+        this.gates.get(kind)?.release();
+        this.gates.delete(kind);
+        if (held) {
+          let release!: () => void;
+          const promise = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          this.gates.set(kind, { promise, release, waiting: false });
+        }
+      }
+      return Response.json({ waiting: this.gates.get(kind)?.waiting ?? false });
+    }
+    if (path === "/api/fixture/rate-limit" && request.method === "POST") {
+      const { enabled } = (await request.json()) as { enabled: boolean };
+      await this.fixtureState.storage.put("synthetic-scan-limit", !!enabled);
+      return Response.json({ ok: true });
+    }
+    if (path === "/api/status") await this.waitForGate("status");
+    if (
+      path === "/api/scan/start" &&
+      (await this.fixtureState.storage.get("synthetic-scan-limit"))
+    )
+      return Response.json(
+        { error: "rateLimited", retryAfter: 1 },
+        { status: 429, headers: { "Retry-After": "1" } },
+      );
     if (new URL(request.url).pathname === "/api/fixture/portal-window")
       return new Response("<title>Synthetic sign-in</title>", {
         headers: { "Content-Type": "text/html" },
@@ -78,11 +122,15 @@ export class FixtureVault extends CredentialVault {
           : "synthetic-campus",
         value,
       );
-      if (value && typeof value === "object" && "signedIn" in value)
+      if (value && typeof value === "object" && "signedIn" in value) {
         await this.fixtureState.storage.put(
           "synthetic-campus-signed-in",
           value.signedIn,
         );
+        // Drive the same alarm path deterministically after the synthetic
+        // human sign-in, rather than waiting for its wall-clock wakeup.
+        if (value.signedIn === true) await this.alarm();
+      }
       return Response.json({ ok: true });
     }
 
@@ -156,6 +204,7 @@ export class FixtureVault extends CredentialVault {
     }
 
     if (new URL(request.url).pathname.endsWith("/users/me")) {
+      await this.waitForGate("provider");
       const delay = await this.fixtureState.storage.get<number>(
         "synthetic-provider-delay",
       );

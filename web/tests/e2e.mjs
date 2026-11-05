@@ -107,15 +107,24 @@ async function start() {
 async function stop() {
   if (!server || server.exitCode !== null) return;
   server.kill("SIGTERM");
-  await Promise.race([
-    new Promise((r) => server.once("exit", r)),
-    new Promise((r) => setTimeout(r, 4000)),
-  ]);
+  let timer;
+  try {
+    await Promise.race([
+      new Promise((r) => server.once("exit", r)),
+      new Promise((r) => {
+        timer = setTimeout(r, 4000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
-  if (filter && !name.includes(filter)) return;
+  if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
+    return;
   let timer;
+  const started = performance.now();
   try {
     await Promise.race([
       run(),
@@ -127,10 +136,57 @@ async function check(name, run) {
       }),
     ]);
     completed++;
-    console.log("PASS " + name);
+    console.log(`PASS ${name} (${Math.round(performance.now() - started)} ms)`);
   } finally {
     clearTimeout(timer);
   }
+}
+// Hold the response until the UI assertion completes instead of sleeping for
+// seconds and hoping a slow CI runner reaches the assertion before it arrives.
+async function holdRequest(page, pattern) {
+  let release, received;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const seen = new Promise((resolve) => {
+    received = resolve;
+  });
+  const running = new Set();
+  const handler = (route) => {
+    const task = (async () => {
+      received();
+      await gate;
+      await route.continue();
+    })();
+    running.add(task);
+    return task.finally(() => running.delete(task));
+  };
+  await page.route(pattern, handler);
+  return {
+    received: seen,
+    release,
+    close: async () => {
+      release();
+      await Promise.all([...running]);
+      await page.unroute(pattern, handler);
+    },
+  };
+}
+async function holdFixture(client, kind) {
+  const url = base + "/api/fixture/gate?kind=" + kind;
+  await client.post(url, { data: { held: true } });
+  return {
+    received: async () => {
+      const until = Date.now() + 10_000;
+      while (Date.now() < until) {
+        if ((await (await client.get(url)).json()).waiting) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error("Fixture did not receive " + kind + " request");
+    },
+    release: () => client.post(url, { data: { held: false } }),
+    close: () => client.post(url, { data: { held: false } }),
+  };
 }
 try {
   await start();
@@ -348,9 +404,7 @@ try {
       await page.waitForFunction(
         () => !document.querySelector(".desktop-refresh")?.disabled,
       );
-      await context.request.post(base + "/api/fixture/delay", {
-        data: { ms: 2500 },
-      });
+      const held = await holdFixture(context.request, "provider");
       let statuses = 0,
         scans = 0;
       const count = (request) => {
@@ -366,6 +420,7 @@ try {
           .getByRole("button", { name: /AP Biology/ })
           .waitFor({ timeout: 1800 });
         const visibleMs = Math.round(performance.now() - started);
+        await held.received();
         assert.equal(await page.locator(".gate").count(), 0);
         assert.equal(await page.locator(".refresh-status").count(), 0);
         await page
@@ -373,6 +428,7 @@ try {
           .getByRole("button", { name: /AP Biology/ })
           .click();
         await page.getByRole("slider").press("End");
+        await held.release();
         await page.waitForFunction(
           () => !document.querySelector(".desktop-refresh")?.disabled,
         );
@@ -380,55 +436,49 @@ try {
         assert.equal(statuses, 1);
         assert.equal(scans, 1);
         console.log(
-          `Synthetic returning startup: saved grades visible in ${visibleMs} ms while provider delayed 2500 ms.`,
+          `Synthetic returning startup: saved grades visible in ${visibleMs} ms while the fresh scan was held.`,
         );
         await page.getByRole("slider").press("Escape");
         await page.getByLabel("Close course", { exact: true }).click();
       } finally {
         page.off("request", count);
-        await context.request.post(base + "/api/fixture/delay", {
-          data: { ms: 0 },
-        });
+        await held.close();
       }
     },
   );
   await check(
     "cached grades appear before delayed authentication and explicit lock prevents a cached flash",
     async () => {
-      let statusAnswered = false;
-      const delay = async (route) => {
-        await new Promise((r) => setTimeout(r, 2000));
-        statusAnswered = true;
-        await route.continue();
-      };
-      await page.route("**/api/status", delay);
+      let held = await holdFixture(context.request, "status");
       try {
         await page.reload();
         await page
           .locator(".courses")
           .getByRole("button", { name: /AP Biology/ })
           .waitFor({ timeout: 1500 });
-        assert.equal(statusAnswered, false);
+        await held.received();
         assert.equal(await page.locator(".gate").count(), 0);
         assert.equal(await page.locator(".refresh-status").count(), 0);
+        await held.release();
         await page.waitForFunction(
           () => !document.querySelector(".desktop-refresh")?.disabled,
         );
       } finally {
-        await page.unrouteAll({ behavior: "wait" });
+        await held.close();
       }
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page.getByRole("button", { name: "Lock app", exact: true }).click();
       await page.getByLabel("App password", { exact: true }).waitFor();
       await page.unroute("**/api/logout");
-      await page.route("**/api/status", delay);
+      held = await holdFixture(context.request, "status");
       try {
         await page.reload();
+        await held.received();
         await page.waitForTimeout(300);
         assert.equal(await page.locator(".course").count(), 0);
         await page.getByLabel("App password", { exact: true }).waitFor();
       } finally {
-        await page.unrouteAll({ behavior: "wait" });
+        await held.close();
       }
       await page
         .getByLabel("App password", { exact: true })
@@ -846,23 +896,29 @@ try {
         .fill("Saved while refreshing");
       await page.getByLabel("Score", { exact: true }).fill("12");
       await page.getByLabel("Total points", { exact: true }).fill("10");
-      await context.request.post(base + "/api/fixture/delay", {
-        data: { ms: 1500 },
-      });
+      const held = await holdFixture(context.request, "provider");
       const started = Date.now();
       try {
         const refreshing = page.waitForRequest((r) =>
           r.url().endsWith("/api/scan/start"),
         );
-        await page.evaluate(() =>
-          document.dispatchEvent(new Event("visibilitychange")),
-        );
+        await page.evaluate(() => {
+          for (const value of ["hidden", "visible"]) {
+            Object.defineProperty(document, "visibilityState", {
+              configurable: true,
+              value,
+            });
+            document.dispatchEvent(new Event("visibilitychange"));
+          }
+        });
         await refreshing;
+        await held.received();
         assert.equal(
           await page.getByLabel("Name", { exact: true }).inputValue(),
           "Saved while refreshing",
         );
         await page.getByRole("button", { name: "Add", exact: true }).click();
+        await held.release();
         await page
           .getByText("Saved while refreshing", { exact: true })
           .waitFor();
@@ -895,9 +951,7 @@ try {
           .getByText("Saved while refreshing", { exact: true })
           .waitFor({ state: "hidden" });
       } finally {
-        await context.request.post(base + "/api/fixture/delay", {
-          data: { ms: 0 },
-        });
+        await held.close();
       }
     },
   );
@@ -1805,32 +1859,38 @@ try {
       await context.request.post(base + "/api/fixture/campus", {
         data: { startLimited: false },
       });
-      await connect.click();
-      await openSignIn.waitFor();
-      assert.equal(
-        await page.locator("body").getAttribute("data-campus-popup"),
-        null,
-      );
-      await openSignIn.click();
-      assert.equal(
-        await page.locator("body").getAttribute("data-campus-destination"),
-        "/api/fixture/portal-window",
-      );
-      assert.equal(
-        await page.locator("body").getAttribute("data-campus-popup"),
-        "open",
-      );
-      assert.equal(
-        await page.getByRole("button", { name: "Finish connecting" }).count(),
-        0,
-      );
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { signedIn: true },
-      });
-      await page
-        .getByRole("status")
-        .filter({ hasText: "Infinite Campus connected." })
-        .waitFor();
+      let progress = await holdRequest(page, "**/api/campus/progress");
+      try {
+        await connect.click();
+        await openSignIn.waitFor();
+        assert.equal(
+          await page.locator("body").getAttribute("data-campus-popup"),
+          null,
+        );
+        await openSignIn.click();
+        assert.equal(
+          await page.locator("body").getAttribute("data-campus-destination"),
+          "/api/fixture/portal-window",
+        );
+        assert.equal(
+          await page.locator("body").getAttribute("data-campus-popup"),
+          "open",
+        );
+        assert.equal(
+          await page.getByRole("button", { name: "Finish connecting" }).count(),
+          0,
+        );
+        await context.request.post(base + "/api/fixture/campus", {
+          data: { signedIn: true },
+        });
+        progress.release();
+        await page
+          .getByRole("status")
+          .filter({ hasText: "Infinite Campus connected." })
+          .waitFor();
+      } finally {
+        await progress.close();
+      }
       assert.equal(
         await page.locator("body").getAttribute("data-campus-popup"),
         "closed",
@@ -1838,6 +1898,11 @@ try {
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .check();
+      let schoologyScans = 0;
+      const countSchoology = (request) => {
+        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+      };
+      page.on("request", countSchoology);
       await page
         .getByRole("button", { name: "Save IC courses", exact: true })
         .click();
@@ -1846,6 +1911,12 @@ try {
         .locator(".courses")
         .getByRole("button", { name: /Synthetic IC-only course/ });
       await ic.waitFor();
+      page.off("request", countSchoology);
+      assert.equal(
+        schoologyScans,
+        0,
+        "IC selection must not refresh Schoology",
+      );
       assert.match(await ic.innerText(), /90/);
       await page.locator(".gpa-card").evaluate((card) => {
         card.open = true;
@@ -1920,18 +1991,29 @@ try {
       await context.request.post(base + "/api/fixture/campus", {
         data: { failure: false },
       });
-      await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page
-        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
-        .click();
-      await openSignIn.click();
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { signedIn: true },
-      });
-      await page
-        .getByRole("status")
-        .filter({ hasText: "Infinite Campus connected." })
-        .waitFor();
+      progress = await holdRequest(page, "**/api/campus/progress");
+      try {
+        await page
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await page
+          .getByRole("button", {
+            name: "Reconnect Infinite Campus",
+            exact: true,
+          })
+          .click();
+        await openSignIn.click();
+        await context.request.post(base + "/api/fixture/campus", {
+          data: { signedIn: true },
+        });
+        progress.release();
+        await page
+          .getByRole("status")
+          .filter({ hasText: "Infinite Campus connected." })
+          .waitFor();
+      } finally {
+        await progress.close();
+      }
       await page
         .getByRole("button", { name: "Choose IC courses", exact: true })
         .click();
@@ -1962,6 +2044,11 @@ try {
       const before = await (
         await context.request.get(base + "/api/status")
       ).json();
+      let schoologyScans = 0;
+      const countSchoology = (request) => {
+        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+      };
+      page.on("request", countSchoology);
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
@@ -1979,6 +2066,12 @@ try {
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(
         () => document.querySelectorAll(".courses .course").length === 6,
+      );
+      page.off("request", countSchoology);
+      assert.equal(
+        schoologyScans,
+        0,
+        "Carmen connection must not refresh Schoology",
       );
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await context.request.post(base + "/api/fixture/failure", {
@@ -2379,6 +2472,113 @@ try {
         );
       } finally {
         await fresh.close();
+      }
+    },
+  );
+  await check(
+    "fresh opens and real returns refresh once; idle time and cooldown expiry stay quiet",
+    async () => {
+      const isolated = await browser.newContext({ ignoreHTTPSErrors: true });
+      try {
+        const quiet = await isolated.newPage();
+        await quiet.clock.install();
+        let scans = 0;
+        quiet.on("request", (request) => {
+          if (request.url().endsWith("/api/scan/start")) scans++;
+        });
+        const unlocked = await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        assert.equal(unlocked.ok(), true);
+        const connected = (
+          await (await isolated.request.get(base + "/api/status")).json()
+        ).connected;
+        await quiet.goto(base);
+        if (!connected) {
+          await quiet
+            .getByLabel("Schoology API key", { exact: true })
+            .fill("fixture");
+          await quiet
+            .getByLabel("Schoology API secret", { exact: true })
+            .fill("fixture-secret");
+          await quiet
+            .getByRole("button", { name: "Connect Schoology", exact: true })
+            .click();
+        }
+        await quiet.locator(".courses").waitFor();
+        const ready = () =>
+          quiet
+            .locator(
+              'header button[aria-label="Refresh grades"]:not([disabled])',
+            )
+            .waitFor();
+        await ready();
+        assert.equal(scans, 1);
+        await quiet.clock.fastForward("30:00");
+        await quiet.evaluate(() =>
+          document.dispatchEvent(new Event("visibilitychange")),
+        );
+        assert.equal(scans, 1);
+        const resumed = quiet.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await quiet.evaluate(() => {
+          for (const value of ["hidden", "visible", "visible"]) {
+            Object.defineProperty(document, "visibilityState", {
+              configurable: true,
+              value,
+            });
+            document.dispatchEvent(new Event("visibilitychange"));
+          }
+        });
+        await resumed;
+        await ready();
+        assert.equal(scans, 2);
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: true },
+        });
+        await quiet.getByLabel("Refresh grades", { exact: true }).click();
+        await quiet
+          .getByRole("alert")
+          .filter({ hasText: "Schoology is limiting requests" })
+          .waitFor();
+        assert.equal(scans, 3);
+        await quiet.clock.fastForward(2000);
+        await quiet
+          .getByRole("button", { name: "Retry", exact: true })
+          .waitFor();
+        assert.equal(
+          await quiet
+            .getByRole("button", { name: "Retry", exact: true })
+            .isEnabled(),
+          true,
+        );
+        await quiet.clock.fastForward("30:00");
+        assert.equal(scans, 3);
+        assert.equal(await quiet.locator(".courses .course").count(), 5);
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: false },
+        });
+        const retried = quiet.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await quiet.getByRole("button", { name: "Retry", exact: true }).click();
+        await retried;
+        await ready();
+        assert.equal(scans, 4);
+        const reopened = quiet.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await quiet.reload();
+        await reopened;
+        await ready();
+        assert.equal(scans, 5);
+      } finally {
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: false },
+        });
+        await isolated.close();
       }
     },
   );

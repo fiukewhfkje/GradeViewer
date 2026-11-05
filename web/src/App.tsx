@@ -241,6 +241,7 @@ export default function App() {
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
+    scope: "all" | "campus" | "carmen" = "all",
   ) {
     if (flight.current) return flight.current;
     if (demoRef.current) return;
@@ -311,15 +312,18 @@ export default function App() {
           setFresh(true);
           return;
         }
+        const portalOnly = scope !== "all" && latest.account === s.account;
         let schoologyError: unknown;
         let next = stateRef.current;
         try {
-          if (s.cooldown && s.cooldown > Date.now())
-            throw new RequestError(
-              "rateLimited",
-              Math.ceil((s.cooldown - Date.now()) / 1000),
-            );
-          next = await readSnapshot(stateRef.current, s, credentials, manual);
+          if (!portalOnly) {
+            if (s.cooldown && s.cooldown > Date.now())
+              throw new RequestError(
+                "rateLimited",
+                Math.ceil((s.cooldown - Date.now()) / 1000),
+              );
+            next = await readSnapshot(stateRef.current, s, credentials, manual);
+          }
         } catch (e) {
           if (credentials || stateRef.current.account !== s.account) throw e;
           schoologyError = e;
@@ -335,8 +339,9 @@ export default function App() {
         let portalFailed = false;
         setStatus(portalStatus);
         if (
-          portalStatus.portals?.campus?.connected ||
-          next.courses.some((c) => c.fields.provider === "campus")
+          (scope === "all" || scope === "campus") &&
+          (portalStatus.portals?.campus?.connected ||
+            next.courses.some((c) => c.fields.provider === "campus"))
         ) {
           try {
             next = await refreshCampus(next, portalStatus.portals?.campus);
@@ -347,8 +352,9 @@ export default function App() {
           }
         }
         if (
-          portalStatus.portals?.carmen?.connected ||
-          next.courses.some((c) => c.fields.provider === "carmen")
+          (scope === "all" || scope === "carmen") &&
+          (portalStatus.portals?.carmen?.connected ||
+            next.courses.some((c) => c.fields.provider === "carmen"))
         ) {
           try {
             next = await refreshCampus(
@@ -369,7 +375,7 @@ export default function App() {
             schoologyError.retryAfter
           )
             setDeadline(Date.now() + schoologyError.retryAfter * 1000);
-        } else setDeadline(0);
+        } else if (!portalOnly) setDeadline(0);
         if (
           generation !== cacheGeneration.current &&
           (await repository.access())?.locked
@@ -445,14 +451,14 @@ export default function App() {
         })().catch((e) => setError(errorMessage(e)));
       }
     };
+    let wasHidden = document.visibilityState === "hidden";
     const visibility = () => {
-      if (document.visibilityState === "visible" && !demoRef.current) {
+      const returning = document.visibilityState === "visible" && wasHidden;
+      wasHidden = document.visibilityState === "hidden";
+      if (returning && !demoRef.current) {
         void refresh().catch(() => {});
       }
-      if (
-        document.visibilityState === "visible" &&
-        "serviceWorker" in navigator
-      ) {
+      if (returning && "serviceWorker" in navigator) {
         void navigator.serviceWorker
           .getRegistration()
           .then((reg) => reg && checkForAppUpdate(reg))
@@ -462,14 +468,6 @@ export default function App() {
           .catch(() => {});
       }
     };
-    const timer = setInterval(() => {
-      if (
-        document.visibilityState === "visible" &&
-        !demoRef.current &&
-        !flight.current
-      )
-        void refresh().catch(() => {});
-    }, 60000);
     const installer = (e: Event) => {
       e.preventDefault();
       setPrompt(e as InstallEvent);
@@ -517,7 +515,6 @@ export default function App() {
     window.addEventListener(
       "pagehide",
       () => {
-        clearInterval(timer);
         document.removeEventListener("visibilitychange", visibility);
         window.removeEventListener("beforeinstallprompt", installer);
         bc.close();
@@ -529,14 +526,8 @@ export default function App() {
     if (!deadline) return;
     const timer = setInterval(() => {
       setTick(Date.now());
-      if (
-        Date.now() >= deadline &&
-        document.visibilityState === "visible" &&
-        !demoRef.current &&
-        !flight.current
-      ) {
+      if (Date.now() >= deadline) {
         setDeadline(0);
-        void refresh().catch(() => {});
       }
     }, 1000);
     return () => clearInterval(timer);
@@ -1295,7 +1286,7 @@ export default function App() {
                           }
                           refresh={async () => {
                             await flight.current?.catch(() => {});
-                            await refresh(undefined, true);
+                            await refresh(undefined, true, "campus");
                           }}
                         />
                       )}
@@ -1306,7 +1297,7 @@ export default function App() {
                           disabled={!status?.authenticated}
                           refresh={async () => {
                             await flight.current?.catch(() => {});
-                            await refresh(undefined, true);
+                            await refresh(undefined, true, "carmen");
                           }}
                         />
                       )}

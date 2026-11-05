@@ -1,9 +1,24 @@
+# Held Carmen branch sync — November 4
+
+- [x] Carry main 0.2.0 refresh/CI changes into the Carmen development branch without merging Carmen into main.
+- [x] Validate both provider-specific callbacks, 285 tests, 37 flows per browser, build, packaging and Worker dry-run.
+- [ ] Keep Carmen undeployed and outside stable publication pending enrolled-account acceptance and explicit release authorization.
+
+# Stable 0.2.0 follow-up — November 4
+
+- [x] Remove idle polling, repeated visible-event scans, automatic cooldown-expiry retry and inline 429 retry; retain fresh opens/returns and manual refresh.
+- [x] Refresh only IC for IC settings actions, preserving Schoology cooldown and provider/account boundaries.
+- [x] Replace fixed browser-test delays with controlled fixture responses/alarms and consolidate duplicate CI checks.
+- [x] Complete build/type check, 207 tests, all 35 flows in each browser, package/dry-run, isolated-template update/rollback and production dependency audit.
+- [ ] Complete hosted CI and measure the new workflow.
+- [ ] Publish the owner-authorized stable main release, verify provenance/assets and the existing owner Worker, and carry shared changes onto the undeployed Carmen branch.
+
 # Current follow-up — November 4
 
 - [x] Restore omission of blank Schoology enrollments and remove class hide/restore controls at the owner's request.
 - [x] Clear the temporary blank placeholders and retired hide flags when reading saved snapshots and interrupted recovery, preserving real grades and edits.
 - [x] Validate the restored course filtering, removed hide controls, cached cleanup and retained IC semester/GPA flow.
-- [x] Deploy main f6eeb69 to the owner Worker, verify assets and vault/password/auth boundaries, and carry the rollback to the undeployed Carmen branch.
+- [x] Deploy main f6eeb69 to the owner Worker, verify assets and vault/password/auth boundaries, and carry the rollback to the undeployed Carmen branch at 9b29ccc.
 - [x] Read the selected IC course's actual period/task metadata and normalize composite Final semester spans using explicit child references and reported totals.
 - [x] Complete local semester/GPA normalization and browser validation.
 - [x] Deploy the semester correction through bed8049 and verify assets, vault/password bindings, locked APIs and successful main CI.

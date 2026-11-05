@@ -1,3 +1,15 @@
+# Held Carmen branch refresh validation — November 4, 2026
+
+The merge of main 4f8da78 into the held branch passes build/type check, 285 tests, 37 Chromium and 37 WebKit flows, 101-file packaging and Worker dry-run. The new IC scan-count assertion exposed a misassigned provider callback during merge; corrected IC and Carmen callbacks now pass their existing connection/selection flows with zero Schoology scans. No Carmen implementation was merged into main, deployed, tagged or included in the stable source package. All checks used local synthetic data and no Browser Run quota.
+
+# Quiet refreshes and browser verification — November 4, 2026
+
+The refresh regression uses a synthetic browser clock: a fresh open scans once; a real hidden-to-visible return scans once; repeated visible events, 30 idle minutes and expiration of a one-second 429 cooldown cause no automatic scan. Cached grades stay visible, explicit Retry succeeds and reopening still makes a fresh scan. A single new transport test verifies that a short provider 429 is not retried within the same scan. The existing IC flow now asserts zero Schoology scans while saving IC course choices. Provider authentication, cooldowns, saved data and local-edit merging remain covered.
+
+Browser fixtures hold/release responses instead of fixed multi-second sleeps, explicitly drive the same alarm handler after synthetic human sign-in, and clear the shutdown timeout after early exit. These checks retain the cache-before-auth, cache-before-provider, save-during-refresh, automatic IC capture/closure, reconnect and other existing assertions. WebKit bypasses browser request interception for some service-worker-controlled requests; the authoritative status/provider gates therefore live in the local fixture server so both engines actually exercise the delayed-response assertions. Each flow reports elapsed time. CI retains both full browser engines, uses the [matching official preinstalled image](https://playwright.dev/docs/docker), consolidates unit/Worker checks into one matrix leg and skips root documentation-only changes. The image version is checked against the installed Playwright package.
+
+Build/type check, 207 tests, packaging, Worker dry-run, isolated-template install/update/rollback and the zero-finding production dependency audit pass. The final complete local runs pass all 35 flows in 22.21 seconds for Chromium and 23.09 seconds for WebKit. Hosted CI and timing validation are pending. No Browser Run sessions or real student-provider requests were used.
+
 # Course-list rollback on the held Carmen branch — November 4, 2026
 
 The merged rollback passes build/type check, 284 tests, all 36 Chromium and 36 WebKit flows, 101-file packaging and Worker dry-run. Carmen-only and combined workspaces retain their behavior, while blank Schoology enrollments and class hide controls stay removed. Cached cleanup preserves provider grades, local edits and GPA settings. Main f6eeb69 alone is deployed to the owner Worker; this branch remains undeployed. No new student-provider requests, Browser Run sessions or stable releases were part of these checks.
