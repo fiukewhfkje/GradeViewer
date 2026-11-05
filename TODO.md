@@ -4,7 +4,7 @@
 - [x] Correct Canvas request headers and add bounded, sanitized rejection details without launching another cloud browser.
 - [x] Add independent IC 20-minute HTTP maintenance, pause/reconnect controls and compact health/uptime; retain Carmen's 90-minute experiment.
 - [x] Store separate private IC/Carmen diagnostics readable after provider rejection, with no grade/cookie/identity contents.
-- [ ] Finish validation and deploy only the owner development experiment; keep main/stable unchanged.
+- [x] Validate and deploy owner development commit 479149d. Verify both private diagnostic reads and the existing app/vault authorization boundaries.
 - [ ] Fresh human sign-ins verify Carmen's corrected request and begin the parallel live lifetime test. Neither idle extension nor a universal 30-minute IC session is established.
 
 # Carmen owner-only experiment — November 4
