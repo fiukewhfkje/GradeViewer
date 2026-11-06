@@ -1,3 +1,11 @@
+# Parallel session diagnostics — November 6, 2026
+
+Read both saved Worker records at approximately 12:55 EST. Infinite Campus succeeded on **140/140 HTTP checks**, including **102 scheduled checks**, with no recorded failures. The latest success was November 6 at 12:54:02 EST, **37h 35m** after diagnostics began on the existing connection. Its latest scheduled check succeeded at 12:44:09 EST.
+
+Carmen succeeded on **29 checks** since the November 4 23:20:03 EST sign-in, including **23 scheduled checks**. Its last success was a scheduled check on November 6 at 11:39:03 EST, **36h 19m** after sign-in. The last 18 scheduled checks succeeded over about 27 hours after the last app-driven check. The only failure in the aggregate record is the earlier setup 403. The last course-list read on November 5 still returned a schema-valid empty list.
+
+Neither connector recorded an authentication rejection or an automatic recovery attempt. Both passed 24 and 36 hours of sampled session age under their current check schedules. Any hard cutoff measured from the same connection start would have to exceed the observed age. The records cannot distinguish a longer fixed lifetime from a rolling lifetime or establish how long either connection would last without checks. Retrieval used only the two private read-only diagnostic routes, with no provider request or browser launch.
+
 # Parallel overnight diagnostics — November 5, 2026
 
 Read the owner's two saved Worker diagnostic records at approximately 08:40 EST using only the dedicated read-only operator routes. IC reports **42/42 successful HTTP checks**, including **24 alarm checks**, with no recorded failure. Its last success is 08:37:54 EST and sampled verified uptime is 9h 18m 54s, beginning November 4 at 23:19 EST. The retained 32-event window shows approximately 20-minute background spacing, except one successful 24m 27s interval at 04:44 EST; no provider failure explains that delay, so its cause is unknown. Earlier detailed events have rolled out of the bounded record; aggregate counters remain.
