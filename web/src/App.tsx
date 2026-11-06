@@ -1297,7 +1297,7 @@ export default function App() {
                                 title="Schoology"
                                 icon={<User size={20} />}
                                 label="Connected"
-                                tone="alive"
+                                tone="connected"
                                 open={openConnections.schoology}
                                 onToggle={(open) => disclose("schoology", open)}
                               >
@@ -1982,17 +1982,24 @@ function Unlock({
             <strong>Settings → Variables and Secrets</strong>.
           </li>
           <li>
-            Add <code>APP_PASSWORD_RESET</code> as a secret with your new
-            password (at least 12 characters), then deploy.
+            Add a <strong>Secret</strong> named <code>APP_PASSWORD_RESET</code>.
+            Set its value to the new password you want (at least 12 characters)
+            and click <strong>Deploy</strong>.
           </li>
           <li>
-            Unlock here with your new password. Then remove{" "}
-            <code>APP_PASSWORD_RESET</code> in Cloudflare and deploy again.
+            Unlock GradeViewer with that password once. It automatically becomes
+            your regular app password.
+          </li>
+          <li>
+            Delete <code>APP_PASSWORD_RESET</code> in Cloudflare and click{" "}
+            <strong>Deploy</strong> to apply the deletion. Your new password
+            still works.
           </li>
         </ol>
         <p>
-          Keep <code>APP_PASSWORD</code> in place so your connections stay
-          saved.
+          To reset again, reuse the same <code>APP_PASSWORD_RESET</code> name
+          with a fresh password. Keep <code>APP_PASSWORD</code> in place so your
+          connections stay saved.
         </p>
       </details>
     </form>

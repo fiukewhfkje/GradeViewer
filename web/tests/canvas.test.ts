@@ -561,8 +561,8 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     expect(d.currentFailure).toBeUndefined();
     expect(h.closed).toBe(2);
     expect(portalHealth(status, now + 90 * 60000)).toEqual({
-      label: "Alive",
-      tone: "alive",
+      label: "Connected",
+      tone: "connected",
     });
     expect(JSON.stringify(d)).not.toMatch(
       /synthetic-canvas-session|synthetic-rotated|private synthetic|\.instructure\.com/,
@@ -615,7 +615,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     await h.service.expire();
     expect(h.browsers).toBe(4);
   });
-  it("retains bounded diagnostics and does not label stale or failed access alive", () => {
+  it("retains bounded diagnostics and distinguishes stale or failed access", () => {
     const d = newCarmenDiagnostics(now);
     for (let i = 0; i < 100; i++)
       carmenEvent(d, {

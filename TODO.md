@@ -6,6 +6,7 @@
 - [x] Add current-password rotation and Cloudflare-owner recovery. Keep the vault encryption binding intact and revoke earlier server sessions.
 - [x] Dismiss the change confirmation after five seconds and streamline recovery to one unlock with the desired new password.
 - [x] Consolidate IC and Carmen Settings health into one badge per provider and keep detailed uptime in Worker diagnostics.
+- [x] Clarify password recovery in the app, use Connected for healthy providers and stage a synthetic IC reconnect in the local preview.
 - [ ] Owner acceptance on the synthetic localhost preview. Validate a real enrolled Carmen course separately before considering stable release.
 
 # Parallel session diagnostics — November 6

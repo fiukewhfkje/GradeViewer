@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { PortalStatus } from "./api";
 
-export type ConnectionTone = "neutral" | "alive" | "warning" | "error";
+export type ConnectionTone = "neutral" | "connected" | "warning" | "error";
 
 export function portalHealth(
   status: PortalStatus | undefined,
@@ -23,7 +23,7 @@ export function portalHealth(
     return { label: "Access unconfirmed", tone: "warning" };
   const verified = status.diagnostics?.lastSuccessAt ?? status.lastVerified;
   if (verified && now - verified <= (intervalMinutes + 5) * 60000)
-    return { label: "Alive", tone: "alive" };
+    return { label: "Connected", tone: "connected" };
   return status.maintenance
     ? { label: "Check overdue", tone: "warning" }
     : { label: "Connected", tone: "neutral" };

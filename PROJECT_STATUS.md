@@ -1,5 +1,7 @@
 # Local Settings, keep-alive and password preview — November 6, 2026
 
+The in-app recovery help now explains the first unlock, secret deletion, and reuse of the same reset secret name. A synthetic security regression verifies two resets with fresh values and successful login after each secret removal. Healthy badges now read Connected. The localhost preview has a staged IC authentication rejection with the selected course retained. Its synthetic sign-in clears the rejection and exercises the normal reconnect path. Build, all 303 tests, and all 38 flows in each of Chromium and WebKit passed.
+
 The password-change confirmation now clears after five seconds. The recovery instructions link to Cloudflare and let the owner set their intended new password directly. One successful unlock saves the new verifier, so the reset secret can be removed without another password change. The build, 24 security tests and both focused Chromium and WebKit checks passed.
 
 The IC and Carmen rows now show a single health badge and compact Reconnect and Disconnect actions. Settings no longer displays the session panel, last check time, uptime, manual check button or connection success message. Saved Worker diagnostics retain the experiment data. The production build, all 303 tests, all 38 flows in each of Chromium and WebKit, and local release packaging passed. The running localhost preview serves this build.

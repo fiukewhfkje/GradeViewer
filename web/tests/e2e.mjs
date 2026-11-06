@@ -2079,9 +2079,10 @@ try {
         0,
       );
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { failure: true },
+      const expired = await context.request.post(base + "/api/fixture/campus", {
+        data: { expireSession: true },
       });
+      assert.deepEqual(await expired.json(), { expired: true });
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
@@ -2091,9 +2092,6 @@ try {
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { failure: false },
-      });
       progress = await holdRequest(page, "**/api/campus/progress");
       try {
         await page
@@ -2110,13 +2108,15 @@ try {
           })
           .click();
         await openSignIn.click();
-        await context.request.post(base + "/api/fixture/campus", {
-          data: { signedIn: true },
-        });
+        const signedIn = await context.request.post(
+          base + "/api/fixture/portal-window?provider=campus",
+          { headers: { Origin: base } },
+        );
+        assert.equal(signedIn.ok(), true);
         progress.release();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
-          .locator('[data-health="alive"]')
+          .locator('[data-health="connected"]')
           .waitFor();
       } finally {
         await progress.close();
@@ -2190,7 +2190,10 @@ try {
           (await (await fetch("/api/status")).json()).portals.carmen
             .maintenance,
       );
-      await page.getByText("Alive", { exact: true }).waitFor();
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Connected", { exact: true })
+        .waitFor();
       assert.equal(await page.getByText(/Total verified uptime/).count(), 0);
       assert.equal(
         await page
@@ -2223,7 +2226,10 @@ try {
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
       await refreshed;
-      await page.getByText("Alive", { exact: true }).waitFor();
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Connected", { exact: true })
+        .waitFor();
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json()).portals
           .carmen.diagnostics.courseCount,

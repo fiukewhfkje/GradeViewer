@@ -119,6 +119,16 @@ export class FixtureVault extends CredentialVault {
       if (request.method === "POST") {
         if (request.headers.get("Origin") !== url.origin)
           return new Response(null, { status: 403 });
+        if (kind === "campus") {
+          const config = await this.fixtureState.storage.get<{
+            expireSession?: boolean;
+          }>("synthetic-campus");
+          if (config?.expireSession)
+            await this.fixtureState.storage.put("synthetic-campus", {
+              ...config,
+              expireSession: false,
+            });
+        }
         await this.fixtureState.storage.put(
           `synthetic-${kind}-signed-in`,
           true,
@@ -144,7 +154,32 @@ export class FixtureVault extends CredentialVault {
       ) &&
       request.method === "POST"
     ) {
-      const value = await request.json();
+      const value = await request.json<{ expireSession?: boolean }>();
+      if (path === "/api/fixture/campus" && value?.expireSession === true) {
+        const portal = this.portals("campus");
+        if (!(await portal.status()).connected)
+          return Response.json(
+            { error: "portalConnectRequired" },
+            { status: 409 },
+          );
+        const config =
+          await this.fixtureState.storage.get<object>("synthetic-campus");
+        await this.fixtureState.storage.put("synthetic-campus", {
+          ...config,
+          expireSession: true,
+        });
+        try {
+          await portal.handle("check");
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            error.code === "portalSignInRequired"
+          )
+            return Response.json({ expired: true });
+          throw error;
+        }
+        return Response.json({ expired: false }, { status: 409 });
+      }
       await this.fixtureState.storage.put(
         new URL(request.url).pathname.endsWith("carmen")
           ? "synthetic-carmen"
@@ -220,10 +255,12 @@ export class FixtureVault extends CredentialVault {
     if (new URL(request.url).hostname === "fixture.infinitecampus.org") {
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
+        expireSession?: boolean;
         malformed?: boolean;
         courseDelayMs?: number;
       }>("synthetic-campus");
-      if (config?.failure) return Response.json({}, { status: 401 });
+      if (config?.failure || config?.expireSession)
+        return Response.json({}, { status: 401 });
       const path = new URL(request.url).pathname;
       if (path.endsWith("/roster"))
         return Response.json({ personID: "synthetic-campus-student" });

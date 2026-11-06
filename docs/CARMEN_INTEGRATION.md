@@ -54,7 +54,7 @@ The dated [February 11, 2025 OSU announcement](https://it.osu.edu/news/2025/02/1
 
 ## Simple Settings and private diagnostics
 
-The local preview shows a single badge in each provider header. Green Alive means recently verified. Red marks a sign-in or access problem, and amber marks a blocked, overdue or unconfirmed check. The expanded provider row contains **Keep connected**, **Reconnect** and **Disconnect**, plus the Carmen LMS toggle or IC course selection. The badge ages locally and re-reads saved Worker status after an expected alarm, with at most three reads per deadline. These reads only retrieve saved status.
+The local preview shows a single badge in each provider header. Green Connected means recently verified. Red marks a sign-in or access problem, and amber marks a blocked, overdue or unconfirmed check. The expanded provider row contains **Keep connected**, **Reconnect** and **Disconnect**, plus the Carmen LMS toggle or IC course selection. The badge ages locally and re-reads saved Worker status after an expected alarm, with at most three reads per deadline. These reads only retrieve saved status.
 
 Verified uptime remains in the Worker’s diagnostics. It sums elapsed spans between successful checks, ends at the last successful check, survives automatic recovery and excludes failed or recovery gaps. Sampled endpoints cannot prove continuous availability between checks.
 

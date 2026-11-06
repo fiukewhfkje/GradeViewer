@@ -268,16 +268,28 @@ describe("owner authentication and persistent lifecycle", () => {
     expect((await h.send("login", { password: newPassword })).status).toBe(200);
     expect(h.calls).toBe(0);
   });
-  it("keeps the new password after the Cloudflare reset secret is removed", async () => {
+  it("keeps the new password after each use and removal of the Cloudflare reset secret", async () => {
     const h = harness();
-    const newPassword = "synthetic-cloudflare-reset-password";
     await h.send("login", { password });
-    h.env.APP_PASSWORD_RESET = newPassword;
-    expect((await h.send("login", { password: newPassword })).status).toBe(200);
-    delete h.env.APP_PASSWORD_RESET;
-    h.restart();
-    expect((await h.send("login", { password })).status).toBe(401);
-    expect((await h.send("login", { password: newPassword })).status).toBe(200);
+    let previousPassword = password;
+    for (const newPassword of [
+      "synthetic-cloudflare-reset-password",
+      "synthetic-second-reset-password",
+    ]) {
+      h.env.APP_PASSWORD_RESET = newPassword;
+      expect((await h.send("login", { password: newPassword })).status).toBe(
+        200,
+      );
+      delete h.env.APP_PASSWORD_RESET;
+      h.restart();
+      expect(
+        (await h.send("login", { password: previousPassword })).status,
+      ).toBe(401);
+      expect((await h.send("login", { password: newPassword })).status).toBe(
+        200,
+      );
+      previousPassword = newPassword;
+    }
   });
   it("stages encrypted keys and rejects early commit", async () => {
     const h = harness();
