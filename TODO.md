@@ -4,6 +4,7 @@
 - [x] Group compact provider rows and add a separate Security section in the local development build.
 - [x] Make both keep-alive switches opt-in, including for older connections. Preserve each saved provider connection and its selected courses.
 - [x] Add current-password rotation and Cloudflare-owner recovery. Keep the vault encryption binding intact and revoke earlier server sessions.
+- [x] Dismiss the change confirmation after five seconds and streamline recovery to one unlock with the desired new password.
 - [ ] Owner acceptance on the synthetic localhost preview. Validate a real enrolled Carmen course separately before considering stable release.
 
 # Parallel session diagnostics — November 6

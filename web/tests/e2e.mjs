@@ -2794,6 +2794,7 @@ try {
       try {
         assert.equal((await login(current.request, original)).status(), 200);
         assert.equal((await login(other.request, original)).status(), 200);
+        await settings.clock.install();
         await settings.goto(base);
         await settings.locator(".courses").waitFor();
         await settings
@@ -2816,7 +2817,12 @@ try {
         await dialog
           .getByRole("button", { name: "Save password", exact: true })
           .click();
-        await settings.getByText(/App password changed/).waitFor();
+        const confirmation = settings.getByText("App password changed.", {
+          exact: true,
+        });
+        await confirmation.waitFor();
+        await settings.clock.fastForward(5000);
+        await confirmation.waitFor({ state: "hidden" });
         const status = await (
           await current.request.get(base + "/api/status")
         ).json();

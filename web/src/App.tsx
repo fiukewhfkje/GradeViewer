@@ -541,6 +541,11 @@ export default function App() {
     );
   }, []);
   useEffect(() => {
+    if (!passwordChanged) return;
+    const timer = setTimeout(() => setPasswordChanged(false), 5000);
+    return () => clearTimeout(timer);
+  }, [passwordChanged]);
+  useEffect(() => {
     if (!deadline) return;
     const timer = setInterval(() => {
       setTick(Date.now());
@@ -1417,8 +1422,7 @@ export default function App() {
                           </div>
                           {passwordChanged && (
                             <p className="settings-note" role="status">
-                              App password changed. Other browsers will ask for
-                              the new password.
+                              App password changed.
                             </p>
                           )}
                         </section>
@@ -1964,12 +1968,31 @@ function Unlock({
       </button>
       <details className="password-help">
         <summary>Forgot your app password?</summary>
+        <ol>
+          <li>
+            In{" "}
+            <a
+              href="https://dash.cloudflare.com/?to=/:account/workers-and-pages"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Cloudflare
+            </a>
+            , open your Worker’s{" "}
+            <strong>Settings → Variables and Secrets</strong>.
+          </li>
+          <li>
+            Add <code>APP_PASSWORD_RESET</code> as a secret with your new
+            password (at least 12 characters), then deploy.
+          </li>
+          <li>
+            Unlock here with your new password. Then remove{" "}
+            <code>APP_PASSWORD_RESET</code> in Cloudflare and deploy again.
+          </li>
+        </ol>
         <p>
-          In your Cloudflare Worker’s Variables and Secrets, deploy a secret
-          named <code>APP_PASSWORD_RESET</code> with a fresh temporary password
-          of at least 12 characters. Unlock here with it, choose a new password
-          in Settings, then remove the temporary secret. Keep{" "}
-          <code>APP_PASSWORD</code> as it is.
+          Keep <code>APP_PASSWORD</code> in place so your connections stay
+          saved.
         </p>
       </details>
     </form>

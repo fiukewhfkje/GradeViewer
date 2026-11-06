@@ -1,10 +1,12 @@
 # Local Settings, keep-alive and password preview — November 6, 2026
 
+The password-change confirmation now clears after five seconds. The recovery instructions link to Cloudflare and let the owner set their intended new password directly. One successful unlock saves the new verifier, so the reset secret can be removed without another password change. The build, 24 security tests and both focused Chromium and WebKit checks passed.
+
 Settings now groups Schoology, Infinite Campus and CarmenCanvas in expandable connection rows. The Carmen experiment label and LMS toggle are inside Carmen’s row. Connected IC and Carmen each have one **Keep connected** switch. The switch updates immediately while the Worker saves the preference and restores the prior value if the write fails.
 
 New and legacy connections start with keep-alive off. An explicit opt-in schedules the existing 20-minute IC or 90-minute Carmen alarm on the same Worker. Switching off stops recurring checks, including Carmen’s silent recovery. An already-armed wakeup can drain without a provider request. Existing connections, selected courses and local data remain available for normal refresh. The owner’s hosted experiment continues on the earlier deployment.
 
-**Settings → Security** changes the unlock password with current-password confirmation. The Worker saves a salted verifier, replaces this browser’s session and revokes earlier sessions. The original `APP_PASSWORD` binding continues to derive the vault encryption key. Cloudflare owners can recover with a fresh temporary `APP_PASSWORD_RESET` secret, then change their unlock password and remove the temporary secret. The signed updater rejects downgrades to code that would ignore the changed password.
+**Settings → Security** changes the unlock password with current-password confirmation. The Worker saves a salted verifier, replaces this browser’s session and revokes earlier sessions. The original `APP_PASSWORD` binding continues to derive the vault encryption key. Cloudflare owners can recover by deploying their new password as `APP_PASSWORD_RESET`, unlocking once with it, then removing the reset secret. The signed updater rejects downgrades to code that would ignore the changed password.
 
 The loopback preview is running at `https://localhost:8917` with a local certificate and three preloaded synthetic connections. Both switches start off. The restart command is `npm run preview:local` from `web/`. It uses the fixture Worker and separate local storage. Physical-device and Apple Passwords prompt acceptance remain open.
 

@@ -952,6 +952,13 @@ svg.spinning {
 .password-help > summary {
   cursor: pointer;
 }
+.password-help ol {
+  padding-inline-start: 20px;
+  line-height: 1.5;
+}
+.password-help li + li {
+  margin-top: 6px;
+}
 .password-help code {
   overflow-wrap: anywhere;
 }
