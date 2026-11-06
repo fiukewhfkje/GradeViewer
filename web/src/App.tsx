@@ -1297,7 +1297,7 @@ export default function App() {
                                 title="Schoology"
                                 icon={<User size={20} />}
                                 label="Connected"
-                                connected
+                                tone="alive"
                                 open={openConnections.schoology}
                                 onToggle={(open) => disclose("schoology", open)}
                               >

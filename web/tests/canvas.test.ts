@@ -20,7 +20,7 @@ import {
   newCarmenDiagnostics,
   type CarmenRecoveryStep,
 } from "../src/core/carmen-diagnostics";
-import { carmenHealth } from "../src/CarmenDiagnostics";
+import { portalHealth } from "../src/portal-health";
 const now = Date.parse("2026-11-04T12:00:00Z");
 const parse = (details = canvasDetails(), courses = canvasCourses) =>
   parseCanvas(courses, details, "synthetic-account", "77", now);
@@ -560,7 +560,10 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     });
     expect(d.currentFailure).toBeUndefined();
     expect(h.closed).toBe(2);
-    expect(carmenHealth(status, now + 90 * 60000).label).toBe("Alive");
+    expect(portalHealth(status, now + 90 * 60000)).toEqual({
+      label: "Alive",
+      tone: "alive",
+    });
     expect(JSON.stringify(d)).not.toMatch(
       /synthetic-canvas-session|synthetic-rotated|private synthetic|\.instructure\.com/,
     );
@@ -582,7 +585,10 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       stage: "browser",
     });
     expect(status.nextMaintenance).toBeUndefined();
-    expect(carmenHealth(status).label).toBe("Sign-in needed");
+    expect(portalHealth(status)).toEqual({
+      label: "Sign-in needed",
+      tone: "error",
+    });
     vi.setSystemTime(now + 100 * 60000);
     await expect(h.service.handle("check")).rejects.toThrow(
       "portalSignInRequired",
@@ -626,7 +632,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       category: "unknown",
     });
     expect(
-      carmenHealth(
+      portalHealth(
         {
           connected: true,
           needsReconnect: false,
@@ -661,7 +667,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       code: "portalUnavailable",
     });
     expect(
-      carmenHealth(
+      portalHealth(
         {
           connected: true,
           needsReconnect: false,

@@ -916,9 +916,6 @@ svg.spinning {
   width: 6px;
   height: 6px;
 }
-.connection-heading [data-connected="true"] .status-dot {
-  background: var(--grade);
-}
 .settings-card > .settings-provider + .settings-provider,
 .settings-card > form + .settings-provider {
   border-top: 1px solid var(--line);
@@ -1527,12 +1524,24 @@ svg.spinning {
   color: var(--muted);
   font-size: 12px;
 }
-.portal-disconnect {
-  width: 100%;
-  text-align: left;
-  padding: 15px 16px;
+.portal-actions {
+  display: flex;
   border-top: 1px solid var(--line);
+}
+.portal-actions > button {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 0;
   font-size: 14px;
+}
+.portal-actions > button + button {
+  border-left: 1px solid var(--line);
+}
+.portal-connection .gpa-check small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 400;
 }
 .portal-selection-heading {
   display: flex;
@@ -1664,7 +1673,7 @@ svg.spinning {
   .settings-provider > summary:hover,
   .settings-action:hover,
   .app-actions .settings-card > button:hover,
-  .portal-disconnect:hover {
+  .portal-actions > button:hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 }
@@ -1684,16 +1693,6 @@ svg.spinning {
   margin: 0 0 6px;
   color: var(--muted);
   font-size: 12px;
-}
-.carmen-health-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.carmen-health-heading h3 {
-  margin: 0;
 }
 .connection[data-health="alive"] .status-dot {
   background: var(--grade);

@@ -2,6 +2,8 @@
 
 The password-change confirmation now clears after five seconds. The recovery instructions link to Cloudflare and let the owner set their intended new password directly. One successful unlock saves the new verifier, so the reset secret can be removed without another password change. The build, 24 security tests and both focused Chromium and WebKit checks passed.
 
+The IC and Carmen rows now show a single health badge and compact Reconnect and Disconnect actions. Settings no longer displays the session panel, last check time, uptime, manual check button or connection success message. Saved Worker diagnostics retain the experiment data. The production build, all 303 tests, all 38 flows in each of Chromium and WebKit, and local release packaging passed. The running localhost preview serves this build.
+
 Settings now groups Schoology, Infinite Campus and CarmenCanvas in expandable connection rows. The Carmen experiment label and LMS toggle are inside Carmen’s row. Connected IC and Carmen each have one **Keep connected** switch. The switch updates immediately while the Worker saves the preference and restores the prior value if the write fails.
 
 New and legacy connections start with keep-alive off. An explicit opt-in schedules the existing 20-minute IC or 90-minute Carmen alarm on the same Worker. Switching off stops recurring checks, including Carmen’s silent recovery. An already-armed wakeup can drain without a provider request. Existing connections, selected courses and local data remain available for normal refresh. The owner’s hosted experiment continues on the earlier deployment.

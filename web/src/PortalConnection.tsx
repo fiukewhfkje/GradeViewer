@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  CheckCircle2,
   School,
   ChevronDown,
   ChevronRight,
@@ -22,7 +21,7 @@ import {
   type PortalStatus,
 } from "./api";
 import type { CampusChoice } from "./core/campus";
-import { CarmenDiagnostics } from "./CarmenDiagnostics";
+import { usePortalHealth, type ConnectionTone } from "./portal-health";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
@@ -31,7 +30,7 @@ export function ConnectionDisclosure({
   title,
   icon,
   label,
-  connected,
+  tone = "neutral",
   open,
   onToggle,
   className = "",
@@ -40,7 +39,7 @@ export function ConnectionDisclosure({
   title: string;
   icon: ReactNode;
   label: string;
-  connected: boolean;
+  tone?: ConnectionTone;
   open: boolean;
   onToggle: (open: boolean) => void;
   className?: string;
@@ -55,7 +54,7 @@ export function ConnectionDisclosure({
       <summary className="connection-heading">
         <span className="settings-icon">{icon}</span>
         <strong>{title}</strong>
-        <span className="connection" data-connected={connected}>
+        <span className="connection" data-health={tone}>
           <span className="status-dot" />
           {label}
         </span>
@@ -97,7 +96,6 @@ export function PortalConnection({
     [message, setMessage] = useState(""),
     [login, setLogin] = useState<Login>(),
     [signInOpened, setSignInOpened] = useState(false),
-    [confirmation, setConfirmation] = useState(""),
     [courses, setCourses] = useState<CampusChoice[]>(),
     [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
@@ -105,6 +103,13 @@ export function PortalConnection({
   useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
+  const interval = carmen ? 90 : 20;
+  const health = usePortalHealth(
+    status,
+    interval,
+    disabled || busy,
+    refreshStatus,
+  );
   async function run(task: () => Promise<void>, label = "Working…") {
     setWorking(label);
     setMessage("");
@@ -134,7 +139,6 @@ export function PortalConnection({
   }
   async function connected(firstConnection: boolean) {
     closeSignIn();
-    setConfirmation(`${title} connected.`);
     await run(async () => {
       try {
         if (!carmen && firstConnection) await choices();
@@ -176,7 +180,6 @@ export function PortalConnection({
   }, [login, message, busy]);
 
   async function start() {
-    setConfirmation("");
     setSignInOpened(false);
     const pending = await api<Login>("campus/start", {});
     setCourses(undefined);
@@ -189,17 +192,13 @@ export function PortalConnection({
       title={title}
       icon={<School size={20} />}
       className="portal-connection"
-      connected={!!status?.connected && !status.needsReconnect}
+      tone={login ? "neutral" : health.tone}
       label={
         login
           ? signInOpened
             ? "Signing in"
             : "Ready to sign in"
-          : status?.needsReconnect
-            ? "Sign-in needed"
-            : status?.connected
-              ? "Connected"
-              : "Not connected"
+          : health.label
       }
       open={open}
       onToggle={onToggle}
@@ -370,12 +369,6 @@ export function PortalConnection({
           </div>
         ) : status?.connected ? (
           <>
-            {!carmen && status.needsReconnect && (
-              <p className="portal-notice" role="status">
-                Sign in again to refresh {carmen ? "Carmen" : "IC"} grades. Your
-                selected classes and saved grades are retained.
-              </p>
-            )}
             {!carmen && (
               <button
                 className="settings-action portal-action"
@@ -395,20 +388,13 @@ export function PortalConnection({
                 <ChevronRight size={18} />
               </button>
             )}
-            <button
-              className="settings-action portal-action"
-              disabled={disabled || busy}
-              onClick={() => void run(start, "Preparing the sign-in browser…")}
-            >
-              <LogIn size={19} />
-              <span>Reconnect {title}</span>
-              <ChevronRight size={18} />
-            </button>
             <div className="portal-body">
               <label className="gpa-check">
                 <input
                   type="checkbox"
                   role="switch"
+                  aria-label="Keep connected"
+                  aria-describedby={`${provider}-keep-connected-description`}
                   checked={maintenance}
                   disabled={disabled || busy}
                   onChange={(e) => {
@@ -426,46 +412,40 @@ export function PortalConnection({
                   }}
                 />
                 <span className="gpa-toggle-track" aria-hidden="true" />
-                <span>Keep connected</span>
+                <span>
+                  Keep connected
+                  <small id={`${provider}-keep-connected-description`}>
+                    Checks every {interval} minutes
+                  </small>
+                </span>
               </label>
-              <p className="muted">
-                {carmen
-                  ? "Checks every 90 minutes and can try to reconnect."
-                  : "Checks the session every 20 minutes."}
-              </p>
             </div>
-            {open && (
-              <CarmenDiagnostics
-                provider={provider}
-                status={status}
-                busy={disabled || busy}
-                refresh={() => void run(refreshStatus)}
-                check={() =>
-                  void run(async () => {
-                    try {
-                      await api("campus/check", {});
-                    } finally {
-                      await refreshStatus();
-                    }
-                  }, "Checking session…")
+            <div className="portal-actions">
+              <button
+                aria-label={`Reconnect ${title}`}
+                disabled={disabled || busy}
+                onClick={() =>
+                  void run(start, "Preparing the sign-in browser…")
                 }
-              />
-            )}
-            <button
-              className="portal-disconnect danger"
-              disabled={disabled || busy}
-              onClick={() =>
-                void run(async () => {
-                  await api("campus/disconnect", {});
-                  setConfirmation("");
-                  setCourses(undefined);
-                  setChoosing(false);
-                  await refresh();
-                })
-              }
-            >
-              Disconnect {title}
-            </button>
+              >
+                Reconnect
+              </button>
+              <button
+                className="danger"
+                aria-label={`Disconnect ${title}`}
+                disabled={disabled || busy}
+                onClick={() =>
+                  void run(async () => {
+                    await api("campus/disconnect", {});
+                    setCourses(undefined);
+                    setChoosing(false);
+                    await refresh();
+                  })
+                }
+              >
+                Disconnect
+              </button>
+            </div>
           </>
         ) : (
           <div className="portal-body">
@@ -483,11 +463,6 @@ export function PortalConnection({
               Connect {title}
             </button>
           </div>
-        )}
-        {confirmation && (
-          <p className="portal-notice" role="status">
-            <CheckCircle2 size={16} aria-hidden="true" /> {confirmation}
-          </p>
         )}
         {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">

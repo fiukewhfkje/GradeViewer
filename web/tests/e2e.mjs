@@ -1935,8 +1935,7 @@ try {
         });
         progress.release();
         await page
-          .getByRole("status")
-          .filter({ hasText: "Infinite Campus connected." })
+          .getByRole("heading", { name: "Choose your classes", exact: true })
           .waitFor();
       } finally {
         await progress.close();
@@ -2101,6 +2100,10 @@ try {
           .getByRole("button", { name: "Settings", exact: true })
           .click();
         await page
+          .locator("summary", { hasText: "Infinite Campus" })
+          .locator('[data-health="error"]')
+          .waitFor();
+        await page
           .getByRole("button", {
             name: "Reconnect Infinite Campus",
             exact: true,
@@ -2112,8 +2115,8 @@ try {
         });
         progress.release();
         await page
-          .getByRole("status")
-          .filter({ hasText: "Infinite Campus connected." })
+          .locator("summary", { hasText: "Infinite Campus" })
+          .locator('[data-health="alive"]')
           .waitFor();
       } finally {
         await progress.close();
@@ -2188,9 +2191,11 @@ try {
             .maintenance,
       );
       await page.getByText("Alive", { exact: true }).waitFor();
-      await page.getByText(/Total verified uptime · \d+m/).waitFor();
+      assert.equal(await page.getByText(/Total verified uptime/).count(), 0);
       assert.equal(
-        await page.locator(".carmen-history, .carmen-stats").count(),
+        await page
+          .getByRole("button", { name: "Check connection", exact: true })
+          .count(),
         0,
       );
       for (const width of [320, 768, 1440]) {
@@ -2210,15 +2215,14 @@ try {
       await context.request.post(base + "/api/fixture/carmen", {
         data: { empty: true },
       });
+      const refreshed = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/carmen/snapshot") && response.ok(),
+      );
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
-      await page
-        .getByRole("button", { name: "Check connection", exact: true })
-        .click();
-      await page.waitForFunction(
-        () => !document.querySelector(".portal-progress"),
-      );
+      await refreshed;
       await page.getByText("Alive", { exact: true }).waitFor();
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json()).portals
