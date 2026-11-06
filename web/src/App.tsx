@@ -1351,7 +1351,6 @@ export default function App() {
                               }}
                             >
                               <div className="portal-body">
-                                <p className="carmen-label">Experimental</p>
                                 <label className="gpa-check">
                                   <input
                                     type="checkbox"

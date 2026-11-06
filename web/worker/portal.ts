@@ -30,6 +30,12 @@ import {
   type BrowserState,
   type PortalBinding,
 } from "./portal-browser";
+import {
+  compatibilityResource,
+  observeCompatibility,
+  type CarmenCompatibilityAttempt,
+  type CarmenCompatibilityReport,
+} from "./carmen-compatibility";
 
 export interface PortalConnection {
   portal: string;
@@ -42,6 +48,7 @@ export interface PortalConnection {
   lastIdentityVerified?: number;
   lastKeepalive?: number;
   diagnostics?: CarmenDiagnostics;
+  compatibilityReport?: CarmenCompatibilityReport;
   recoveryBlocked?: CarmenRecoveryStep;
   maintenancePaused?: boolean;
   state?: BrowserState;
@@ -114,6 +121,7 @@ export class PortalService {
   private stage: CarmenStage = "profile";
   private httpStatus?: number;
   private recordedError?: unknown;
+  private compatibility?: CarmenCompatibilityAttempt;
   private diagnostics(c: PortalConnection) {
     return (c.diagnostics ??= newCarmenDiagnostics(Date.now()));
   }
@@ -321,6 +329,7 @@ export class PortalService {
         nextMaintenance: c?.keepConnected ? c.nextMaintenance : undefined,
         lastKeepalive: c?.lastKeepalive,
         diagnostics: c?.diagnostics,
+        compatibilityReportAvailable: !!c?.compatibilityReport,
         recoveryBlocked:
           this.kind === "carmen" ? c?.recoveryBlocked : undefined,
       };
@@ -329,6 +338,9 @@ export class PortalService {
         return { connected: true, needsReconnect: true, selected: [] };
       throw error;
     }
+  }
+  async compatibilityReport() {
+    return (await this.load()).connection?.compatibilityReport ?? null;
   }
   private async close(s: PortalStore) {
     const p = s.connection?.pending;
@@ -697,6 +709,9 @@ export class PortalService {
       );
     }
     this.httpStatus = r.status;
+    const resource = this.compatibility && compatibilityResource(u.pathname);
+    if (this.compatibility && resource)
+      observeCompatibility(this.compatibility, resource, r.status);
     for (const cookie of r.headers.getSetCookie()) {
       try {
         jar.setCookieSync(cookie, u.href);
@@ -784,8 +799,11 @@ export class PortalService {
       text += decoder.decode(value, { stream: true });
     }
     try {
+      const data: unknown = JSON.parse(text + decoder.decode());
+      if (this.compatibility && resource)
+        observeCompatibility(this.compatibility, resource, r.status, data);
       return {
-        data: JSON.parse(text + decoder.decode()),
+        data,
         link: r.headers.get("Link"),
       };
     } catch {
@@ -793,6 +811,7 @@ export class PortalService {
     }
   }
   private async verify(c: PortalConnection, jar: CookieJar, observe = true) {
+    if (this.compatibility) this.compatibility.phase = "profile";
     if (observe) {
       this.diagnostics(c).profileChecks++;
       if (this.trigger === "alarm") this.diagnostics(c).backgroundChecks++;
@@ -829,10 +848,11 @@ export class PortalService {
       // A profile-bound jar was created only after verifying the Student Profile
       // and a successful grades read. It cannot be replaced by an HTTP refresh.
       const account =
-          this.kind === "campus" && c.profileAccount && c.account
-            ? c.account
-            : await this.verify(c, jar),
-        summary = await this.read(c, this.summaryPath, jar);
+        this.kind === "campus" && c.profileAccount && c.account
+          ? c.account
+          : await this.verify(c, jar);
+      if (this.compatibility) this.compatibility.phase = "courses";
+      const summary = await this.read(c, this.summaryPath, jar);
       const choices = this.choices(summary),
         details: Record<string, unknown> = {};
       if (profileBound)
@@ -867,6 +887,15 @@ export class PortalService {
       return { ok: true };
     }
     let c = s.connection;
+    const capture =
+      this.kind === "carmen" && (action === "finish" || action === "snapshot");
+    this.compatibility = capture
+      ? {
+          result: "waiting",
+          phase: action === "finish" ? "signIn" : "profile",
+          responses: {},
+        }
+      : undefined;
     if (action === "progress") {
       if (c?.completed && c.completed.attempt === b.attempt && !c.pending)
         return {
@@ -1001,6 +1030,7 @@ export class PortalService {
             candidate.diagnostics = this.diagnostics(c);
           const jar = browserJar(state, this.portalURL(portal).origin),
             account = await this.verify(candidate, jar);
+          if (this.compatibility) this.compatibility.phase = "courses";
           this.choices(await this.read(candidate, this.summaryPath, jar));
           const retained = this.retainState(state, portal);
           const entry = await this.storage.get<string>(
@@ -1027,6 +1057,7 @@ export class PortalService {
           }
           c.completed = { attempt: pending.attempt!, firstConnection };
           await this.close(s);
+          if (this.compatibility) this.compatibility.result = "ok";
           return { state: "connected", firstConnection, selected: c.selected };
         } catch (error) {
           if (
@@ -1244,6 +1275,7 @@ export class PortalService {
         return { ok: true };
       }
       if (action === "snapshot") {
+        if (this.compatibility) this.compatibility.phase = "details";
         if (this.kind === "carmen") c.selected = fresh.choices.map((x) => x.id);
         const live = fresh.choices.filter((x) => c!.selected.includes(x.id));
         if (live.length > 20) throw new ApiError(400, "portalTooManyCourses");
@@ -1285,6 +1317,7 @@ export class PortalService {
         } finally {
           this.retainJar(c, fresh.jar);
         }
+        if (this.compatibility) this.compatibility.phase = "normalize";
         const fetched = Date.now();
         const courses =
           this.kind === "carmen"
@@ -1304,10 +1337,18 @@ export class PortalService {
               );
         c.lastVerified = fetched;
         c.needsReconnect = false;
+        if (this.compatibility) this.compatibility.result = "ok";
         return { account: fresh.account, courses };
       }
       throw new ApiError(404, "notFound");
     } catch (error) {
+      if (this.compatibility) {
+        this.compatibility.result = "failed";
+        const code = error instanceof Error ? error.message : "";
+        this.compatibility.error = carmenFailure(
+          code === "malformedCampus" ? "malformedCanvas" : code,
+        ).code;
+      }
       if (c) this.failure(c, error);
       if (error instanceof ApiError && error.code === "portalRateLimited" && c)
         c.cooldown = Date.now() + (error.retryAfter ?? 60) * 1000;
@@ -1335,6 +1376,18 @@ export class PortalService {
         throw new ApiError(502, error.message);
       throw new ApiError(502, "portalUnavailable");
     } finally {
+      if (
+        c &&
+        this.compatibility &&
+        Object.keys(this.compatibility.responses).length
+      ) {
+        const report = (c.compatibilityReport ??= { schema: 1 });
+        if (action === "finish") {
+          report.signIn = this.compatibility;
+          if (this.compatibility.result === "ok") delete report.sync;
+        } else report.sync = this.compatibility;
+      }
+      this.compatibility = undefined;
       await this.save(s);
     }
   }

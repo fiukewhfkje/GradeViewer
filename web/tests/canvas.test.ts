@@ -200,6 +200,7 @@ function harness() {
     hanging = false,
     networkError: string | undefined,
     rejection: Response | undefined,
+    groupOverride: unknown,
     empty = false,
     nextLink: string | undefined;
   const storage = {
@@ -298,7 +299,7 @@ function harness() {
         "assignments",
         "submission",
       ]);
-      return Response.json(d["101:groups"]);
+      return Response.json(groupOverride ?? d["101:groups"]);
     }
     if (u.pathname.endsWith("/enrollments")) {
       expect(u.searchParams.get("user_id")).toBe("77");
@@ -344,6 +345,9 @@ function harness() {
     },
     reject: (response: Response) => {
       rejection = response;
+    },
+    overrideGroups: (value: unknown) => {
+      groupOverride = value;
     },
     change: () => {
       identity = 99;
@@ -393,6 +397,14 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       /private synthetic|synthetic-canvas-session|synthetic%2F|<html>/,
     );
     expect(h.browsers).toBe(2);
+    expect(await h.service.compatibilityReport()).toMatchObject({
+      signIn: {
+        result: "failed",
+        phase: "profile",
+        error: "portalRequestBlocked",
+        responses: { profile: { httpStatuses: [403], fields: {} } },
+      },
+    });
     await h.service.handle("cancel");
   });
   it("scopes session headers and classifies bounded rejections without retaining provider text", async () => {
@@ -437,6 +449,63 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       "synthetic-app-password-12345",
     );
     expect(JSON.stringify(saved.connection.jar)).toContain("synthetic-rotated");
+  });
+  it("exports bounded Canvas field types after a failed grade sync without exposing provider values", async () => {
+    const h = harness();
+    expect(await h.service.compatibilityReport()).toBeNull();
+    await connect(h);
+    h.overrideGroups([
+      {
+        id: 101,
+        name: "PRIVATE_GROUP_TITLE",
+        assignments: [
+          {
+            id: 987654321,
+            name: "PRIVATE_ASSIGNMENT",
+            points_possible: 98765.123,
+            submission: { score: 12345.678 },
+          },
+        ],
+        PRIVATE_PROPERTY: "PRIVATE_VALUE",
+      },
+    ]);
+    await expect(h.service.handle("snapshot")).rejects.toThrow(
+      "malformedCanvas",
+    );
+    const calls = h.calls.length;
+    const report = await h.service.compatibilityReport();
+    expect(h.calls).toHaveLength(calls);
+    expect(await h.service.status()).toMatchObject({
+      connected: true,
+      compatibilityReportAvailable: true,
+    });
+    expect(report).toMatchObject({
+      schema: 1,
+      signIn: { result: "ok" },
+      sync: {
+        result: "failed",
+        phase: "normalize",
+        error: "malformedCanvas",
+        responses: {
+          assignmentGroups: {
+            httpStatuses: [200],
+            fields: {
+              "$[].assignments[].points_possible": ["number"],
+              "$[].assignments[].submission.score": ["number"],
+              "$[].assignments[].assignment_group_id": ["missing"],
+            },
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(report)).not.toMatch(
+      /PRIVATE_|987654321|98765\.123|12345\.678|Synthetic Carmen|synthetic-canvas|https:\/\//,
+    );
+    expect(h.data.get("carmen-diagnostics")).not.toHaveProperty(
+      "compatibilityReport",
+    );
+    await h.service.handle("disconnect");
+    expect(await h.service.compatibilityReport()).toBeNull();
   });
   it("pings identity only at 90 minutes, without browser use or grade freshness changes", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });

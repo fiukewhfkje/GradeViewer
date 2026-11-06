@@ -1,3 +1,9 @@
+# Carmen compatibility reports — November 6, 2026
+
+Carmen’s Settings row shows **Experimental** even when collapsed. **Copy compatibility report** becomes available after the Worker captures a response during sign-in or grade sync, including responses that fail parsing. The report shares a bounded sample of known field paths and their JSON types, HTTP statuses and parser outcomes. It omits field values, account data, cookies and grades. The button reads the saved report from the unlocked Worker without contacting Carmen. If clipboard access is unavailable, Settings shows selectable JSON.
+
+The production build and type check, 304 unit tests, all 38 browser flows in each of Chromium and WebKit, 106-file source packaging and Worker dry-run passed. Report validation used synthetic fixtures. A real enrolled-account report is still needed to confirm the parser’s assumptions. The owner’s live experiment and stable remain unchanged.
+
 # Local Settings, keep-alive and password preview — November 6, 2026
 
 Unconfigured providers now show **Set up**. When Carmen is the main LMS, the Schoology and Infinite Campus rows are hidden in Settings. Turning Carmen off restores both rows and their saved connections. A reload before first sign-in preserves the chosen LMS. The build, 303 tests, all 38 browser flows in each of Chromium and WebKit, 104-file packaging, Worker dry-run and isolated template install/build/update/rollback fixture passed. Development already contains current main. The owner’s live experiment continues on the earlier deployment.

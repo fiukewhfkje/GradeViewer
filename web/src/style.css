@@ -1690,9 +1690,20 @@ svg.spinning {
   cursor: pointer;
 }
 .carmen-label {
-  margin: 0 0 6px;
+  display: block;
+  margin-top: 3px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 400;
+}
+.carmen-report {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.carmen-report textarea {
+  width: 100%;
+  min-width: 0;
 }
 .connection[data-health="connected"] .status-dot {
   background: var(--grade);

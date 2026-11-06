@@ -593,6 +593,8 @@ export class CredentialVault {
           result = json({ sessionExpires: expires }, 200, {
             "Set-Cookie": setCookie(id),
           });
+        } else if (route === "carmen/compatibility" && !post) {
+          result = json(await this.portals("carmen").compatibilityReport());
         } else if (route.startsWith("carmen/") && post) {
           result = json(
             await this.portals("carmen").handle(

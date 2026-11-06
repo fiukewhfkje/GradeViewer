@@ -22,6 +22,7 @@ import {
 } from "./api";
 import type { CampusChoice } from "./core/campus";
 import { usePortalHealth, type ConnectionTone } from "./portal-health";
+import { CarmenReport } from "./CarmenReport";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
@@ -34,6 +35,7 @@ export function ConnectionDisclosure({
   open,
   onToggle,
   className = "",
+  experimental = false,
   children,
 }: {
   title: string;
@@ -43,6 +45,7 @@ export function ConnectionDisclosure({
   open: boolean;
   onToggle: (open: boolean) => void;
   className?: string;
+  experimental?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -53,7 +56,10 @@ export function ConnectionDisclosure({
     >
       <summary className="connection-heading">
         <span className="settings-icon">{icon}</span>
-        <strong>{title}</strong>
+        <strong>
+          {title}
+          {experimental && <small className="carmen-label">Experimental</small>}
+        </strong>
         <span className="connection" data-health={tone}>
           <span className="status-dot" />
           {label}
@@ -170,6 +176,7 @@ export function PortalConnection({
         )
           closeSignIn();
         setMessage(errorMessage(error));
+        if (carmen) await refreshStatus().catch(() => {});
       }
     }
     void check();
@@ -192,6 +199,7 @@ export function PortalConnection({
       title={title}
       icon={<School size={20} />}
       className="portal-connection"
+      experimental={carmen}
       tone={login ? "neutral" : health.tone}
       label={
         login
@@ -463,6 +471,12 @@ export function PortalConnection({
               Connect {title}
             </button>
           </div>
+        )}
+        {carmen && (
+          <CarmenReport
+            available={!!status?.compatibilityReportAvailable}
+            busy={busy || disabled}
+          />
         )}
         {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">

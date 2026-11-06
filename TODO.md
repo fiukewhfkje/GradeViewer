@@ -8,7 +8,8 @@
 - [x] Consolidate IC and Carmen Settings health into one badge per provider and keep detailed uptime in Worker diagnostics.
 - [x] Clarify password recovery in the app, use Connected for healthy providers and stage a synthetic IC reconnect in the local preview.
 - [x] Use Set up for unconfigured providers and show Carmen’s connection controls while Carmen is the main LMS.
-- [ ] Review the weekend diagnostics and confirm the stable release scope. Validate a real enrolled Carmen course before including Carmen in stable.
+- [x] Add one-tap Carmen compatibility reporting and a persistent Experimental label on the development branch.
+- [ ] Review the weekend diagnostics and confirm the stable release scope. Use an enrolled account’s compatibility report to guide Carmen normalization, then verify the resulting grades before removing the Experimental label.
 
 # Parallel session diagnostics — November 6
 

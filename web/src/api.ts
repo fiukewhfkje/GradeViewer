@@ -20,6 +20,7 @@ export interface PortalStatus {
   nextMaintenance?: number;
   lastKeepalive?: number;
   diagnostics?: CarmenDiagnostics;
+  compatibilityReportAvailable?: boolean;
   recoveryBlocked?: CarmenRecoveryStep;
   portal?: string;
   lastVerified?: number;
@@ -67,6 +68,7 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  compatibilityUnavailable: "Connect Carmen to collect a compatibility report.",
   invalidNewPassword: "Choose a new password between 12 and 256 characters.",
   passwordUnchanged: "Choose a password different from your current password.",
   portalRequestBlocked:

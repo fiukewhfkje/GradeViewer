@@ -267,6 +267,14 @@ try {
       body: "{}",
     });
     assert.equal(forbiddenWrite.status, 401);
+    assert.equal(
+      (
+        await fetch(base + "/api/carmen/compatibility", {
+          headers: operatorHeaders,
+        })
+      ).status,
+      401,
+    );
     const icDiagnosticURL = base + "/api/campus/diagnostics";
     assert.equal((await fetch(icDiagnosticURL)).status, 401);
     const icDiagnostic = await fetch(icDiagnosticURL, {
@@ -2158,7 +2166,15 @@ try {
         if (request.url().endsWith("/api/scan/start")) schoologyScans++;
       };
       page.on("request", countSchoology);
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Experimental", { exact: true })
+        .waitFor();
       await openConnection(page, "CarmenCanvas");
+      const copyReport = page.getByRole("button", {
+        name: "Copy compatibility report",
+      });
+      assert.equal(await copyReport.isEnabled(), false);
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
@@ -2185,6 +2201,47 @@ try {
         .getByRole("button", { name: /Synthetic Carmen Calculus/ })
         .waitFor();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            async write(items) {
+              const blob = await items[0].getType("text/plain");
+              document.body.dataset.copiedCarmenReport = await blob.text();
+            },
+          },
+        });
+      });
+      await copyReport.click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Report copied." })
+        .waitFor();
+      const copied = await page
+        .locator("body")
+        .getAttribute("data-copied-carmen-report");
+      const report = JSON.parse(copied);
+      assert.equal(report.signIn.result, "ok");
+      assert.equal(report.sync.result, "ok");
+      assert.deepEqual(
+        report.sync.responses.enrollments.fields["$[].grades.current_score"],
+        ["number"],
+      );
+      assert.doesNotMatch(
+        copied,
+        /Synthetic Carmen Calculus|synthetic-canvas-session|https:\/\//,
+      );
+      await page.evaluate(() => {
+        navigator.clipboard.write = async () => {
+          throw new Error("Clipboard denied");
+        };
+      });
+      await copyReport.click();
+      const fallback = page.getByRole("textbox", {
+        name: "Carmen compatibility report",
+      });
+      await fallback.waitFor();
+      assert.deepEqual(JSON.parse(await fallback.inputValue()), report);
       const keepCarmen = page
         .locator(".portal-connection")
         .filter({ hasText: "CarmenCanvas" })

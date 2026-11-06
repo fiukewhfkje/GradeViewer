@@ -131,7 +131,7 @@ export function carmenFailure(code: string, status?: number) {
     recoveryTimedOut: "timeout",
     recoveryCleanupFailed: "browserUnavailable",
   };
-  return categories[code]
+  return Object.hasOwn(categories, code)
     ? { code, category: categories[code] }
     : { code: "unexpectedFailure", category: "unknown" };
 }
