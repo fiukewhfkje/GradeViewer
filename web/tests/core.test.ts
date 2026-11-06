@@ -15,7 +15,7 @@ import {
   date,
 } from "../src/core/parser";
 import { reconcile, resolveGrades } from "../src/core/reconcile";
-import { syntheticPayload } from "../src/core/demo";
+import { syntheticPayload } from "./schoology-fixture";
 import {
   estimateQuarter,
   latestGradeUpdate,

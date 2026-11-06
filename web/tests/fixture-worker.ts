@@ -11,7 +11,7 @@ import {
 } from "./campus-fixture";
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
-import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
+import { syntheticPayload, SYNTHETIC_ACCOUNT } from "./schoology-fixture";
 import { version } from "../package.json";
 let releaseFixture: {
   version: string;

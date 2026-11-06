@@ -1,3 +1,9 @@
+# Stable release preparation — November 6
+
+- [x] Remove the sample-grades button and mode on the development branch while keeping synthetic tests.
+- [ ] Evaluate compact provider rows in Settings for the next stable release. Show connection status at a glance and place controls inside the relevant provider’s details.
+- [ ] Keep password rotation separate from UI cleanup. A safe rotation must preserve decryptability of the vault while revoking existing unlock sessions.
+
 # Parallel session diagnostics — November 6
 
 - [x] Read both saved records. IC reached 37h 35m with 140/140 successful HTTP checks. Carmen reached 36h 19m with 29 successful checks since sign-in. Neither recorded an authentication rejection or automatic recovery attempt.

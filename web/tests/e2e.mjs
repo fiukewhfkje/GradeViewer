@@ -2402,7 +2402,7 @@ try {
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .waitFor();
-      // Return to the locked state expected by subsequent sample-mode checks.
+      // Return to the locked state before the desktop Schoology flow.
       assert.equal(
         (
           await context.request.post(base + "/api/disconnect", {
@@ -2417,17 +2417,34 @@ try {
     },
   );
   await check(
-    "desktop sample mode stays separate from real persistent data",
+    "desktop grades and Settings use the normal Schoology connection",
     async () => {
       await page.setViewportSize({ width: 1280, height: 900 });
+      await page.getByLabel("App password", { exact: true }).waitFor();
       await page
         .getByRole("button", { name: "Try sample grades", exact: true })
+        .waitFor({ state: "detached" });
+      assert.equal(await page.locator(".courses .course").count(), 0);
+      await page
+        .getByLabel("App password", { exact: true })
+        .fill("synthetic-owner-password-for-tests-only");
+      await page
+        .getByRole("button", { name: "Unlock app", exact: true })
+        .click();
+      await page
+        .getByLabel("Schoology API key", { exact: true })
+        .fill("fixture");
+      await page
+        .getByLabel("Schoology API secret", { exact: true })
+        .fill("fixture-secret");
+      await page
+        .getByRole("button", { name: "Connect Schoology", exact: true })
         .click();
       await page
         .locator(".courses .course")
         .filter({ hasText: "AP Biology" })
         .waitFor();
-      await page.screenshot({ path: directory + "/desktop-demo.png" });
+      await page.screenshot({ path: directory + "/desktop-grades.png" });
       const cards = await page.locator(".courses .course").all();
       const first = await cards[0].boundingBox(),
         second = await cards[1].boundingBox();
@@ -2501,7 +2518,16 @@ try {
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .connected,
-        false,
+        true,
+      );
+      assert.equal(
+        (
+          await context.request.post(base + "/api/disconnect", {
+            data: {},
+            headers: { Origin: base },
+          })
+        ).status(),
+        200,
       );
     },
   );

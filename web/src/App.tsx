@@ -72,7 +72,6 @@ import {
   type Installation,
   type OfficialRelease,
 } from "./updates";
-import { demoCourses } from "./core/demo";
 import { usePullRefresh } from "./usePullRefresh";
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
@@ -167,8 +166,6 @@ export default function App() {
     stateRef = useRef(state),
     [status, setStatus] = useState<Status>(),
     [tab, setTab] = useState("grades"),
-    [demo, setDemo] = useState(false),
-    demoRef = useRef(false),
     [busy, setBusy] = useState(true),
     [fresh, setFresh] = useState(false),
     [cachedUnlocked, setCachedUnlocked] = useState(false),
@@ -218,7 +215,6 @@ export default function App() {
     }
     if (
       generation === cacheGeneration.current &&
-      !demoRef.current &&
       repository.canReadCache(saved, receipt)
     ) {
       apply(saved);
@@ -245,7 +241,6 @@ export default function App() {
     scope: "active" | "all" | "campus" | "carmen" = "active",
   ) {
     if (flight.current) return flight.current;
-    if (demoRef.current) return;
     const queuedAt = Date.now();
     const run = async () => {
       const generation = cacheGeneration.current;
@@ -428,44 +423,42 @@ export default function App() {
     const bc = new BroadcastChannel("gradeviewer");
     channel.current = bc;
     bc.onmessage = (event) => {
-      if (!demoRef.current) {
-        if (["locked", "disconnect"].includes(event.data)) {
+      if (["locked", "disconnect"].includes(event.data)) {
+        hideCache();
+        setTab("profile");
+        setSelected(undefined);
+        setModal(undefined);
+        setStatus({ authenticated: false, connected: false });
+        return;
+      }
+      void (async () => {
+        const remote = await api<Status>("status");
+        setStatus(remote);
+        if (!remote.authenticated || (await repository.access())?.locked) {
           hideCache();
-          setTab("profile");
           setSelected(undefined);
           setModal(undefined);
-          setStatus({ authenticated: false, connected: false });
+          setFresh(false);
+          setTab("profile");
           return;
         }
-        void (async () => {
-          const remote = await api<Status>("status");
-          setStatus(remote);
-          if (!remote.authenticated || (await repository.access())?.locked) {
-            hideCache();
-            setSelected(undefined);
-            setModal(undefined);
-            setFresh(false);
-            setTab("profile");
-            return;
-          }
-          const saved = await repository.load();
-          if (remote.connected && saved.account === remote.account) {
-            apply(saved);
-            if (event.data === "saved") setFresh(true);
-          } else {
-            setSelected(undefined);
-            setModal(undefined);
-            setFresh(false);
-            setTab("profile");
-          }
-        })().catch((e) => setError(errorMessage(e)));
-      }
+        const saved = await repository.load();
+        if (remote.connected && saved.account === remote.account) {
+          apply(saved);
+          if (event.data === "saved") setFresh(true);
+        } else {
+          setSelected(undefined);
+          setModal(undefined);
+          setFresh(false);
+          setTab("profile");
+        }
+      })().catch((e) => setError(errorMessage(e)));
     };
     let wasHidden = document.visibilityState === "hidden";
     const visibility = () => {
       const returning = document.visibilityState === "visible" && wasHidden;
       wasHidden = document.visibilityState === "hidden";
-      if (returning && !demoRef.current) {
+      if (returning) {
         void refresh().catch(() => {});
       }
       if (returning && "serviceWorker" in navigator) {
@@ -545,7 +538,7 @@ export default function App() {
   async function persist(next: SavedState) {
     pendingSaves.current++;
     try {
-      if (flight.current && !demoRef.current) {
+      if (flight.current) {
         const before = stateRef.current;
         await flight.current.catch(() => {});
         const current = stateRef.current;
@@ -585,7 +578,7 @@ export default function App() {
           }),
         };
       }
-      if (!demoRef.current) await repository.save(next);
+      await repository.save(next);
       apply(next);
       channel.current?.postMessage("local");
       saveFailed.current = false;
@@ -615,7 +608,7 @@ export default function App() {
       ),
     });
   }
-  const usingCarmen = !demo && state.primaryLms === "carmen";
+  const usingCarmen = state.primaryLms === "carmen";
   const workspaceCourses = state.courses.filter((c) =>
     usingCarmen
       ? c.fields.provider === "carmen"
@@ -1059,11 +1052,10 @@ export default function App() {
   useEffect(() => {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
-  const locked = !demo && !status?.authenticated && !cachedUnlocked;
+  const locked = !status?.authenticated && !cachedUnlocked;
   const canRefresh =
     !busy &&
     !locked &&
-    !demo &&
     (!!status?.connected || cachedUnlocked) &&
     (usingCarmen || deadline <= Date.now());
   async function refreshStatus() {
@@ -1215,32 +1207,12 @@ export default function App() {
                 </button>
               </aside>
             )}
-            {demo && (
-              <aside className="notice demo">
-                Sample grades · synthetic data
-                <button
-                  onClick={() => {
-                    demoRef.current = false;
-                    setFresh(false);
-                    setDemo(false);
-                    setSelected(undefined);
-                    void repository
-                      .load()
-                      .then(apply)
-                      .then(() => refresh())
-                      .catch(() => {});
-                  }}
-                >
-                  Exit demo
-                </button>
-              </aside>
-            )}
             {error && (
               <p role="alert" className="notice error">
                 {error}
               </p>
             )}
-            {fresh && !demo && tab === "grades" && error && (
+            {fresh && tab === "grades" && error && (
               <div className="refresh-status" role="status">
                 Showing saved grades.{" "}
                 <button
@@ -1264,7 +1236,7 @@ export default function App() {
                 <>
                   <div className="settings-layout">
                     <div className="settings-column settings-connections">
-                      {!demo && !locked && (
+                      {!locked && (
                         <section className="settings-group">
                           <h2>Experimental</h2>
                           <div className="settings-card portal-body">
@@ -1311,20 +1283,17 @@ export default function App() {
                               className="connection"
                               data-connected={
                                 !locked &&
-                                ((status?.schoologyConnected ??
-                                  status?.connected) ||
-                                  demo)
+                                (status?.schoologyConnected ??
+                                  status?.connected)
                               }
                             >
                               <span className="status-dot" />
                               {locked
                                 ? "Locked"
-                                : demo
-                                  ? "Sample"
-                                  : (status?.schoologyConnected ??
-                                      status?.connected)
-                                    ? "Connected"
-                                    : "Not connected"}
+                                : (status?.schoologyConnected ??
+                                    status?.connected)
+                                  ? "Connected"
+                                  : "Not connected"}
                             </span>
                           </div>
                           {locked ? (
@@ -1342,7 +1311,7 @@ export default function App() {
                                   !!(
                                     status?.schoologyConnected ??
                                     status?.connected
-                                  ) || demo
+                                  )
                                 }
                                 busy={busy}
                                 connect={async (credentials) => {
@@ -1350,7 +1319,6 @@ export default function App() {
                                   setTab("grades");
                                 }}
                                 disconnect={disconnect}
-                                demo={demo}
                                 retainsCarmen={
                                   !!status?.portals?.carmen?.connected
                                 }
@@ -1359,7 +1327,7 @@ export default function App() {
                           )}
                         </div>
                       </section>
-                      {!demo && !locked && (
+                      {!locked && (
                         <PortalConnection
                           status={status?.portals?.campus}
                           refreshStatus={refreshStatus}
@@ -1372,7 +1340,7 @@ export default function App() {
                           }}
                         />
                       )}
-                      {!demo && !locked && (
+                      {!locked && (
                         <PortalConnection
                           provider="carmen"
                           status={status?.portals?.carmen}
@@ -1492,59 +1460,38 @@ export default function App() {
                               {applyingUpdate ? "Updating…" : "Update now"}
                             </button>
                           )}
-                          {!demo &&
-                            (status?.authenticated || cachedUnlocked) && (
-                              <button
-                                className="secondary full"
-                                disabled={!canRefresh}
-                                onClick={() =>
-                                  void refresh(undefined, true).catch(() => {})
+                          {(status?.authenticated || cachedUnlocked) && (
+                            <button
+                              className="secondary full"
+                              disabled={!canRefresh}
+                              onClick={() =>
+                                void refresh(undefined, true).catch(() => {})
+                              }
+                            >
+                              <RefreshCw size={18} /> Refresh grades
+                            </button>
+                          )}
+                          {(status?.authenticated || cachedUnlocked) && (
+                            <button
+                              className="secondary"
+                              onClick={async () => {
+                                try {
+                                  await repository.lock();
+                                  hideCache();
+                                  setStatus({
+                                    authenticated: false,
+                                    connected: false,
+                                  });
+                                  channel.current?.postMessage("locked");
+                                  await api("logout", {});
+                                } catch (e) {
+                                  setError(errorMessage(e));
                                 }
-                              >
-                                <RefreshCw size={18} /> Refresh grades
-                              </button>
-                            )}
-                          {!demo &&
-                            (status?.authenticated || cachedUnlocked) && (
-                              <button
-                                className="secondary"
-                                onClick={async () => {
-                                  try {
-                                    await repository.lock();
-                                    hideCache();
-                                    setStatus({
-                                      authenticated: false,
-                                      connected: false,
-                                    });
-                                    channel.current?.postMessage("locked");
-                                    await api("logout", {});
-                                  } catch (e) {
-                                    setError(errorMessage(e));
-                                  }
-                                }}
-                              >
-                                <LockKeyhole size={18} /> Lock app
-                              </button>
-                            )}
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => {
-                              demoRef.current = true;
-                              setDemo(true);
-                              apply({
-                                schema: 1,
-                                courses: demoCourses(),
-                                scenarios: {},
-                              });
-                              setFresh(true);
-                              setBusy(false);
-                              setError("");
-                              setTab("grades");
-                            }}
-                          >
-                            Try sample grades
-                          </button>
+                              }}
+                            >
+                              <LockKeyhole size={18} /> Lock app
+                            </button>
+                          )}
                         </div>
                       </section>
                     </div>
@@ -1568,7 +1515,7 @@ export default function App() {
                   )}
                   <p className="profile-footnote">GradeViewer {version}</p>
                 </>
-              ) : !fresh && !demo ? (
+              ) : !fresh ? (
                 !busy && (
                   <div className="gate">
                     <>
@@ -1605,7 +1552,7 @@ export default function App() {
                 <>
                   {!usingCarmen && (
                     <GpaSummary
-                      key={state.account ?? "demo"}
+                      key={state.account}
                       courses={state.courses.filter(
                         (c) => c.fields.provider !== "carmen",
                       )}
@@ -1615,7 +1562,7 @@ export default function App() {
                   )}
                   {usingCarmen && (
                     <GpaSummary
-                      key={(state.account ?? "demo") + ":carmen"}
+                      key={state.account + ":carmen"}
                       policy="osu"
                       courses={state.courses.filter(
                         (c) => c.fields.provider === "carmen",
@@ -1898,7 +1845,6 @@ function Connection({
   busy,
   connect,
   disconnect,
-  demo,
   retainsCarmen = false,
 }: {
   connected: boolean;
@@ -1906,7 +1852,6 @@ function Connection({
   connect: (c: { key: string; secret: string }) => Promise<void>;
   disconnect: () => Promise<void>;
   retainsCarmen?: boolean;
-  demo: boolean;
 }) {
   const [editing, setEditing] = useState(!connected),
     [key, setKey] = useState(""),
@@ -1918,7 +1863,7 @@ function Connection({
   }, [connected]);
   return (
     <>
-      {editing && !demo ? (
+      {editing ? (
         <form
           onSubmit={async (e: FormEvent) => {
             e.preventDefault();
@@ -1996,14 +1941,14 @@ function Connection({
         <>
           <button
             className="settings-action"
-            disabled={busy || demo}
+            disabled={busy}
             onClick={() => setEditing(true)}
           >
             Update connection <ChevronRight size={17} />
           </button>
           <button
             className="settings-action danger"
-            disabled={busy || demo}
+            disabled={busy}
             onClick={() => setConfirm(true)}
           >
             Disconnect

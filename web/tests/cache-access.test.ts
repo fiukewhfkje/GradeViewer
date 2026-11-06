@@ -1,11 +1,11 @@
 import "fake-indexeddb/auto";
 import { afterEach, expect, it } from "vitest";
-import { demoCourses } from "../src/core/demo";
+import { syntheticCourses } from "./schoology-fixture";
 import * as repository from "../src/repository";
 const state = {
   schema: 1 as const,
   account: "synthetic-owner",
-  courses: demoCourses(),
+  courses: syntheticCourses(),
   scenarios: {},
 };
 afterEach(() => repository.clear());

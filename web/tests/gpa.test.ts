@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { estimateGpa, gpaSemesters, suggestLevel } from "../src/core/gpa";
-import { demoCourses } from "../src/core/demo";
+import { syntheticCourses } from "./schoology-fixture";
 import type { Course, Grade } from "../src/core/model";
 
 const now = Date.parse("2026-11-03T12:00:00Z");
-const sample = demoCourses(now).find((c) => c.term.name === "Semester 1")!;
+const sample = syntheticCourses(now).find((c) => c.term.name === "Semester 1")!;
 const semester = (
   id: string,
   title: string,

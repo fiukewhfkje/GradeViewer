@@ -10,7 +10,7 @@ import {
 } from "../src/core/periods";
 import { calculate, hypothetical } from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
-import { demoCourses } from "../src/core/demo";
+import { syntheticCourses } from "./schoology-fixture";
 import { recentProgression } from "../src/core/progression";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
@@ -138,7 +138,7 @@ describe("selected IC normalization", () => {
       ["Q1", "Q2"].includes(descriptor(c).label),
     ))
       expect(overall(q, courses).id).toBe(finals[0].id);
-    const schoology = demoCourses(now),
+    const schoology = syntheticCourses(now),
       term = gpaSemesters(schoology, now)[0];
     const result = estimateGpa([...schoology, ...courses], term, {
       weighting: "equal",
@@ -176,8 +176,8 @@ describe("selected IC normalization", () => {
         gpaSemesters(courses, now).some((term) => term.course.id === s.id),
       ).toBe(true);
       const row = estimateGpa(
-        [...demoCourses(now), ...courses],
-        gpaSemesters(demoCourses(now), now)[0],
+        [...syntheticCourses(now), ...courses],
+        gpaSemesters(syntheticCourses(now), now)[0],
         { weighting: "equal", courses: {} },
       ).rows.find((r) => r.title === s.title);
       expect(row?.points).toBeUndefined();
@@ -207,13 +207,13 @@ describe("selected IC normalization", () => {
     expect(courses[0].history[0].provider).toBe("campus");
     expect(physicalKey(source)).not.toBe("100");
     expect(
-      visibleCourses([...demoCourses(now), ...courses], now).some(
+      visibleCourses([...syntheticCourses(now), ...courses], now).some(
         (x) => x.id === source.id,
       ),
     ).toBe(true);
   });
   it("includes IC in the existing GPA semester despite different instructional start dates, preserving Schoology keys", () => {
-    const schoology = demoCourses(now),
+    const schoology = syntheticCourses(now),
       baseline = gpaSemesters(schoology, now)[0],
       courses = [...schoology, ...parsed()];
     expect(gpaSemesters(courses, now)).toHaveLength(
@@ -657,7 +657,7 @@ describe("IC account reset and local privacy", () => {
     const repository = await import("../src/repository"),
       { refreshCampus } = await import("../src/portal-refresh");
     const own = parsed()[0],
-      sg = demoCourses(now)[0];
+      sg = syntheticCourses(now)[0];
     const key = JSON.stringify(["term", physicalKey(own)]),
       sgKey = JSON.stringify(["term", physicalKey(sg)]);
     const state = {

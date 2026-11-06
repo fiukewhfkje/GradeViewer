@@ -756,9 +756,9 @@ it("clears disconnected Schoology preferences in another browser while retaining
   const repository = await import("../src/repository"),
     { readSnapshot } = await import("../src/refresh"),
     { reconcile } = await import("../src/core/reconcile"),
-    { demoCourses } = await import("../src/core/demo");
+    { syntheticCourses } = await import("./schoology-fixture");
   const c = parse()[0],
-    sg = demoCourses(now)[0],
+    sg = syntheticCourses(now)[0],
     scenario = { scores: {}, ignored: [], added: [] };
   const state = {
     schema: 1 as const,

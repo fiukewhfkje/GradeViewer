@@ -1,3 +1,9 @@
+# Sample grades removal — November 6, 2026
+
+Removed “Try sample grades” and the in-app demo state on the development branch. Synthetic Schoology data now lives with the test fixtures. The desktop browser flow uses the regular unlock and connection screens against the synthetic Worker, preserving layout, chart, navigation and Settings coverage.
+
+The build and type check, all 298 tests, all 37 flows in each of Chromium and WebKit, and 104-file local release packaging passed. The production bundle excludes the sample entry point and fixture data. The connector experiment continues on the previously deployed build.
+
 # Parallel session diagnostics — November 6, 2026
 
 Read both saved Worker records at approximately 12:55 EST. Infinite Campus succeeded on **140/140 HTTP checks**, including **102 scheduled checks**, with no recorded failures. The latest success was November 6 at 12:54:02 EST, **37h 35m** after diagnostics began on the existing connection. Its latest scheduled check succeeded at 12:44:09 EST.
