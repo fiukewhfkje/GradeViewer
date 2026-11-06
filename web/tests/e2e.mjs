@@ -304,6 +304,8 @@ try {
       .getByLabel("App password", { exact: true })
       .fill("synthetic-owner-password-for-tests-only");
     await page.getByRole("button", { name: "Unlock app", exact: true }).click();
+    await page.getByLabel("Schoology API key", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Set up", { exact: true }).count(), 3);
     await page.getByLabel("Schoology API key", { exact: true }).fill("fixture");
     await page
       .getByLabel("Schoology API secret", { exact: true })
@@ -2161,9 +2163,13 @@ try {
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
       await completeCarmenSignIn(page, context.request);
+      const otherConnections = page.locator(".connection-heading > strong", {
+        hasText: /^(Schoology|Infinite Campus)$/,
+      });
       await page
         .getByRole("switch", { name: /Use Carmen as main LMS/ })
         .check();
+      assert.equal(await otherConnections.count(), 0);
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(
         () => document.querySelectorAll(".courses .course").length === 1,
@@ -2256,6 +2262,7 @@ try {
       await page
         .getByRole("switch", { name: /Use Carmen as main LMS/ })
         .uncheck();
+      assert.equal(await otherConnections.count(), 2);
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(
         () => document.querySelectorAll(".courses .course").length === 5,
@@ -2321,9 +2328,18 @@ try {
         .getByRole("button", { name: "Unlock app", exact: true })
         .click();
       await openConnection(page, "CarmenCanvas");
-      await page
-        .getByRole("switch", { name: /Use Carmen as main LMS/ })
-        .check();
+      const carmenMode = page.getByRole("switch", {
+        name: /Use Carmen as main LMS/,
+      });
+      await carmenMode.check();
+      await carmenMode.and(page.locator(":enabled")).waitFor();
+      await page.reload();
+      await openConnection(page, "CarmenCanvas");
+      assert.equal(await carmenMode.isChecked(), true);
+      assert.equal(
+        await page.getByLabel("Schoology API key", { exact: true }).count(),
+        0,
+      );
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
@@ -2410,6 +2426,9 @@ try {
         status.account,
       );
       await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .uncheck();
+      await page
         .getByLabel("Schoology API key", { exact: true })
         .fill("fixture");
       await page
@@ -2418,9 +2437,10 @@ try {
       await page
         .getByRole("button", { name: "Connect Schoology", exact: true })
         .click();
-      await page.waitForFunction(
-        () => document.querySelectorAll(".courses .course").length === 1,
-      );
+      await page
+        .locator(".courses .course")
+        .filter({ hasText: "AP Biology" })
+        .waitFor();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await openConnection(page, "Schoology");
       await page
@@ -2432,6 +2452,9 @@ try {
       await page
         .getByRole("button", { name: "Connect Schoology", exact: true })
         .waitFor();
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .check();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await card.waitFor();
       assert.equal(await page.locator(".courses .course").count(), 1);

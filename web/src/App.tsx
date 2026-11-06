@@ -289,7 +289,7 @@ export default function App() {
           if (latest.account || stateRef.current.account) {
             await repository.clear();
             apply(emptyState());
-          }
+          } else apply(latest);
           setTab("profile");
           setFresh(true);
           return;
@@ -1292,39 +1292,52 @@ export default function App() {
                         <section className="settings-group">
                           <h2>Connections</h2>
                           <div className="settings-card">
-                            {schoologyConnected ? (
-                              <ConnectionDisclosure
-                                title="Schoology"
-                                icon={<User size={20} />}
-                                label="Connected"
-                                tone="connected"
-                                open={openConnections.schoology}
-                                onToggle={(open) => disclose("schoology", open)}
-                              >
-                                {schoologyForm}
-                              </ConnectionDisclosure>
-                            ) : (
+                            {!usingCarmen && (
                               <>
-                                <div className="connection-heading">
-                                  <span className="settings-icon">
-                                    <User size={20} />
-                                  </span>
-                                  <strong>Schoology</strong>
-                                </div>
-                                {schoologyForm}
+                                {schoologyConnected ? (
+                                  <ConnectionDisclosure
+                                    title="Schoology"
+                                    icon={<User size={20} />}
+                                    label="Connected"
+                                    tone="connected"
+                                    open={openConnections.schoology}
+                                    onToggle={(open) =>
+                                      disclose("schoology", open)
+                                    }
+                                  >
+                                    {schoologyForm}
+                                  </ConnectionDisclosure>
+                                ) : (
+                                  <>
+                                    <div className="connection-heading">
+                                      <span className="settings-icon">
+                                        <User size={20} />
+                                      </span>
+                                      <strong>Schoology</strong>
+                                      <span
+                                        className="connection"
+                                        data-health="neutral"
+                                      >
+                                        <span className="status-dot" />
+                                        Set up
+                                      </span>
+                                    </div>
+                                    {schoologyForm}
+                                  </>
+                                )}
+                                <PortalConnection
+                                  status={status?.portals?.campus}
+                                  refreshStatus={refreshStatus}
+                                  disabled={!schoologyConnected}
+                                  open={openConnections.campus}
+                                  onToggle={(open) => disclose("campus", open)}
+                                  refresh={async () => {
+                                    await flight.current?.catch(() => {});
+                                    await refresh(undefined, true, "campus");
+                                  }}
+                                />
                               </>
                             )}
-                            <PortalConnection
-                              status={status?.portals?.campus}
-                              refreshStatus={refreshStatus}
-                              disabled={!schoologyConnected}
-                              open={openConnections.campus}
-                              onToggle={(open) => disclose("campus", open)}
-                              refresh={async () => {
-                                await flight.current?.catch(() => {});
-                                await refresh(undefined, true, "campus");
-                              }}
-                            />
                             <PortalConnection
                               provider="carmen"
                               status={status?.portals?.carmen}

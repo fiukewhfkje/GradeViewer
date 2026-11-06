@@ -1,5 +1,7 @@
 # Local Settings, keep-alive and password preview — November 6, 2026
 
+Unconfigured providers now show **Set up**. When Carmen is the main LMS, the Schoology and Infinite Campus rows are hidden in Settings. Turning Carmen off restores both rows and their saved connections. A reload before first sign-in preserves the chosen LMS. The build, 303 tests, all 38 browser flows in each of Chromium and WebKit, 104-file packaging, Worker dry-run and isolated template install/build/update/rollback fixture passed. Development already contains current main. The owner’s live experiment continues on the earlier deployment.
+
 The in-app recovery help now explains the first unlock, secret deletion, and reuse of the same reset secret name. A synthetic security regression verifies two resets with fresh values and successful login after each secret removal. Healthy badges now read Connected. The localhost preview has a staged IC authentication rejection with the selected course retained. Its synthetic sign-in clears the rejection and exercises the normal reconnect path. Build, all 303 tests, and all 38 flows in each of Chromium and WebKit passed.
 
 The password-change confirmation now clears after five seconds. The recovery instructions link to Cloudflare and let the owner set their intended new password directly. One successful unlock saves the new verifier, so the reset secret can be removed without another password change. The build, 24 security tests and both focused Chromium and WebKit checks passed.

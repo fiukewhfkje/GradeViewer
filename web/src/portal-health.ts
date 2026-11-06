@@ -8,7 +8,7 @@ export function portalHealth(
   now = Date.now(),
   intervalMinutes = 90,
 ): { label: string; tone: ConnectionTone } {
-  if (!status?.connected) return { label: "Not connected", tone: "neutral" };
+  if (!status?.connected) return { label: "Set up", tone: "neutral" };
   const fault = status.diagnostics?.currentFailure;
   if (fault?.category === "accessDenied")
     return { label: "Access denied", tone: "error" };

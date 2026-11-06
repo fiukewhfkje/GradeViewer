@@ -7,7 +7,8 @@
 - [x] Dismiss the change confirmation after five seconds and streamline recovery to one unlock with the desired new password.
 - [x] Consolidate IC and Carmen Settings health into one badge per provider and keep detailed uptime in Worker diagnostics.
 - [x] Clarify password recovery in the app, use Connected for healthy providers and stage a synthetic IC reconnect in the local preview.
-- [ ] Owner acceptance on the synthetic localhost preview. Validate a real enrolled Carmen course separately before considering stable release.
+- [x] Use Set up for unconfigured providers and show Carmen’s connection controls while Carmen is the main LMS.
+- [ ] Review the weekend diagnostics and confirm the stable release scope. Validate a real enrolled Carmen course before including Carmen in stable.
 
 # Parallel session diagnostics — November 6
 
