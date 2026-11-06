@@ -110,6 +110,17 @@ function release(
   );
   return { archive, manifest };
 }
+it("rejects a downgrade to a release that ignores changed app passwords", async () => {
+  const cwd = await checkout();
+  await writeFile(
+    join(cwd, "package.json"),
+    JSON.stringify({ version: "0.2.2", passwordSchema: 1 }),
+  );
+  const previous = release({}, "0.2.1");
+  await expect(
+    applyRelease(previous.manifest, previous.archive, { cwd, rollback: true }),
+  ).rejects.toThrow("This release cannot honor the current app password.");
+});
 it("places the exact canonical workflow at both full-repository and isolated-template roots", async () => {
   const paths = [".github/workflows/gradeviewer-update.yml"];
   if (

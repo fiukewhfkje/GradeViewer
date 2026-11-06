@@ -67,6 +67,8 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
   return value as T;
 }
 const messages: Record<string, string> = {
+  invalidNewPassword: "Choose a new password between 12 and 256 characters.",
+  passwordUnchanged: "Choose a password different from your current password.",
   portalRequestBlocked:
     "Carmen rejected GradeViewer’s connection check. Your browser sign-in may still be active. Details were saved for troubleshooting.",
   portalTimeout:

@@ -15,6 +15,7 @@ import { recentProgression } from "../src/core/progression";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
 import { portalBrowser } from "../worker/portal-browser";
+import { seal } from "../worker/crypto";
 import {
   campusSummary,
   campusDetail,
@@ -411,6 +412,34 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
+  it("keeps existing IC connections and ignores legacy automatic maintenance", async () => {
+    const h = harness();
+    h.data.set(
+      "portal-campus",
+      await seal(
+        {
+          browserMs: 0,
+          connection: {
+            portal: campusPortal,
+            account: "synthetic-existing-account",
+            selected: ["1:100"],
+            maintenance: true,
+            nextMaintenance: now,
+          },
+        },
+        "synthetic-owner-password-123456",
+      ),
+    );
+    expect(await h.service.status()).toMatchObject({
+      connected: true,
+      selected: ["1:100"],
+      maintenance: false,
+      nextMaintenance: undefined,
+    });
+    await h.service.expire();
+    expect(h.calls).toEqual([]);
+    expect(h.browserCalls()).toBe(0);
+  });
   it.each([false, true])(
     "checks IC at 20 minutes without a browser or grade freshness change (profile-bound %s)",
     async (profileBound) => {
@@ -421,6 +450,13 @@ describe("encrypted IC session and selected snapshots", () => {
       await h.service.handle("start", { portal: campusPortal });
       await h.service.handle("finish");
       await h.service.handle("select", { selected: ["1:100"] });
+      expect(await h.service.status()).toMatchObject({
+        maintenance: false,
+        nextMaintenance: undefined,
+      });
+      h.calls.length = 0;
+      await h.service.handle("maintenance", { enabled: true });
+      expect(h.calls).toEqual([]);
       const verified = (await h.service.status()).lastVerified,
         browsers = h.browserCalls();
       h.calls.length = 0;

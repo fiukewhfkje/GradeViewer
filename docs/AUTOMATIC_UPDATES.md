@@ -79,6 +79,8 @@ npm run update:copy -- OWNER/REPOSITORY --version 0.1.3
 
 A rollback changes app source, not the existing URL, vault, secret or browser database. The next daily check resumes the selected channel; it can reinstall the latest stable release. Do not use a schema-incompatible older app. v0.1.0 also requires a 20-character password; copies with shorter passwords must remain on v0.1.1 or later.
 
+Releases with in-app password changes declare a password schema. The signed updater blocks rollback to builds that ignore the new password verifier. Use a password-compatible version for manual Cloudflare rollbacks too.
+
 ### Optional preview channel
 
 Prepare preview changes on a development branch and keep `main` on the stable version. Publish a matching tag such as `v0.1.8-rc.1` from that branch using the same reviewed tag-release workflow. It is explicitly published as a **prerelease**, excluded from stable/latest. Only opt the development copy in:

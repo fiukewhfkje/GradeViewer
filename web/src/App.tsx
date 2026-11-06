@@ -1,4 +1,4 @@
-import { PortalConnection } from "./PortalConnection";
+import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -28,6 +28,7 @@ import {
   SunMoon,
   Globe,
   LockKeyhole,
+  KeyRound,
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
@@ -150,7 +151,14 @@ function Dialog({
     }
   }, [initialInput]);
   return (
-    <dialog ref={ref} onCancel={close} aria-label={title}>
+    <dialog
+      ref={ref}
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+      aria-label={title}
+    >
       <div className="dialog-heading">
         <h2>{title}</h2>
         <button className="icon" onClick={close} aria-label="Close dialog">
@@ -176,6 +184,13 @@ export default function App() {
     [view, setView] = useState("detail"),
     [period, setPeriod] = useState<string>(),
     [modal, setModal] = useState<Modal>(),
+    [changingPassword, setChangingPassword] = useState(false),
+    [passwordChanged, setPasswordChanged] = useState(false),
+    [openConnections, setOpenConnections] = useState({
+      schoology: false,
+      campus: false,
+      carmen: false,
+    }),
     [install, setInstall] = useState(false),
     [prompt, setPrompt] = useState<InstallEvent>(),
     [copied, setCopied] = useState(false),
@@ -940,7 +955,7 @@ export default function App() {
     );
   }
   async function activateUpdate() {
-    if (!update || applyingUpdate || modal) return;
+    if (!update || applyingUpdate || modal || changingPassword) return;
     if (
       flight.current ||
       pendingSaves.current ||
@@ -1053,6 +1068,25 @@ export default function App() {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
   const locked = !status?.authenticated && !cachedUnlocked;
+  const schoologyConnected = !!(
+    status?.schoologyConnected ?? status?.connected
+  );
+  const disclose = (kind: keyof typeof openConnections, open: boolean) =>
+    setOpenConnections((previous) =>
+      previous[kind] === open ? previous : { ...previous, [kind]: open },
+    );
+  const schoologyForm = (
+    <Connection
+      connected={schoologyConnected}
+      busy={busy}
+      connect={async (credentials) => {
+        await refresh(credentials);
+        setTab("grades");
+      }}
+      disconnect={disconnect}
+      retainsCarmen={!!status?.portals?.carmen?.connected}
+    />
+  );
   const canRefresh =
     !busy &&
     !locked &&
@@ -1236,67 +1270,10 @@ export default function App() {
                 <>
                   <div className="settings-layout">
                     <div className="settings-column settings-connections">
-                      {!locked && (
+                      {locked ? (
                         <section className="settings-group">
-                          <h2>Experimental</h2>
-                          <div className="settings-card portal-body">
-                            <label className="gpa-check carmen-mode">
-                              <input
-                                type="checkbox"
-                                role="switch"
-                                checked={usingCarmen}
-                                disabled={busy || switchingLms}
-                                onChange={(event) =>
-                                  void switchLms(event.target.checked).catch(
-                                    (e) => setError(errorMessage(e)),
-                                  )
-                                }
-                              />
-                              <span
-                                className="gpa-toggle-track"
-                                aria-hidden="true"
-                              />
-                              <span>
-                                <strong>Use Carmen as main LMS</strong>
-                                <small>
-                                  {usingCarmen
-                                    ? "Showing university courses"
-                                    : "Showing Schoology and selected IC courses"}
-                                </small>
-                              </span>
-                            </label>
-                            <p className="muted">
-                              Your Schoology and Carmen connections stay saved.
-                            </p>
-                          </div>
-                        </section>
-                      )}
-                      <section className="settings-group">
-                        <h2>Connections</h2>
-                        <div className="settings-card">
-                          <div className="connection-heading">
-                            <span className="settings-icon">
-                              <User size={20} />
-                            </span>
-                            <strong>Schoology</strong>
-                            <span
-                              className="connection"
-                              data-connected={
-                                !locked &&
-                                (status?.schoologyConnected ??
-                                  status?.connected)
-                              }
-                            >
-                              <span className="status-dot" />
-                              {locked
-                                ? "Locked"
-                                : (status?.schoologyConnected ??
-                                    status?.connected)
-                                  ? "Connected"
-                                  : "Not connected"}
-                            </span>
-                          </div>
-                          {locked ? (
+                          <h2>Unlock GradeViewer</h2>
+                          <div className="settings-card">
                             <Unlock
                               onUnlock={async (password) => {
                                 await api("login", { password });
@@ -1304,53 +1281,81 @@ export default function App() {
                                 await refresh();
                               }}
                             />
-                          ) : (
-                            <>
-                              <Connection
-                                connected={
-                                  !!(
-                                    status?.schoologyConnected ??
-                                    status?.connected
-                                  )
-                                }
-                                busy={busy}
-                                connect={async (credentials) => {
-                                  await refresh(credentials);
-                                  setTab("grades");
-                                }}
-                                disconnect={disconnect}
-                                retainsCarmen={
-                                  !!status?.portals?.carmen?.connected
-                                }
-                              />
-                            </>
-                          )}
-                        </div>
-                      </section>
-                      {!locked && (
-                        <PortalConnection
-                          status={status?.portals?.campus}
-                          refreshStatus={refreshStatus}
-                          disabled={
-                            !(status?.schoologyConnected ?? status?.connected)
-                          }
-                          refresh={async () => {
-                            await flight.current?.catch(() => {});
-                            await refresh(undefined, true, "campus");
-                          }}
-                        />
-                      )}
-                      {!locked && (
-                        <PortalConnection
-                          provider="carmen"
-                          status={status?.portals?.carmen}
-                          refreshStatus={refreshStatus}
-                          disabled={!status?.authenticated || busy}
-                          refresh={async () => {
-                            await flight.current?.catch(() => {});
-                            await refresh(undefined, true, "carmen");
-                          }}
-                        />
+                          </div>
+                        </section>
+                      ) : (
+                        <section className="settings-group">
+                          <h2>Connections</h2>
+                          <div className="settings-card">
+                            {schoologyConnected ? (
+                              <ConnectionDisclosure
+                                title="Schoology"
+                                icon={<User size={20} />}
+                                label="Connected"
+                                connected
+                                open={openConnections.schoology}
+                                onToggle={(open) => disclose("schoology", open)}
+                              >
+                                {schoologyForm}
+                              </ConnectionDisclosure>
+                            ) : (
+                              <>
+                                <div className="connection-heading">
+                                  <span className="settings-icon">
+                                    <User size={20} />
+                                  </span>
+                                  <strong>Schoology</strong>
+                                </div>
+                                {schoologyForm}
+                              </>
+                            )}
+                            <PortalConnection
+                              status={status?.portals?.campus}
+                              refreshStatus={refreshStatus}
+                              disabled={!schoologyConnected}
+                              open={openConnections.campus}
+                              onToggle={(open) => disclose("campus", open)}
+                              refresh={async () => {
+                                await flight.current?.catch(() => {});
+                                await refresh(undefined, true, "campus");
+                              }}
+                            />
+                            <PortalConnection
+                              provider="carmen"
+                              status={status?.portals?.carmen}
+                              refreshStatus={refreshStatus}
+                              disabled={!status?.authenticated || busy}
+                              open={openConnections.carmen}
+                              onToggle={(open) => disclose("carmen", open)}
+                              refresh={async () => {
+                                await flight.current?.catch(() => {});
+                                await refresh(undefined, true, "carmen");
+                              }}
+                            >
+                              <div className="portal-body">
+                                <p className="carmen-label">Experimental</p>
+                                <label className="gpa-check">
+                                  <input
+                                    type="checkbox"
+                                    role="switch"
+                                    checked={usingCarmen}
+                                    disabled={busy || switchingLms}
+                                    onChange={(event) =>
+                                      void switchLms(
+                                        event.target.checked,
+                                      ).catch((e) => setError(errorMessage(e)))
+                                    }
+                                  />
+                                  <span
+                                    className="gpa-toggle-track"
+                                    aria-hidden="true"
+                                  />
+                                  <span>Use Carmen as main LMS</span>
+                                </label>
+                              </div>
+                            </PortalConnection>
+                          </div>
+                        </section>
                       )}
                       <section className="settings-group">
                         <h2>Preferences</h2>
@@ -1375,6 +1380,49 @@ export default function App() {
                       </section>
                     </div>
                     <div className="settings-column settings-preferences">
+                      {!locked && (
+                        <section className="settings-group app-actions">
+                          <h2>Security</h2>
+                          <div className="settings-card">
+                            <button
+                              disabled={!status?.authenticated || busy}
+                              onClick={() => {
+                                setPasswordChanged(false);
+                                setChangingPassword(true);
+                              }}
+                            >
+                              <KeyRound size={18} /> Change app password
+                            </button>
+                            {(status?.authenticated || cachedUnlocked) && (
+                              <button
+                                className="secondary"
+                                onClick={async () => {
+                                  try {
+                                    await repository.lock();
+                                    hideCache();
+                                    setStatus({
+                                      authenticated: false,
+                                      connected: false,
+                                    });
+                                    channel.current?.postMessage("locked");
+                                    await api("logout", {});
+                                  } catch (e) {
+                                    setError(errorMessage(e));
+                                  }
+                                }}
+                              >
+                                <LockKeyhole size={18} /> Lock app
+                              </button>
+                            )}
+                          </div>
+                          {passwordChanged && (
+                            <p className="settings-note" role="status">
+                              App password changed. Other browsers will ask for
+                              the new password.
+                            </p>
+                          )}
+                        </section>
+                      )}
                       <section className="settings-group personal-site">
                         <h2>Your personal website</h2>
                         <div className="settings-card site-card">
@@ -1469,27 +1517,6 @@ export default function App() {
                               }
                             >
                               <RefreshCw size={18} /> Refresh grades
-                            </button>
-                          )}
-                          {(status?.authenticated || cachedUnlocked) && (
-                            <button
-                              className="secondary"
-                              onClick={async () => {
-                                try {
-                                  await repository.lock();
-                                  hideCache();
-                                  setStatus({
-                                    authenticated: false,
-                                    connected: false,
-                                  });
-                                  channel.current?.postMessage("locked");
-                                  await api("logout", {});
-                                } catch (e) {
-                                  setError(errorMessage(e));
-                                }
-                              }}
-                            >
-                              <LockKeyhole size={18} /> Lock app
                             </button>
                           )}
                         </div>
@@ -1752,6 +1779,22 @@ export default function App() {
           }}
         />
       )}
+      {changingPassword && !locked && (
+        <PasswordChange
+          close={() => setChangingPassword(false)}
+          changed={(expires) => {
+            void repository
+              .rememberAccess(stateRef.current.account, expires)
+              .catch(() => {});
+            setStatus(
+              (previous) =>
+                previous && { ...previous, sessionExpires: expires },
+            );
+            setChangingPassword(false);
+            setPasswordChanged(true);
+          }}
+        />
+      )}
       {install && (
         <Dialog title="Add to Home Screen" close={() => setInstall(false)}>
           <p>
@@ -1793,6 +1836,92 @@ export default function App() {
     </>
   );
 }
+function PasswordChange({
+  close,
+  changed,
+}: {
+  close: () => void;
+  changed: (expires: number) => void;
+}) {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Dialog
+      title="Change app password"
+      close={() => {
+        if (!busy) close();
+      }}
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const currentPassword = form.get("currentPassword");
+          const newPassword = form.get("newPassword");
+          if (newPassword !== form.get("confirmPassword")) {
+            setError("The new passwords don’t match.");
+            return;
+          }
+          setBusy(true);
+          setError("");
+          try {
+            const { sessionExpires } = await api<{ sessionExpires: number }>(
+              "password",
+              { currentPassword, newPassword },
+            );
+            changed(sessionExpires);
+          } catch (error) {
+            setError(errorMessage(error));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="muted">
+          Your connections stay saved. Other browsers will need to unlock again.
+        </p>
+        <label>
+          Current password
+          <input
+            name="currentPassword"
+            autoComplete="current-password"
+            type="password"
+            required
+            disabled={busy}
+          />
+        </label>
+        <label>
+          New password
+          <input
+            name="newPassword"
+            autoComplete="new-password"
+            type="password"
+            minLength={12}
+            maxLength={256}
+            required
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Confirm new password
+          <input
+            name="confirmPassword"
+            autoComplete="new-password"
+            type="password"
+            minLength={12}
+            maxLength={256}
+            required
+            disabled={busy}
+          />
+        </label>
+        {error && <p role="alert">{error}</p>}
+        <button className="primary full" disabled={busy}>
+          {busy ? "Saving…" : "Save password"}
+        </button>
+      </form>
+    </Dialog>
+  );
+}
 function Unlock({
   onUnlock,
 }: {
@@ -1817,11 +1946,7 @@ function Unlock({
         }
       }}
     >
-      <p>
-        Use the private app password you chose when setting up this website.{" "}
-        Save it in your password manager to autofill it next time. This browser
-        stays unlocked for up to 90 days.
-      </p>
+      <p>Enter your GradeViewer password to see your grades.</p>
       <label>
         App password
         <input
@@ -1837,6 +1962,16 @@ function Unlock({
       <button className="primary full" disabled={busy || !password}>
         {busy ? "Unlocking…" : "Unlock app"}
       </button>
+      <details className="password-help">
+        <summary>Forgot your app password?</summary>
+        <p>
+          In your Cloudflare Worker’s Variables and Secrets, deploy a secret
+          named <code>APP_PASSWORD_RESET</code> with a fresh temporary password
+          of at least 12 characters. Unlock here with it, choose a new password
+          in Settings, then remove the temporary secret. Keep{" "}
+          <code>APP_PASSWORD</code> as it is.
+        </p>
+      </details>
     </form>
   );
 }

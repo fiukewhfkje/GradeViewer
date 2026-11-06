@@ -32,6 +32,7 @@ export function carmenHealth(
     now - d.lastSuccessAt <= (intervalMinutes + 5) * 60000
   )
     return { label: "Alive", tone: "alive" };
+  if (!status.maintenance) return { label: "Connected", tone: "neutral" };
   return { label: "Check overdue", tone: "warning" };
 }
 export function CarmenDiagnostics({
@@ -51,9 +52,10 @@ export function CarmenDiagnostics({
   const dueRefresh = useEffectEvent(refresh);
   const dueReads = useRef({ deadline: 0, count: 0 });
   useEffect(() => {
+    if (!status.maintenance) return;
     const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [status.maintenance]);
   useEffect(() => {
     const deadline = status.nextMaintenance;
     if (!status.maintenance || !deadline || busy) return;
@@ -106,7 +108,9 @@ export function CarmenDiagnostics({
         {d?.lastSuccessAt
           ? `Last verified ${new Date(d.lastSuccessAt).toLocaleString()}.`
           : "No successful check yet."}
-        {!status.nextMaintenance ? " Background checks paused." : ""}
+        {status.maintenance && !status.nextMaintenance
+          ? " Background checks paused."
+          : ""}
       </p>
       <p
         className="muted carmen-uptime"

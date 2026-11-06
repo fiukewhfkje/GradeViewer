@@ -1,7 +1,14 @@
-import { useEffect, useEffectEvent, useState, useRef } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useState,
+  useRef,
+  type ReactNode,
+} from "react";
 import {
   CheckCircle2,
   School,
+  ChevronDown,
   ChevronRight,
   LogIn,
   ListChecks,
@@ -20,18 +27,67 @@ type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
 
+export function ConnectionDisclosure({
+  title,
+  icon,
+  label,
+  connected,
+  open,
+  onToggle,
+  className = "",
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  label: string;
+  connected: boolean;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      className={"settings-provider " + className}
+      open={open}
+      onToggle={(event) => onToggle(event.currentTarget.open)}
+    >
+      <summary className="connection-heading">
+        <span className="settings-icon">{icon}</span>
+        <strong>{title}</strong>
+        <span className="connection" data-connected={connected}>
+          <span className="status-dot" />
+          {label}
+        </span>
+        <ChevronDown
+          size={16}
+          className="provider-chevron"
+          aria-hidden="true"
+        />
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 export function PortalConnection({
   status,
   disabled,
   refresh,
   provider = "campus",
   refreshStatus = refresh,
+  open,
+  onToggle,
+  children,
 }: {
   provider?: "campus" | "carmen";
   status?: PortalStatus;
   disabled: boolean;
   refresh: () => Promise<void>;
   refreshStatus?: () => Promise<void>;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  children?: ReactNode;
 }) {
   const carmen = provider === "carmen",
     title = carmen ? "CarmenCanvas" : "Infinite Campus";
@@ -129,36 +185,27 @@ export function PortalConnection({
   }
   const count = status?.selected.length ?? 0;
   return (
-    <section className="settings-group">
-      <h2>{carmen ? "Carmen · Experimental" : "Additional classes"}</h2>
-      <div className="settings-card portal-connection" aria-busy={busy}>
-        <div className="connection-heading portal-heading">
-          <span className="settings-icon">
-            <School size={20} />
-          </span>
-          <strong>{title}</strong>
-          <span
-            className="connection"
-            data-connected={!!status?.connected && !status.needsReconnect}
-          >
-            <span className="status-dot" />
-            {login
-              ? signInOpened
-                ? "Signing in"
-                : "Ready to sign in"
-              : status?.needsReconnect
-                ? "Sign-in needed"
-                : status?.connected
-                  ? "Connected"
-                  : "Not connected"}
-          </span>
-        </div>
-        {!carmen && !login && (status?.connected || choosing) && (
-          <p className="portal-notice">
-            Choose only classes missing from Schoology. IC adds separate
-            classes, and both copies count toward GPA.
-          </p>
-        )}
+    <ConnectionDisclosure
+      title={title}
+      icon={<School size={20} />}
+      className="portal-connection"
+      connected={!!status?.connected && !status.needsReconnect}
+      label={
+        login
+          ? signInOpened
+            ? "Signing in"
+            : "Ready to sign in"
+          : status?.needsReconnect
+            ? "Sign-in needed"
+            : status?.connected
+              ? "Connected"
+              : "Not connected"
+      }
+      open={open}
+      onToggle={onToggle}
+    >
+      <div aria-busy={busy}>
+        {children}
         {login ? (
           <div className="portal-body">
             <div className="portal-login-note">
@@ -252,7 +299,10 @@ export function PortalConnection({
             <div className="portal-selection-heading">
               <div>
                 <h3>Choose your classes</h3>
-                <p>Add your IC-only classes.</p>
+                <p>
+                  Choose classes missing from Schoology. Both copies of a class
+                  count toward GPA.
+                </p>
               </div>
               <span className="portal-count">{selected.length} selected</span>
             </div>
@@ -355,11 +405,6 @@ export function PortalConnection({
               <ChevronRight size={18} />
             </button>
             <div className="portal-body">
-              {carmen && (
-                <p className="portal-description">
-                  Your student courses sync automatically.
-                </p>
-              )}
               <label className="gpa-check">
                 <input
                   type="checkbox"
@@ -372,12 +417,12 @@ export function PortalConnection({
                     void run(async () => {
                       try {
                         await api("campus/maintenance", { enabled });
-                        await refreshStatus();
                       } catch (error) {
                         setMaintenance(!!status.maintenance);
                         throw error;
                       }
-                    });
+                      await refreshStatus();
+                    }, "Saving preference…");
                   }}
                 />
                 <span className="gpa-toggle-track" aria-hidden="true" />
@@ -385,25 +430,27 @@ export function PortalConnection({
               </label>
               <p className="muted">
                 {carmen
-                  ? "Automatic session checks and reconnect."
-                  : "Checks the IC connection every 20 minutes."}
+                  ? "Checks every 90 minutes and can try to reconnect."
+                  : "Checks the session every 20 minutes."}
               </p>
             </div>
-            <CarmenDiagnostics
-              provider={provider}
-              status={status}
-              busy={disabled || busy}
-              refresh={() => void run(refreshStatus)}
-              check={() =>
-                void run(async () => {
-                  try {
-                    await api("campus/check", {});
-                  } finally {
-                    await refreshStatus();
-                  }
-                }, "Checking session…")
-              }
-            />
+            {open && (
+              <CarmenDiagnostics
+                provider={provider}
+                status={status}
+                busy={disabled || busy}
+                refresh={() => void run(refreshStatus)}
+                check={() =>
+                  void run(async () => {
+                    try {
+                      await api("campus/check", {});
+                    } finally {
+                      await refreshStatus();
+                    }
+                  }, "Checking session…")
+                }
+              />
+            )}
             <button
               className="portal-disconnect danger"
               disabled={disabled || busy}
@@ -453,6 +500,6 @@ export function PortalConnection({
           </p>
         )}
       </div>
-    </section>
+    </ConnectionDisclosure>
   );
 }

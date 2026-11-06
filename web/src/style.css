@@ -919,6 +919,42 @@ svg.spinning {
 .connection-heading [data-connected="true"] .status-dot {
   background: var(--grade);
 }
+.settings-card > .settings-provider + .settings-provider,
+.settings-card > form + .settings-provider {
+  border-top: 1px solid var(--line);
+}
+.settings-provider > summary {
+  list-style: none;
+  cursor: pointer;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding-inline: 14px;
+}
+.settings-provider > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-provider > summary > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.provider-chevron {
+  color: var(--muted);
+  flex: none;
+}
+.settings-provider[open] > summary .provider-chevron {
+  transform: rotate(180deg);
+}
+.password-help {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.password-help > summary {
+  cursor: pointer;
+}
+.password-help code {
+  overflow-wrap: anywhere;
+}
 .settings-action,
 .app-actions .settings-card > button {
   width: 100%;
@@ -1425,14 +1461,6 @@ svg.spinning {
   color: var(--blue);
 }
 
-.portal-heading {
-  padding: 18px;
-}
-.portal-heading .connection {
-  margin-left: auto;
-  white-space: nowrap;
-  font-size: 11px;
-}
 .portal-body {
   border-top: 1px solid var(--line);
   padding: 18px;
@@ -1626,6 +1654,7 @@ svg.spinning {
   padding: 12px 18px;
 }
 @media (hover: hover) {
+  .settings-provider > summary:hover,
   .settings-action:hover,
   .app-actions .settings-card > button:hover,
   .portal-disconnect:hover {
@@ -1633,8 +1662,8 @@ svg.spinning {
   }
 }
 
-.carmen-mode {
-  align-items: center;
+.portal-body > .gpa-check {
+  display: flex;
 }
 .portal-body .gpa-check input {
   inset: 0;
@@ -1644,14 +1673,10 @@ svg.spinning {
   margin: 0;
   cursor: pointer;
 }
-.carmen-mode strong,
-.carmen-mode small {
-  display: block;
-}
-.carmen-mode small {
-  margin-top: 4px;
+.carmen-label {
+  margin: 0 0 6px;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 12px;
 }
 .carmen-health-heading {
   display: flex;

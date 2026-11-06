@@ -1,3 +1,15 @@
+# Local Settings, keep-alive and password preview — November 6, 2026
+
+Settings now groups Schoology, Infinite Campus and CarmenCanvas in expandable connection rows. The Carmen experiment label and LMS toggle are inside Carmen’s row. Connected IC and Carmen each have one **Keep connected** switch. The switch updates immediately while the Worker saves the preference and restores the prior value if the write fails.
+
+New and legacy connections start with keep-alive off. An explicit opt-in schedules the existing 20-minute IC or 90-minute Carmen alarm on the same Worker. Switching off stops recurring checks, including Carmen’s silent recovery. An already-armed wakeup can drain without a provider request. Existing connections, selected courses and local data remain available for normal refresh. The owner’s hosted experiment continues on the earlier deployment.
+
+**Settings → Security** changes the unlock password with current-password confirmation. The Worker saves a salted verifier, replaces this browser’s session and revokes earlier sessions. The original `APP_PASSWORD` binding continues to derive the vault encryption key. Cloudflare owners can recover with a fresh temporary `APP_PASSWORD_RESET` secret, then change their unlock password and remove the temporary secret. The signed updater rejects downgrades to code that would ignore the changed password.
+
+The loopback preview is running at `https://localhost:8917` with a local certificate and three preloaded synthetic connections. Both switches start off. The restart command is `npm run preview:local` from `web/`. It uses the fixture Worker and separate local storage. Physical-device and Apple Passwords prompt acceptance remain open.
+
+Validation passed the production build and type check, 302 unit tests, all 38 browser flows in each of Chromium and WebKit, local release packaging and Worker dry-run. Browser checks cover the optimistic switch while the server write is held, old-session revocation, rejection of the old password, one-time reset and access to the retained encrypted Schoology credentials. The localhost smoke test completed both synthetic connector sign-ins through their actual preview windows.
+
 # Sample grades removal — November 6, 2026
 
 Removed “Try sample grades” and the in-app demo state on the development branch. Synthetic Schoology data now lives with the test fixtures. The desktop browser flow uses the regular unlock and connection screens against the synthetic Worker, preserving layout, chart, navigation and Settings coverage.

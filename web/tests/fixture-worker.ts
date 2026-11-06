@@ -49,7 +49,7 @@ export class FixtureVault extends CredentialVault {
           id: "synthetic-session",
           state: async () =>
             structuredClone(kind === "carmen" ? canvasState : campusState),
-          live: async () => "/api/fixture/portal-window",
+          live: async () => "/api/fixture/portal-window?provider=" + kind,
           navigate: async () => {
             await storage.delete(`synthetic-${kind}-signed-in`);
           },
@@ -77,7 +77,7 @@ export class FixtureVault extends CredentialVault {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status"].includes(kind))
+      if (!["provider", "status", "maintenance"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -99,6 +99,8 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
     if (path === "/api/status") await this.waitForGate("status");
+    if (path === "/api/campus/maintenance")
+      await this.waitForGate("maintenance");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))
@@ -107,10 +109,35 @@ export class FixtureVault extends CredentialVault {
         { error: "rateLimited", retryAfter: 1 },
         { status: 429, headers: { "Retry-After": "1" } },
       );
-    if (new URL(request.url).pathname === "/api/fixture/portal-window")
-      return new Response("<title>Synthetic sign-in</title>", {
-        headers: { "Content-Type": "text/html" },
-      });
+    if (path === "/api/fixture/portal-window") {
+      const url = new URL(request.url);
+      const kind = url.searchParams.get("provider");
+      if (kind !== "campus" && kind !== "carmen")
+        return new Response(null, { status: 404 });
+      let content =
+        '<p>This preview uses synthetic data. No school credentials are needed.</p><form method="post"><button>Complete synthetic sign-in</button></form>';
+      if (request.method === "POST") {
+        if (request.headers.get("Origin") !== url.origin)
+          return new Response(null, { status: 403 });
+        await this.fixtureState.storage.put(
+          `synthetic-${kind}-signed-in`,
+          true,
+        );
+        await this.alarm();
+        content = "<p>Signed in. Return to GradeViewer.</p>";
+      }
+      return new Response(
+        '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>GradeViewer preview sign-in</title><main><h1>GradeViewer preview sign-in</h1>' +
+          content +
+          "</main></html>",
+        {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
     if (
       ["/api/fixture/campus", "/api/fixture/carmen"].includes(
         new URL(request.url).pathname,

@@ -35,7 +35,8 @@ export interface PortalConnection {
   portal: string;
   account?: string;
   subject?: string;
-  maintenance?: boolean;
+  // A separate field makes older, automatically enabled sessions opt in again.
+  keepConnected?: boolean;
   nextMaintenance?: number;
   maintenanceFailures?: number;
   lastIdentityVerified?: number;
@@ -279,6 +280,10 @@ export class PortalService {
       budget.recoveryHistory = [{ at: Date.now(), ms: budget.renewalMs }];
     return { ...local, ...budget };
   }
+  private async arm(next: number) {
+    const current = await this.storage.getAlarm?.();
+    if (!current || next < current) await this.storage.setAlarm(next);
+  }
   private async save(s: PortalStore) {
     await this.storage.put(`portal-${this.kind}`, await seal(s, this.password));
     if (s.connection?.diagnostics)
@@ -295,26 +300,16 @@ export class PortalService {
     });
     const deadlines = [
       s.connection?.pending?.expires,
-      s.connection?.pending ? undefined : s.connection?.nextMaintenance,
+      s.connection?.keepConnected && !s.connection.pending
+        ? s.connection.nextMaintenance
+        : undefined,
     ].filter((x): x is number => typeof x === "number");
-    if (deadlines.length) {
-      const next = Math.min(...deadlines),
-        current = await this.storage.getAlarm?.();
-      if (!current || next < current) await this.storage.setAlarm(next);
-    }
+    if (deadlines.length) await this.arm(Math.min(...deadlines));
   }
   async status() {
     try {
       const s = await this.load(),
         c = s.connection;
-      // Upgrade an existing IC connection once, without a provider request.
-      // Explicitly paused connections retain their saved preference.
-      if (this.kind === "campus" && c?.account && c.maintenance === undefined) {
-        c.maintenance = true;
-        if (!c.needsReconnect && c.jar)
-          c.nextMaintenance = Date.now() + this.maintenanceInterval;
-        await this.save(s);
-      }
       return {
         connected: !!c?.account,
         needsReconnect: !!c?.needsReconnect,
@@ -322,8 +317,8 @@ export class PortalService {
         portal: c?.portal,
         lastVerified: c?.lastVerified,
         cooldown: c?.cooldown,
-        maintenance: !!c?.maintenance,
-        nextMaintenance: c?.nextMaintenance,
+        maintenance: !!c?.keepConnected,
+        nextMaintenance: c?.keepConnected ? c.nextMaintenance : undefined,
         lastKeepalive: c?.lastKeepalive,
         diagnostics: c?.diagnostics,
         recoveryBlocked:
@@ -359,6 +354,7 @@ export class PortalService {
     delete s.connection!.pending;
   }
   private async recover(s: PortalStore, c: PortalConnection): Promise<boolean> {
+    if (this.kind !== "carmen" || !c.keepConnected) return false;
     this.resetBudget(s);
     s.recoveryHistory ??= s.renewalMs
       ? [{ at: Date.now(), ms: s.renewalMs }]
@@ -367,7 +363,6 @@ export class PortalService {
       (x) => x.at > Date.now() - 86400000,
     );
     if (
-      this.kind !== "carmen" ||
       !c.entry ||
       !c.state ||
       c.recoveryBlocked ||
@@ -437,7 +432,7 @@ export class PortalService {
       c.needsReconnect = false;
       c.maintenanceFailures = 0;
       delete c.recoveryBlocked;
-      if (c.maintenance && !c.maintenancePaused)
+      if (c.keepConnected && !c.maintenancePaused)
         c.nextMaintenance = Date.now() + this.maintenanceInterval;
       this.event(c, "httpSuccess", { stage: "profile", httpStatus: 200 });
       this.event(c, "recovered", {
@@ -520,21 +515,18 @@ export class PortalService {
     this.recordedError = undefined;
     const s = await this.load(),
       c = s.connection;
-    this.resetBudget(s);
     if (c?.pending) {
+      this.resetBudget(s);
       await this.monitorSignIn(s);
       return;
     }
+    if (!c?.keepConnected || c.maintenancePaused || !c.nextMaintenance) return;
+    if (c.nextMaintenance > Date.now()) {
+      await this.arm(c.nextMaintenance);
+      return;
+    }
+    this.resetBudget(s);
     try {
-      if (c?.pending && c.pending.expires <= Date.now()) await this.close(s);
-      if (
-        !c?.maintenance ||
-        c.maintenancePaused ||
-        !c.nextMaintenance ||
-        c.nextMaintenance > Date.now() ||
-        c.pending
-      )
-        return;
       if (c.cooldown && c.cooldown > Date.now()) {
         c.nextMaintenance = c.cooldown;
         return;
@@ -609,14 +601,14 @@ export class PortalService {
       await this.save(s);
       return;
     }
+    await this.arm(p.expires);
     if (p.attempt && !p.error) {
       // The temporary browser is monitored only during an explicit sign-in.
       // Keep the expiration alarm even if a check is interrupted.
-      await this.storage.setAlarm(p.expires);
       try {
         const result = await this.handle("finish", {}, true);
         if ("state" in result && result.state === "waiting")
-          await this.storage.setAlarm(Math.min(p.expires, Date.now() + 4000));
+          await this.arm(Math.min(p.expires, Date.now() + 4000));
       } catch (error) {
         const current = await this.load();
         const pending = current.connection?.pending;
@@ -823,7 +815,7 @@ export class PortalService {
     c.lastIdentityVerified = Date.now();
     if (observe)
       this.event(c, "httpSuccess", { stage: "profile", httpStatus: 200 });
-    if (c.maintenance && !c.maintenancePaused)
+    if (c.keepConnected && !c.maintenancePaused)
       c.nextMaintenance = Date.now() + this.maintenanceInterval;
     return account;
   }
@@ -848,7 +840,7 @@ export class PortalService {
       this.diagnostics(c).courseCount = choices.length;
       this.diagnostics(c).lastCourseReadAt = Date.now();
       this.event(c, "coursesRead", { stage: "courses", httpStatus: 200 });
-      if (this.kind === "campus" && c.maintenance && !c.maintenancePaused)
+      if (this.kind === "campus" && c.keepConnected && !c.maintenancePaused)
         c.nextMaintenance = Date.now() + this.maintenanceInterval;
       // Keep request and memory amplification bounded. Discovery does not request assignment details.
       return { account, summary, choices, details, jar };
@@ -889,7 +881,7 @@ export class PortalService {
         if (b.retry !== true) throw new ApiError(502, p.error);
         delete p.error;
         await this.save(s);
-        await this.storage.setAlarm(Date.now());
+        await this.arm(Date.now());
       }
       return { state: "waiting" };
     }
@@ -957,9 +949,7 @@ export class PortalService {
             browser.navigate(destination, "commit"),
             browser.live(),
           ]);
-          await this.storage.setAlarm(
-            Math.min(c.pending.expires, Date.now() + 1000),
-          );
+          await this.arm(Math.min(c.pending.expires, Date.now() + 1000));
           return {
             url,
             expires: c.pending.expires,
@@ -1026,9 +1016,8 @@ export class PortalService {
           c.needsReconnect = false;
           c.lastVerified = Date.now();
           if (this.kind === "carmen") {
-            c.maintenance ??= true;
             c.maintenanceFailures = 0;
-            c.nextMaintenance = c.maintenance
+            c.nextMaintenance = c.keepConnected
               ? Date.now() + this.maintenanceInterval
               : undefined;
             c.entry = c.portal;
@@ -1170,10 +1159,9 @@ export class PortalService {
           c.jar = jar.serializeSync();
           c.needsReconnect = false;
           c.lastVerified = Date.now();
-          c.maintenance ??= true;
           c.maintenanceFailures = 0;
           delete c.maintenancePaused;
-          c.nextMaintenance = c.maintenance
+          c.nextMaintenance = c.keepConnected
             ? Date.now() + this.maintenanceInterval
             : undefined;
           this.event(c, "connected", { trigger: "manual", stage: "profile" });
@@ -1205,12 +1193,14 @@ export class PortalService {
       if (action === "maintenance") {
         if (typeof b.enabled !== "boolean")
           throw new ApiError(400, "invalidRequest");
-        c.maintenance = b.enabled;
+        if (!c.account) throw new ApiError(409, "portalConnectRequired");
+        c.keepConnected = b.enabled;
         delete c.maintenancePaused;
         c.maintenanceFailures = 0;
-        c.nextMaintenance = b.enabled
-          ? Date.now() + this.maintenanceInterval
-          : undefined;
+        c.nextMaintenance =
+          b.enabled && c.jar && !c.needsReconnect
+            ? Date.now() + this.maintenanceInterval
+            : undefined;
         this.event(c, b.enabled ? "resumed" : "paused");
         return { ok: true };
       }

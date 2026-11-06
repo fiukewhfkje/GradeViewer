@@ -242,6 +242,32 @@ describe("owner authentication and persistent lifecycle", () => {
     h.restart();
     expect((await h.send("login", { password })).status).toBe(429);
   });
+  it("requires the current password and keeps rotation across disconnect and restart", async () => {
+    const h = harness();
+    const newPassword = "synthetic-replacement-app-password";
+    const change = { currentPassword: password, newPassword };
+    expect((await h.send("password", change)).status).toBe(401);
+    await h.send("login", { password });
+    expect((await h.send("password", change, "https://evil.test")).status).toBe(
+      403,
+    );
+    expect(
+      (await h.send("password", { ...change, currentPassword: "wrong" }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await h.send("password", { ...change, newPassword: "short" })).status,
+    ).toBe(400);
+    const before = h.cookie;
+    expect((await h.send("password", change)).status).toBe(200);
+    expect(h.cookie).not.toBe(before);
+    expect(JSON.stringify([...h.values.values()])).not.toContain(newPassword);
+    expect((await h.send("disconnect", {})).status).toBe(200);
+    h.restart();
+    expect((await h.send("login", { password })).status).toBe(401);
+    expect((await h.send("login", { password: newPassword })).status).toBe(200);
+    expect(h.calls).toBe(0);
+  });
   it("stages encrypted keys and rejects early commit", async () => {
     const h = harness();
     await h.send("login", { password });

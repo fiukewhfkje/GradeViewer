@@ -70,7 +70,7 @@ CarmenCanvas remains on `codex/investigate-gpa-carmen`, outside main and publish
 
 ## Optional Infinite Campus classes
 
-In **Settings → Additional classes**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools.
+In **Settings → Connections → Infinite Campus**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools. **Keep connected** starts off. Turn it on to schedule 20-minute session checks on your Worker.
 
 ## Estimated semester GPA
 
@@ -78,7 +78,7 @@ In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see
 
 ## Your data
 
-Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Changing the app password revokes sessions and requires reconnecting Schoology. Disconnect before switching students.
+Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Change the unlock password under **Settings → Security**. This keeps the encrypted connections and asks other browsers to unlock again. If you forget it, deploy a fresh temporary secret named `APP_PASSWORD_RESET` in your Worker’s Cloudflare **Settings → Variables and Secrets**. Unlock once with that password, set a new one in GradeViewer, then remove the temporary secret. Leave the original `APP_PASSWORD` binding in place so the Worker can still decrypt your connections. Disconnect before switching students.
 
 There are no subscriptions, ads, analytics, provider grade writes or shared maintainer grade servers. The PWA does not import the native app's local history or edits.
 

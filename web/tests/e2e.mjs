@@ -119,6 +119,13 @@ async function stop() {
     clearTimeout(timer);
   }
 }
+async function openConnection(page, title) {
+  const summary = page
+    .locator(".settings-provider > summary")
+    .filter({ hasText: title });
+  if (!(await summary.evaluate((node) => node.parentElement.open)))
+    await summary.click();
+}
 async function completeCarmenSignIn(page, client) {
   await page
     .getByRole("link", { name: "Open CarmenCanvas", exact: true })
@@ -408,6 +415,7 @@ try {
           });
         }
       }
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1242,6 +1250,7 @@ try {
           };
         });
       });
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1320,6 +1329,7 @@ try {
     "interrupted local activation recovers the prepared snapshot on reload",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1457,6 +1467,7 @@ try {
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1874,6 +1885,7 @@ try {
           };
         };
       });
+      await openConnection(page, "Infinite Campus");
       const connect = page.getByRole("button", {
         name: "Connect Infinite Campus",
         exact: true,
@@ -1908,7 +1920,7 @@ try {
         await openSignIn.click();
         assert.equal(
           await page.locator("body").getAttribute("data-campus-destination"),
-          "/api/fixture/portal-window",
+          "/api/fixture/portal-window?provider=campus",
         );
         assert.equal(
           await page.locator("body").getAttribute("data-campus-popup"),
@@ -2004,22 +2016,33 @@ try {
           name: "Keep connected",
           exact: true,
         });
-      assert.equal(await icMaintenance.isChecked(), true);
+      assert.equal(await icMaintenance.isChecked(), false);
       let maintenanceScans = 0;
       const countMaintenanceScans = (request) => {
         if (request.url().endsWith("/api/scan/start")) maintenanceScans++;
       };
       page.on("request", countMaintenanceScans);
+      const preference = await holdFixture(context.request, "maintenance");
+      try {
+        await icMaintenance.check();
+        await preference.received();
+        assert.equal(await icMaintenance.isChecked(), true);
+        const before = await (
+          await context.request.get(base + "/api/status")
+        ).json();
+        assert.equal(before.portals.campus.maintenance, false);
+      } finally {
+        await preference.close();
+      }
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.campus
+            .maintenance,
+      );
       await icMaintenance.uncheck();
       await page.waitForFunction(
         async () =>
           !(await (await fetch("/api/status")).json()).portals.campus
-            .maintenance,
-      );
-      await icMaintenance.check();
-      await page.waitForFunction(
-        async () =>
-          (await (await fetch("/api/status")).json()).portals.campus
             .maintenance,
       );
       page.off("request", countMaintenanceScans);
@@ -2040,7 +2063,7 @@ try {
         .getByRole("heading", { name: "Choose your classes", exact: true })
         .waitFor({ timeout: 500 });
       await page.getByText("Loading IC courses…", { exact: true }).waitFor();
-      await page.getByText(/both copies count toward GPA/).waitFor();
+      await page.getByText(/Both copies of a class count toward GPA/).waitFor();
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .waitFor();
@@ -2130,6 +2153,7 @@ try {
         if (request.url().endsWith("/api/scan/start")) schoologyScans++;
       };
       page.on("request", countSchoology);
+      await openConnection(page, "CarmenCanvas");
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
@@ -2152,6 +2176,17 @@ try {
         .getByRole("button", { name: /Synthetic Carmen Calculus/ })
         .waitFor();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const keepCarmen = page
+        .locator(".portal-connection")
+        .filter({ hasText: "CarmenCanvas" })
+        .getByRole("switch", { name: "Keep connected", exact: true });
+      assert.equal(await keepCarmen.isChecked(), false);
+      await keepCarmen.check();
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
+      );
       await page.getByText("Alive", { exact: true }).waitFor();
       await page.getByText(/Total verified uptime · \d+m/).waitFor();
       assert.equal(
@@ -2228,6 +2263,7 @@ try {
         .getByRole("button", { name: /AP Biology/ })
         .waitFor();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "CarmenCanvas");
       await page
         .getByRole("button", { name: "Disconnect CarmenCanvas", exact: true })
         .click();
@@ -2242,6 +2278,7 @@ try {
   );
   await check("disconnect clears data and revokes sessions", async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openConnection(page, "Schoology");
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await page
       .getByRole("button", { name: "Disconnect and clear data", exact: true })
@@ -2273,6 +2310,7 @@ try {
       await page
         .getByRole("button", { name: "Unlock app", exact: true })
         .click();
+      await openConnection(page, "CarmenCanvas");
       await page
         .getByRole("switch", { name: /Use Carmen as main LMS/ })
         .check();
@@ -2280,26 +2318,23 @@ try {
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
       await completeCarmenSignIn(page, context.request);
-      await page
-        .getByRole("switch", { name: "Keep connected", exact: true })
-        .waitFor();
-      assert.equal(
-        await page
-          .getByRole("switch", { name: "Keep connected", exact: true })
-          .isChecked(),
-        true,
-      );
-      await page
-        .getByRole("switch", { name: "Keep connected", exact: true })
-        .uncheck();
+      const carmenMaintenance = page.getByRole("switch", {
+        name: "Keep connected",
+        exact: true,
+      });
+      await carmenMaintenance.waitFor();
+      assert.equal(await carmenMaintenance.isChecked(), false);
+      await carmenMaintenance.check();
       await page.waitForFunction(
-        () => !document.querySelector(".portal-progress"),
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
       );
-      assert.equal(
-        await page
-          .getByRole("switch", { name: "Keep connected", exact: true })
-          .isChecked(),
-        false,
+      await carmenMaintenance.uncheck();
+      await page.waitForFunction(
+        async () =>
+          !(await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
       );
       await page.screenshot({ path: directory + "/settings-carmen.png" });
       const status = await (
@@ -2377,6 +2412,7 @@ try {
         () => document.querySelectorAll(".courses .course").length === 1,
       );
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Disconnect", exact: true })
         .click();
@@ -2738,6 +2774,90 @@ try {
           data: { enabled: false },
         });
         await isolated.close();
+      }
+    },
+  );
+  await check(
+    "password change and dashboard reset preserve the Schoology connection",
+    async () => {
+      const original = "synthetic-owner-password-for-tests-only";
+      const next = "synthetic-new-password-for-tests-only";
+      const reset = "synthetic-dashboard-reset-for-tests-only";
+      const login = (client, password) =>
+        client.post(base + "/api/login", {
+          data: { password },
+          headers: { Origin: base },
+        });
+      const current = await browser.newContext({ ignoreHTTPSErrors: true });
+      const other = await browser.newContext({ ignoreHTTPSErrors: true });
+      const settings = await current.newPage();
+      try {
+        assert.equal((await login(current.request, original)).status(), 200);
+        assert.equal((await login(other.request, original)).status(), 200);
+        await settings.goto(base);
+        await settings.locator(".courses").waitFor();
+        await settings
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await settings
+          .getByRole("button", { name: "Change app password", exact: true })
+          .click();
+        const dialog = settings.getByRole("dialog", {
+          name: "Change app password",
+          exact: true,
+        });
+        await dialog
+          .getByLabel("Current password", { exact: true })
+          .fill(original);
+        await dialog.getByLabel("New password", { exact: true }).fill(next);
+        await dialog
+          .getByLabel("Confirm new password", { exact: true })
+          .fill(next);
+        await dialog
+          .getByRole("button", { name: "Save password", exact: true })
+          .click();
+        await settings.getByText(/App password changed/).waitFor();
+        const status = await (
+          await current.request.get(base + "/api/status")
+        ).json();
+        assert.equal(status.authenticated, true);
+        assert.equal(status.schoologyConnected, true);
+        assert.equal(
+          (await (await other.request.get(base + "/api/status")).json())
+            .authenticated,
+          false,
+        );
+        assert.equal((await login(other.request, original)).status(), 401);
+        assert.equal((await login(other.request, next)).status(), 200);
+        assert.equal((await login(other.request, reset)).status(), 200);
+        assert.equal((await login(current.request, next)).status(), 401);
+        assert.equal(
+          (await (await other.request.get(base + "/api/status")).json())
+            .schoologyConnected,
+          true,
+        );
+        assert.equal(
+          (
+            await other.request.post(base + "/api/scan/start", {
+              headers: { Origin: base },
+              data: {},
+            })
+          ).status(),
+          200,
+        );
+        assert.equal(
+          (
+            await other.request.post(base + "/api/password", {
+              headers: { Origin: base },
+              data: { currentPassword: reset, newPassword: next },
+            })
+          ).status(),
+          200,
+        );
+        assert.equal((await login(current.request, reset)).status(), 401);
+      } finally {
+        await current.close();
+        await other.close();
       }
     },
   );

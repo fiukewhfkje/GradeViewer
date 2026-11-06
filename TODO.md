@@ -1,8 +1,10 @@
 # Stable release preparation — November 6
 
 - [x] Remove the sample-grades button and mode on the development branch while keeping synthetic tests.
-- [ ] Evaluate compact provider rows in Settings for the next stable release. Show connection status at a glance and place controls inside the relevant provider’s details.
-- [ ] Keep password rotation separate from UI cleanup. A safe rotation must preserve decryptability of the vault while revoking existing unlock sessions.
+- [x] Group compact provider rows and add a separate Security section in the local development build.
+- [x] Make both keep-alive switches opt-in, including for older connections. Preserve each saved provider connection and its selected courses.
+- [x] Add current-password rotation and Cloudflare-owner recovery. Keep the vault encryption binding intact and revoke earlier server sessions.
+- [ ] Owner acceptance on the synthetic localhost preview. Validate a real enrolled Carmen course separately before considering stable release.
 
 # Parallel session diagnostics — November 6
 
