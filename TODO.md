@@ -10,6 +10,8 @@
 - [x] Use Set up for unconfigured providers and show Carmen’s connection controls while Carmen is the main LMS.
 - [x] Add one-tap Carmen compatibility reporting and a persistent Experimental label on the development branch.
 - [x] Review the weekend diagnostics and confirm the stable release scope with the owner. Keep Carmen Experimental and turn off inherited maintenance.
+- [x] Merge the v0.2.2 release commit and verify the owner Worker’s assets, vault binding, saved diagnostics and locked compatibility report route.
+- [x] Publish signed v0.2.2 as latest stable, verify the downloaded artifacts and apply the actual release in an isolated v0.2.1 copy.
 - [ ] Use an enrolled account’s compatibility report to guide Carmen normalization, then verify the resulting grades before removing the Experimental label.
 
 # Parallel session diagnostics — November 6
