@@ -1,3 +1,11 @@
+# Stable v0.2.2 — November 9, 2026
+
+Production build and type check, 304 unit tests, 38 Chromium and 38 WebKit browser flows, 106-file release packaging, Worker dry-run and isolated template install/build/update/rollback passed. The isolated updater uses fixture provenance. The pull request verified real GitHub workflow provenance and both hosted browser suites. [Verification run](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42629992436).
+
+The owner’s Worker deployed merge `b927df4`. Six public assets matched the tested build. The unchanged vault binding, existing secret and Browser bindings, saved diagnostics and compatibility-report authorization passed live checks without calling either provider or opening Browser Run. Enrolled Carmen account responses, live automatic recovery and physical-device acceptance remain open. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ce5f23ba-7055-4149-a0cb-c37ec34f43a3).
+
+The tag workflow passed both browser suites and published v0.2.2 as latest stable. The downloaded archive and provenance matched the release tag, source commit and exact signing workflow. An isolated v0.2.1 updater used those published assets to apply v0.2.2, preserve personal Worker configuration and a synthetic password file, and install the compatibility report and password schema. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42630614876).
+
 # Parallel overnight account observations — November 5, 2026
 
 At approximately 08:40 EST, the existing operator utility successfully retrieved both sanitized saved diagnostic records through the two authorized read-only routes. IC counters are **42 checks / 42 successes / 24 alarm checks**, with no recorded failure and last success at 08:37:54 EST. Carmen counters are **12 checks / 11 successes / five alarm checks**: its single original setup 403 predates the successful November 4 23:20 EST fresh connection, with no recorded failure afterward. Its last success is November 5 at 08:38:55 EST. Sampled verified uptime is approximately **9h 19m** for each; neither attempted automatic recovery.

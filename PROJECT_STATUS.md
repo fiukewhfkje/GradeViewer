@@ -1,8 +1,38 @@
+# v0.2.3 stable follow-up — November 9, 2026
+
+The owner requested a signed stable release and an update to their existing Worker. v0.2.3 includes automatic session maintenance for both connectors, simpler connection badges, missing-alarm recovery and clearer Connect and Reconnect actions. Carmen remains Experimental.
+
+# Connector badges — November 9, 2026
+
+The owner saw **Check overdue** immediately after the automatic-maintenance update. The badge used elapsed time since the last successful check even when the Worker had just scheduled a future check. Settings now shows **Set up**, **Connected**, or **Disconnected** based on saved connection state and actual check results. The Worker restores a missing alarm from its saved deadline on unlocked status. Carmen’s saved record shows a single manual sign-in at 23:20 EST on November 4 for the weekend experiment. The local LMS switch was separate from that connection. Its most recent saved success when investigated was 08:39 EST on November 9. Investigation used only saved diagnostics.
+
+Development `d46da2d` passed build, 306 unit tests, both 38-flow browser suites, 106-file packaging and Worker dry-run. Two owner-Worker deployment attempts uploaded or reused assets, then stalled on version creation during Cloudflare’s Worker changes incident. After stopping both stalled clients, the version list had no matching version and the owner Worker still served `0.2.3-alpha.0`. [Cloudflare incident](https://www.cloudflarestatus.com/incidents/1x0tbxpmmttu).
+
+# Automatic connector maintenance — November 9, 2026
+
+The owner requested automatic maintenance and deployment to the existing Worker. The development build removes both **Keep connected** switches. A successful sign-in starts 20-minute IC or 90-minute Carmen HTTP checks on the existing Worker. Previously unscheduled saved connections are scheduled on the next unlocked status read. Failed sessions still surface Reconnect, and explicit disconnect stops checks for that provider. Carmen retains its bounded recovery and human-action stops. The former toggle endpoint returns a conflict to older cached clients without changing preferences or contacting a provider.
+
+Development `8cf5096` deployed as `0.2.3-alpha.0` to the owner Worker at 12:55 EST (version `c7943f42-3c4e-4c24-9919-d4e3d3d9c5a5`). Six deployed assets, the vault and password bindings, saved diagnostics and report authorization verified without a provider login or Browser Run session. Build, 305 unit tests, 38 browser checks in each engine, 106-file packaging and Worker dry-run passed. Existing-session scheduling was exercised with synthetic data. The latest signed stable remains v0.2.2.
+
+# Connector setup and reconnect follow-up — November 9, 2026
+
+v0.2.2 ended the experimental background schedules for both providers. It kept their saved sessions and diagnostics. A pending legacy alarm could wake and exit without a provider request. Both scheduled-check counts remain at their pre-release totals (IC 297, Carmen 69).
+
+The saved IC record shows a successful foreground check at 09:32:06 EST, a first observed authentication rejection (HTTP 401) at 12:10:14 EST and a successful manual reconnect at 12:11:48 EST. That bounds the observed failure between the last successful check and first rejection, without identifying the provider timeout. Subsequent IC reads succeeded. Carmen last passed at 08:39:23 EST and has no later recorded checks, so its current session validity is unknown. Reading diagnostics made no provider requests and changed no settings.
+
+The development branch makes Connect the first-time action and explains the Schoology prerequisite for IC. An established connection that requires sign-in shows a prominent Reconnect action. An authentication rejection while choosing IC classes returns Settings to that action and preserves saved classes. An unfinished first setup now reports that a connection is required, without marking it for reconnect.
+
+The production build and type check, 304 unit tests, all 38 browser checks per engine in Chromium and WebKit, 106-file packaging and Worker dry-run passed. The follow-up is on the development branch. The owner Worker continues to run stable v0.2.2.
+
 # v0.2.2 release and weekend experiment — November 9, 2026
 
 The owner concluded the weekend experiment and authorized a main merge, an update to the existing Worker and a signed stable release with Carmen marked Experimental. Stable includes simplified Settings, opt-in connector maintenance, app password change and recovery, removal of sample grades and the shareable Carmen compatibility report.
 
 The final read of saved diagnostics showed IC at 362/362 successful checks (297 scheduled) and Carmen at 75 successful checks since the fresh sign-in (69 scheduled), after the initial setup 403. Each accumulated roughly 105 hours of sampled verified uptime, with zero authentication rejections or automatic recoveries after sign-in. The owner’s Carmen course-list result was empty. The data does not establish an exact session lifetime, idle extension, or enrolled-course acceptance. Retrieval opened no browsers or provider requests.
+
+Merged in [PR #20](https://github.com/fiukewhfkje/GradeViewer/pull/20) as `b927df4`. The existing Cloudflare Worker deployed at 09:00 EST as version `33daf91b-6e0f-470d-a61d-479a7613d5ec`. All six checked assets match the build, the vault binding fingerprint matches the earlier deployment, the password and Browser bindings remain present, and both saved diagnostic records were retained. The operator key cannot read compatibility reports. No provider login or Browser Run session was used for deployment verification. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ce5f23ba-7055-4149-a0cb-c37ec34f43a3).
+
+GitHub published [v0.2.2](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.2) as latest stable from the same commit. The downloaded manifest, 106 source file hashes and exact tag/workflow provenance verified. The actual v0.2.1 updater applied the published v0.2.2 package in an isolated copy and retained that copy’s Worker configuration and local secret file. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42630614876).
 
 # Carmen compatibility reports — November 6, 2026
 

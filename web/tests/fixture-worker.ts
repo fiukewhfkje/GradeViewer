@@ -77,7 +77,7 @@ export class FixtureVault extends CredentialVault {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status", "maintenance"].includes(kind))
+      if (!["provider", "status"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -99,8 +99,6 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
     if (path === "/api/status") await this.waitForGate("status");
-    if (path === "/api/campus/maintenance")
-      await this.waitForGate("maintenance");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))

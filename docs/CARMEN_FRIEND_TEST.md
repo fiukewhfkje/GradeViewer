@@ -1,4 +1,8 @@
-# First consented Carmen test
+# Carmen compatibility report
+
+On your own GradeViewer installation with v0.2.2 or later, open **Settings → Connections → CarmenCanvas**. Turn on **Use Carmen as main LMS**, connect Carmen, then tap **Copy compatibility report** and paste it into your message. The report shares field paths, JSON types and parser results. Cookies, account identifiers and grades stay private. If clipboard access is blocked, copy the selectable JSON shown in Settings. [GradeViewer setup](../README.md#set-up-your-copy).
+
+## Historical operator lab
 
 For the current owner experiment, read the [self-contained handoff](CARMEN_HANDOFF.md) first. It records the persistent Mac storage path, missing original state, fresh-capture blocker and two-profile/no-renew protocol. Use persistent storage outside Git, not a temporary directory, for retained account state.
 

@@ -314,6 +314,22 @@ try {
     await page.getByRole("button", { name: "Unlock app", exact: true }).click();
     await page.getByLabel("Schoology API key", { exact: true }).waitFor();
     assert.equal(await page.getByText("Set up", { exact: true }).count(), 3);
+    await openConnection(page, "Infinite Campus");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+        .isDisabled(),
+      true,
+    );
+    await page
+      .getByText("Connect Schoology first to add Infinite Campus classes.")
+      .waitFor();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
+        .count(),
+      0,
+    );
     await page.getByLabel("Schoology API key", { exact: true }).fill("fixture");
     await page
       .getByLabel("Schoology API secret", { exact: true })
@@ -1900,6 +1916,7 @@ try {
         name: "Connect Infinite Campus",
         exact: true,
       });
+      assert.equal(await connect.isEnabled(), true);
       const openSignIn = page.getByRole("link", {
         name: "Open Campus Student",
       });
@@ -2018,48 +2035,15 @@ try {
       assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      const icConnection = page
-          .locator(".portal-connection")
-          .filter({ hasText: "Infinite Campus" }),
-        icMaintenance = icConnection.getByRole("switch", {
-          name: "Keep connected",
-          exact: true,
-        });
-      assert.equal(await icMaintenance.isChecked(), false);
-      let maintenanceScans = 0;
-      const countMaintenanceScans = (request) => {
-        if (request.url().endsWith("/api/scan/start")) maintenanceScans++;
-      };
-      page.on("request", countMaintenanceScans);
-      const preference = await holdFixture(context.request, "maintenance");
-      try {
-        await icMaintenance.check();
-        await preference.received();
-        assert.equal(await icMaintenance.isChecked(), true);
-        const before = await (
-          await context.request.get(base + "/api/status")
-        ).json();
-        assert.equal(before.portals.campus.maintenance, false);
-      } finally {
-        await preference.close();
-      }
-      await page.waitForFunction(
-        async () =>
-          (await (await fetch("/api/status")).json()).portals.campus
-            .maintenance,
-      );
-      await icMaintenance.uncheck();
-      await page.waitForFunction(
-        async () =>
-          !(await (await fetch("/api/status")).json()).portals.campus
-            .maintenance,
-      );
-      page.off("request", countMaintenanceScans);
       assert.equal(
-        maintenanceScans,
+        await page.getByRole("switch", { name: "Keep connected" }).count(),
         0,
-        "IC maintenance settings must not scan Schoology",
       );
+      const campusStatus = (
+        await (await context.request.get(base + "/api/status")).json()
+      ).portals.campus;
+      assert.equal(campusStatus.maintenance, true);
+      assert(campusStatus.nextMaintenance > Date.now());
       await context.request.post(base + "/api/fixture/campus", {
         data: { courseDelayMs: 1200 },
       });
@@ -2088,17 +2072,26 @@ try {
         await page.getByText("Loading IC courses…", { exact: true }).count(),
         0,
       );
-      await page.getByRole("button", { name: "Cancel", exact: true }).click();
       const expired = await context.request.post(base + "/api/fixture/campus", {
         data: { expireSession: true },
       });
       assert.deepEqual(await expired.json(), { expired: true });
       await page
-        .getByRole("button", { name: "Refresh grades", exact: true })
+        .getByRole("button", { name: "Save IC courses", exact: true })
         .click();
       await page
         .getByRole("alert")
-        .filter({ hasText: /Infinite Campus/ })
+        .filter({
+          hasText: "Reconnect Infinite Campus to refresh your grades.",
+        })
+        .waitFor();
+      await page
+        .getByRole("heading", { name: "Choose your classes" })
+        .waitFor({ state: "hidden" });
+      await page
+        .locator(".portal-actions .primary", {
+          hasText: "Reconnect Infinite Campus",
+        })
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
@@ -2109,7 +2102,7 @@ try {
           .click();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
-          .locator('[data-health="error"]')
+          .getByText("Disconnected", { exact: true })
           .waitFor();
         await page
           .getByRole("button", {
@@ -2242,17 +2235,15 @@ try {
       });
       await fallback.waitFor();
       assert.deepEqual(JSON.parse(await fallback.inputValue()), report);
-      const keepCarmen = page
-        .locator(".portal-connection")
-        .filter({ hasText: "CarmenCanvas" })
-        .getByRole("switch", { name: "Keep connected", exact: true });
-      assert.equal(await keepCarmen.isChecked(), false);
-      await keepCarmen.check();
-      await page.waitForFunction(
-        async () =>
-          (await (await fetch("/api/status")).json()).portals.carmen
-            .maintenance,
+      assert.equal(
+        await page.getByRole("switch", { name: "Keep connected" }).count(),
+        0,
       );
+      const carmenStatus = (
+        await (await context.request.get(base + "/api/status")).json()
+      ).portals.carmen;
+      assert.equal(carmenStatus.maintenance, true);
+      assert(carmenStatus.nextMaintenance > Date.now());
       await page
         .locator("summary", { hasText: "CarmenCanvas" })
         .getByText("Connected", { exact: true })
@@ -2344,6 +2335,10 @@ try {
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .waitFor();
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Set up", { exact: true })
+        .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(
         () => document.querySelectorAll(".courses .course").length === 5,
@@ -2401,29 +2396,13 @@ try {
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
         .click();
       await completeCarmenSignIn(page, context.request);
-      const carmenMaintenance = page.getByRole("switch", {
-        name: "Keep connected",
-        exact: true,
-      });
-      await carmenMaintenance.waitFor();
-      assert.equal(await carmenMaintenance.isChecked(), false);
-      await carmenMaintenance.check();
-      await page.waitForFunction(
-        async () =>
-          (await (await fetch("/api/status")).json()).portals.carmen
-            .maintenance,
-      );
-      await carmenMaintenance.uncheck();
-      await page.waitForFunction(
-        async () =>
-          !(await (await fetch("/api/status")).json()).portals.carmen
-            .maintenance,
-      );
       await page.screenshot({ path: directory + "/settings-carmen.png" });
       const status = await (
         await context.request.get(base + "/api/status")
       ).json();
       assert.equal(status.schoologyConnected, false);
+      assert.equal(status.portals.carmen.maintenance, true);
+      assert(status.portals.carmen.nextMaintenance > Date.now());
       assert.match(status.account, /^workspace:/);
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       const card = page

@@ -15,7 +15,7 @@ import { recentProgression } from "../src/core/progression";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
 import { portalBrowser } from "../worker/portal-browser";
-import { seal } from "../worker/crypto";
+import { seal, unseal, type Envelope } from "../worker/crypto";
 import {
   campusSummary,
   campusDetail,
@@ -412,34 +412,47 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
-  it("keeps existing IC connections and ignores legacy automatic maintenance", async () => {
-    const h = harness();
-    h.data.set(
-      "portal-campus",
-      await seal(
-        {
-          browserMs: 0,
-          connection: {
-            portal: campusPortal,
-            account: "synthetic-existing-account",
-            selected: ["1:100"],
-            maintenance: true,
-            nextMaintenance: now,
-          },
-        },
-        "synthetic-owner-password-123456",
-      ),
-    );
-    expect(await h.service.status()).toMatchObject({
-      connected: true,
-      selected: ["1:100"],
-      maintenance: false,
-      nextMaintenance: undefined,
-    });
-    await h.service.expire();
-    expect(h.calls).toEqual([]);
-    expect(h.browserCalls()).toBe(0);
-  });
+  it.each([false, undefined])(
+    "schedules existing IC sessions when the old preference was %s",
+    async (keepConnected) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+      const h = harness();
+      await h.service.handle("start", { portal: campusPortal });
+      await h.service.handle("finish");
+      await h.service.handle("select", { selected: ["1:100"] });
+      const key = "portal-campus";
+      const password = "synthetic-owner-password-123456";
+      const legacy = await unseal<{
+        connection: { keepConnected?: boolean; nextMaintenance?: number };
+      }>(h.data.get(key) as Envelope, password);
+      legacy.connection.keepConnected = keepConnected;
+      delete legacy.connection.nextMaintenance;
+      h.data.set(key, await seal(legacy, password));
+      h.calls.length = 0;
+      const browsers = h.browserCalls();
+      const status = await h.service.status();
+      expect(status).toMatchObject({
+        connected: true,
+        selected: ["1:100"],
+        maintenance: true,
+        nextMaintenance: now + 20 * 60000,
+      });
+      expect(h.calls).toEqual([]);
+      vi.setSystemTime(now + 60000);
+      expect((await h.service.status()).nextMaintenance).toBe(
+        status.nextMaintenance,
+      );
+      await expect(
+        h.service.handle("maintenance", { enabled: false }),
+      ).rejects.toThrow("portalMaintenanceAutomatic");
+      expect(h.calls).toEqual([]);
+      vi.setSystemTime(now + 20 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual(["/campus/resources/portal/roster"]);
+      expect(h.browserCalls()).toBe(browsers);
+    },
+  );
   it.each([false, true])(
     "checks IC at 20 minutes without a browser or grade freshness change (profile-bound %s)",
     async (profileBound) => {
@@ -451,12 +464,9 @@ describe("encrypted IC session and selected snapshots", () => {
       await h.service.handle("finish");
       await h.service.handle("select", { selected: ["1:100"] });
       expect(await h.service.status()).toMatchObject({
-        maintenance: false,
-        nextMaintenance: undefined,
+        maintenance: true,
+        nextMaintenance: now + 20 * 60000,
       });
-      h.calls.length = 0;
-      await h.service.handle("maintenance", { enabled: true });
-      expect(h.calls).toEqual([]);
       const verified = (await h.service.status()).lastVerified,
         browsers = h.browserCalls();
       h.calls.length = 0;
@@ -479,14 +489,8 @@ describe("encrypted IC session and selected snapshots", () => {
         lastKeepalive: now + 20 * 60000,
         nextMaintenance: now + 40 * 60000,
       });
-      await h.service.handle("maintenance", { enabled: false });
-      h.calls.length = 0;
-      vi.setSystemTime(now + 50 * 60000);
-      await h.service.expire();
-      expect(h.calls).toEqual([]);
-      await h.service.handle("maintenance", { enabled: true });
       h.expire();
-      vi.setSystemTime(now + 70 * 60000);
+      vi.setSystemTime(now + 40 * 60000);
       await h.service.expire();
       expect(await h.service.status()).toMatchObject({
         needsReconnect: true,
@@ -580,6 +584,10 @@ describe("encrypted IC session and selected snapshots", () => {
     const h = harness();
     await h.service.handle("start", { portal: campusPortal });
     expect((await h.service.status()).connected).toBe(false);
+    await expect(h.service.handle("courses")).rejects.toThrow(
+      "portalConnectRequired",
+    );
+    expect((await h.service.status()).needsReconnect).toBe(false);
     await h.service.handle("finish");
     expect((await h.service.status()).connected).toBe(true);
     expect(JSON.stringify([...h.data.values()])).not.toContain(

@@ -86,8 +86,11 @@ const messages: Record<string, string> = {
     "Choose your district and open Campus Student in the sign-in window, then finish connecting.",
   invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
   schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
+  portalConnectRequired: "Connect Infinite Campus in Settings first.",
+  portalMaintenanceAutomatic:
+    "Session checks are automatic. Reload to see the updated Settings.",
   portalSignInRequired:
-    "Infinite Campus needs you to sign in again. Your saved grades are retained.",
+    "Reconnect Infinite Campus to refresh your grades. Your saved grades are retained.",
   portalSignInExpired: "That sign-in window expired. Start a new sign-in.",
   portalBrowserCaptureFailed:
     "GradeViewer couldn’t read the temporary sign-in browser. Retry the connection check.",

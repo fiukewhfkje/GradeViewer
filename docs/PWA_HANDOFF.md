@@ -10,7 +10,7 @@ GradeViewer is now a web-only React/TypeScript PWA in `web/`, backed by each use
 
 Read [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md), [current status](../PROJECT_STATUS.md), [TODO](../TODO.md), [validation](PWA_VALIDATION.md) and the [product brief](PRODUCT_BRIEF.md). [PWA_PLAN.md](PWA_PLAN.md) is historical migration rationale, not active instructions to keep native sources or repeat the migration.
 
-The owner-only session experiment concluded November 9. Stable v0.2.2 includes Carmen with its Experimental label and opt-in maintenance. Read [the integration notes](CARMEN_INTEGRATION.md) for the reversible LMS switch, compatibility report, bounded recovery and private Worker diagnostics. The [capture handoff](CARMEN_HANDOFF.md) preserves historical evidence. Old Mac/Muse sessions remain separate from the PWA, and enrolled-account acceptance remains open.
+The owner-only session experiment concluded November 9. Carmen remains Experimental in v0.2.3. IC and Carmen session checks start automatically after successful sign-in. The first unlocked status read schedules eligible saved connections from earlier versions. [Carmen integration notes](CARMEN_INTEGRATION.md) cover the LMS switch, compatibility report, bounded recovery and private Worker diagnostics. The [capture handoff](CARMEN_HANDOFF.md) preserves historical evidence. Old Mac/Muse sessions remain separate from the PWA, and enrolled-account acceptance remains open.
 
 ## Setup and release boundaries
 

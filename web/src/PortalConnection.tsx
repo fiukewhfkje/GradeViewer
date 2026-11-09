@@ -105,17 +105,10 @@ export function PortalConnection({
     [courses, setCourses] = useState<CampusChoice[]>(),
     [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
-  const [maintenance, setMaintenance] = useState(!!status?.maintenance);
-  useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
-  const interval = carmen ? 90 : 20;
-  const health = usePortalHealth(
-    status,
-    interval,
-    disabled || busy,
-    refreshStatus,
-  );
+  const health = usePortalHealth(status, disabled || busy, refreshStatus);
+  const needsReconnect = health.tone === "error";
   async function run(task: () => Promise<void>, label = "Working…") {
     setWorking(label);
     setMessage("");
@@ -123,6 +116,15 @@ export function PortalConnection({
       await task();
     } catch (e) {
       setMessage(errorMessage(e));
+      if (
+        e instanceof RequestError &&
+        (e.code === "portalSignInRequired" ||
+          e.code === "portalPasswordChanged" ||
+          e.code === "portalAccountChanged")
+      ) {
+        setChoosing(false);
+        await refreshStatus().catch(() => {});
+      }
     } finally {
       setWorking("");
     }
@@ -377,7 +379,7 @@ export function PortalConnection({
           </div>
         ) : status?.connected ? (
           <>
-            {!carmen && (
+            {!carmen && !needsReconnect && (
               <button
                 className="settings-action portal-action"
                 disabled={disabled || busy}
@@ -396,47 +398,16 @@ export function PortalConnection({
                 <ChevronRight size={18} />
               </button>
             )}
-            <div className="portal-body">
-              <label className="gpa-check">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  aria-label="Keep connected"
-                  aria-describedby={`${provider}-keep-connected-description`}
-                  checked={maintenance}
-                  disabled={disabled || busy}
-                  onChange={(e) => {
-                    const enabled = e.target.checked;
-                    setMaintenance(enabled);
-                    void run(async () => {
-                      try {
-                        await api("campus/maintenance", { enabled });
-                      } catch (error) {
-                        setMaintenance(!!status.maintenance);
-                        throw error;
-                      }
-                      await refreshStatus();
-                    }, "Saving preference…");
-                  }}
-                />
-                <span className="gpa-toggle-track" aria-hidden="true" />
-                <span>
-                  Keep connected
-                  <small id={`${provider}-keep-connected-description`}>
-                    Checks every {interval} minutes
-                  </small>
-                </span>
-              </label>
-            </div>
             <div className="portal-actions">
               <button
+                className={needsReconnect ? "primary" : undefined}
                 aria-label={`Reconnect ${title}`}
                 disabled={disabled || busy}
                 onClick={() =>
                   void run(start, "Preparing the sign-in browser…")
                 }
               >
-                Reconnect
+                {needsReconnect ? `Reconnect ${title}` : "Reconnect"}
               </button>
               <button
                 className="danger"
@@ -460,7 +431,9 @@ export function PortalConnection({
             <p className="portal-description">
               {carmen
                 ? "Connect your Ohio State student courses with your regular school sign-in."
-                : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
+                : disabled
+                  ? "Connect Schoology first to add Infinite Campus classes."
+                  : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
             </p>
             <button
               className="primary portal-connect"

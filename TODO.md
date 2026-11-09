@@ -1,3 +1,15 @@
+# Automatic connector maintenance — November 9
+
+- [x] Base badges on setup state and real check results. Reconcile a missing alarm from the saved deadline and trace the owner’s saved Carmen connection to the weekend experiment.
+- [ ] Publish signed stable v0.2.3 and verify the owner Worker serves the release. Both earlier alpha.1 attempts stalled after asset upload.
+- [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
+- [x] Validate and deploy the owner-only build. Verify the live assets, vault binding, saved diagnostics and locked report route.
+
+# Connector setup and reconnect — November 9
+
+- [x] Read the saved post-update records. IC rejected the saved session at 12:10 EST and the owner reconnected successfully. Carmen has no verification after the last experimental check. Both background counters stopped.
+- [x] Distinguish first-time setup from an expired connection and return an expired course picker to Reconnect.
+
 # Stable release preparation — November 6
 
 - [x] Remove the sample-grades button and mode on the development branch while keeping synthetic tests.
@@ -10,6 +22,8 @@
 - [x] Use Set up for unconfigured providers and show Carmen’s connection controls while Carmen is the main LMS.
 - [x] Add one-tap Carmen compatibility reporting and a persistent Experimental label on the development branch.
 - [x] Review the weekend diagnostics and confirm the stable release scope with the owner. Keep Carmen Experimental and turn off inherited maintenance.
+- [x] Merge the v0.2.2 release commit and verify the owner Worker’s assets, vault binding, saved diagnostics and locked compatibility report route.
+- [x] Publish signed v0.2.2 as latest stable, verify the downloaded artifacts and apply the actual release in an isolated v0.2.1 copy.
 - [ ] Use an enrolled account’s compatibility report to guide Carmen normalization, then verify the resulting grades before removing the Experimental label.
 
 # Parallel session diagnostics — November 6

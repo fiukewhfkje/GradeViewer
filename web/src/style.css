@@ -1673,7 +1673,7 @@ svg.spinning {
   .settings-provider > summary:hover,
   .settings-action:hover,
   .app-actions .settings-card > button:hover,
-  .portal-actions > button:hover {
+  .portal-actions > button:not(.primary):hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 }
@@ -1707,9 +1707,6 @@ svg.spinning {
 }
 .connection[data-health="connected"] .status-dot {
   background: var(--grade);
-}
-.connection[data-health="warning"] .status-dot {
-  background: #bd8c32;
 }
 .connection[data-health="error"] .status-dot {
   background: #bf574b;

@@ -1,53 +1,36 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import type { PortalStatus } from "./api";
 
-export type ConnectionTone = "neutral" | "connected" | "warning" | "error";
+export type ConnectionTone = "neutral" | "connected" | "error";
 
-export function portalHealth(
-  status: PortalStatus | undefined,
-  now = Date.now(),
-  intervalMinutes = 90,
-): { label: string; tone: ConnectionTone } {
+export function portalHealth(status: PortalStatus | undefined): {
+  label: string;
+  tone: ConnectionTone;
+} {
   if (!status?.connected) return { label: "Set up", tone: "neutral" };
   const fault = status.diagnostics?.currentFailure;
-  if (fault?.category === "accessDenied")
-    return { label: "Access denied", tone: "error" };
-  if (status.needsReconnect) return { label: "Sign-in needed", tone: "error" };
-  if (fault?.category === "requestBlocked")
-    return { label: "Check blocked", tone: "warning" };
   if (
+    status.needsReconnect ||
+    fault?.category === "accessDenied" ||
+    fault?.category === "requestBlocked" ||
     fault?.trigger === "alarm" ||
-    fault?.stage === "profile" ||
+    (fault?.stage === "profile" &&
+      (fault.httpStatus !== undefined ||
+        fault.category === "network" ||
+        fault.category === "timeout")) ||
     fault?.stage === "browser"
   )
-    return { label: "Access unconfirmed", tone: "warning" };
-  const verified = status.diagnostics?.lastSuccessAt ?? status.lastVerified;
-  if (verified && now - verified <= (intervalMinutes + 5) * 60000)
-    return { label: "Connected", tone: "connected" };
-  return status.maintenance
-    ? { label: "Check overdue", tone: "warning" }
-    : { label: "Connected", tone: "neutral" };
+    return { label: "Disconnected", tone: "error" };
+  return { label: "Connected", tone: "connected" };
 }
 
 export function usePortalHealth(
   status: PortalStatus | undefined,
-  intervalMinutes: number,
   busy: boolean,
   refreshStatus: () => Promise<void>,
 ) {
-  const [now, setNow] = useState(Date.now);
   const readStatus = useEffectEvent(refreshStatus);
   const dueReads = useRef({ deadline: 0, count: 0 });
-  const verified = status?.diagnostics?.lastSuccessAt ?? status?.lastVerified;
-  useEffect(() => {
-    if (!verified) return;
-    const remaining = verified + (intervalMinutes + 5) * 60000 - Date.now();
-    const timer = setTimeout(
-      () => setNow(Date.now()),
-      Math.max(0, remaining + 1),
-    );
-    return () => clearTimeout(timer);
-  }, [verified, intervalMinutes]);
 
   const deadline = status?.nextMaintenance;
   useEffect(() => {
@@ -74,5 +57,5 @@ export function usePortalHealth(
       clearTimeout(timer);
     };
   }, [status?.maintenance, deadline, busy]);
-  return portalHealth(status, now, intervalMinutes);
+  return portalHealth(status);
 }

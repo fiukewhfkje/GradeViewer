@@ -325,6 +325,9 @@ function harness() {
     get closed() {
       return closed;
     },
+    get scheduledAlarm() {
+      return alarm;
+    },
     restore: () => {
       restoreOnNavigate = true;
     },
@@ -512,7 +515,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     const verified = (await h.service.status()).lastVerified;
     h.calls.length = 0;
     vi.setSystemTime(now + 89 * 60000);
@@ -530,38 +532,45 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       diagnostics: { verifiedUptimeMs: 90 * 60000 },
     });
   });
-  it("does not maintain or recover a connected Carmen session until opted in", async () => {
+  it("does not schedule maintenance for Carmen before connection", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
     const h = harness();
-    await connect(h);
     expect(await h.service.status()).toMatchObject({
-      connected: true,
+      connected: false,
       maintenance: false,
       nextMaintenance: undefined,
     });
-    h.calls.length = 0;
     vi.setSystemTime(now + 90 * 60000);
-    h.alarm();
     await h.service.expire();
     expect(h.calls).toEqual([]);
-    h.fail(401);
-    await expect(h.service.handle("check")).rejects.toThrow(
-      "portalSignInRequired",
-    );
-    expect((await h.service.status()).diagnostics?.recoveriesAttempted).toBe(0);
-    expect(h.browsers).toBe(3);
+    expect(h.browsers).toBe(0);
   });
-  it("foreground sync defers ping and disabling maintenance prevents it", async () => {
+  it("re-arms a missing scheduled check on status without contacting Carmen", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
+    h.calls.length = 0;
+    h.alarm();
+    const deadline = now + 90 * 60000;
+    expect((await h.service.status()).nextMaintenance).toBe(deadline);
+    expect(h.scheduledAlarm).toBe(deadline);
+    h.alarm();
+    vi.setSystemTime(deadline + 1000);
+    expect((await h.service.status()).nextMaintenance).toBe(deadline);
+    expect(h.scheduledAlarm).toBe(deadline + 1000);
+    expect(h.calls).toEqual([]);
+  });
+  it("foreground sync defers the next check and disconnect stops it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
     vi.setSystemTime(now + 60 * 60000);
     await h.service.handle("snapshot");
     expect((await h.service.status()).nextMaintenance).toBe(now + 150 * 60000);
-    await h.service.handle("maintenance", { enabled: false });
+    await h.service.handle("disconnect");
     h.calls.length = 0;
     vi.setSystemTime(now + 200 * 60000);
     await h.service.expire();
@@ -574,7 +583,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       vi.setSystemTime(now);
       const h = harness();
       await connect(h);
-      await h.service.handle("maintenance", { enabled: true });
       h.fail(status);
       vi.setSystemTime(now + 90 * 60000);
       await h.service.expire();
@@ -604,7 +612,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.restore();
     vi.setSystemTime(now + 90 * 60000);
@@ -629,7 +636,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     });
     expect(d.currentFailure).toBeUndefined();
     expect(h.closed).toBe(2);
-    expect(portalHealth(status, now + 90 * 60000)).toEqual({
+    expect(portalHealth(status)).toEqual({
       label: "Connected",
       tone: "connected",
     });
@@ -642,7 +649,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.block("duo");
     vi.setSystemTime(now + 90 * 60000);
@@ -655,7 +661,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     });
     expect(status.nextMaintenance).toBeUndefined();
     expect(portalHealth(status)).toEqual({
-      label: "Sign-in needed",
+      label: "Disconnected",
       tone: "error",
     });
     vi.setSystemTime(now + 100 * 60000);
@@ -669,7 +675,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.hang();
     vi.setSystemTime(now + 90 * 60000);
@@ -684,7 +689,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     await h.service.expire();
     expect(h.browsers).toBe(4);
   });
-  it("retains bounded diagnostics and distinguishes stale or failed access", () => {
+  it("retains bounded diagnostics and distinguishes a scheduled check from a failure", () => {
     const d = newCarmenDiagnostics(now);
     for (let i = 0; i < 100; i++)
       carmenEvent(d, {
@@ -701,17 +706,15 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       category: "unknown",
     });
     expect(
-      portalHealth(
-        {
-          connected: true,
-          needsReconnect: false,
-          selected: [],
-          diagnostics: d,
-          maintenance: true,
-        },
-        now + 96 * 60000,
-      ).label,
-    ).toBe("Check overdue");
+      portalHealth({
+        connected: true,
+        needsReconnect: false,
+        selected: [],
+        diagnostics: d,
+        maintenance: true,
+        nextMaintenance: now + 186 * 60000,
+      }).label,
+    ).toBe("Connected");
     carmenEvent(d, {
       at: now + 100,
       type: "failure",
@@ -736,16 +739,13 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       code: "portalUnavailable",
     });
     expect(
-      portalHealth(
-        {
-          connected: true,
-          needsReconnect: false,
-          selected: [],
-          diagnostics: d,
-        },
-        now + 100,
-      ).label,
-    ).toBe("Access unconfirmed");
+      portalHealth({
+        connected: true,
+        needsReconnect: false,
+        selected: [],
+        diagnostics: d,
+      }).label,
+    ).toBe("Disconnected");
   });
   it("distinguishes denied, throttled, server, network and timed-out checks without browser recovery", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -759,7 +759,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       vi.setSystemTime(now);
       const h = harness();
       await connect(h);
-      await h.service.handle("maintenance", { enabled: true });
       if (typeof failure === "number") h.fail(failure);
       else h.network(failure);
       vi.setSystemTime(now + 90 * 60000);
@@ -782,7 +781,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.data.set("portal-browser-budget", {
       browserDay: "2026-11-04",
       browserMs: 0,
@@ -801,7 +799,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(429);
     vi.setSystemTime(now + 90 * 60000);
     await h.service.expire();
