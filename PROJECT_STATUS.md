@@ -2,6 +2,10 @@
 
 The owner requested a signed stable release and an update to their existing Worker. v0.2.3 includes automatic session maintenance for both connectors, simpler connection badges, missing-alarm recovery and clearer Connect and Reconnect actions. Carmen remains Experimental.
 
+[PR #21](https://github.com/fiukewhfkje/GradeViewer/pull/21) merged as `4550018`. The owner Worker deployed it at 13:27 EST, version `331c190e-211d-4c0b-93e1-f19f7e29e71c`. Six deployed assets matched the tested build. The vault fingerprint and bindings, saved diagnostics endpoints and report authorization passed live checks. No provider login or Browser Run session was used. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/541daa3d-a01f-47a7-9782-617329a460dd).
+
+GitHub published [v0.2.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.3) as latest stable from the same commit. The third tag attempt ran both browser jobs and signed the release after two attempts affected by the Actions outage. The downloaded manifest, all 106 file hashes and exact tag/workflow provenance verified. The v0.2.2 updater applied the signed package in an isolated copy, preserving its Worker configuration and local secret file. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42674247219).
+
 # Connector badges — November 9, 2026
 
 The owner saw **Check overdue** immediately after the automatic-maintenance update. The badge used elapsed time since the last successful check even when the Worker had just scheduled a future check. Settings now shows **Set up**, **Connected**, or **Disconnected** based on saved connection state and actual check results. The Worker restores a missing alarm from its saved deadline on unlocked status. Carmen’s saved record shows a single manual sign-in at 23:20 EST on November 4 for the weekend experiment. The local LMS switch was separate from that connection. Its most recent saved success when investigated was 08:39 EST on November 9. Investigation used only saved diagnostics.

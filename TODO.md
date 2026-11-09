@@ -1,7 +1,7 @@
 # Automatic connector maintenance — November 9
 
 - [x] Base badges on setup state and real check results. Reconcile a missing alarm from the saved deadline and trace the owner’s saved Carmen connection to the weekend experiment.
-- [ ] Publish signed stable v0.2.3 and verify the owner Worker serves the release. Both earlier alpha.1 attempts stalled after asset upload.
+- [x] Publish signed stable v0.2.3 and verify the owner Worker serves the exact release build. Verify the published hashes, provenance and a v0.2.2 upgrade in an isolated copy.
 - [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
 - [x] Validate and deploy the owner-only build. Verify the live assets, vault binding, saved diagnostics and locked report route.
 

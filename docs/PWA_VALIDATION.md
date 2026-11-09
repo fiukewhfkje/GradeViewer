@@ -1,3 +1,11 @@
+# Stable v0.2.3 — November 9, 2026
+
+The production build, 306 unit tests, both 38-flow browser suites, 106-file source packaging, Worker dry-run and isolated install/update/rollback fixture passed. The first pull-request workflow attempt ran Chromium and provenance during GitHub's Actions incident. The rerun completed both hosted browser suites and exact workflow provenance. [PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42673275592) · [GitHub incident](https://stspg.io/7yw63xl9ztrv).
+
+The owner Worker deployed `4550018` as v0.2.3. All six checked asset hashes matched the build, the vault and password bindings and saved diagnostics verified, and compatibility reports remained private. Verification made no provider requests. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/541daa3d-a01f-47a7-9782-617329a460dd).
+
+The successful tag rerun passed both hosted browser suites, signed the manifest and published the latest stable release. The downloaded 106-file archive matched its hashes and exact GitHub signing workflow, tag and commit. An isolated v0.2.2 updater applied the actual signed v0.2.3 release and preserved the copy's Worker configuration and synthetic password file. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42674247219).
+
 # Stable v0.2.2 — November 9, 2026
 
 Production build and type check, 304 unit tests, 38 Chromium and 38 WebKit browser flows, 106-file release packaging, Worker dry-run and isolated template install/build/update/rollback passed. The isolated updater uses fixture provenance. The pull request verified real GitHub workflow provenance and both hosted browser suites. [Verification run](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42629992436).
