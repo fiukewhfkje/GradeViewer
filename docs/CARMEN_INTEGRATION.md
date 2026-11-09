@@ -1,4 +1,6 @@
-# Carmen development integration — November 4, 2026
+# Experimental Carmen integration
+
+GradeViewer v0.2.2 includes Carmen with the Experimental label. Both connectors start with maintenance off, including connections from the owner’s weekend experiment. A saved alarm may wake once and drain without a provider request. Existing encrypted sessions and diagnostics remain available. At experiment close, IC had 362 successful checks out of 362 (297 scheduled), and Carmen had 75 successful checks after sign-in (69 scheduled) plus the earlier setup 403. Both had roughly 105 hours of sampled verified uptime and zero automatic recoveries. The latest Carmen course discovery was empty, so enrolled-course acceptance remains open. The checks do not establish the exact lifetime or whether they extended an idle timeout.
 
 Latest saved account evidence (November 5, approximately 08:40 EST): the owner's fresh November 4 23:20 EST connection succeeded. Carmen recorded 11 successful HTTP checks from that sign-in onward, including five overnight 90-minute alarm checks, with no failure after that connection or automatic recovery attempt. The only saved failure is the earlier setup 403; its source remains unknown. Successful course discovery is a schema-valid empty list, so enrolled-grade compatibility, cloud recovery and multi-day reliability remain open. Parallel IC diagnostics report 42/42 successful checks, including 24 alarms. Both show about 9h 19m sampled verified uptime; this does not establish HTTP idle extension. See PROJECT_STATUS.md and PWA_VALIDATION.md for timing and evidence limits.
 
@@ -6,7 +8,7 @@ Earlier November 4 follow-up: the owner's first dashboard sign-in produced HTTP 
 
 The owner also authorized a parallel IC 20-minute HTTP experiment with separate diagnostics. The existing private key can read exactly `/api/carmen/diagnostics` and `/api/campus/diagnostics`. Append `campus` to the operator command below to inspect IC; no other endpoint accepts that capability. IC has no automatic browser recovery. The local preview shows one health indicator per connection and keeps the detailed records on the Worker.
 
-This implementation is developed on `codex/investigate-gpa-carmen`. At the owner's request, development commit 963efe8 is deployed as 0.2.2-alpha.0 only to their [existing Worker](https://gradeviewer.fiukewhfkje.workers.dev). Six public asset hashes, preserved vault/password/browser bindings, locked APIs and the private read-only diagnostic capability verify successfully. It is not a published prerelease, stable release or main merge. Main/stable retain Schoology with selected Infinite Campus courses. No real Carmen request was made during deployment verification; the diagnostic record is empty until fresh human sign-in starts the experiment. No Carmen student records are committed.
+The initial deployment was development commit 963efe8 (`0.2.2-alpha.0`) to the owner’s existing Worker, before Carmen entered main. Six public asset hashes, preserved vault/password/browser bindings, locked APIs and the private read-only diagnostic capability verified successfully. The owner began the experiment with a fresh human sign-in. No Carmen student records are committed.
 
 ## Connection and refresh
 
@@ -32,7 +34,7 @@ A separate Ohio State semester GPA card uses the [Registrar's letter points](htt
 
 The owner enters credits from the schedule. Percent-only Carmen totals do not imply a universal Ohio State letter cutoff; a missing letter stays incomplete unless the user enters a clearly labeled local GPA letter override. What-if letters are temporary. All GPA settings and predictions stay in IndexedDB and never write to Canvas. This is an estimate, not an official transcript calculation.
 
-## Owner-only experiment and switching LMS
+## Switching LMS
 
 Settings explicitly labels Carmen **Experimental**. “Use Carmen as main LMS” selects the university course list and Ohio State GPA; switching it off restores Schoology and selected IC courses. The preference is local to that browser. Both provider connections, cached snapshots, observations, scenarios and GPA settings remain saved. Ordinary foreground/manual refresh reads the selected LMS only. Each provider still replaces only its own snapshot partition. Other devices share the same encrypted Worker connection and alarm rather than creating independent background loops.
 
@@ -44,7 +46,7 @@ The same IC sign-in infrastructure prepares the cloud browser before offering Op
 
 ## Background checks and bounded silent recovery
 
-A Durable Object alarm runs 90 minutes after the most recent successful authenticated profile request. It performs a small self-profile GET, retains rotated cookies and verifies the same account; it does not fetch grades, keep a browser open, run a model, or need a separate cron Worker. Foreground checks are distinguished from alarm checks in diagnostics and postpone the next tick. Nominal background activity is 16 HTTP checks per day. [Durable Object alarm invocations count as requests](https://developers.cloudflare.com/durable-objects/platform/pricing/); normal successful HTTP checks consume no Browser Run time.
+With **Keep connected** enabled, a Durable Object alarm runs 90 minutes after the most recent successful authenticated profile request. It performs a small self-profile GET, retains rotated cookies and verifies the same account. It uses the same Worker. Foreground checks are distinguished from alarm checks in diagnostics and postpone the next tick. Nominal background activity is 16 HTTP checks per day. Normal successful HTTP checks consume no Browser Run time. [Durable Object pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/).
 
 Only a confirmed authentication rejection (401 or a recognized sign-in redirect) may invoke the shared silent recovery path. Both foreground and background recovery restore the encrypted browser state, navigate the captured Carmen entry, and re-verify the same account. The browser work has a 25-second deadline, short bounded classification/cleanup, a 30-second inactivity lease, five-minute retry spacing and shared IC/Carmen limits. It reserves a conservative 60-second allowance before acquisition and refunds unused time only after confirmed closure; recovery has a 120-second rolling-24-hour allowance as well as the shared daily browser allowance. A close failure pauses maintenance and retains the reservation. These are application wall-time safeguards, not a claim about exact Cloudflare billing or other workloads in the account.
 

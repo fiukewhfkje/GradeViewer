@@ -9,7 +9,8 @@
 - [x] Clarify password recovery in the app, use Connected for healthy providers and stage a synthetic IC reconnect in the local preview.
 - [x] Use Set up for unconfigured providers and show Carmen’s connection controls while Carmen is the main LMS.
 - [x] Add one-tap Carmen compatibility reporting and a persistent Experimental label on the development branch.
-- [ ] Review the weekend diagnostics and confirm the stable release scope. Use an enrolled account’s compatibility report to guide Carmen normalization, then verify the resulting grades before removing the Experimental label.
+- [x] Review the weekend diagnostics and confirm the stable release scope with the owner. Keep Carmen Experimental and turn off inherited maintenance.
+- [ ] Use an enrolled account’s compatibility report to guide Carmen normalization, then verify the resulting grades before removing the Experimental label.
 
 # Parallel session diagnostics — November 6
 

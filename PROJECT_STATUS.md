@@ -1,3 +1,9 @@
+# v0.2.2 release and weekend experiment — November 9, 2026
+
+The owner concluded the weekend experiment and authorized a main merge, an update to the existing Worker and a signed stable release with Carmen marked Experimental. Stable includes simplified Settings, opt-in connector maintenance, app password change and recovery, removal of sample grades and the shareable Carmen compatibility report.
+
+The final read of saved diagnostics showed IC at 362/362 successful checks (297 scheduled) and Carmen at 75 successful checks since the fresh sign-in (69 scheduled), after the initial setup 403. Each accumulated roughly 105 hours of sampled verified uptime, with zero authentication rejections or automatic recoveries after sign-in. The owner’s Carmen course-list result was empty. The data does not establish an exact session lifetime, idle extension, or enrolled-course acceptance. Retrieval opened no browsers or provider requests.
+
 # Carmen compatibility reports — November 6, 2026
 
 Carmen’s Settings row shows **Experimental** even when collapsed. **Copy compatibility report** becomes available after the Worker captures a response during sign-in or grade sync, including responses that fail parsing. The report shares a bounded sample of known field paths and their JSON types, HTTP statuses and parser outcomes. It omits field values, account data, cookies and grades. The button reads the saved report from the unlocked Worker without contacting Carmen. If clipboard access is unavailable, Settings shows selectable JSON.

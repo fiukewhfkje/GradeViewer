@@ -64,9 +64,9 @@ Newly deployed app versions also show a discreet update notice when the app open
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](https://github.com/fiukewhfkje/GradeViewer/blob/main/docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
 
-## Carmen development branch
+## Experimental CarmenCanvas
 
-CarmenCanvas remains on `codex/investigate-gpa-carmen`, outside main and published releases. The owner authorized an experiment on their existing Worker: an experimental main-LMS switch preserves both connections, automatic sign-in capture closes the temporary browser, and 90-minute HTTP checks record health with bounded silent SSO recovery. Settings stays compact; detailed private diagnostics remain on the Worker. OSU enrolled-course compatibility and long-term session extension remain unverified. See the root repository’s Carmen integration documentation.
+In **Settings → Connections → CarmenCanvas**, turn on **Use Carmen as main LMS** and connect with your Ohio State account. You can switch back to Schoology and Infinite Campus without losing your saved connections. **Keep connected** starts off. Turn it on for 90-minute session checks on your Worker. After connecting, **Copy compatibility report** gives you shareable field types and parser results. OSU enrolled-course compatibility is still being tested.
 
 ## Optional Infinite Campus classes
 

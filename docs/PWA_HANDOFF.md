@@ -10,7 +10,7 @@ GradeViewer is now a web-only React/TypeScript PWA in `web/`, backed by each use
 
 Read [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md), [current status](../PROJECT_STATUS.md), [TODO](../TODO.md), [validation](PWA_VALIDATION.md) and the [product brief](PRODUCT_BRIEF.md). [PWA_PLAN.md](PWA_PLAN.md) is historical migration rationale, not active instructions to keep native sources or repeat the migration.
 
-The Carmen development branch has an owner-only deployment exception for the session-lifetime experiment; main and stable releases remain Schoology-primary with selected IC courses. Read [the integration notes](CARMEN_INTEGRATION.md) for the reversible LMS switch, compact Settings, bounded recovery, private Worker diagnostic retrieval and external operator-key path. The older [capture handoff](CARMEN_HANDOFF.md) remains historical evidence; do not import those old Mac/Muse sessions or treat synthetic results as enrolled-account acceptance.
+The owner-only session experiment concluded November 9. Stable v0.2.2 includes Carmen with its Experimental label and opt-in maintenance. Read [the integration notes](CARMEN_INTEGRATION.md) for the reversible LMS switch, compatibility report, bounded recovery and private Worker diagnostics. The [capture handoff](CARMEN_HANDOFF.md) preserves historical evidence. Old Mac/Muse sessions remain separate from the PWA, and enrolled-account acceptance remains open.
 
 ## Setup and release boundaries
 
