@@ -1,3 +1,7 @@
+# Automatic connector maintenance — November 9, 2026
+
+The owner requested automatic maintenance and deployment to the existing Worker. The development build removes both **Keep connected** switches. A successful sign-in starts 20-minute IC or 90-minute Carmen HTTP checks on the existing Worker. Previously unscheduled saved connections are scheduled on the next unlocked status read. Failed sessions still surface Reconnect, and explicit disconnect stops checks for that provider. Carmen retains its bounded recovery and human-action stops. The former toggle endpoint returns a conflict to older cached clients without changing preferences or contacting a provider.
+
 # Connector setup and reconnect follow-up — November 9, 2026
 
 v0.2.2 ended the experimental background schedules for both providers. It kept their saved sessions and diagnostics. A pending legacy alarm could wake and exit without a provider request. Both scheduled-check counts remain at their pre-release totals (IC 297, Carmen 69).

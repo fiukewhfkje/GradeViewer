@@ -1,3 +1,7 @@
+# Automatic connector maintenance — November 9
+
+- [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
+
 # Connector setup and reconnect — November 9
 
 - [x] Read the saved post-update records. IC rejected the saved session at 12:10 EST and the owner reconnected successfully. Carmen has no verification after the last experimental check. Both background counters stopped.

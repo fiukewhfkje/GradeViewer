@@ -41,7 +41,7 @@ export interface PortalConnection {
   portal: string;
   account?: string;
   subject?: string;
-  // A separate field makes older, automatically enabled sessions opt in again.
+  // Retains the existing schedule marker from versions with a user switch.
   keepConnected?: boolean;
   nextMaintenance?: number;
   maintenanceFailures?: number;
@@ -165,6 +165,10 @@ export class PortalService {
   }
   private get maintenanceInterval() {
     return (this.kind === "campus" ? 20 : 90) * 60_000;
+  }
+  private startMaintenance(c: PortalConnection) {
+    c.keepConnected = true;
+    c.nextMaintenance = Date.now() + this.maintenanceInterval;
   }
   private choices(summary: unknown) {
     return this.kind === "carmen"
@@ -318,6 +322,19 @@ export class PortalService {
     try {
       const s = await this.load(),
         c = s.connection;
+      if (
+        c?.account &&
+        c.jar &&
+        !c.keepConnected &&
+        !c.pending &&
+        !c.needsReconnect &&
+        !c.maintenancePaused &&
+        (c.maintenanceFailures ?? 0) < 3
+      ) {
+        // Older connections can have saved cookies but no active alarm.
+        this.startMaintenance(c);
+        await this.save(s);
+      }
       return {
         connected: !!c?.account,
         needsReconnect: !!c?.needsReconnect,
@@ -366,7 +383,8 @@ export class PortalService {
     delete s.connection!.pending;
   }
   private async recover(s: PortalStore, c: PortalConnection): Promise<boolean> {
-    if (this.kind !== "carmen" || !c.keepConnected) return false;
+    if (this.kind !== "carmen" || !c.keepConnected || c.maintenancePaused)
+      return false;
     this.resetBudget(s);
     s.recoveryHistory ??= s.renewalMs
       ? [{ at: Date.now(), ms: s.renewalMs }]
@@ -860,8 +878,8 @@ export class PortalService {
       this.diagnostics(c).courseCount = choices.length;
       this.diagnostics(c).lastCourseReadAt = Date.now();
       this.event(c, "coursesRead", { stage: "courses", httpStatus: 200 });
-      if (this.kind === "campus" && c.keepConnected && !c.maintenancePaused)
-        c.nextMaintenance = Date.now() + this.maintenanceInterval;
+      if (!c.maintenancePaused && (this.kind === "campus" || !c.keepConnected))
+        this.startMaintenance(c);
       // Keep request and memory amplification bounded. Discovery does not request assignment details.
       return { account, summary, choices, details, jar };
     } finally {
@@ -914,6 +932,9 @@ export class PortalService {
       }
       return { state: "waiting" };
     }
+    // An older cached app shell can still send the retired toggle request.
+    if (action === "maintenance")
+      throw new ApiError(409, "portalMaintenanceAutomatic");
     try {
       this.resetBudget(s);
       if (c?.pending && c.pending.expires < Date.now()) await this.close(s);
@@ -1047,9 +1068,7 @@ export class PortalService {
           c.lastVerified = Date.now();
           if (this.kind === "carmen") {
             c.maintenanceFailures = 0;
-            c.nextMaintenance = c.keepConnected
-              ? Date.now() + this.maintenanceInterval
-              : undefined;
+            this.startMaintenance(c);
             c.entry = c.portal;
             delete c.recoveryBlocked;
             delete c.maintenancePaused;
@@ -1192,9 +1211,7 @@ export class PortalService {
           c.lastVerified = Date.now();
           c.maintenanceFailures = 0;
           delete c.maintenancePaused;
-          c.nextMaintenance = c.keepConnected
-            ? Date.now() + this.maintenanceInterval
-            : undefined;
+          this.startMaintenance(c);
           this.event(c, "connected", { trigger: "manual", stage: "profile" });
           if (p.attempt) c.completed = { attempt: p.attempt, firstConnection };
           // Persist the verified cookies before stopping the remote Chrome session.
@@ -1222,19 +1239,6 @@ export class PortalService {
         }
       }
       if (!c.account) throw new ApiError(409, "portalConnectRequired");
-      if (action === "maintenance") {
-        if (typeof b.enabled !== "boolean")
-          throw new ApiError(400, "invalidRequest");
-        c.keepConnected = b.enabled;
-        delete c.maintenancePaused;
-        c.maintenanceFailures = 0;
-        c.nextMaintenance =
-          b.enabled && c.jar && !c.needsReconnect
-            ? Date.now() + this.maintenanceInterval
-            : undefined;
-        this.event(c, b.enabled ? "resumed" : "paused");
-        return { ok: true };
-      }
       if (c.cooldown && c.cooldown > Date.now())
         throw new ApiError(
           429,

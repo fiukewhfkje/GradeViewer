@@ -512,7 +512,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     const verified = (await h.service.status()).lastVerified;
     h.calls.length = 0;
     vi.setSystemTime(now + 89 * 60000);
@@ -530,38 +529,29 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       diagnostics: { verifiedUptimeMs: 90 * 60000 },
     });
   });
-  it("does not maintain or recover a connected Carmen session until opted in", async () => {
+  it("does not schedule maintenance for Carmen before connection", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
     const h = harness();
-    await connect(h);
     expect(await h.service.status()).toMatchObject({
-      connected: true,
+      connected: false,
       maintenance: false,
       nextMaintenance: undefined,
     });
-    h.calls.length = 0;
     vi.setSystemTime(now + 90 * 60000);
-    h.alarm();
     await h.service.expire();
     expect(h.calls).toEqual([]);
-    h.fail(401);
-    await expect(h.service.handle("check")).rejects.toThrow(
-      "portalSignInRequired",
-    );
-    expect((await h.service.status()).diagnostics?.recoveriesAttempted).toBe(0);
-    expect(h.browsers).toBe(3);
+    expect(h.browsers).toBe(0);
   });
-  it("foreground sync defers ping and disabling maintenance prevents it", async () => {
+  it("foreground sync defers the next check and disconnect stops it", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     vi.setSystemTime(now + 60 * 60000);
     await h.service.handle("snapshot");
     expect((await h.service.status()).nextMaintenance).toBe(now + 150 * 60000);
-    await h.service.handle("maintenance", { enabled: false });
+    await h.service.handle("disconnect");
     h.calls.length = 0;
     vi.setSystemTime(now + 200 * 60000);
     await h.service.expire();
@@ -574,7 +564,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       vi.setSystemTime(now);
       const h = harness();
       await connect(h);
-      await h.service.handle("maintenance", { enabled: true });
       h.fail(status);
       vi.setSystemTime(now + 90 * 60000);
       await h.service.expire();
@@ -604,7 +593,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.restore();
     vi.setSystemTime(now + 90 * 60000);
@@ -642,7 +630,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.block("duo");
     vi.setSystemTime(now + 90 * 60000);
@@ -669,7 +656,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(401);
     h.hang();
     vi.setSystemTime(now + 90 * 60000);
@@ -759,7 +745,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       vi.setSystemTime(now);
       const h = harness();
       await connect(h);
-      await h.service.handle("maintenance", { enabled: true });
       if (typeof failure === "number") h.fail(failure);
       else h.network(failure);
       vi.setSystemTime(now + 90 * 60000);
@@ -782,7 +767,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.data.set("portal-browser-budget", {
       browserDay: "2026-11-04",
       browserMs: 0,
@@ -801,7 +785,6 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     vi.setSystemTime(now);
     const h = harness();
     await connect(h);
-    await h.service.handle("maintenance", { enabled: true });
     h.fail(429);
     vi.setSystemTime(now + 90 * 60000);
     await h.service.expire();

@@ -105,8 +105,6 @@ export function PortalConnection({
     [courses, setCourses] = useState<CampusChoice[]>(),
     [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
-  const [maintenance, setMaintenance] = useState(!!status?.maintenance);
-  useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
   const needsReconnect = !!(status?.connected && status.needsReconnect);
@@ -406,38 +404,6 @@ export function PortalConnection({
                 <ChevronRight size={18} />
               </button>
             )}
-            <div className="portal-body">
-              <label className="gpa-check">
-                <input
-                  type="checkbox"
-                  role="switch"
-                  aria-label="Keep connected"
-                  aria-describedby={`${provider}-keep-connected-description`}
-                  checked={maintenance}
-                  disabled={disabled || busy}
-                  onChange={(e) => {
-                    const enabled = e.target.checked;
-                    setMaintenance(enabled);
-                    void run(async () => {
-                      try {
-                        await api("campus/maintenance", { enabled });
-                      } catch (error) {
-                        setMaintenance(!!status.maintenance);
-                        throw error;
-                      }
-                      await refreshStatus();
-                    }, "Saving preference…");
-                  }}
-                />
-                <span className="gpa-toggle-track" aria-hidden="true" />
-                <span>
-                  Keep connected
-                  <small id={`${provider}-keep-connected-description`}>
-                    Checks every {interval} minutes
-                  </small>
-                </span>
-              </label>
-            </div>
             <div className="portal-actions">
               <button
                 className={needsReconnect ? "primary" : undefined}

@@ -87,6 +87,8 @@ const messages: Record<string, string> = {
   invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
   schoologyFirst: "Connect Schoology before adding Infinite Campus classes.",
   portalConnectRequired: "Connect Infinite Campus in Settings first.",
+  portalMaintenanceAutomatic:
+    "Session checks are automatic. Reload to see the updated Settings.",
   portalSignInRequired:
     "Reconnect Infinite Campus to refresh your grades. Your saved grades are retained.",
   portalSignInExpired: "That sign-in window expired. Start a new sign-in.",
