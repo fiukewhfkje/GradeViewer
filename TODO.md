@@ -1,6 +1,7 @@
 # Automatic connector maintenance — November 9
 
 - [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
+- [x] Validate and deploy the owner-only build. Verify the live assets, vault binding, saved diagnostics and locked report route.
 
 # Connector setup and reconnect — November 9
 
