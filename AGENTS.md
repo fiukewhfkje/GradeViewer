@@ -38,3 +38,5 @@ Read README.md, PROJECT_STATUS.md, TODO.md, ARCHITECTURE.md, RESEARCH.md, docs/P
 - November 9 authorization supersedes the earlier Carmen release hold for v0.2.2. Merge the validated development branch into main, update the owner's existing Worker, and publish the signed stable release with Carmen visibly marked Experimental. Keep provider maintenance opt-in and preserve existing connections, local data and the private diagnostics boundary. Enrolled-account parsing and grade verification remain acceptance work.
 
 - November 9 follow-up: session maintenance starts automatically after a connector has a verified sign-in. Remove the two maintenance switches, preserve existing connections, and deploy this follow-up to the owner's existing Worker from development. The stable release stays on v0.2.2.
+
+- November 9 stable follow-up: the owner authorizes releasing automatic maintenance and the simplified connector badges in v0.2.3, merging to main and deploying the signed release's source to their existing Worker. Carmen remains Experimental.

@@ -1,3 +1,7 @@
+# v0.2.3 stable follow-up — November 9, 2026
+
+The owner requested a signed stable release and an update to their existing Worker. v0.2.3 includes automatic session maintenance for both connectors, simpler connection badges, missing-alarm recovery and clearer Connect and Reconnect actions. Carmen remains Experimental.
+
 # Connector badges — November 9, 2026
 
 The owner saw **Check overdue** immediately after the automatic-maintenance update. The badge used elapsed time since the last successful check even when the Worker had just scheduled a future check. Settings now shows **Set up**, **Connected**, or **Disconnected** based on saved connection state and actual check results. The Worker restores a missing alarm from its saved deadline on unlocked status. Carmen’s saved record shows a single manual sign-in at 23:20 EST on November 4 for the weekend experiment. The local LMS switch was separate from that connection. Its most recent saved success when investigated was 08:39 EST on November 9. Investigation used only saved diagnostics.
