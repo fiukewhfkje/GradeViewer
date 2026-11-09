@@ -1,5 +1,6 @@
 # Automatic connector maintenance — November 9
 
+- [x] Base badges on setup state and real check results. Reconcile a missing alarm from the saved deadline and trace the owner’s saved Carmen connection to the weekend experiment.
 - [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
 - [x] Validate and deploy the owner-only build. Verify the live assets, vault binding, saved diagnostics and locked report route.
 

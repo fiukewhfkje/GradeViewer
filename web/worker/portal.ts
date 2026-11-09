@@ -334,10 +334,19 @@ export class PortalService {
         // Older connections can have saved cookies but no active alarm.
         this.startMaintenance(c);
         await this.save(s);
+      } else if (
+        c?.keepConnected &&
+        c.nextMaintenance &&
+        !c.pending &&
+        !c.needsReconnect &&
+        !c.maintenancePaused
+      ) {
+        // Reconcile the saved deadline if the shared alarm was lost.
+        await this.arm(Math.max(Date.now(), c.nextMaintenance));
       }
       return {
         connected: !!c?.account,
-        needsReconnect: !!c?.needsReconnect,
+        needsReconnect: !!c?.needsReconnect || !!(c?.account && !c.jar),
         selected: c?.selected ?? [],
         portal: c?.portal,
         lastVerified: c?.lastVerified,

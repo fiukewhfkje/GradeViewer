@@ -325,6 +325,9 @@ function harness() {
     get closed() {
       return closed;
     },
+    get scheduledAlarm() {
+      return alarm;
+    },
     restore: () => {
       restoreOnNavigate = true;
     },
@@ -543,6 +546,22 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     expect(h.calls).toEqual([]);
     expect(h.browsers).toBe(0);
   });
+  it("re-arms a missing scheduled check on status without contacting Carmen", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await connect(h);
+    h.calls.length = 0;
+    h.alarm();
+    const deadline = now + 90 * 60000;
+    expect((await h.service.status()).nextMaintenance).toBe(deadline);
+    expect(h.scheduledAlarm).toBe(deadline);
+    h.alarm();
+    vi.setSystemTime(deadline + 1000);
+    expect((await h.service.status()).nextMaintenance).toBe(deadline);
+    expect(h.scheduledAlarm).toBe(deadline + 1000);
+    expect(h.calls).toEqual([]);
+  });
   it("foreground sync defers the next check and disconnect stops it", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(now);
@@ -617,7 +636,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     });
     expect(d.currentFailure).toBeUndefined();
     expect(h.closed).toBe(2);
-    expect(portalHealth(status, now + 90 * 60000)).toEqual({
+    expect(portalHealth(status)).toEqual({
       label: "Connected",
       tone: "connected",
     });
@@ -642,7 +661,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     });
     expect(status.nextMaintenance).toBeUndefined();
     expect(portalHealth(status)).toEqual({
-      label: "Sign-in needed",
+      label: "Disconnected",
       tone: "error",
     });
     vi.setSystemTime(now + 100 * 60000);
@@ -670,7 +689,7 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
     await h.service.expire();
     expect(h.browsers).toBe(4);
   });
-  it("retains bounded diagnostics and distinguishes stale or failed access", () => {
+  it("retains bounded diagnostics and distinguishes a scheduled check from a failure", () => {
     const d = newCarmenDiagnostics(now);
     for (let i = 0; i < 100; i++)
       carmenEvent(d, {
@@ -687,17 +706,15 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       category: "unknown",
     });
     expect(
-      portalHealth(
-        {
-          connected: true,
-          needsReconnect: false,
-          selected: [],
-          diagnostics: d,
-          maintenance: true,
-        },
-        now + 96 * 60000,
-      ).label,
-    ).toBe("Check overdue");
+      portalHealth({
+        connected: true,
+        needsReconnect: false,
+        selected: [],
+        diagnostics: d,
+        maintenance: true,
+        nextMaintenance: now + 186 * 60000,
+      }).label,
+    ).toBe("Connected");
     carmenEvent(d, {
       at: now + 100,
       type: "failure",
@@ -722,16 +739,13 @@ describe("encrypted Carmen session and HTTP maintenance", () => {
       code: "portalUnavailable",
     });
     expect(
-      portalHealth(
-        {
-          connected: true,
-          needsReconnect: false,
-          selected: [],
-          diagnostics: d,
-        },
-        now + 100,
-      ).label,
-    ).toBe("Access unconfirmed");
+      portalHealth({
+        connected: true,
+        needsReconnect: false,
+        selected: [],
+        diagnostics: d,
+      }).label,
+    ).toBe("Disconnected");
   });
   it("distinguishes denied, throttled, server, network and timed-out checks without browser recovery", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });

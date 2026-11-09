@@ -1708,9 +1708,6 @@ svg.spinning {
 .connection[data-health="connected"] .status-dot {
   background: var(--grade);
 }
-.connection[data-health="warning"] .status-dot {
-  background: #bd8c32;
-}
 .connection[data-health="error"] .status-dot {
   background: #bf574b;
 }

@@ -2102,7 +2102,7 @@ try {
           .click();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
-          .locator('[data-health="error"]')
+          .getByText("Disconnected", { exact: true })
           .waitFor();
         await page
           .getByRole("button", {
@@ -2334,6 +2334,10 @@ try {
         .click();
       await page
         .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
+        .waitFor();
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Set up", { exact: true })
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await page.waitForFunction(

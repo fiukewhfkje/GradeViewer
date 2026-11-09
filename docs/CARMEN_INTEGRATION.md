@@ -56,7 +56,7 @@ The dated [February 11, 2025 OSU announcement](https://it.osu.edu/news/2025/02/1
 
 ## Simple Settings and private diagnostics
 
-The local preview shows a single badge in each provider header. **Set up** marks an unconfigured provider. Green **Connected** means recently verified. Red marks a sign-in or access problem, and amber marks a blocked, overdue or unconfirmed check. The expanded provider row contains **Reconnect** and **Disconnect**, plus the Carmen LMS toggle or IC course selection. When Carmen is the main LMS, Settings shows Carmen’s connection controls. Turn the switch off to manage Schoology and IC. The badge ages locally and re-reads saved Worker status after an expected alarm, with at most three reads per deadline. These reads only retrieve saved status.
+Settings shows **Set up** for a provider without a saved connection, green **Connected** for a saved connection with no recorded check failure, and red **Disconnected** after a failed session check. Reconnect is the main action in the disconnected state. The Carmen LMS switch selects the visible classes independently of the saved connection. Switch it off to manage Schoology and IC. Settings reads Worker status after each scheduled deadline, with at most three reads per deadline. A status read can restore a missing alarm using the saved deadline and makes no immediate provider request.
 
 Carmen’s **Experimental** label stays visible in the collapsed Settings row, independent of the app’s release channel. After Carmen responds during sign-in or a sync, **Copy compatibility report** copies the latest sign-in and sync summaries. If clipboard access is unavailable, the report appears as selectable text. The account holder decides whether to paste it into a message.
 

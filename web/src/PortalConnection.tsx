@@ -107,14 +107,8 @@ export function PortalConnection({
     [selected, setSelected] = useState(status?.selected ?? []);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
-  const needsReconnect = !!(status?.connected && status.needsReconnect);
-  const interval = carmen ? 90 : 20;
-  const health = usePortalHealth(
-    status,
-    interval,
-    disabled || busy,
-    refreshStatus,
-  );
+  const health = usePortalHealth(status, disabled || busy, refreshStatus);
+  const needsReconnect = health.tone === "error";
   async function run(task: () => Promise<void>, label = "Working…") {
     setWorking(label);
     setMessage("");
