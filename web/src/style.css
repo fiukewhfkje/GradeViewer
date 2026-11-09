@@ -326,16 +326,6 @@ main > section + section {
 .error {
   border: 1px solid var(--line);
 }
-.notice button {
-  font-weight: 600;
-  text-decoration: underline;
-  padding: 4px 8px;
-}
-.demo {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .primary,
 .secondary {
   min-height: 48px;
@@ -926,8 +916,48 @@ svg.spinning {
   width: 6px;
   height: 6px;
 }
-.connection-heading [data-connected="true"] .status-dot {
-  background: var(--grade);
+.settings-card > .settings-provider + .settings-provider,
+.settings-card > form + .settings-provider {
+  border-top: 1px solid var(--line);
+}
+.settings-provider > summary {
+  list-style: none;
+  cursor: pointer;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding-inline: 14px;
+}
+.settings-provider > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-provider > summary > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.provider-chevron {
+  color: var(--muted);
+  flex: none;
+}
+.settings-provider[open] > summary .provider-chevron {
+  transform: rotate(180deg);
+}
+.password-help {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.password-help > summary {
+  cursor: pointer;
+}
+.password-help ol {
+  padding-inline-start: 20px;
+  line-height: 1.5;
+}
+.password-help li + li {
+  margin-top: 6px;
+}
+.password-help code {
+  overflow-wrap: anywhere;
 }
 .settings-action,
 .app-actions .settings-card > button {
@@ -1435,14 +1465,6 @@ svg.spinning {
   color: var(--blue);
 }
 
-.portal-heading {
-  padding: 18px;
-}
-.portal-heading .connection {
-  margin-left: auto;
-  white-space: nowrap;
-  font-size: 11px;
-}
 .portal-body {
   border-top: 1px solid var(--line);
   padding: 18px;
@@ -1502,12 +1524,24 @@ svg.spinning {
   color: var(--muted);
   font-size: 12px;
 }
-.portal-disconnect {
-  width: 100%;
-  text-align: left;
-  padding: 15px 16px;
+.portal-actions {
+  display: flex;
   border-top: 1px solid var(--line);
+}
+.portal-actions > button {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 0;
   font-size: 14px;
+}
+.portal-actions > button + button {
+  border-left: 1px solid var(--line);
+}
+.portal-connection .gpa-check small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 400;
 }
 .portal-selection-heading {
   display: flex;
@@ -1636,9 +1670,47 @@ svg.spinning {
   padding: 12px 18px;
 }
 @media (hover: hover) {
+  .settings-provider > summary:hover,
   .settings-action:hover,
   .app-actions .settings-card > button:hover,
-  .portal-disconnect:hover {
+  .portal-actions > button:hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
+}
+
+.portal-body > .gpa-check {
+  display: flex;
+}
+.portal-body .gpa-check input {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  margin: 0;
+  cursor: pointer;
+}
+.carmen-label {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.carmen-report {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.carmen-report textarea {
+  width: 100%;
+  min-width: 0;
+}
+.connection[data-health="connected"] .status-dot {
+  background: var(--grade);
+}
+.connection[data-health="warning"] .status-dot {
+  background: #bd8c32;
+}
+.connection[data-health="error"] .status-dot {
+  background: #bf574b;
 }

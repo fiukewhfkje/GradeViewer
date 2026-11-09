@@ -132,6 +132,7 @@ function harness() {
       put: async (k: string, v: unknown) => {
         values.set(k, structuredClone(v));
       },
+      delete: async (k: string) => values.delete(k),
     };
   const env = { APP_PASSWORD: password } as Env;
   let upstreamCalls = 0;
@@ -241,6 +242,55 @@ describe("owner authentication and persistent lifecycle", () => {
     h.restart();
     expect((await h.send("login", { password })).status).toBe(429);
   });
+  it("requires the current password and keeps rotation across disconnect and restart", async () => {
+    const h = harness();
+    const newPassword = "synthetic-replacement-app-password";
+    const change = { currentPassword: password, newPassword };
+    expect((await h.send("password", change)).status).toBe(401);
+    await h.send("login", { password });
+    expect((await h.send("password", change, "https://evil.test")).status).toBe(
+      403,
+    );
+    expect(
+      (await h.send("password", { ...change, currentPassword: "wrong" }))
+        .status,
+    ).toBe(401);
+    expect(
+      (await h.send("password", { ...change, newPassword: "short" })).status,
+    ).toBe(400);
+    const before = h.cookie;
+    expect((await h.send("password", change)).status).toBe(200);
+    expect(h.cookie).not.toBe(before);
+    expect(JSON.stringify([...h.values.values()])).not.toContain(newPassword);
+    expect((await h.send("disconnect", {})).status).toBe(200);
+    h.restart();
+    expect((await h.send("login", { password })).status).toBe(401);
+    expect((await h.send("login", { password: newPassword })).status).toBe(200);
+    expect(h.calls).toBe(0);
+  });
+  it("keeps the new password after each use and removal of the Cloudflare reset secret", async () => {
+    const h = harness();
+    await h.send("login", { password });
+    let previousPassword = password;
+    for (const newPassword of [
+      "synthetic-cloudflare-reset-password",
+      "synthetic-second-reset-password",
+    ]) {
+      h.env.APP_PASSWORD_RESET = newPassword;
+      expect((await h.send("login", { password: newPassword })).status).toBe(
+        200,
+      );
+      delete h.env.APP_PASSWORD_RESET;
+      h.restart();
+      expect(
+        (await h.send("login", { password: previousPassword })).status,
+      ).toBe(401);
+      expect((await h.send("login", { password: newPassword })).status).toBe(
+        200,
+      );
+      previousPassword = newPassword;
+    }
+  });
   it("stages encrypted keys and rejects early commit", async () => {
     const h = harness();
     await h.send("login", { password });
@@ -278,7 +328,7 @@ describe("owner authentication and persistent lifecycle", () => {
   it("disconnect revokes all sessions and ciphertext", async () => {
     const h = harness();
     await h.send("login", { password });
-    await h.send("disconnect", {});
+    expect((await h.send("disconnect", {})).status).toBe(200);
     const data = (await (await h.send("status")).json()) as any;
     expect(data.authenticated).toBe(false);
     expect(JSON.stringify([...h.values.values()])).not.toContain("credentials");

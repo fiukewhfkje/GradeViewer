@@ -2,11 +2,15 @@
 
 Main now includes the optional selected-IC Settings flow for the owner’s Cloudflare testing, with no stable tag/release. Preserve the existing deployment/password/vault. Actual IC district/identity/phone acceptance remains open. Carmen work must stay on codex/investigate-gpa-carmen and must not deploy. The older migration handoff below is historical; PROJECT_STATUS.md and AGENTS.md contain the current authorization and evidence.
 
+Carmen runtime integration is now implemented on the held branch. Read [Carmen integration](CARMEN_INTEGRATION.md) and [capture status](CARMEN_HANDOFF.md); do not deploy it or treat synthetic results as enrolled-account evidence.
+
 # Current handoff — October 23, 2026
 
 GradeViewer is now a web-only React/TypeScript PWA in `web/`, backed by each user’s Cloudflare Worker. The owner requested retirement of all Swift sources, native dependencies/tests/build setup and migration-only calculator comparisons. Their final 1,200 synthetic comparisons passed before removal. No frozen comparison corpus or native CI dependency remains; focused calculator tests stay in the ordinary web suite. Native history is available at commit `4100e615130b407a4dc5b2901f936d39c789482a` and earlier.
 
 Read [AGENTS.md](../AGENTS.md), [architecture](../ARCHITECTURE.md), [current status](../PROJECT_STATUS.md), [TODO](../TODO.md), [validation](PWA_VALIDATION.md) and the [product brief](PRODUCT_BRIEF.md). [PWA_PLAN.md](PWA_PLAN.md) is historical migration rationale, not active instructions to keep native sources or repeat the migration.
+
+The owner-only session experiment concluded November 9. Stable v0.2.2 includes Carmen with its Experimental label and opt-in maintenance. Read [the integration notes](CARMEN_INTEGRATION.md) for the reversible LMS switch, compatibility report, bounded recovery and private Worker diagnostics. The [capture handoff](CARMEN_HANDOFF.md) preserves historical evidence. Old Mac/Muse sessions remain separate from the PWA, and enrolled-account acceptance remains open.
 
 ## Setup and release boundaries
 

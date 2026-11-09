@@ -1,38 +1,121 @@
-import { useEffect, useEffectEvent, useState, useRef } from "react";
 import {
-  CheckCircle2,
+  useEffect,
+  useEffectEvent,
+  useState,
+  useRef,
+  type ReactNode,
+} from "react";
+import {
   School,
+  ChevronDown,
   ChevronRight,
   LogIn,
   ListChecks,
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import { api, errorMessage, RequestError, type PortalStatus } from "./api";
+import {
+  api as request,
+  errorMessage,
+  RequestError,
+  type PortalStatus,
+} from "./api";
 import type { CampusChoice } from "./core/campus";
+import { usePortalHealth, type ConnectionTone } from "./portal-health";
+import { CarmenReport } from "./CarmenReport";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
+
+export function ConnectionDisclosure({
+  title,
+  icon,
+  label,
+  tone = "neutral",
+  open,
+  onToggle,
+  className = "",
+  experimental = false,
+  children,
+}: {
+  title: string;
+  icon: ReactNode;
+  label: string;
+  tone?: ConnectionTone;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  className?: string;
+  experimental?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <details
+      className={"settings-provider " + className}
+      open={open}
+      onToggle={(event) => onToggle(event.currentTarget.open)}
+    >
+      <summary className="connection-heading">
+        <span className="settings-icon">{icon}</span>
+        <strong>
+          {title}
+          {experimental && <small className="carmen-label">Experimental</small>}
+        </strong>
+        <span className="connection" data-health={tone}>
+          <span className="status-dot" />
+          {label}
+        </span>
+        <ChevronDown
+          size={16}
+          className="provider-chevron"
+          aria-hidden="true"
+        />
+      </summary>
+      {children}
+    </details>
+  );
+}
 
 export function PortalConnection({
   status,
   disabled,
   refresh,
+  provider = "campus",
+  refreshStatus = refresh,
+  open,
+  onToggle,
+  children,
 }: {
+  provider?: "campus" | "carmen";
   status?: PortalStatus;
   disabled: boolean;
   refresh: () => Promise<void>;
+  refreshStatus?: () => Promise<void>;
+  open: boolean;
+  onToggle: (open: boolean) => void;
+  children?: ReactNode;
 }) {
+  const carmen = provider === "carmen",
+    title = carmen ? "CarmenCanvas" : "Infinite Campus";
+  const api = <T,>(path: string, data?: unknown) =>
+    request<T>(path.replace("campus/", provider + "/"), data);
   const [working, setWorking] = useState(""),
     [message, setMessage] = useState(""),
     [login, setLogin] = useState<Login>(),
     [signInOpened, setSignInOpened] = useState(false),
-    [confirmation, setConfirmation] = useState(""),
     [courses, setCourses] = useState<CampusChoice[]>(),
     [choosing, setChoosing] = useState(false),
     [selected, setSelected] = useState(status?.selected ?? []);
+  const [maintenance, setMaintenance] = useState(!!status?.maintenance);
+  useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
+  const interval = carmen ? 90 : 20;
+  const health = usePortalHealth(
+    status,
+    interval,
+    disabled || busy,
+    refreshStatus,
+  );
   async function run(task: () => Promise<void>, label = "Working…") {
     setWorking(label);
     setMessage("");
@@ -62,10 +145,9 @@ export function PortalConnection({
   }
   async function connected(firstConnection: boolean) {
     closeSignIn();
-    setConfirmation("Infinite Campus connected.");
     await run(async () => {
       try {
-        if (firstConnection) await choices();
+        if (!carmen && firstConnection) await choices();
       } finally {
         await refresh();
       }
@@ -94,6 +176,7 @@ export function PortalConnection({
         )
           closeSignIn();
         setMessage(errorMessage(error));
+        if (carmen) await refreshStatus().catch(() => {});
       }
     }
     void check();
@@ -104,7 +187,6 @@ export function PortalConnection({
   }, [login, message, busy]);
 
   async function start() {
-    setConfirmation("");
     setSignInOpened(false);
     const pending = await api<Login>("campus/start", {});
     setCourses(undefined);
@@ -113,47 +195,45 @@ export function PortalConnection({
   }
   const count = status?.selected.length ?? 0;
   return (
-    <section className="settings-group">
-      <h2>Additional classes</h2>
-      <div className="settings-card portal-connection" aria-busy={busy}>
-        <div className="connection-heading portal-heading">
-          <span className="settings-icon">
-            <School size={20} />
-          </span>
-          <strong>Infinite Campus</strong>
-          <span
-            className="connection"
-            data-connected={!!status?.connected && !status.needsReconnect}
-          >
-            <span className="status-dot" />
-            {login
-              ? signInOpened
-                ? "Signing in"
-                : "Ready to sign in"
-              : status?.needsReconnect
-                ? "Sign-in needed"
-                : status?.connected
-                  ? "Connected"
-                  : "Not connected"}
-          </span>
-        </div>
-        {!login && (status?.connected || choosing) && (
-          <p className="portal-notice">
-            Choose only classes missing from Schoology. IC adds separate
-            classes, and both copies count toward GPA.
-          </p>
-        )}
+    <ConnectionDisclosure
+      title={title}
+      icon={<School size={20} />}
+      className="portal-connection"
+      experimental={carmen}
+      tone={login ? "neutral" : health.tone}
+      label={
+        login
+          ? signInOpened
+            ? "Signing in"
+            : "Ready to sign in"
+          : health.label
+      }
+      open={open}
+      onToggle={onToggle}
+    >
+      <div aria-busy={busy}>
+        {children}
         {login ? (
           <div className="portal-body">
             <div className="portal-login-note">
               <LogIn size={22} />
               <div>
-                <strong>Sign in to Campus Student</strong>
+                <strong>
+                  {carmen
+                    ? "Sign in to CarmenCanvas"
+                    : "Sign in to Campus Student"}
+                </strong>
                 <p>
-                  Find your district and complete your school’s sign-in.
-                  {login.attempt
-                    ? " GradeViewer will verify the connection and close the temporary browser automatically."
-                    : " Then return here to finish connecting."}
+                  {carmen ? (
+                    "Complete Ohio State sign-in in the other window. GradeViewer will verify the connection and close the temporary browser automatically."
+                  ) : (
+                    <>
+                      Find your district and complete your school’s sign-in.
+                      {login.attempt
+                        ? " GradeViewer will verify the connection and close the temporary browser automatically."
+                        : " Then return here to finish connecting."}
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -193,7 +273,8 @@ export function PortalConnection({
                   signInWindow.current = popup;
                 }}
               >
-                Open Campus Student <ExternalLink size={14} />
+                {carmen ? "Open CarmenCanvas" : "Open Campus Student"}{" "}
+                <ExternalLink size={14} />
               </a>
               {(!login.attempt || message) && (
                 <button
@@ -225,7 +306,10 @@ export function PortalConnection({
             <div className="portal-selection-heading">
               <div>
                 <h3>Choose your classes</h3>
-                <p>Add your IC-only classes.</p>
+                <p>
+                  Choose classes missing from Schoology. Both copies of a class
+                  count toward GPA.
+                </p>
               </div>
               <span className="portal-count">{selected.length} selected</span>
             </div>
@@ -293,60 +377,90 @@ export function PortalConnection({
           </div>
         ) : status?.connected ? (
           <>
-            {status.needsReconnect && (
-              <p className="portal-notice" role="status">
-                Sign in again to refresh IC grades. Your selected classes and
-                saved grades are retained.
-              </p>
+            {!carmen && (
+              <button
+                className="settings-action portal-action"
+                disabled={disabled || busy}
+                aria-label="Choose IC courses"
+                onClick={() => void run(choices)}
+              >
+                <ListChecks size={19} />
+                <span>
+                  <strong>Choose IC courses</strong>
+                  <small>
+                    {count
+                      ? `${count} ${count === 1 ? "class" : "classes"} included`
+                      : "Choose the classes to add"}
+                  </small>
+                </span>
+                <ChevronRight size={18} />
+              </button>
             )}
-            <button
-              className="settings-action portal-action"
-              disabled={disabled || busy}
-              aria-label="Choose IC courses"
-              onClick={() => void run(choices)}
-            >
-              <ListChecks size={19} />
-              <span>
-                <strong>Choose IC courses</strong>
-                <small>
-                  {count
-                    ? `${count} ${count === 1 ? "class" : "classes"} included`
-                    : "Choose the classes to add"}
-                </small>
-              </span>
-              <ChevronRight size={18} />
-            </button>
-            <button
-              className="settings-action portal-action"
-              disabled={disabled || busy}
-              onClick={() => void run(start, "Preparing the sign-in browser…")}
-            >
-              <LogIn size={19} />
-              <span>Reconnect Infinite Campus</span>
-              <ChevronRight size={18} />
-            </button>
-            <button
-              className="portal-disconnect danger"
-              disabled={disabled || busy}
-              onClick={() =>
-                void run(async () => {
-                  await api("campus/disconnect", {});
-                  setConfirmation("");
-                  setCourses(undefined);
-                  setChoosing(false);
-                  await refresh();
-                })
-              }
-            >
-              Disconnect Infinite Campus
-            </button>
+            <div className="portal-body">
+              <label className="gpa-check">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Keep connected"
+                  aria-describedby={`${provider}-keep-connected-description`}
+                  checked={maintenance}
+                  disabled={disabled || busy}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    setMaintenance(enabled);
+                    void run(async () => {
+                      try {
+                        await api("campus/maintenance", { enabled });
+                      } catch (error) {
+                        setMaintenance(!!status.maintenance);
+                        throw error;
+                      }
+                      await refreshStatus();
+                    }, "Saving preference…");
+                  }}
+                />
+                <span className="gpa-toggle-track" aria-hidden="true" />
+                <span>
+                  Keep connected
+                  <small id={`${provider}-keep-connected-description`}>
+                    Checks every {interval} minutes
+                  </small>
+                </span>
+              </label>
+            </div>
+            <div className="portal-actions">
+              <button
+                aria-label={`Reconnect ${title}`}
+                disabled={disabled || busy}
+                onClick={() =>
+                  void run(start, "Preparing the sign-in browser…")
+                }
+              >
+                Reconnect
+              </button>
+              <button
+                className="danger"
+                aria-label={`Disconnect ${title}`}
+                disabled={disabled || busy}
+                onClick={() =>
+                  void run(async () => {
+                    await api("campus/disconnect", {});
+                    setCourses(undefined);
+                    setChoosing(false);
+                    await refresh();
+                  })
+                }
+              >
+                Disconnect
+              </button>
+            </div>
           </>
         ) : (
           <div className="portal-body">
             <p className="portal-description">
-              Find your district and sign in to add classes that only use
-              Infinite Campus. The temporary sign-in browser closes when you
-              finish.
+              {carmen
+                ? "Connect your Ohio State student courses with your regular school sign-in."
+                : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
             </p>
             <button
               className="primary portal-connect"
@@ -354,14 +468,15 @@ export function PortalConnection({
               onClick={() => void run(start, "Preparing the sign-in browser…")}
             >
               <LogIn size={18} />
-              Connect Infinite Campus
+              Connect {title}
             </button>
           </div>
         )}
-        {confirmation && (
-          <p className="portal-notice" role="status">
-            <CheckCircle2 size={16} aria-hidden="true" /> {confirmation}
-          </p>
+        {carmen && (
+          <CarmenReport
+            available={!!status?.compatibilityReportAvailable}
+            busy={busy || disabled}
+          />
         )}
         {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">
@@ -374,6 +489,6 @@ export function PortalConnection({
           </p>
         )}
       </div>
-    </section>
+    </ConnectionDisclosure>
   );
 }

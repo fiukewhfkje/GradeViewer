@@ -69,10 +69,12 @@ export interface Scenario {
 }
 export interface SavedState {
   schema: 1;
+  primaryLms?: "schoology" | "carmen";
   account?: string;
   courses: Course[];
   scenarios: Record<string, Scenario>;
   gpa?: GpaSettings;
+  carmenGpa?: GpaSettings;
   metadata?: Record<
     string,
     {

@@ -98,11 +98,14 @@ export async function applyRelease(
       "This release needs a newer updater launcher. Review the installation setup before updating.",
     );
   const pkgFile = archive.files.find((f) => f.path === "package.json");
-  if (
-    JSON.parse(Buffer.from(pkgFile.content, "base64")).version !==
-    manifest.version
-  )
+  const nextPackage = JSON.parse(Buffer.from(pkgFile.content, "base64"));
+  if (nextPackage.version !== manifest.version)
     throw new Error("Release package version mismatch.");
+  const currentPackage = JSON.parse(
+    await readFile(join(cwd, "package.json"), "utf8"),
+  );
+  if ((nextPackage.passwordSchema ?? 0) < (currentPackage.passwordSchema ?? 0))
+    throw new Error("This release cannot honor the current app password.");
   const currentConfig = parseJsonc(
     await readFile(join(cwd, "wrangler.jsonc"), "utf8"),
   );

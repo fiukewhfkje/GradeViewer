@@ -6,6 +6,7 @@ export interface GpaCourseSettings {
   level?: CourseLevel;
   credits?: number;
   excluded?: boolean;
+  letter?: GpaLetter;
 }
 export interface GpaSettings {
   weighting: "equal" | "credits";
@@ -26,7 +27,22 @@ const scale = [
   ["D-", 60, 0.67],
   ["F", 0, 0],
 ] as const;
-export type GpaLetter = (typeof scale)[number][0];
+export type GpaLetter = (typeof scale)[number][0] | "E";
+export type GpaPolicy = "dublin" | "osu";
+const osuScale = [
+  ["A", 0, 4],
+  ["A-", 0, 3.7],
+  ["B+", 0, 3.3],
+  ["B", 0, 3],
+  ["B-", 0, 2.7],
+  ["C+", 0, 2.3],
+  ["C", 0, 2],
+  ["C-", 0, 1.7],
+  ["D+", 0, 1.3],
+  ["D", 0, 1],
+  ["E", 0, 0],
+] as const;
+export const osuLetters = osuScale.map(([letter]) => letter);
 export const gpaLetters = scale.map(([letter]) => letter);
 
 export function suggestLevel(title: string): CourseLevel {
@@ -43,6 +59,12 @@ export function suggestLevel(title: string): CourseLevel {
 function semesterKey(c: SourceCourse) {
   const { kind, ordinal, start, end } = descriptor(c);
   if (kind !== "semester") return;
+  if (c.fields.provider === "carmen")
+    return JSON.stringify([
+      "carmen",
+      c.fields.provider_account,
+      c.fields.enrollment_term_id,
+    ]);
   return start !== undefined && end !== undefined
     ? JSON.stringify([ordinal, day(start), day(end)])
     : JSON.stringify([ordinal, c.term.id]);
@@ -110,7 +132,10 @@ export function estimateGpa(
   term: GpaSemester,
   settings: GpaSettings,
   projectedGrades: Partial<Record<string, GpaLetter>> = {},
+  policy: GpaPolicy = "dublin",
 ) {
+  const gradingScale: ReadonlyArray<readonly [string, number, number]> =
+    policy === "osu" ? osuScale : scale;
   const { start, end } = descriptor(term.course);
   const roster = new Map<
     string,
@@ -155,13 +180,20 @@ export function estimateGpa(
           !!reportedMark && /^(S|U|P|PASS|NP|WAIVED)$/.test(reportedMark),
         canProject = !override?.excluded && !nonGpa && semesters.length <= 1,
         projection = canProject ? projectedGrades[key] : undefined,
-        mark = projection ?? reportedMark,
+        mark =
+          projection ??
+          (policy === "osu" ? override?.letter : undefined) ??
+          (policy === "osu" && reportedMark === "EN" ? "E" : reportedMark),
         percent = course?.grade.percent,
         fromPercent =
-          percent !== undefined && Number.isFinite(percent)
-            ? scale.find(([, cutoff]) => percent >= cutoff)
+          policy === "dublin" &&
+          percent !== undefined &&
+          Number.isFinite(percent)
+            ? gradingScale.find(([, cutoff]) => percent >= cutoff)
             : undefined,
-        grade = mark ? scale.find(([letter]) => letter === mark) : fromPercent,
+        grade = mark
+          ? gradingScale.find(([letter]) => letter === mark)
+          : fromPercent,
         weight = settings.weighting === "equal" ? 1 : credits;
       let reason: string | undefined;
       if (override?.excluded) reason = "Excluded";
@@ -170,13 +202,18 @@ export function estimateGpa(
         reason = semesters.length
           ? "Multiple semester grades"
           : "No semester grade";
-      else if (!grade) reason = mark ? "Unsupported grade" : "No usable grade";
+      else if (!grade)
+        reason = mark
+          ? "Unsupported grade"
+          : policy === "osu"
+            ? "Letter grade needed"
+            : "No usable grade";
       else if (weight === undefined || !Number.isFinite(weight) || weight <= 0)
         reason = "Credits needed";
 
       const points = grade?.[2];
       const bonus =
-        points !== undefined && points >= 1.67
+        policy === "dublin" && points !== undefined && points >= 1.67
           ? level === "advanced"
             ? 1
             : level === "honors"

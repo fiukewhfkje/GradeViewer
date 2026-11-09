@@ -1,3 +1,5 @@
+import { pbkdf2Sync } from "node:crypto";
+
 const encoder = new TextEncoder();
 export const bytes = (s: string) => encoder.encode(s);
 export const base64 = (b: ArrayBuffer | Uint8Array) =>
@@ -18,6 +20,21 @@ export async function equal(a: string, b: string) {
   let d = 0;
   for (let i = 0; i < x.length; i++) d |= x.charCodeAt(i) ^ y.charCodeAt(i);
   return d === 0;
+}
+export interface PasswordVerifier {
+  salt: string;
+  digest: string;
+}
+export function passwordVerifier(
+  password: string,
+  salt = random(),
+): PasswordVerifier {
+  return {
+    salt,
+    digest: pbkdf2Sync(password, salt, 600_000, 32, "sha256").toString(
+      "base64",
+    ),
+  };
 }
 export interface Envelope {
   version: 1;

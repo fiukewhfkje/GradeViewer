@@ -1,5 +1,5 @@
 import "fake-indexeddb/auto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import { reconcile } from "../src/core/reconcile";
 import {
@@ -10,11 +10,12 @@ import {
 } from "../src/core/periods";
 import { calculate, hypothetical } from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
-import { demoCourses } from "../src/core/demo";
+import { syntheticCourses } from "./schoology-fixture";
 import { recentProgression } from "../src/core/progression";
 import { PortalService, browserJar, campusURL } from "../worker/portal";
 import type { PortalBinding, PortalBrowser } from "../worker/portal-browser";
 import { portalBrowser } from "../worker/portal-browser";
+import { seal } from "../worker/crypto";
 import {
   campusSummary,
   campusDetail,
@@ -24,6 +25,7 @@ import {
   campusBackfillFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
+afterEach(() => vi.useRealTimers());
 const parsed = () =>
   parseCampus(
     campusSummary,
@@ -137,7 +139,7 @@ describe("selected IC normalization", () => {
       ["Q1", "Q2"].includes(descriptor(c).label),
     ))
       expect(overall(q, courses).id).toBe(finals[0].id);
-    const schoology = demoCourses(now),
+    const schoology = syntheticCourses(now),
       term = gpaSemesters(schoology, now)[0];
     const result = estimateGpa([...schoology, ...courses], term, {
       weighting: "equal",
@@ -175,8 +177,8 @@ describe("selected IC normalization", () => {
         gpaSemesters(courses, now).some((term) => term.course.id === s.id),
       ).toBe(true);
       const row = estimateGpa(
-        [...demoCourses(now), ...courses],
-        gpaSemesters(demoCourses(now), now)[0],
+        [...syntheticCourses(now), ...courses],
+        gpaSemesters(syntheticCourses(now), now)[0],
         { weighting: "equal", courses: {} },
       ).rows.find((r) => r.title === s.title);
       expect(row?.points).toBeUndefined();
@@ -206,13 +208,13 @@ describe("selected IC normalization", () => {
     expect(courses[0].history[0].provider).toBe("campus");
     expect(physicalKey(source)).not.toBe("100");
     expect(
-      visibleCourses([...demoCourses(now), ...courses], now).some(
+      visibleCourses([...syntheticCourses(now), ...courses], now).some(
         (x) => x.id === source.id,
       ),
     ).toBe(true);
   });
   it("includes IC in the existing GPA semester despite different instructional start dates, preserving Schoology keys", () => {
-    const schoology = demoCourses(now),
+    const schoology = syntheticCourses(now),
       baseline = gpaSemesters(schoology, now)[0],
       courses = [...schoology, ...parsed()];
     expect(gpaSemesters(courses, now)).toHaveLength(
@@ -356,6 +358,7 @@ function harness(withBinding = false) {
         studentPortal: async () => selectedPortal,
         studentNumber: async () => studentNumber,
         url: () => campusPortal,
+        ready: async () => {},
         close: async () => {},
       };
     }
@@ -409,6 +412,94 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
+  it("keeps existing IC connections and ignores legacy automatic maintenance", async () => {
+    const h = harness();
+    h.data.set(
+      "portal-campus",
+      await seal(
+        {
+          browserMs: 0,
+          connection: {
+            portal: campusPortal,
+            account: "synthetic-existing-account",
+            selected: ["1:100"],
+            maintenance: true,
+            nextMaintenance: now,
+          },
+        },
+        "synthetic-owner-password-123456",
+      ),
+    );
+    expect(await h.service.status()).toMatchObject({
+      connected: true,
+      selected: ["1:100"],
+      maintenance: false,
+      nextMaintenance: undefined,
+    });
+    await h.service.expire();
+    expect(h.calls).toEqual([]);
+    expect(h.browserCalls()).toBe(0);
+  });
+  it.each([false, true])(
+    "checks IC at 20 minutes without a browser or grade freshness change (profile-bound %s)",
+    async (profileBound) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(now);
+      const h = harness();
+      if (profileBound) h.setStudentNumber("123456");
+      await h.service.handle("start", { portal: campusPortal });
+      await h.service.handle("finish");
+      await h.service.handle("select", { selected: ["1:100"] });
+      expect(await h.service.status()).toMatchObject({
+        maintenance: false,
+        nextMaintenance: undefined,
+      });
+      h.calls.length = 0;
+      await h.service.handle("maintenance", { enabled: true });
+      expect(h.calls).toEqual([]);
+      const verified = (await h.service.status()).lastVerified,
+        browsers = h.browserCalls();
+      h.calls.length = 0;
+      vi.setSystemTime(now + 19 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      vi.setSystemTime(now + 20 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([
+        profileBound
+          ? "/campus/resources/portal/grades"
+          : "/campus/resources/portal/roster",
+      ]);
+      expect(h.browserCalls()).toBe(browsers);
+      expect((await h.service.status()).diagnostics?.backgroundChecks).toBe(1);
+      expect(await h.service.status()).toMatchObject({
+        selected: ["1:100"],
+        maintenance: true,
+        lastVerified: verified,
+        lastKeepalive: now + 20 * 60000,
+        nextMaintenance: now + 40 * 60000,
+      });
+      await h.service.handle("maintenance", { enabled: false });
+      h.calls.length = 0;
+      vi.setSystemTime(now + 50 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      await h.service.handle("maintenance", { enabled: true });
+      h.expire();
+      vi.setSystemTime(now + 70 * 60000);
+      await h.service.expire();
+      expect(await h.service.status()).toMatchObject({
+        needsReconnect: true,
+        nextMaintenance: undefined,
+        selected: ["1:100"],
+      });
+      h.calls.length = 0;
+      vi.setSystemTime(now + 90 * 60000);
+      await h.service.expire();
+      expect(h.calls).toEqual([]);
+      expect(h.browserCalls()).toBe(browsers);
+    },
+  );
   it.each([
     ["429: Browser time limit exceeded for today", "portalBrowserDailyLimit"],
     ["429: Too many requests", "portalBrowserRateLimited"],
@@ -602,7 +693,7 @@ describe("IC account reset and local privacy", () => {
     const repository = await import("../src/repository"),
       { refreshCampus } = await import("../src/portal-refresh");
     const own = parsed()[0],
-      sg = demoCourses(now)[0];
+      sg = syntheticCourses(now)[0];
     const key = JSON.stringify(["term", physicalKey(own)]),
       sgKey = JSON.stringify(["term", physicalKey(sg)]);
     const state = {

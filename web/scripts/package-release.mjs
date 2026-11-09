@@ -67,6 +67,8 @@ for (const secretName of [
   "SCHOOLOGY_API_SECRET",
   "CLOUDFLARE_API_TOKEN",
   "APP_PASSWORD",
+  "APP_PASSWORD_RESET",
+  "CARMEN_DIAGNOSTICS_KEY",
 ]) {
   const value = process.env[secretName];
   if (

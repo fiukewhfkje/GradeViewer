@@ -1,8 +1,13 @@
+import type {
+  CarmenDiagnostics,
+  CarmenRecoveryStep,
+} from "./core/carmen-diagnostics";
 export class RequestError extends Error {
   constructor(
     public code: string,
     public retryAfter?: number,
     public status?: number,
+    public provider?: string,
   ) {
     super(code);
   }
@@ -11,12 +16,19 @@ export interface PortalStatus {
   connected: boolean;
   needsReconnect: boolean;
   selected: string[];
+  maintenance?: boolean;
+  nextMaintenance?: number;
+  lastKeepalive?: number;
+  diagnostics?: CarmenDiagnostics;
+  compatibilityReportAvailable?: boolean;
+  recoveryBlocked?: CarmenRecoveryStep;
   portal?: string;
   lastVerified?: number;
   cooldown?: number;
 }
 export interface Status {
-  portals?: { campus?: PortalStatus };
+  portals?: { campus?: PortalStatus; carmen?: PortalStatus };
+  schoologyConnected?: boolean;
   authenticated: boolean;
   connected: boolean;
   account?: string;
@@ -33,7 +45,9 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
       headers: data === undefined ? {} : { "Content-Type": "application/json" },
       body: data === undefined ? undefined : JSON.stringify(data),
       cache: "no-store",
-      signal: AbortSignal.timeout(path === "campus/start" ? 75_000 : 35_000),
+      signal: AbortSignal.timeout(
+        /^(campus|carmen)\/start$/.test(path) ? 75_000 : 35_000,
+      ),
     });
   } catch {
     throw new RequestError("networkUnavailable");
@@ -49,10 +63,25 @@ export async function api<T>(path: string, data?: unknown): Promise<T> {
       (value as { error?: string }).error ?? "requestFailed",
       (value as { retryAfter?: number }).retryAfter,
       response.status,
+      path.startsWith("carmen/") ? "carmen" : undefined,
     );
   return value as T;
 }
 const messages: Record<string, string> = {
+  compatibilityUnavailable: "Connect Carmen to collect a compatibility report.",
+  invalidNewPassword: "Choose a new password between 12 and 256 characters.",
+  passwordUnchanged: "Choose a password different from your current password.",
+  portalRequestBlocked:
+    "Carmen rejected GradeViewer’s connection check. Your browser sign-in may still be active. Details were saved for troubleshooting.",
+  portalTimeout:
+    "The grade service took too long to respond. Your saved grades are retained.",
+  malformedCanvas:
+    "Carmen returned an unsupported response. Your saved grades are retained.",
+  portalTooLarge:
+    "The course data exceeds the supported sync limit. Your saved grades are retained.",
+  portalTooManyCourses:
+    "This account has more courses than the supported sync limit.",
+
   portalChooseStudent:
     "Choose your district and open Campus Student in the sign-in window, then finish connecting.",
   invalidCampusURL: "Enter your district’s Campus Student sign-in address.",
@@ -116,8 +145,13 @@ const messages: Record<string, string> = {
   incompleteSnapshot:
     "The snapshot was incomplete. Your saved data is retained.",
 };
-export const errorMessage = (error: unknown) =>
-  error instanceof Error
-    ? (messages[error.message] ??
-      "Unable to complete this request. Your saved data is retained.")
-    : "Unable to complete this request.";
+export const errorMessage = (error: unknown): string => {
+  const message =
+    error instanceof Error
+      ? (messages[error.message] ??
+        "Unable to complete this request. Your saved data is retained.")
+      : "Unable to complete this request.";
+  return error instanceof RequestError && error.provider === "carmen"
+    ? message.replaceAll("Infinite Campus", "Carmen")
+    : message;
+};

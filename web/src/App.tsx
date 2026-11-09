@@ -1,4 +1,4 @@
-import { PortalConnection } from "./PortalConnection";
+import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -28,6 +28,7 @@ import {
   SunMoon,
   Globe,
   LockKeyhole,
+  KeyRound,
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
@@ -72,7 +73,6 @@ import {
   type Installation,
   type OfficialRelease,
 } from "./updates";
-import { demoCourses } from "./core/demo";
 import { usePullRefresh } from "./usePullRefresh";
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
@@ -151,7 +151,14 @@ function Dialog({
     }
   }, [initialInput]);
   return (
-    <dialog ref={ref} onCancel={close} aria-label={title}>
+    <dialog
+      ref={ref}
+      onCancel={(event) => {
+        event.preventDefault();
+        close();
+      }}
+      aria-label={title}
+    >
       <div className="dialog-heading">
         <h2>{title}</h2>
         <button className="icon" onClick={close} aria-label="Close dialog">
@@ -167,8 +174,6 @@ export default function App() {
     stateRef = useRef(state),
     [status, setStatus] = useState<Status>(),
     [tab, setTab] = useState("grades"),
-    [demo, setDemo] = useState(false),
-    demoRef = useRef(false),
     [busy, setBusy] = useState(true),
     [fresh, setFresh] = useState(false),
     [cachedUnlocked, setCachedUnlocked] = useState(false),
@@ -179,11 +184,19 @@ export default function App() {
     [view, setView] = useState("detail"),
     [period, setPeriod] = useState<string>(),
     [modal, setModal] = useState<Modal>(),
+    [changingPassword, setChangingPassword] = useState(false),
+    [passwordChanged, setPasswordChanged] = useState(false),
+    [openConnections, setOpenConnections] = useState({
+      schoology: false,
+      campus: false,
+      carmen: false,
+    }),
     [install, setInstall] = useState(false),
     [prompt, setPrompt] = useState<InstallEvent>(),
     [copied, setCopied] = useState(false),
     [update, setUpdate] = useState<ServiceWorker>(),
     [checkingUpdate, setCheckingUpdate] = useState(false),
+    [switchingLms, setSwitchingLms] = useState(false),
     [applyingUpdate, setApplyingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
     [installation, setInstallation] = useState<Installation>(),
@@ -217,7 +230,6 @@ export default function App() {
     }
     if (
       generation === cacheGeneration.current &&
-      !demoRef.current &&
       repository.canReadCache(saved, receipt)
     ) {
       apply(saved);
@@ -241,10 +253,9 @@ export default function App() {
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
-    scope: "all" | "campus" = "all",
+    scope: "active" | "all" | "campus" | "carmen" = "active",
   ) {
     if (flight.current) return flight.current;
-    if (demoRef.current) return;
     const queuedAt = Date.now();
     const run = async () => {
       const generation = cacheGeneration.current;
@@ -278,7 +289,7 @@ export default function App() {
           if (latest.account || stateRef.current.account) {
             await repository.clear();
             apply(emptyState());
-          }
+          } else apply(latest);
           setTab("profile");
           setFresh(true);
           return;
@@ -312,11 +323,20 @@ export default function App() {
           setFresh(true);
           return;
         }
-        const campusOnly = scope === "campus" && latest.account === s.account;
+        const target = credentials
+          ? "schoology"
+          : scope === "active"
+            ? (latest.primaryLms ?? stateRef.current.primaryLms) === "carmen"
+              ? "carmen"
+              : "schoology"
+            : scope;
+        const portalOnly = target === "campus" || target === "carmen";
         let schoologyError: unknown;
         let next = stateRef.current;
+        if (portalOnly && latest.account !== s.account)
+          next = await readSnapshot(next, { ...s, schoologyConnected: false });
         try {
-          if (!campusOnly) {
+          if (!portalOnly) {
             if (s.cooldown && s.cooldown > Date.now())
               throw new RequestError(
                 "rateLimited",
@@ -335,28 +355,36 @@ export default function App() {
           return;
         apply(next);
         setFresh(true);
-        let portalStatus = s;
+        const portalStatus = s;
+        let portalFailed = false;
         setStatus(portalStatus);
         if (
-          portalStatus.portals?.campus?.connected ||
-          next.courses.some((c) => c.fields.provider === "campus")
+          (target === "all" || target === "schoology" || target === "campus") &&
+          (portalStatus.portals?.campus?.connected ||
+            next.courses.some((c) => c.fields.provider === "campus"))
         ) {
           try {
-            apply(await refreshCampus(next, portalStatus.portals?.campus));
+            next = await refreshCampus(next, portalStatus.portals?.campus);
+            apply(next);
           } catch (e) {
-            if (
-              e instanceof RequestError &&
-              e.code === "portalSignInRequired" &&
-              s.portals?.campus
-            ) {
-              portalStatus = {
-                ...s,
-                portals: {
-                  ...s.portals,
-                  campus: { ...s.portals.campus, needsReconnect: true },
-                },
-              };
-            }
+            portalFailed = true;
+            setError(errorMessage(e));
+          }
+        }
+        if (
+          (target === "all" || target === "carmen") &&
+          (portalStatus.portals?.carmen?.connected ||
+            next.courses.some((c) => c.fields.provider === "carmen"))
+        ) {
+          try {
+            next = await refreshCampus(
+              next,
+              portalStatus.portals?.carmen,
+              "carmen",
+            );
+            apply(next);
+          } catch (e) {
+            portalFailed = true;
             setError(errorMessage(e));
           }
         }
@@ -367,7 +395,7 @@ export default function App() {
             schoologyError.retryAfter
           )
             setDeadline(Date.now() + schoologyError.retryAfter * 1000);
-        } else if (!campusOnly) setDeadline(0);
+        } else if (!portalOnly) setDeadline(0);
         if (
           generation !== cacheGeneration.current &&
           (await repository.access())?.locked
@@ -377,7 +405,9 @@ export default function App() {
         setCachedUnlocked(true);
         channel.current?.postMessage("saved");
         setStatus({
-          ...portalStatus,
+          ...(credentials || portalFailed || target === "carmen"
+            ? await api<Status>("status")
+            : portalStatus),
           connected: true,
           account: next.account,
           cooldown: undefined,
@@ -408,44 +438,42 @@ export default function App() {
     const bc = new BroadcastChannel("gradeviewer");
     channel.current = bc;
     bc.onmessage = (event) => {
-      if (!demoRef.current) {
-        if (["locked", "disconnect"].includes(event.data)) {
+      if (["locked", "disconnect"].includes(event.data)) {
+        hideCache();
+        setTab("profile");
+        setSelected(undefined);
+        setModal(undefined);
+        setStatus({ authenticated: false, connected: false });
+        return;
+      }
+      void (async () => {
+        const remote = await api<Status>("status");
+        setStatus(remote);
+        if (!remote.authenticated || (await repository.access())?.locked) {
           hideCache();
-          setTab("profile");
           setSelected(undefined);
           setModal(undefined);
-          setStatus({ authenticated: false, connected: false });
+          setFresh(false);
+          setTab("profile");
           return;
         }
-        void (async () => {
-          const remote = await api<Status>("status");
-          setStatus(remote);
-          if (!remote.authenticated || (await repository.access())?.locked) {
-            hideCache();
-            setSelected(undefined);
-            setModal(undefined);
-            setFresh(false);
-            setTab("profile");
-            return;
-          }
-          const saved = await repository.load();
-          if (remote.connected && saved.account === remote.account) {
-            apply(saved);
-            if (event.data === "saved") setFresh(true);
-          } else {
-            setSelected(undefined);
-            setModal(undefined);
-            setFresh(false);
-            setTab("profile");
-          }
-        })().catch((e) => setError(errorMessage(e)));
-      }
+        const saved = await repository.load();
+        if (remote.connected && saved.account === remote.account) {
+          apply(saved);
+          if (event.data === "saved") setFresh(true);
+        } else {
+          setSelected(undefined);
+          setModal(undefined);
+          setFresh(false);
+          setTab("profile");
+        }
+      })().catch((e) => setError(errorMessage(e)));
     };
     let wasHidden = document.visibilityState === "hidden";
     const visibility = () => {
       const returning = document.visibilityState === "visible" && wasHidden;
       wasHidden = document.visibilityState === "hidden";
-      if (returning && !demoRef.current) {
+      if (returning) {
         void refresh().catch(() => {});
       }
       if (returning && "serviceWorker" in navigator) {
@@ -513,6 +541,11 @@ export default function App() {
     );
   }, []);
   useEffect(() => {
+    if (!passwordChanged) return;
+    const timer = setTimeout(() => setPasswordChanged(false), 5000);
+    return () => clearTimeout(timer);
+  }, [passwordChanged]);
+  useEffect(() => {
     if (!deadline) return;
     const timer = setInterval(() => {
       setTick(Date.now());
@@ -525,7 +558,7 @@ export default function App() {
   async function persist(next: SavedState) {
     pendingSaves.current++;
     try {
-      if (flight.current && !demoRef.current) {
+      if (flight.current) {
         const before = stateRef.current;
         await flight.current.catch(() => {});
         const current = stateRef.current;
@@ -542,6 +575,14 @@ export default function App() {
           ...current,
           scenarios,
           gpa: next.gpa !== before.gpa ? next.gpa : current.gpa,
+          carmenGpa:
+            next.carmenGpa !== before.carmenGpa
+              ? next.carmenGpa
+              : current.carmenGpa,
+          primaryLms:
+            next.primaryLms !== before.primaryLms
+              ? next.primaryLms
+              : current.primaryLms,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -557,7 +598,7 @@ export default function App() {
           }),
         };
       }
-      if (!demoRef.current) await repository.save(next);
+      await repository.save(next);
       apply(next);
       channel.current?.postMessage("local");
       saveFailed.current = false;
@@ -587,7 +628,13 @@ export default function App() {
       ),
     });
   }
-  const original = state.courses.find((c) => c.id === selected),
+  const usingCarmen = state.primaryLms === "carmen";
+  const workspaceCourses = state.courses.filter((c) =>
+    usingCarmen
+      ? c.fields.provider === "carmen"
+      : c.fields.provider !== "carmen",
+  );
+  const original = workspaceCourses.find((c) => c.id === selected),
     course = original
       ? ((view !== "detail"
           ? state.courses.find((c) => c.id === period)
@@ -913,7 +960,7 @@ export default function App() {
     );
   }
   async function activateUpdate() {
-    if (!update || applyingUpdate || modal) return;
+    if (!update || applyingUpdate || modal || changingPassword) return;
     if (
       flight.current ||
       pendingSaves.current ||
@@ -988,6 +1035,27 @@ export default function App() {
   }
   async function disconnect() {
     try {
+      if (status?.portals?.carmen?.connected) {
+        await api("schoology/disconnect", {});
+        const current = stateRef.current;
+        const next = {
+          ...current,
+          courses: current.courses.filter(
+            (c) => c.fields.provider === "carmen",
+          ),
+          scenarios: Object.fromEntries(
+            Object.entries(current.scenarios).filter(([id]) =>
+              id.startsWith("carmen:"),
+            ),
+          ),
+          metadata: undefined,
+          gpa: undefined,
+        };
+        await repository.save(next);
+        apply(next);
+        await refresh(undefined, true);
+        return;
+      }
       await api("disconnect", {});
       hideCache();
       apply(emptyState());
@@ -1004,13 +1072,57 @@ export default function App() {
   useEffect(() => {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
-  const locked = !demo && !status?.authenticated && !cachedUnlocked;
+  const locked = !status?.authenticated && !cachedUnlocked;
+  const schoologyConnected = !!(
+    status?.schoologyConnected ?? status?.connected
+  );
+  const disclose = (kind: keyof typeof openConnections, open: boolean) =>
+    setOpenConnections((previous) =>
+      previous[kind] === open ? previous : { ...previous, [kind]: open },
+    );
+  const schoologyForm = (
+    <Connection
+      connected={schoologyConnected}
+      busy={busy}
+      connect={async (credentials) => {
+        await refresh(credentials);
+        setTab("grades");
+      }}
+      disconnect={disconnect}
+      retainsCarmen={!!status?.portals?.carmen?.connected}
+    />
+  );
   const canRefresh =
     !busy &&
     !locked &&
-    !demo &&
     (!!status?.connected || cachedUnlocked) &&
-    deadline <= Date.now();
+    (usingCarmen || deadline <= Date.now());
+  async function refreshStatus() {
+    const current = await api<Status>("status");
+    if (!current.authenticated) {
+      await refresh();
+      return;
+    }
+    setStatus(current);
+  }
+  async function switchLms(carmen: boolean) {
+    const before = stateRef.current.primaryLms;
+    const next: SavedState = {
+      ...stateRef.current,
+      primaryLms: carmen ? "carmen" : "schoology",
+    };
+    setSwitchingLms(true);
+    setError("");
+    const saving = persist(next);
+    apply(next);
+    setSelected(undefined);
+    setPeriod(undefined);
+    try {
+      if (!(await saving)) apply({ ...stateRef.current, primaryLms: before });
+    } finally {
+      setSwitchingLms(false);
+    }
+  }
   const pull = usePullRefresh(
     app,
     canRefresh && tab === "grades" && fresh && !modal && !install,
@@ -1134,32 +1246,12 @@ export default function App() {
                 </button>
               </aside>
             )}
-            {demo && (
-              <aside className="notice demo">
-                Sample grades · synthetic data
-                <button
-                  onClick={() => {
-                    demoRef.current = false;
-                    setFresh(false);
-                    setDemo(false);
-                    setSelected(undefined);
-                    void repository
-                      .load()
-                      .then(apply)
-                      .then(() => refresh())
-                      .catch(() => {});
-                  }}
-                >
-                  Exit demo
-                </button>
-              </aside>
-            )}
             {error && (
               <p role="alert" className="notice error">
                 {error}
               </p>
             )}
-            {fresh && !demo && tab === "grades" && error && (
+            {fresh && tab === "grades" && error && (
               <div className="refresh-status" role="status">
                 Showing saved grades.{" "}
                 <button
@@ -1183,31 +1275,10 @@ export default function App() {
                 <>
                   <div className="settings-layout">
                     <div className="settings-column settings-connections">
-                      <section className="settings-group">
-                        <h2>Connections</h2>
-                        <div className="settings-card">
-                          <div className="connection-heading">
-                            <span className="settings-icon">
-                              <User size={20} />
-                            </span>
-                            <strong>Schoology</strong>
-                            <span
-                              className="connection"
-                              data-connected={
-                                !locked && (status?.connected || demo)
-                              }
-                            >
-                              <span className="status-dot" />
-                              {locked
-                                ? "Locked"
-                                : demo
-                                  ? "Sample"
-                                  : status?.connected
-                                    ? "Connected"
-                                    : "Not connected"}
-                            </span>
-                          </div>
-                          {locked ? (
+                      {locked ? (
+                        <section className="settings-group">
+                          <h2>Unlock GradeViewer</h2>
+                          <div className="settings-card">
                             <Unlock
                               onUnlock={async (password) => {
                                 await api("login", { password });
@@ -1215,31 +1286,93 @@ export default function App() {
                                 await refresh();
                               }}
                             />
-                          ) : (
-                            <>
-                              <Connection
-                                connected={!!status?.connected || demo}
-                                busy={busy}
-                                connect={async (credentials) => {
-                                  await refresh(credentials);
-                                  setTab("grades");
-                                }}
-                                disconnect={disconnect}
-                                demo={demo}
-                              />
-                            </>
-                          )}
-                        </div>
-                      </section>
-                      {!demo && !locked && (
-                        <PortalConnection
-                          status={status?.portals?.campus}
-                          disabled={!status?.connected}
-                          refresh={async () => {
-                            await flight.current?.catch(() => {});
-                            await refresh(undefined, true, "campus");
-                          }}
-                        />
+                          </div>
+                        </section>
+                      ) : (
+                        <section className="settings-group">
+                          <h2>Connections</h2>
+                          <div className="settings-card">
+                            {!usingCarmen && (
+                              <>
+                                {schoologyConnected ? (
+                                  <ConnectionDisclosure
+                                    title="Schoology"
+                                    icon={<User size={20} />}
+                                    label="Connected"
+                                    tone="connected"
+                                    open={openConnections.schoology}
+                                    onToggle={(open) =>
+                                      disclose("schoology", open)
+                                    }
+                                  >
+                                    {schoologyForm}
+                                  </ConnectionDisclosure>
+                                ) : (
+                                  <>
+                                    <div className="connection-heading">
+                                      <span className="settings-icon">
+                                        <User size={20} />
+                                      </span>
+                                      <strong>Schoology</strong>
+                                      <span
+                                        className="connection"
+                                        data-health="neutral"
+                                      >
+                                        <span className="status-dot" />
+                                        Set up
+                                      </span>
+                                    </div>
+                                    {schoologyForm}
+                                  </>
+                                )}
+                                <PortalConnection
+                                  status={status?.portals?.campus}
+                                  refreshStatus={refreshStatus}
+                                  disabled={!schoologyConnected}
+                                  open={openConnections.campus}
+                                  onToggle={(open) => disclose("campus", open)}
+                                  refresh={async () => {
+                                    await flight.current?.catch(() => {});
+                                    await refresh(undefined, true, "campus");
+                                  }}
+                                />
+                              </>
+                            )}
+                            <PortalConnection
+                              provider="carmen"
+                              status={status?.portals?.carmen}
+                              refreshStatus={refreshStatus}
+                              disabled={!status?.authenticated || busy}
+                              open={openConnections.carmen}
+                              onToggle={(open) => disclose("carmen", open)}
+                              refresh={async () => {
+                                await flight.current?.catch(() => {});
+                                await refresh(undefined, true, "carmen");
+                              }}
+                            >
+                              <div className="portal-body">
+                                <label className="gpa-check">
+                                  <input
+                                    type="checkbox"
+                                    role="switch"
+                                    checked={usingCarmen}
+                                    disabled={busy || switchingLms}
+                                    onChange={(event) =>
+                                      void switchLms(
+                                        event.target.checked,
+                                      ).catch((e) => setError(errorMessage(e)))
+                                    }
+                                  />
+                                  <span
+                                    className="gpa-toggle-track"
+                                    aria-hidden="true"
+                                  />
+                                  <span>Use Carmen as main LMS</span>
+                                </label>
+                              </div>
+                            </PortalConnection>
+                          </div>
+                        </section>
                       )}
                       <section className="settings-group">
                         <h2>Preferences</h2>
@@ -1264,6 +1397,48 @@ export default function App() {
                       </section>
                     </div>
                     <div className="settings-column settings-preferences">
+                      {!locked && (
+                        <section className="settings-group app-actions">
+                          <h2>Security</h2>
+                          <div className="settings-card">
+                            <button
+                              disabled={!status?.authenticated || busy}
+                              onClick={() => {
+                                setPasswordChanged(false);
+                                setChangingPassword(true);
+                              }}
+                            >
+                              <KeyRound size={18} /> Change app password
+                            </button>
+                            {(status?.authenticated || cachedUnlocked) && (
+                              <button
+                                className="secondary"
+                                onClick={async () => {
+                                  try {
+                                    await repository.lock();
+                                    hideCache();
+                                    setStatus({
+                                      authenticated: false,
+                                      connected: false,
+                                    });
+                                    channel.current?.postMessage("locked");
+                                    await api("logout", {});
+                                  } catch (e) {
+                                    setError(errorMessage(e));
+                                  }
+                                }}
+                              >
+                                <LockKeyhole size={18} /> Lock app
+                              </button>
+                            )}
+                          </div>
+                          {passwordChanged && (
+                            <p className="settings-note" role="status">
+                              App password changed.
+                            </p>
+                          )}
+                        </section>
+                      )}
                       <section className="settings-group personal-site">
                         <h2>Your personal website</h2>
                         <div className="settings-card site-card">
@@ -1349,59 +1524,17 @@ export default function App() {
                               {applyingUpdate ? "Updating…" : "Update now"}
                             </button>
                           )}
-                          {!demo &&
-                            (status?.authenticated || cachedUnlocked) && (
-                              <button
-                                className="secondary full"
-                                disabled={!canRefresh}
-                                onClick={() =>
-                                  void refresh(undefined, true).catch(() => {})
-                                }
-                              >
-                                <RefreshCw size={18} /> Refresh grades
-                              </button>
-                            )}
-                          {!demo &&
-                            (status?.authenticated || cachedUnlocked) && (
-                              <button
-                                className="secondary"
-                                onClick={async () => {
-                                  try {
-                                    await repository.lock();
-                                    hideCache();
-                                    setStatus({
-                                      authenticated: false,
-                                      connected: false,
-                                    });
-                                    channel.current?.postMessage("locked");
-                                    await api("logout", {});
-                                  } catch (e) {
-                                    setError(errorMessage(e));
-                                  }
-                                }}
-                              >
-                                <LockKeyhole size={18} /> Lock app
-                              </button>
-                            )}
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => {
-                              demoRef.current = true;
-                              setDemo(true);
-                              apply({
-                                schema: 1,
-                                courses: demoCourses(),
-                                scenarios: {},
-                              });
-                              setFresh(true);
-                              setBusy(false);
-                              setError("");
-                              setTab("grades");
-                            }}
-                          >
-                            Try sample grades
-                          </button>
+                          {(status?.authenticated || cachedUnlocked) && (
+                            <button
+                              className="secondary full"
+                              disabled={!canRefresh}
+                              onClick={() =>
+                                void refresh(undefined, true).catch(() => {})
+                              }
+                            >
+                              <RefreshCw size={18} /> Refresh grades
+                            </button>
+                          )}
                         </div>
                       </section>
                     </div>
@@ -1425,7 +1558,7 @@ export default function App() {
                   )}
                   <p className="profile-footnote">GradeViewer {version}</p>
                 </>
-              ) : !fresh && !demo ? (
+              ) : !fresh ? (
                 !busy && (
                   <div className="gate">
                     <>
@@ -1460,14 +1593,31 @@ export default function App() {
                 )
               ) : !course ? (
                 <>
-                  <GpaSummary
-                    key={state.account ?? "demo"}
-                    courses={state.courses}
-                    settings={state.gpa}
-                    save={(gpa) => persist({ ...stateRef.current, gpa })}
-                  />
+                  {!usingCarmen && (
+                    <GpaSummary
+                      key={state.account}
+                      courses={state.courses.filter(
+                        (c) => c.fields.provider !== "carmen",
+                      )}
+                      settings={state.gpa}
+                      save={(gpa) => persist({ ...stateRef.current, gpa })}
+                    />
+                  )}
+                  {usingCarmen && (
+                    <GpaSummary
+                      key={state.account + ":carmen"}
+                      policy="osu"
+                      courses={state.courses.filter(
+                        (c) => c.fields.provider === "carmen",
+                      )}
+                      settings={state.carmenGpa}
+                      save={(carmenGpa) =>
+                        persist({ ...stateRef.current, carmenGpa })
+                      }
+                    />
+                  )}
                   <div className="courses">
-                    {visibleCourses(state.courses).map((c) => {
+                    {visibleCourses(workspaceCourses).map((c) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));
                       return (
@@ -1499,14 +1649,23 @@ export default function App() {
                       );
                     })}
                   </div>
-                  {!state.courses.length && (
+                  {!workspaceCourses.length && (
                     <div className="gate">
-                      <h2>No grades yet</h2>
+                      <h2>
+                        {usingCarmen ? "No Carmen grades yet" : "No grades yet"}
+                      </h2>
+                      {usingCarmen && (
+                        <p>
+                          {status?.portals?.carmen?.connected
+                            ? "The connection can still be checked in Settings even when your course list is empty."
+                            : "Connect CarmenCanvas in Settings to start the session experiment."}
+                        </p>
+                      )}
                       <button
                         className="primary"
                         onClick={() => setTab("profile")}
                       >
-                        Connect Schoology
+                        Open Settings
                       </button>
                     </div>
                   )}
@@ -1602,7 +1761,7 @@ export default function App() {
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
               {fresh &&
-                visibleCourses(state.courses).map((c) => (
+                visibleCourses(workspaceCourses).map((c) => (
                   <button
                     key={c.id}
                     aria-current={
@@ -1633,6 +1792,22 @@ export default function App() {
           save={(s) => {
             saveScenario(course, s);
             setModal(undefined);
+          }}
+        />
+      )}
+      {changingPassword && !locked && (
+        <PasswordChange
+          close={() => setChangingPassword(false)}
+          changed={(expires) => {
+            void repository
+              .rememberAccess(stateRef.current.account, expires)
+              .catch(() => {});
+            setStatus(
+              (previous) =>
+                previous && { ...previous, sessionExpires: expires },
+            );
+            setChangingPassword(false);
+            setPasswordChanged(true);
           }}
         />
       )}
@@ -1677,6 +1852,92 @@ export default function App() {
     </>
   );
 }
+function PasswordChange({
+  close,
+  changed,
+}: {
+  close: () => void;
+  changed: (expires: number) => void;
+}) {
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  return (
+    <Dialog
+      title="Change app password"
+      close={() => {
+        if (!busy) close();
+      }}
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const currentPassword = form.get("currentPassword");
+          const newPassword = form.get("newPassword");
+          if (newPassword !== form.get("confirmPassword")) {
+            setError("The new passwords don’t match.");
+            return;
+          }
+          setBusy(true);
+          setError("");
+          try {
+            const { sessionExpires } = await api<{ sessionExpires: number }>(
+              "password",
+              { currentPassword, newPassword },
+            );
+            changed(sessionExpires);
+          } catch (error) {
+            setError(errorMessage(error));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="muted">
+          Your connections stay saved. Other browsers will need to unlock again.
+        </p>
+        <label>
+          Current password
+          <input
+            name="currentPassword"
+            autoComplete="current-password"
+            type="password"
+            required
+            disabled={busy}
+          />
+        </label>
+        <label>
+          New password
+          <input
+            name="newPassword"
+            autoComplete="new-password"
+            type="password"
+            minLength={12}
+            maxLength={256}
+            required
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Confirm new password
+          <input
+            name="confirmPassword"
+            autoComplete="new-password"
+            type="password"
+            minLength={12}
+            maxLength={256}
+            required
+            disabled={busy}
+          />
+        </label>
+        {error && <p role="alert">{error}</p>}
+        <button className="primary full" disabled={busy}>
+          {busy ? "Saving…" : "Save password"}
+        </button>
+      </form>
+    </Dialog>
+  );
+}
 function Unlock({
   onUnlock,
 }: {
@@ -1701,11 +1962,7 @@ function Unlock({
         }
       }}
     >
-      <p>
-        Use the private app password you chose when setting up this website.{" "}
-        Save it in your password manager to autofill it next time. This browser
-        stays unlocked for up to 90 days.
-      </p>
+      <p>Enter your GradeViewer password to see your grades.</p>
       <label>
         App password
         <input
@@ -1721,6 +1978,42 @@ function Unlock({
       <button className="primary full" disabled={busy || !password}>
         {busy ? "Unlocking…" : "Unlock app"}
       </button>
+      <details className="password-help">
+        <summary>Forgot your app password?</summary>
+        <ol>
+          <li>
+            In{" "}
+            <a
+              href="https://dash.cloudflare.com/?to=/:account/workers-and-pages"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Cloudflare
+            </a>
+            , open your Worker’s{" "}
+            <strong>Settings → Variables and Secrets</strong>.
+          </li>
+          <li>
+            Add a <strong>Secret</strong> named <code>APP_PASSWORD_RESET</code>.
+            Set its value to the new password you want (at least 12 characters)
+            and click <strong>Deploy</strong>.
+          </li>
+          <li>
+            Unlock GradeViewer with that password once. It automatically becomes
+            your regular app password.
+          </li>
+          <li>
+            Delete <code>APP_PASSWORD_RESET</code> in Cloudflare and click{" "}
+            <strong>Deploy</strong> to apply the deletion. Your new password
+            still works.
+          </li>
+        </ol>
+        <p>
+          To reset again, reuse the same <code>APP_PASSWORD_RESET</code> name
+          with a fresh password. Keep <code>APP_PASSWORD</code> in place so your
+          connections stay saved.
+        </p>
+      </details>
     </form>
   );
 }
@@ -1729,13 +2022,13 @@ function Connection({
   busy,
   connect,
   disconnect,
-  demo,
+  retainsCarmen = false,
 }: {
   connected: boolean;
   busy: boolean;
   connect: (c: { key: string; secret: string }) => Promise<void>;
   disconnect: () => Promise<void>;
-  demo: boolean;
+  retainsCarmen?: boolean;
 }) {
   const [editing, setEditing] = useState(!connected),
     [key, setKey] = useState(""),
@@ -1743,11 +2036,11 @@ function Connection({
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false);
   useEffect(() => {
-    if (connected) setEditing(false);
+    setEditing(!connected);
   }, [connected]);
   return (
     <>
-      {editing && !demo ? (
+      {editing ? (
         <form
           onSubmit={async (e: FormEvent) => {
             e.preventDefault();
@@ -1825,14 +2118,14 @@ function Connection({
         <>
           <button
             className="settings-action"
-            disabled={busy || demo}
+            disabled={busy}
             onClick={() => setEditing(true)}
           >
             Update connection <ChevronRight size={17} />
           </button>
           <button
             className="settings-action danger"
-            disabled={busy || demo}
+            disabled={busy}
             onClick={() => setConfirm(true)}
           >
             Disconnect
@@ -1842,9 +2135,9 @@ function Connection({
       {confirm && (
         <Dialog title="Disconnect Schoology?" close={() => setConfirm(false)}>
           <p>
-            This removes saved grades, history and local changes from this
-            browser and revokes access on your other devices. It does not change
-            Schoology.
+            {retainsCarmen
+              ? "This removes Schoology and IC grades, history and local changes. Your Carmen connection and data stay available."
+              : "This removes saved grades, history and local changes from this browser and revokes access on your other devices. It does not change Schoology."}
           </p>
           <button
             className="primary full"

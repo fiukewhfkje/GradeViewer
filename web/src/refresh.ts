@@ -22,13 +22,44 @@ export async function readSnapshot(
   credentials?: { key: string; secret: string },
   refreshMetadata = false,
 ): Promise<SavedState> {
+  if (status.schoologyConnected === false && !credentials) {
+    const latest = await repository.load(),
+      base =
+        latest.account === status.account
+          ? latest
+          : previous.account === status.account
+            ? previous
+            : {
+                schema: 1 as const,
+                courses: [],
+                scenarios: {},
+                primaryLms: !previous.account ? previous.primaryLms : undefined,
+              };
+    const next = {
+      ...base,
+      account: status.account,
+      courses: base.courses.filter(
+        (c) => c.fields.provider && c.fields.provider !== "schoology",
+      ),
+      metadata: undefined,
+      gpa: undefined,
+      scenarios: Object.fromEntries(
+        Object.entries(base.scenarios).filter(
+          ([id]) => id.startsWith("carmen:") || id.startsWith("campus:"),
+        ),
+      ),
+    };
+    await repository.save(next);
+    return next;
+  }
   const started = await api<{
     scan: string;
     account: string;
     revision?: string;
     roots?: { sections: Page; grades: ReadResult };
   }>("scan/start", { ...credentials, refreshMetadata, includeRoots: true });
-  const { scan, account } = started;
+  const { scan, account: schoologyAccount } = started;
+  const account = status.account ?? schoologyAccount;
   async function fingerprintGrade(row: Row) {
     return btoa(
       String.fromCharCode(
@@ -358,7 +389,7 @@ export async function readSnapshot(
             const old = previous.courses.find(
                 (x) =>
                   x.id === c.id &&
-                  x.fields.user_id === account &&
+                  x.fields.user_id === schoologyAccount &&
                   x.fields.reported_scale_id === c.fields.reported_scale_id &&
                   x.fields.section_id === c.fields.section_id,
               ),
@@ -506,7 +537,7 @@ export async function readSnapshot(
       }
     }
     for (const c of sources) {
-      c.fields.user_id = account;
+      c.fields.user_id = schoologyAccount;
       for (const a of c.assignments)
         if (!hasTitle(a)) {
           const old = previous.courses
@@ -536,6 +567,12 @@ export async function readSnapshot(
         ],
         preserved.account === account ? preserved.courses : [],
       ),
+      carmenGpa:
+        preserved.account === account ? preserved.carmenGpa : undefined,
+      primaryLms:
+        preserved.account === account || !preserved.account
+          ? preserved.primaryLms
+          : undefined,
       scenarios: preserved.account === account ? preserved.scenarios : {},
       ...(preserved.account === account && preserved.gpa
         ? { gpa: preserved.gpa }

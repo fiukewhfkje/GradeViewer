@@ -6,8 +6,10 @@ import {
   random,
   seal,
   unseal,
+  passwordVerifier,
   type Credentials,
   type Envelope,
+  type PasswordVerifier,
 } from "./crypto";
 import {
   ApiError,
@@ -20,6 +22,8 @@ import {
 import { latestRelease } from "./updates";
 export interface Env {
   APP_PASSWORD: string;
+  APP_PASSWORD_RESET?: string;
+  CARMEN_DIAGNOSTICS_KEY?: string;
   BROWSER?: PortalBinding;
   VAULT: DurableObjectNamespace;
   ASSETS: FetcherAssets;
@@ -46,6 +50,7 @@ interface Scan {
 interface Vault {
   credentials?: Envelope;
   account?: string;
+  workspace?: string;
   revision: string;
   scans: Record<string, Scan>;
   cooldown: number;
@@ -53,6 +58,8 @@ interface Vault {
   failures: number;
   blockedUntil: number;
   passwordHash: string;
+  loginVerifier?: PasswordVerifier;
+  lastPasswordReset?: PasswordVerifier;
   metadata: Record<
     string,
     { account: string; fingerprint: string; expires: number; owner: string }
@@ -152,18 +159,84 @@ export class CredentialVault {
     private env: Env,
   ) {}
   protected upstream: Fetcher = fetch;
-  protected portals() {
+  protected portals(kind: "campus" | "carmen" = "campus") {
     return new PortalService(
       this.ctx.storage,
       this.env.APP_PASSWORD,
       this.env.BROWSER,
       this.upstream,
+      kind,
     );
   }
   async alarm() {
-    const result = this.queue.then(() => this.portals().expire());
+    const result = this.queue.then(async () => {
+      for (const kind of ["campus", "carmen"] as const) {
+        try {
+          await this.portals(kind).expire();
+        } catch (e) {
+          if (!(e instanceof ApiError) || e.code !== "portalPasswordChanged")
+            throw e;
+        }
+      }
+    });
     this.queue = result.catch(() => {});
     await result;
+  }
+  private async requirePassword(
+    vault: Vault,
+    password: unknown,
+    now: number,
+    allowReset = false,
+  ) {
+    if (now < vault.blockedUntil)
+      throw new ApiError(
+        429,
+        "loginLimited",
+        Math.ceil((vault.blockedUntil - now) / 1000),
+      );
+    const reset = allowReset ? this.env.APP_PASSWORD_RESET : undefined;
+    if (
+      typeof password === "string" &&
+      reset &&
+      reset.length >= 12 &&
+      reset.length <= 256 &&
+      reset.trim() &&
+      (await equal(password, reset))
+    ) {
+      const previous = vault.lastPasswordReset;
+      if (
+        !previous ||
+        !(await equal(
+          passwordVerifier(reset, previous.salt).digest,
+          previous.digest,
+        ))
+      ) {
+        vault.loginVerifier = passwordVerifier(reset);
+        vault.lastPasswordReset = vault.loginVerifier;
+        vault.sessions = {};
+        vault.scans = {};
+        vault.failures = 0;
+        return password;
+      }
+    }
+    const verifier = vault.loginVerifier;
+    const valid =
+      typeof password === "string" &&
+      (verifier
+        ? await equal(
+            passwordVerifier(password, verifier.salt).digest,
+            verifier.digest,
+          )
+        : await equal(password, this.env.APP_PASSWORD));
+    if (valid) {
+      vault.failures = 0;
+      return password;
+    }
+    if (++vault.failures >= 5) {
+      vault.blockedUntil = now + 15 * 60 * 1000;
+      vault.failures = 0;
+    }
+    throw new ApiError(401, "incorrectAppPassword");
   }
   fetch(request: Request): Promise<Response> {
     const result = this.queue.then(() => this.handle(request));
@@ -399,6 +472,32 @@ export class CredentialVault {
   private async handle(request: Request) {
     let vault: Vault | undefined;
     try {
+      // Separate read-only operator capability: this route reads sanitized
+      // diagnostics only and cannot access sessions, cookies, grades or providers.
+      if (
+        ["/api/carmen/diagnostics", "/api/campus/diagnostics"].includes(
+          new URL(request.url).pathname,
+        ) &&
+        request.method === "GET"
+      ) {
+        const expected = this.env.CARMEN_DIAGNOSTICS_KEY;
+        const supplied = request.headers.get("Authorization") ?? "";
+        if (
+          !expected ||
+          expected.length < 32 ||
+          supplied.length > 256 ||
+          !(await equal(supplied, "Bearer " + expected))
+        )
+          throw new ApiError(401, "diagnosticsUnauthorized");
+        return json({
+          diagnostics:
+            (await this.ctx.storage.get(
+              new URL(request.url).pathname.includes("/campus/")
+                ? "campus-diagnostics"
+                : "carmen-diagnostics",
+            )) ?? null,
+        });
+      }
       if (!this.env.APP_PASSWORD || this.env.APP_PASSWORD.length < 12)
         throw new ApiError(503, "deploymentPasswordRequired");
       vault = (await this.ctx.storage.get<Vault>("vault")) ?? initial();
@@ -407,6 +506,7 @@ export class CredentialVault {
       if (vault.passwordHash !== fingerprint) {
         vault.sessions = {};
         vault.scans = {};
+        delete vault.loginVerifier;
         vault.passwordHash = fingerprint;
       }
       vault.sessions = Object.fromEntries(
@@ -436,45 +536,88 @@ export class CredentialVault {
         authenticated = !!vault.sessions[session];
       let result: Response;
       if (route === "login" && post) {
-        if (now < vault.blockedUntil)
-          throw new ApiError(
-            429,
-            "loginLimited",
-            Math.ceil((vault.blockedUntil - now) / 1000),
-          );
         const b = await body(request);
-        if (
-          typeof b.password !== "string" ||
-          !(await equal(b.password, this.env.APP_PASSWORD))
-        ) {
-          vault.failures++;
-          if (vault.failures >= 5) {
-            vault.blockedUntil = now + 15 * 60 * 1000;
-            vault.failures = 0;
-          }
-          throw new ApiError(401, "incorrectAppPassword");
-        }
+        await this.requirePassword(vault, b.password, now, true);
         const id = random();
         vault.sessions[await hash(id)] = now + 90 * 86400000;
         const ids = Object.keys(vault.sessions);
         if (ids.length > 10) delete vault.sessions[ids[0]];
-        vault.failures = 0;
         result = json({ ok: true }, 200, { "Set-Cookie": setCookie(id) });
       } else if (route === "status" && !post) {
+        const campus = authenticated
+          ? await this.portals().status()
+          : undefined;
+        const carmen = authenticated
+          ? await this.portals("carmen").status()
+          : undefined;
+        if (carmen?.connected && !vault.workspace)
+          vault.workspace = vault.account ?? "workspace:" + random();
         result = json({
-          ...(authenticated
-            ? { portals: { campus: await this.portals().status() } }
-            : {}),
+          ...(authenticated ? { portals: { campus, carmen } } : {}),
           authenticated,
-          connected: authenticated && !!vault.credentials,
-          account: authenticated ? vault.account : undefined,
+          connected:
+            authenticated && (!!vault.credentials || !!carmen?.connected),
+          schoologyConnected: authenticated && !!vault.credentials,
+          account: authenticated
+            ? (vault.workspace ?? vault.account)
+            : undefined,
           sessionExpires: authenticated ? vault.sessions[session] : undefined,
           revision: authenticated ? vault.revision : undefined,
           cooldown: authenticated ? vault.cooldown : undefined,
         });
       } else {
         if (!authenticated) throw new ApiError(401, "unlockRequired");
-        if (route.startsWith("campus/") && post) {
+        if (route === "password" && post) {
+          const { currentPassword, newPassword } = await body(request);
+          if (
+            typeof newPassword !== "string" ||
+            newPassword.length < 12 ||
+            newPassword.length > 256 ||
+            !newPassword.trim()
+          )
+            throw new ApiError(400, "invalidNewPassword");
+          const current = await this.requirePassword(
+            vault,
+            currentPassword,
+            now,
+          );
+          if (await equal(newPassword, current))
+            throw new ApiError(400, "passwordUnchanged");
+          const verifier = passwordVerifier(newPassword);
+          const id = random(),
+            expires = now + 90 * 86400000;
+          const nextSession = await hash(id);
+          vault.loginVerifier = verifier;
+          vault.sessions = { [nextSession]: expires };
+          vault.scans = {};
+          result = json({ sessionExpires: expires }, 200, {
+            "Set-Cookie": setCookie(id),
+          });
+        } else if (route === "carmen/compatibility" && !post) {
+          result = json(await this.portals("carmen").compatibilityReport());
+        } else if (route.startsWith("carmen/") && post) {
+          result = json(
+            await this.portals("carmen").handle(
+              route.slice(7),
+              await body(request),
+            ),
+          );
+          if (
+            (await this.portals("carmen").status()).connected &&
+            !vault.workspace
+          )
+            vault.workspace = vault.account ?? "workspace:" + random();
+        } else if (route === "schoology/disconnect" && post) {
+          delete vault.credentials;
+          delete vault.account;
+          vault.scans = {};
+          vault.metadata = {};
+          vault.gradeLinks = {};
+          vault.cooldown = 0;
+          vault.revision = random();
+          await this.portals().handle("disconnect");
+          result = json({ ok: true });
+        } else if (route.startsWith("campus/") && post) {
           if (!vault.account) throw new ApiError(409, "schoologyFirst");
           result = json(
             await this.portals().handle(route.slice(7), await body(request)),
@@ -484,7 +627,12 @@ export class CredentialVault {
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "disconnect" && post) {
           await this.portals().handle("disconnect");
-          vault = initial();
+          await this.portals("carmen").handle("disconnect");
+          vault = {
+            ...initial(),
+            loginVerifier: vault.loginVerifier,
+            lastPasswordReset: vault.lastPasswordReset,
+          };
           vault.passwordHash = fingerprint;
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "scan/start" && post) {

@@ -64,9 +64,13 @@ Newly deployed app versions also show a discreet update notice when the app open
 
 Already installed through the old Cloudflare button? A copy without the updater needs a **one-time repair**. Keep its Worker, address and password; see [existing installations](docs/AUTOMATIC_UPDATES.md#existing-installations). Recreating the Worker is unnecessary.
 
+## Experimental CarmenCanvas
+
+In **Settings → Connections → CarmenCanvas**, turn on **Use Carmen as main LMS** and connect with your Ohio State account. You can switch back to Schoology and Infinite Campus without losing your saved connections. **Keep connected** starts off. Turn it on for 90-minute session checks on your Worker. After connecting, **Copy compatibility report** gives you shareable field types and parser results. OSU enrolled-course compatibility is still being tested. [Carmen integration details](docs/CARMEN_INTEGRATION.md).
+
 ## Optional Infinite Campus classes
 
-In **Settings → Additional classes**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools.
+In **Settings → Connections → Infinite Campus**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools. **Keep connected** starts off. Turn it on to schedule 20-minute session checks on your Worker.
 
 ## Estimated semester GPA
 
@@ -74,7 +78,7 @@ In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see
 
 ## Your data
 
-Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Changing the app password revokes sessions and requires reconnecting Schoology. Disconnect before switching students.
+Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Change the unlock password under **Settings → Security**. This keeps the encrypted connections and asks other browsers to unlock again. If you forget it, deploy your new password as a secret named `APP_PASSWORD_RESET` in your Worker’s Cloudflare **Settings → Variables and Secrets**. Unlock once with the new password. It becomes your regular app password. Remove the reset secret and deploy again to apply the deletion. Your new password still works. For another reset, reuse the same secret name with a fresh password. Leave the original `APP_PASSWORD` binding in place so the Worker can still decrypt your connections. Disconnect before switching students.
 
 There are no subscriptions, ads, analytics, provider grade writes or shared maintainer grade servers. The PWA does not import the native app's local history or edits.
 

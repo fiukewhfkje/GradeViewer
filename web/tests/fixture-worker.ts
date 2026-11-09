@@ -1,3 +1,4 @@
+import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
 import { ApiError } from "../worker/provider";
@@ -10,7 +11,7 @@ import {
 } from "./campus-fixture";
 // Separate test entry point. Production imports neither this file nor its fixture provider.
 import worker, { CredentialVault, type Env } from "../worker/index";
-import { syntheticPayload, SYNTHETIC_ACCOUNT } from "../src/core/demo";
+import { syntheticPayload, SYNTHETIC_ACCOUNT } from "./schoology-fixture";
 import { version } from "../package.json";
 let releaseFixture: {
   version: string;
@@ -35,7 +36,7 @@ export class FixtureVault extends CredentialVault {
   ) {
     super(fixtureState, fixtureEnv);
   }
-  protected override portals() {
+  protected override portals(kind: "campus" | "carmen" = "campus") {
     const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
@@ -46,16 +47,20 @@ export class FixtureVault extends CredentialVault {
           throw new ApiError(429, "portalBrowserDailyLimit");
         return {
           id: "synthetic-session",
-          state: async () => structuredClone(campusState),
-          live: async () => "/api/fixture/portal-window",
+          state: async () =>
+            structuredClone(kind === "carmen" ? canvasState : campusState),
+          live: async () => "/api/fixture/portal-window?provider=" + kind,
           navigate: async () => {
-            await storage.delete("synthetic-campus-signed-in");
+            await storage.delete(`synthetic-${kind}-signed-in`);
           },
           url: () => campusPortal,
           studentPortal: async () =>
-            (await storage.get("synthetic-campus-signed-in"))
-              ? new URL("/campus/nav-wrapper", campusPortal).href
+            (await storage.get(`synthetic-${kind}-signed-in`))
+              ? kind === "carmen"
+                ? "https://osu.instructure.com/"
+                : new URL("/campus/nav-wrapper", campusPortal).href
               : undefined,
+          ready: async () => {},
           close: async () => {},
         };
       }
@@ -65,13 +70,14 @@ export class FixtureVault extends CredentialVault {
       this.fixtureEnv.APP_PASSWORD,
       undefined,
       this.upstream,
+      kind,
     );
   }
   override async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status"].includes(kind))
+      if (!["provider", "status", "maintenance"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -93,6 +99,8 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
     if (path === "/api/status") await this.waitForGate("status");
+    if (path === "/api/campus/maintenance")
+      await this.waitForGate("maintenance");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))
@@ -101,19 +109,88 @@ export class FixtureVault extends CredentialVault {
         { error: "rateLimited", retryAfter: 1 },
         { status: 429, headers: { "Retry-After": "1" } },
       );
-    if (new URL(request.url).pathname === "/api/fixture/portal-window")
-      return new Response("<title>Synthetic sign-in</title>", {
-        headers: { "Content-Type": "text/html" },
-      });
+    if (path === "/api/fixture/portal-window") {
+      const url = new URL(request.url);
+      const kind = url.searchParams.get("provider");
+      if (kind !== "campus" && kind !== "carmen")
+        return new Response(null, { status: 404 });
+      let content =
+        '<p>This preview uses synthetic data. No school credentials are needed.</p><form method="post"><button>Complete synthetic sign-in</button></form>';
+      if (request.method === "POST") {
+        if (request.headers.get("Origin") !== url.origin)
+          return new Response(null, { status: 403 });
+        if (kind === "campus") {
+          const config = await this.fixtureState.storage.get<{
+            expireSession?: boolean;
+          }>("synthetic-campus");
+          if (config?.expireSession)
+            await this.fixtureState.storage.put("synthetic-campus", {
+              ...config,
+              expireSession: false,
+            });
+        }
+        await this.fixtureState.storage.put(
+          `synthetic-${kind}-signed-in`,
+          true,
+        );
+        await this.alarm();
+        content = "<p>Signed in. Return to GradeViewer.</p>";
+      }
+      return new Response(
+        '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="same-origin"><title>GradeViewer preview sign-in</title><main><h1>GradeViewer preview sign-in</h1>' +
+          content +
+          "</main></html>",
+        {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
     if (
-      new URL(request.url).pathname === "/api/fixture/campus" &&
+      ["/api/fixture/campus", "/api/fixture/carmen"].includes(
+        new URL(request.url).pathname,
+      ) &&
       request.method === "POST"
     ) {
-      const value = await request.json();
-      await this.fixtureState.storage.put("synthetic-campus", value);
+      const value = await request.json<{ expireSession?: boolean }>();
+      if (path === "/api/fixture/campus" && value?.expireSession === true) {
+        const portal = this.portals("campus");
+        if (!(await portal.status()).connected)
+          return Response.json(
+            { error: "portalConnectRequired" },
+            { status: 409 },
+          );
+        const config =
+          await this.fixtureState.storage.get<object>("synthetic-campus");
+        await this.fixtureState.storage.put("synthetic-campus", {
+          ...config,
+          expireSession: true,
+        });
+        try {
+          await portal.handle("check");
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            error.code === "portalSignInRequired"
+          )
+            return Response.json({ expired: true });
+          throw error;
+        }
+        return Response.json({ expired: false }, { status: 409 });
+      }
+      await this.fixtureState.storage.put(
+        new URL(request.url).pathname.endsWith("carmen")
+          ? "synthetic-carmen"
+          : "synthetic-campus",
+        value,
+      );
       if (value && typeof value === "object" && "signedIn" in value) {
         await this.fixtureState.storage.put(
-          "synthetic-campus-signed-in",
+          new URL(request.url).pathname.endsWith("carmen")
+            ? "synthetic-carmen-signed-in"
+            : "synthetic-campus-signed-in",
           value.signedIn,
         );
         // Drive the same alarm path deterministically after the synthetic
@@ -148,13 +225,42 @@ export class FixtureVault extends CredentialVault {
     return super.fetch(request);
   }
   protected upstream = async (request: Request): Promise<Response> => {
-    if (new URL(request.url).hostname === "fixture.infinitecampus.org") {
+    if (new URL(request.url).hostname === "osu.instructure.com") {
+      if (
+        !request.headers.get("User-Agent")?.startsWith("GradeViewer/") ||
+        request.headers.get("X-Requested-With") !== "XMLHttpRequest" ||
+        request.headers.get("Referer") !== "https://osu.instructure.com/" ||
+        request.headers.get("X-CSRF-Token") !== "synthetic/csrf+token="
+      )
+        return Response.json({ status: "unauthorized" }, { status: 403 });
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
         malformed?: boolean;
+        empty?: boolean;
+      }>("synthetic-carmen");
+      if (config?.failure) return Response.json({}, { status: 401 });
+      const path = new URL(request.url).pathname,
+        details = canvasDetails();
+      if (path.endsWith("/profile")) return Response.json({ id: 77 });
+      if (path === "/api/v1/courses")
+        return Response.json(
+          config?.malformed ? {} : config?.empty ? [] : canvasCourses,
+        );
+      if (path.endsWith("/assignment_groups"))
+        return Response.json(details["101:groups"]);
+      if (path.endsWith("/enrollments"))
+        return Response.json(details["101:enrollments"]);
+      return Response.json({}, { status: 404 });
+    }
+    if (new URL(request.url).hostname === "fixture.infinitecampus.org") {
+      const config = await this.fixtureState.storage.get<{
+        failure?: boolean;
+        expireSession?: boolean;
+        malformed?: boolean;
         courseDelayMs?: number;
       }>("synthetic-campus");
-      if (config?.failure) return Response.json({}, { status: 401 });
+      if (config?.failure || config?.expireSession)
+        return Response.json({}, { status: 401 });
       const path = new URL(request.url).pathname;
       if (path.endsWith("/roster"))
         return Response.json({ personID: "synthetic-campus-student" });

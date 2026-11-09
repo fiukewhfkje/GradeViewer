@@ -13,6 +13,10 @@
     "bindings": [{ "name": "VAULT", "class_name": "FixtureVault" }],
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["FixtureVault"] }],
-  "vars": { "APP_PASSWORD": "synthetic-owner-password-for-tests-only" },
+  "vars": {
+    "APP_PASSWORD": "synthetic-owner-password-for-tests-only",
+    "APP_PASSWORD_RESET": "synthetic-dashboard-reset-for-tests-only",
+    "CARMEN_DIAGNOSTICS_KEY": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  },
   "observability": { "enabled": false },
 }

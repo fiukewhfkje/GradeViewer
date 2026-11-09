@@ -1,6 +1,6 @@
-import { parseSection, type Row } from "./parser";
-import { calculate } from "./calculator";
-import { reconcile } from "./reconcile";
+import { parseSection, type Row } from "../src/core/parser";
+import { calculate } from "../src/core/calculator";
+import { reconcile } from "../src/core/reconcile";
 export const SYNTHETIC_ACCOUNT = "sample-student";
 export function syntheticPayload(sectionID = "100", now = Date.now()) {
   const year = new Date(now).getUTCFullYear(),
@@ -136,13 +136,13 @@ export function syntheticPayload(sectionID = "100", now = Date.now()) {
   });
   return { section, grades, items, categories, periods };
 }
-export function demoCourses(now = Date.now()) {
+export function syntheticCourses(now = Date.now()) {
   return reconcile(
     Array.from({ length: 5 }, (_, i) => {
       const sectionID = String(100 + i),
         p = syntheticPayload(sectionID, now);
       const courses = parseSection({ ...p, owner: sectionID, fetched: now });
-      // AP Physics 1 demonstrates an official semester override in sample mode.
+      // Exercise a provider-reported semester override.
       const example =
         sectionID === "101" && courses.find((c) => c.term.id === "p3");
       if (example) {

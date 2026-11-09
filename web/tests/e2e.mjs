@@ -119,6 +119,23 @@ async function stop() {
     clearTimeout(timer);
   }
 }
+async function openConnection(page, title) {
+  const summary = page
+    .locator(".settings-provider > summary")
+    .filter({ hasText: title });
+  if (!(await summary.evaluate((node) => node.parentElement.open)))
+    await summary.click();
+}
+async function completeCarmenSignIn(page, client) {
+  await page
+    .getByRole("link", { name: "Open CarmenCanvas", exact: true })
+    .click();
+  await client.post(base + "/api/fixture/carmen", { data: { signedIn: true } });
+  await page
+    .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
+    .waitFor();
+  await page.waitForFunction(() => !document.querySelector(".portal-progress"));
+}
 async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
   if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
@@ -229,6 +246,42 @@ try {
     console.error("Synthetic page error:", e.message);
   });
   await check("private API and security headers", async () => {
+    const diagnosticsURL = base + "/api/carmen/diagnostics";
+    assert.equal((await fetch(diagnosticsURL)).status, 401);
+    const operatorHeaders = {
+      Authorization:
+        "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    };
+    const diagnostic = await fetch(diagnosticsURL, {
+      headers: operatorHeaders,
+    });
+    assert.equal(diagnostic.status, 200);
+    assert.deepEqual(await diagnostic.json(), { diagnostics: null });
+    const forbiddenWrite = await fetch(base + "/api/carmen/disconnect", {
+      method: "POST",
+      headers: {
+        ...operatorHeaders,
+        Origin: base,
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+    assert.equal(forbiddenWrite.status, 401);
+    assert.equal(
+      (
+        await fetch(base + "/api/carmen/compatibility", {
+          headers: operatorHeaders,
+        })
+      ).status,
+      401,
+    );
+    const icDiagnosticURL = base + "/api/campus/diagnostics";
+    assert.equal((await fetch(icDiagnosticURL)).status, 401);
+    const icDiagnostic = await fetch(icDiagnosticURL, {
+      headers: operatorHeaders,
+    });
+    assert.equal(icDiagnostic.status, 200);
+    assert.deepEqual(await icDiagnostic.json(), { diagnostics: null });
     const shell = await fetch(base);
     assert.match(
       shell.headers.get("Content-Security-Policy"),
@@ -259,6 +312,8 @@ try {
       .getByLabel("App password", { exact: true })
       .fill("synthetic-owner-password-for-tests-only");
     await page.getByRole("button", { name: "Unlock app", exact: true }).click();
+    await page.getByLabel("Schoology API key", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Set up", { exact: true }).count(), 3);
     await page.getByLabel("Schoology API key", { exact: true }).fill("fixture");
     await page
       .getByLabel("Schoology API secret", { exact: true })
@@ -370,6 +425,7 @@ try {
           });
         }
       }
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1204,6 +1260,7 @@ try {
           };
         });
       });
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1282,6 +1339,7 @@ try {
     "interrupted local activation recovers the prepared snapshot on reload",
     async () => {
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1419,6 +1477,7 @@ try {
         originalWorker = await readFile("dist/sw.js");
       originalDeployment = { index: originalIndex, worker: originalWorker };
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
       await page
         .getByRole("button", { name: "Update connection", exact: true })
         .click();
@@ -1794,6 +1853,12 @@ try {
         await appPage.locator('.pull-refresh[data-phase="idle"]').waitFor();
         assert.equal(scans, 2);
         assert.equal(await appPage.locator(".course").count(), 5);
+        // The state timer can precede WebKit's final CSS animation frame.
+        await appPage.waitForFunction(
+          () =>
+            getComputedStyle(document.querySelector(".refresh-content"))
+              .transform === "matrix(1, 0, 0, 1, 0, 0)",
+        );
         assert.equal(
           await appPage
             .locator(".refresh-content")
@@ -1830,6 +1895,7 @@ try {
           };
         };
       });
+      await openConnection(page, "Infinite Campus");
       const connect = page.getByRole("button", {
         name: "Connect Infinite Campus",
         exact: true,
@@ -1864,7 +1930,7 @@ try {
         await openSignIn.click();
         assert.equal(
           await page.locator("body").getAttribute("data-campus-destination"),
-          "/api/fixture/portal-window",
+          "/api/fixture/portal-window?provider=campus",
         );
         assert.equal(
           await page.locator("body").getAttribute("data-campus-popup"),
@@ -1879,8 +1945,7 @@ try {
         });
         progress.release();
         await page
-          .getByRole("status")
-          .filter({ hasText: "Infinite Campus connected." })
+          .getByRole("heading", { name: "Choose your classes", exact: true })
           .waitFor();
       } finally {
         await progress.close();
@@ -1953,6 +2018,48 @@ try {
       assert.match(await page.locator(".summary .grade").innerText(), /90/);
       await page.getByLabel("Close course", { exact: true }).click();
       await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const icConnection = page
+          .locator(".portal-connection")
+          .filter({ hasText: "Infinite Campus" }),
+        icMaintenance = icConnection.getByRole("switch", {
+          name: "Keep connected",
+          exact: true,
+        });
+      assert.equal(await icMaintenance.isChecked(), false);
+      let maintenanceScans = 0;
+      const countMaintenanceScans = (request) => {
+        if (request.url().endsWith("/api/scan/start")) maintenanceScans++;
+      };
+      page.on("request", countMaintenanceScans);
+      const preference = await holdFixture(context.request, "maintenance");
+      try {
+        await icMaintenance.check();
+        await preference.received();
+        assert.equal(await icMaintenance.isChecked(), true);
+        const before = await (
+          await context.request.get(base + "/api/status")
+        ).json();
+        assert.equal(before.portals.campus.maintenance, false);
+      } finally {
+        await preference.close();
+      }
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.campus
+            .maintenance,
+      );
+      await icMaintenance.uncheck();
+      await page.waitForFunction(
+        async () =>
+          !(await (await fetch("/api/status")).json()).portals.campus
+            .maintenance,
+      );
+      page.off("request", countMaintenanceScans);
+      assert.equal(
+        maintenanceScans,
+        0,
+        "IC maintenance settings must not scan Schoology",
+      );
       await context.request.post(base + "/api/fixture/campus", {
         data: { courseDelayMs: 1200 },
       });
@@ -1965,7 +2072,7 @@ try {
         .getByRole("heading", { name: "Choose your classes", exact: true })
         .waitFor({ timeout: 500 });
       await page.getByText("Loading IC courses…", { exact: true }).waitFor();
-      await page.getByText(/both copies count toward GPA/).waitFor();
+      await page.getByText(/Both copies of a class count toward GPA/).waitFor();
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .waitFor();
@@ -1982,9 +2089,10 @@ try {
         0,
       );
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { failure: true },
+      const expired = await context.request.post(base + "/api/fixture/campus", {
+        data: { expireSession: true },
       });
+      assert.deepEqual(await expired.json(), { expired: true });
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
         .click();
@@ -1994,14 +2102,15 @@ try {
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
-      await context.request.post(base + "/api/fixture/campus", {
-        data: { failure: false },
-      });
       progress = await holdRequest(page, "**/api/campus/progress");
       try {
         await page
           .getByRole("button", { name: "Settings", exact: true })
           .click();
+        await page
+          .locator("summary", { hasText: "Infinite Campus" })
+          .locator('[data-health="error"]')
+          .waitFor();
         await page
           .getByRole("button", {
             name: "Reconnect Infinite Campus",
@@ -2009,13 +2118,15 @@ try {
           })
           .click();
         await openSignIn.click();
-        await context.request.post(base + "/api/fixture/campus", {
-          data: { signedIn: true },
-        });
+        const signedIn = await context.request.post(
+          base + "/api/fixture/portal-window?provider=campus",
+          { headers: { Origin: base } },
+        );
+        assert.equal(signedIn.ok(), true);
         progress.release();
         await page
-          .getByRole("status")
-          .filter({ hasText: "Infinite Campus connected." })
+          .locator("summary", { hasText: "Infinite Campus" })
+          .locator('[data-health="connected"]')
           .waitFor();
       } finally {
         await progress.close();
@@ -2043,8 +2154,205 @@ try {
       );
     },
   );
+  await check(
+    "Carmen experiment switches LMS views without losing sessions, grades or diagnostics",
+    async () => {
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      const before = await (
+        await context.request.get(base + "/api/status")
+      ).json();
+      let schoologyScans = 0;
+      const countSchoology = (request) => {
+        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+      };
+      page.on("request", countSchoology);
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Experimental", { exact: true })
+        .waitFor();
+      await openConnection(page, "CarmenCanvas");
+      const copyReport = page.getByRole("button", {
+        name: "Copy compatibility report",
+      });
+      assert.equal(await copyReport.isEnabled(), false);
+      await page
+        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
+        .click();
+      await completeCarmenSignIn(page, context.request);
+      const otherConnections = page.locator(".connection-heading > strong", {
+        hasText: /^(Schoology|Infinite Campus)$/,
+      });
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .check();
+      assert.equal(await otherConnections.count(), 0);
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 1,
+      );
+      page.off("request", countSchoology);
+      assert.equal(
+        schoologyScans,
+        0,
+        "Connecting/switching to Carmen must not scan Schoology",
+      );
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /Synthetic Carmen Calculus/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            async write(items) {
+              const blob = await items[0].getType("text/plain");
+              document.body.dataset.copiedCarmenReport = await blob.text();
+            },
+          },
+        });
+      });
+      await copyReport.click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "Report copied." })
+        .waitFor();
+      const copied = await page
+        .locator("body")
+        .getAttribute("data-copied-carmen-report");
+      const report = JSON.parse(copied);
+      assert.equal(report.signIn.result, "ok");
+      assert.equal(report.sync.result, "ok");
+      assert.deepEqual(
+        report.sync.responses.enrollments.fields["$[].grades.current_score"],
+        ["number"],
+      );
+      assert.doesNotMatch(
+        copied,
+        /Synthetic Carmen Calculus|synthetic-canvas-session|https:\/\//,
+      );
+      await page.evaluate(() => {
+        navigator.clipboard.write = async () => {
+          throw new Error("Clipboard denied");
+        };
+      });
+      await copyReport.click();
+      const fallback = page.getByRole("textbox", {
+        name: "Carmen compatibility report",
+      });
+      await fallback.waitFor();
+      assert.deepEqual(JSON.parse(await fallback.inputValue()), report);
+      const keepCarmen = page
+        .locator(".portal-connection")
+        .filter({ hasText: "CarmenCanvas" })
+        .getByRole("switch", { name: "Keep connected", exact: true });
+      assert.equal(await keepCarmen.isChecked(), false);
+      await keepCarmen.check();
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
+      );
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Connected", { exact: true })
+        .waitFor();
+      assert.equal(await page.getByText(/Total verified uptime/).count(), 0);
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Check connection", exact: true })
+          .count(),
+        0,
+      );
+      for (const width of [320, 768, 1440]) {
+        await page.setViewportSize({ width, height: 900 });
+        assert.equal(
+          await page
+            .locator(".profile")
+            .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+          true,
+        );
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page
+        .locator(".portal-connection")
+        .filter({ hasText: "CarmenCanvas" })
+        .screenshot({ path: directory + "/settings-carmen-experiment.png" });
+      await context.request.post(base + "/api/fixture/carmen", {
+        data: { empty: true },
+      });
+      const refreshed = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/api/carmen/snapshot") && response.ok(),
+      );
+      await page
+        .getByRole("button", { name: "Refresh grades", exact: true })
+        .click();
+      await refreshed;
+      await page
+        .locator("summary", { hasText: "CarmenCanvas" })
+        .getByText("Connected", { exact: true })
+        .waitFor();
+      assert.equal(
+        (await (await context.request.get(base + "/api/status")).json()).portals
+          .carmen.diagnostics.courseCount,
+        0,
+      );
+      const operatorResult = await (
+        await fetch(base + "/api/carmen/diagnostics", {
+          headers: {
+            Authorization:
+              "Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          },
+        })
+      ).json();
+      assert.equal(operatorResult.diagnostics.courseCount, 0);
+      assert.doesNotMatch(
+        JSON.stringify(operatorResult),
+        /synthetic-canvas-session|_normandy_session|Synthetic Carmen Calculus|"subject"|"cookies"/,
+      );
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page
+        .getByRole("heading", { name: "No Carmen grades yet", exact: true })
+        .waitFor();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .uncheck();
+      assert.equal(await otherConnections.count(), 2);
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 5,
+      );
+      const after = await (
+        await context.request.get(base + "/api/status")
+      ).json();
+      assert.equal(after.account, before.account);
+      assert.equal(after.schoologyConnected, true);
+      assert.equal(after.portals.carmen.connected, true);
+      assert.equal(after.portals.carmen.maintenance, true);
+      await page.reload();
+      await page
+        .locator(".courses")
+        .getByRole("button", { name: /AP Biology/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "CarmenCanvas");
+      await page
+        .getByRole("button", { name: "Disconnect CarmenCanvas", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
+        .waitFor();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await page.waitForFunction(
+        () => document.querySelectorAll(".courses .course").length === 5,
+      );
+    },
+  );
   await check("disconnect clears data and revokes sessions", async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await openConnection(page, "Schoology");
     await page.getByRole("button", { name: "Disconnect", exact: true }).click();
     await page
       .getByRole("button", { name: "Disconnect and clear data", exact: true })
@@ -2067,17 +2375,202 @@ try {
     assert.equal(count, 0);
   });
   await check(
-    "desktop sample mode stays separate from real persistent data",
+    "Carmen standalone connection, GPA, expiry, reconnect, and independent Schoology removal",
     async () => {
-      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(base);
       await page
-        .getByRole("button", { name: "Try sample grades", exact: true })
+        .getByLabel("App password", { exact: true })
+        .fill("synthetic-owner-password-for-tests-only");
+      await page
+        .getByRole("button", { name: "Unlock app", exact: true })
+        .click();
+      await openConnection(page, "CarmenCanvas");
+      const carmenMode = page.getByRole("switch", {
+        name: /Use Carmen as main LMS/,
+      });
+      await carmenMode.check();
+      await carmenMode.and(page.locator(":enabled")).waitFor();
+      await page.reload();
+      await openConnection(page, "CarmenCanvas");
+      assert.equal(await carmenMode.isChecked(), true);
+      assert.equal(
+        await page.getByLabel("Schoology API key", { exact: true }).count(),
+        0,
+      );
+      await page
+        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
+        .click();
+      await completeCarmenSignIn(page, context.request);
+      const carmenMaintenance = page.getByRole("switch", {
+        name: "Keep connected",
+        exact: true,
+      });
+      await carmenMaintenance.waitFor();
+      assert.equal(await carmenMaintenance.isChecked(), false);
+      await carmenMaintenance.check();
+      await page.waitForFunction(
+        async () =>
+          (await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
+      );
+      await carmenMaintenance.uncheck();
+      await page.waitForFunction(
+        async () =>
+          !(await (await fetch("/api/status")).json()).portals.carmen
+            .maintenance,
+      );
+      await page.screenshot({ path: directory + "/settings-carmen.png" });
+      const status = await (
+        await context.request.get(base + "/api/status")
+      ).json();
+      assert.equal(status.schoologyConnected, false);
+      assert.match(status.account, /^workspace:/);
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      const card = page
+        .locator(".courses")
+        .getByRole("button", { name: /Synthetic Carmen Calculus/ });
+      await card.waitFor();
+      assert.match(await card.innerText(), /86/);
+      await card.click();
+      await page
+        .getByText("Synthetic Carmen homework", { exact: true })
+        .first()
+        .waitFor();
+      await page.getByLabel("Close course", { exact: true }).click();
+      await page
+        .locator(".gpa-card summary")
+        .filter({ hasText: "Ohio State semester GPA" })
+        .click();
+      await page
+        .getByRole("button", { name: "Use Ohio State GPA scale", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Edit courses", exact: true })
+        .click();
+      await page.getByLabel("Semester credits", { exact: true }).fill("3");
+      await page
+        .getByRole("button", { name: "Save GPA settings", exact: true })
+        .click();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll(".gpa-card summary")].some((e) =>
+          e.textContent.includes("3.00"),
+        ),
+      );
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await context.request.post(base + "/api/fixture/carmen", {
+        data: { failure: true },
+      });
+      await page
+        .getByRole("button", { name: "Refresh grades", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: /Carmen/ })
+        .waitFor();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await card.waitFor();
+      await context.request.post(base + "/api/fixture/carmen", {
+        data: { failure: false },
+      });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
+        .click();
+      await completeCarmenSignIn(page, context.request);
+      assert.equal(
+        (await (await context.request.get(base + "/api/status")).json())
+          .account,
+        status.account,
+      );
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .uncheck();
+      await page
+        .getByLabel("Schoology API key", { exact: true })
+        .fill("fixture");
+      await page
+        .getByLabel("Schoology API secret", { exact: true })
+        .fill("fixture-secret");
+      await page
+        .getByRole("button", { name: "Connect Schoology", exact: true })
         .click();
       await page
         .locator(".courses .course")
         .filter({ hasText: "AP Biology" })
         .waitFor();
-      await page.screenshot({ path: directory + "/desktop-demo.png" });
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await openConnection(page, "Schoology");
+      await page
+        .getByRole("button", { name: "Disconnect", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Disconnect and clear data", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Connect Schoology", exact: true })
+        .waitFor();
+      await page
+        .getByRole("switch", { name: /Use Carmen as main LMS/ })
+        .check();
+      await page.getByRole("button", { name: "Grades", exact: true }).click();
+      await card.waitFor();
+      assert.equal(await page.locator(".courses .course").count(), 1);
+      assert.equal(
+        (await (await context.request.get(base + "/api/status")).json())
+          .account,
+        status.account,
+      );
+      assert.match(await page.locator(".gpa-card summary").innerText(), /3.00/);
+      await page.getByRole("button", { name: "Settings", exact: true }).click();
+      await page
+        .getByRole("button", { name: "Disconnect CarmenCanvas", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
+        .waitFor();
+      // Return to the locked state before the desktop Schoology flow.
+      assert.equal(
+        (
+          await context.request.post(base + "/api/disconnect", {
+            data: {},
+            headers: { Origin: base },
+          })
+        ).status(),
+        200,
+      );
+      await page.reload();
+      await page.getByLabel("App password", { exact: true }).waitFor();
+    },
+  );
+  await check(
+    "desktop grades and Settings use the normal Schoology connection",
+    async () => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.getByLabel("App password", { exact: true }).waitFor();
+      await page
+        .getByRole("button", { name: "Try sample grades", exact: true })
+        .waitFor({ state: "detached" });
+      assert.equal(await page.locator(".courses .course").count(), 0);
+      await page
+        .getByLabel("App password", { exact: true })
+        .fill("synthetic-owner-password-for-tests-only");
+      await page
+        .getByRole("button", { name: "Unlock app", exact: true })
+        .click();
+      await page
+        .getByLabel("Schoology API key", { exact: true })
+        .fill("fixture");
+      await page
+        .getByLabel("Schoology API secret", { exact: true })
+        .fill("fixture-secret");
+      await page
+        .getByRole("button", { name: "Connect Schoology", exact: true })
+        .click();
+      await page
+        .locator(".courses .course")
+        .filter({ hasText: "AP Biology" })
+        .waitFor();
+      await page.screenshot({ path: directory + "/desktop-grades.png" });
       const cards = await page.locator(".courses .course").all();
       const first = await cards[0].boundingBox(),
         second = await cards[1].boundingBox();
@@ -2151,7 +2644,16 @@ try {
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .connected,
-        false,
+        true,
+      );
+      assert.equal(
+        (
+          await context.request.post(base + "/api/disconnect", {
+            data: {},
+            headers: { Origin: base },
+          })
+        ).status(),
+        200,
       );
     },
   );
@@ -2362,6 +2864,96 @@ try {
           data: { enabled: false },
         });
         await isolated.close();
+      }
+    },
+  );
+  await check(
+    "password change and dashboard reset preserve the Schoology connection",
+    async () => {
+      const original = "synthetic-owner-password-for-tests-only";
+      const next = "synthetic-new-password-for-tests-only";
+      const reset = "synthetic-dashboard-reset-for-tests-only";
+      const login = (client, password) =>
+        client.post(base + "/api/login", {
+          data: { password },
+          headers: { Origin: base },
+        });
+      const current = await browser.newContext({ ignoreHTTPSErrors: true });
+      const other = await browser.newContext({ ignoreHTTPSErrors: true });
+      const settings = await current.newPage();
+      try {
+        assert.equal((await login(current.request, original)).status(), 200);
+        assert.equal((await login(other.request, original)).status(), 200);
+        await settings.clock.install();
+        await settings.goto(base);
+        await settings.locator(".courses").waitFor();
+        await settings
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await settings
+          .getByRole("button", { name: "Change app password", exact: true })
+          .click();
+        const dialog = settings.getByRole("dialog", {
+          name: "Change app password",
+          exact: true,
+        });
+        await dialog
+          .getByLabel("Current password", { exact: true })
+          .fill(original);
+        await dialog.getByLabel("New password", { exact: true }).fill(next);
+        await dialog
+          .getByLabel("Confirm new password", { exact: true })
+          .fill(next);
+        await dialog
+          .getByRole("button", { name: "Save password", exact: true })
+          .click();
+        const confirmation = settings.getByText("App password changed.", {
+          exact: true,
+        });
+        await confirmation.waitFor();
+        await settings.clock.fastForward(5000);
+        await confirmation.waitFor({ state: "hidden" });
+        const status = await (
+          await current.request.get(base + "/api/status")
+        ).json();
+        assert.equal(status.authenticated, true);
+        assert.equal(status.schoologyConnected, true);
+        assert.equal(
+          (await (await other.request.get(base + "/api/status")).json())
+            .authenticated,
+          false,
+        );
+        assert.equal((await login(other.request, original)).status(), 401);
+        assert.equal((await login(other.request, next)).status(), 200);
+        assert.equal((await login(other.request, reset)).status(), 200);
+        assert.equal((await login(current.request, next)).status(), 401);
+        assert.equal(
+          (await (await other.request.get(base + "/api/status")).json())
+            .schoologyConnected,
+          true,
+        );
+        assert.equal(
+          (
+            await other.request.post(base + "/api/scan/start", {
+              headers: { Origin: base },
+              data: {},
+            })
+          ).status(),
+          200,
+        );
+        assert.equal(
+          (
+            await other.request.post(base + "/api/password", {
+              headers: { Origin: base },
+              data: { currentPassword: reset, newPassword: next },
+            })
+          ).status(),
+          200,
+        );
+        assert.equal((await login(current.request, reset)).status(), 401);
+      } finally {
+        await current.close();
+        await other.close();
       }
     },
   );
