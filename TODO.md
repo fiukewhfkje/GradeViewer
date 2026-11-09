@@ -1,3 +1,8 @@
+# Connector setup and reconnect — November 9
+
+- [x] Read the saved post-update records. IC rejected the saved session at 12:10 EST and the owner reconnected successfully. Carmen has no verification after the last experimental check. Both background counters stopped.
+- [x] Distinguish first-time setup from an expired connection and return an expired course picker to Reconnect.
+
 # Stable release preparation — November 6
 
 - [x] Remove the sample-grades button and mode on the development branch while keeping synthetic tests.

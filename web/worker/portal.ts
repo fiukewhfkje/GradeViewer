@@ -1221,10 +1221,10 @@ export class PortalService {
           if (c.pending) await browser.detach?.().catch(() => {});
         }
       }
+      if (!c.account) throw new ApiError(409, "portalConnectRequired");
       if (action === "maintenance") {
         if (typeof b.enabled !== "boolean")
           throw new ApiError(400, "invalidRequest");
-        if (!c.account) throw new ApiError(409, "portalConnectRequired");
         c.keepConnected = b.enabled;
         delete c.maintenancePaused;
         c.maintenanceFailures = 0;

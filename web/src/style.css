@@ -1673,7 +1673,7 @@ svg.spinning {
   .settings-provider > summary:hover,
   .settings-action:hover,
   .app-actions .settings-card > button:hover,
-  .portal-actions > button:hover {
+  .portal-actions > button:not(.primary):hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 }

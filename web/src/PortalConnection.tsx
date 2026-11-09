@@ -109,6 +109,7 @@ export function PortalConnection({
   useEffect(() => setMaintenance(!!status?.maintenance), [status?.maintenance]);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
+  const needsReconnect = !!(status?.connected && status.needsReconnect);
   const interval = carmen ? 90 : 20;
   const health = usePortalHealth(
     status,
@@ -123,6 +124,15 @@ export function PortalConnection({
       await task();
     } catch (e) {
       setMessage(errorMessage(e));
+      if (
+        e instanceof RequestError &&
+        (e.code === "portalSignInRequired" ||
+          e.code === "portalPasswordChanged" ||
+          e.code === "portalAccountChanged")
+      ) {
+        setChoosing(false);
+        await refreshStatus().catch(() => {});
+      }
     } finally {
       setWorking("");
     }
@@ -377,7 +387,7 @@ export function PortalConnection({
           </div>
         ) : status?.connected ? (
           <>
-            {!carmen && (
+            {!carmen && !needsReconnect && (
               <button
                 className="settings-action portal-action"
                 disabled={disabled || busy}
@@ -430,13 +440,14 @@ export function PortalConnection({
             </div>
             <div className="portal-actions">
               <button
+                className={needsReconnect ? "primary" : undefined}
                 aria-label={`Reconnect ${title}`}
                 disabled={disabled || busy}
                 onClick={() =>
                   void run(start, "Preparing the sign-in browser…")
                 }
               >
-                Reconnect
+                {needsReconnect ? `Reconnect ${title}` : "Reconnect"}
               </button>
               <button
                 className="danger"
@@ -460,7 +471,9 @@ export function PortalConnection({
             <p className="portal-description">
               {carmen
                 ? "Connect your Ohio State student courses with your regular school sign-in."
-                : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
+                : disabled
+                  ? "Connect Schoology first to add Infinite Campus classes."
+                  : "Find your district and sign in to add classes that only use Infinite Campus. The temporary sign-in browser closes when you finish."}
             </p>
             <button
               className="primary portal-connect"

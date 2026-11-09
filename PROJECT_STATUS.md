@@ -1,3 +1,13 @@
+# Connector setup and reconnect follow-up — November 9, 2026
+
+v0.2.2 ended the experimental background schedules for both providers. It kept their saved sessions and diagnostics. A pending legacy alarm could wake and exit without a provider request. Both scheduled-check counts remain at their pre-release totals (IC 297, Carmen 69).
+
+The saved IC record shows a successful foreground check at 09:32:06 EST, a first observed authentication rejection (HTTP 401) at 12:10:14 EST and a successful manual reconnect at 12:11:48 EST. That bounds the observed failure between the last successful check and first rejection, without identifying the provider timeout. Subsequent IC reads succeeded. Carmen last passed at 08:39:23 EST and has no later recorded checks, so its current session validity is unknown. Reading diagnostics made no provider requests and changed no settings.
+
+The development branch makes Connect the first-time action and explains the Schoology prerequisite for IC. An established connection that requires sign-in shows a prominent Reconnect action. An authentication rejection while choosing IC classes returns Settings to that action and preserves saved classes. An unfinished first setup now reports that a connection is required, without marking it for reconnect.
+
+The production build and type check, 304 unit tests, all 38 browser checks per engine in Chromium and WebKit, 106-file packaging and Worker dry-run passed. The follow-up is on the development branch. The owner Worker continues to run stable v0.2.2.
+
 # v0.2.2 release and weekend experiment — November 9, 2026
 
 The owner concluded the weekend experiment and authorized a main merge, an update to the existing Worker and a signed stable release with Carmen marked Experimental. Stable includes simplified Settings, opt-in connector maintenance, app password change and recovery, removal of sample grades and the shareable Carmen compatibility report.

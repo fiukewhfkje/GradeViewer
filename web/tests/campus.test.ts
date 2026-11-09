@@ -580,6 +580,10 @@ describe("encrypted IC session and selected snapshots", () => {
     const h = harness();
     await h.service.handle("start", { portal: campusPortal });
     expect((await h.service.status()).connected).toBe(false);
+    await expect(h.service.handle("courses")).rejects.toThrow(
+      "portalConnectRequired",
+    );
+    expect((await h.service.status()).needsReconnect).toBe(false);
     await h.service.handle("finish");
     expect((await h.service.status()).connected).toBe(true);
     expect(JSON.stringify([...h.data.values()])).not.toContain(

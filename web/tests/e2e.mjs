@@ -314,6 +314,22 @@ try {
     await page.getByRole("button", { name: "Unlock app", exact: true }).click();
     await page.getByLabel("Schoology API key", { exact: true }).waitFor();
     assert.equal(await page.getByText("Set up", { exact: true }).count(), 3);
+    await openConnection(page, "Infinite Campus");
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+        .isDisabled(),
+      true,
+    );
+    await page
+      .getByText("Connect Schoology first to add Infinite Campus classes.")
+      .waitFor();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
+        .count(),
+      0,
+    );
     await page.getByLabel("Schoology API key", { exact: true }).fill("fixture");
     await page
       .getByLabel("Schoology API secret", { exact: true })
@@ -1900,6 +1916,7 @@ try {
         name: "Connect Infinite Campus",
         exact: true,
       });
+      assert.equal(await connect.isEnabled(), true);
       const openSignIn = page.getByRole("link", {
         name: "Open Campus Student",
       });
@@ -2088,17 +2105,26 @@ try {
         await page.getByText("Loading IC courses…", { exact: true }).count(),
         0,
       );
-      await page.getByRole("button", { name: "Cancel", exact: true }).click();
       const expired = await context.request.post(base + "/api/fixture/campus", {
         data: { expireSession: true },
       });
       assert.deepEqual(await expired.json(), { expired: true });
       await page
-        .getByRole("button", { name: "Refresh grades", exact: true })
+        .getByRole("button", { name: "Save IC courses", exact: true })
         .click();
       await page
         .getByRole("alert")
-        .filter({ hasText: /Infinite Campus/ })
+        .filter({
+          hasText: "Reconnect Infinite Campus to refresh your grades.",
+        })
+        .waitFor();
+      await page
+        .getByRole("heading", { name: "Choose your classes" })
+        .waitFor({ state: "hidden" });
+      await page
+        .locator(".portal-actions .primary", {
+          hasText: "Reconnect Infinite Campus",
+        })
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
