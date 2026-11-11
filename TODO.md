@@ -1,3 +1,12 @@
+# Update notice and spacing — November 11
+
+- [x] Shorten the ready-update notice and preserve its activation safeguards and accessible action name.
+- [x] Keep update-check feedback inside the App card and remove the overlapping negative-margin placement.
+- [x] Tighten the preference reset-link spacing without reducing tap targets; share a redesigned reload icon across the UI.
+- [x] Capture matching before/after views and provide a local comparison with working controls and all six images.
+- [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 13 focused WebKit flows, additional compact-notice layout checks, 109-file packaging and formatting.
+- [ ] Obtain owner acceptance before merging, deploying or releasing. Physical-device acceptance remains separate.
+
 # Compact controls and quick slides — November 11
 
 - [x] Match the theme and Reduce motion tracks at 60 × 32 pixels while retaining comfortable tap targets.

@@ -1588,6 +1588,22 @@ try {
         .getByRole("button", { name: "Check for updates", exact: true })
         .click();
       await page.getByText("You’re up to date.", { exact: true }).waitFor();
+      const feedback = await page.locator(".update-result").evaluate((node) => {
+        const card = node.closest(".settings-card");
+        if (!card) return { contained: false, separated: false };
+        const box = node.getBoundingClientRect();
+        const bounds = card.getBoundingClientRect();
+        const previous = node.previousElementSibling.getBoundingClientRect();
+        return {
+          contained:
+            box.top >= bounds.top &&
+            box.bottom <= bounds.bottom &&
+            box.left >= bounds.left &&
+            box.right <= bounds.right,
+          separated: box.top >= previous.bottom,
+        };
+      });
+      assert.deepEqual(feedback, { contained: true, separated: true });
       await context.setOffline(true);
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
@@ -1992,6 +2008,15 @@ try {
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
+        const notice = await page.locator(".update").evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const parent = node.parentElement.getBoundingClientRect();
+          return {
+            compact: box.width < Math.min(280, parent.width * 0.9),
+            contained: box.left >= parent.left && box.right <= parent.right,
+          };
+        });
+        assert.deepEqual(notice, { compact: true, contained: true });
         await Promise.all([
           page.waitForNavigation({ waitUntil: "load" }),
           page.getByRole("button", { name: "Update now", exact: true }).click(),

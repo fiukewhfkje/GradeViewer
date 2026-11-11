@@ -1,3 +1,11 @@
+# Update notice, result alignment and spacing — November 11, 2026
+
+Production build/type check, 306 unit tests, all 41 Chromium flows, 13 focused WebKit flows, 109-file source packaging and formatting passed. New geometry assertions verify update-check feedback is contained within its App card and starts after the preceding action, and that the ready-update notice stays compact and inside its parent. The existing real service-worker activation, cross-tab form preservation and unsaved-change guard flow passes with the new Reload presentation. The focused WebKit selection adds final-calculator/categories navigation, phone Settings/install help and online/offline update feedback to the prior ten flows.
+
+An additional synthetic WebKit probe verifies the ready notice and its 44px Reload target at 320, 390 and 1280 CSS pixels. Headless screenshots before and after were captured with identical viewport/theme/preferences for the update notice and reload icon, App result feedback and preference spacing. The update-ready screenshots use a local waiting-worker UI fixture; they do not indicate an update or failure in a real account. All six captures and the comparison viewer's controls loaded under the unchanged content security policy without script or image errors. The local comparison remains outside Git/release sources at `web/.local-test/motion-preview/comparison/` and is served from `/preview-comparison/index.html?review=1` on the synthetic preview.
+
+No provider requests, Browser Run quota, stable publication or production mutation were used. Owner and physical-device acceptance remain open.
+
 # Compact controls and quick slides — November 11, 2026
 
 Build/type check, 306 unit tests, all 41 Chromium browser flows, 10 focused WebKit flows, 108-file source packaging and formatting passed. The focused selection adds disclosure interaction to the prior appearance/navigation/cache/pull/graph checks. The new regression verifies keyboard opening, reversal during closing, focus returning from a panel control to its summary, cleanup of temporary clipping, cancellation when reduced motion is enabled and immediate native toggling afterward. Existing form retention, graph gestures, provider reconnects and password checks remain green in the full Chromium run.

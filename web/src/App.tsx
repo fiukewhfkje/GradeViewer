@@ -1,6 +1,7 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { AppearanceSettings, useAppearance } from "./Appearance";
 import { useDisclosureMotion } from "./useDisclosureMotion";
+import { ReloadIcon } from "./ReloadIcon";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -15,7 +16,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
-  RefreshCw,
   User,
   Settings,
   MoreVertical,
@@ -1266,18 +1266,21 @@ export default function App() {
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <RefreshCw size={21} />
+                  <ReloadIcon size={21} />
                 </button>
               )}
             </header>
             {update && (
-              <aside className="update">
-                {applyingUpdate ? "Installing update…" : "An update is ready."}
+              <aside className="update" aria-label="App update">
+                <span>{applyingUpdate ? "Installing…" : "Update ready"}</span>
                 <button
+                  aria-label="Reload to update"
+                  className={applyingUpdate ? "spinning" : undefined}
                   disabled={busy || applyingUpdate || !!modal}
                   onClick={activateUpdate}
                 >
-                  {applyingUpdate ? "Updating…" : "Reload to update"}
+                  <ReloadIcon size={16} />
+                  {applyingUpdate ? "Updating…" : "Reload"}
                 </button>
               </aside>
             )}
@@ -1539,7 +1542,7 @@ export default function App() {
                               disabled={busy || applyingUpdate || !!modal}
                               onClick={activateUpdate}
                             >
-                              <RefreshCw size={18} />{" "}
+                              <ReloadIcon size={18} />{" "}
                               {applyingUpdate ? "Updating…" : "Update now"}
                             </button>
                           )}
@@ -1551,8 +1554,13 @@ export default function App() {
                                 void refresh(undefined, true).catch(() => {})
                               }
                             >
-                              <RefreshCw size={18} /> Refresh grades
+                              <ReloadIcon size={18} /> Refresh grades
                             </button>
+                          )}
+                          {updateMessage && (
+                            <p className="update-result" role="status">
+                              {updateMessage}
+                            </p>
                           )}
                         </div>
                       </section>
@@ -1568,11 +1576,6 @@ export default function App() {
                       >
                         Setup guide
                       </a>
-                    </p>
-                  )}
-                  {updateMessage && (
-                    <p className="update-result" role="status">
-                      {updateMessage}
                     </p>
                   )}
                   <p className="profile-footnote">GradeViewer {version}</p>

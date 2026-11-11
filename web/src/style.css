@@ -648,18 +648,37 @@ dialog p {
 }
 .update {
   display: flex;
-  gap: 12px;
-  justify-content: space-between;
+  width: fit-content;
+  max-width: 100%;
+  gap: 10px;
   align-items: center;
-  font-size: 14px;
-  padding: 12px;
+  font-size: 13px;
+  padding: 4px 5px 4px 12px;
   background: var(--row);
-  border-radius: 12px;
-  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  margin: 0 0 14px auto;
 }
 .update button {
-  font-weight: 700;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
   min-height: 44px;
+}
+.reload-icon {
+  flex-shrink: 0;
+  transition: transform 140ms var(--motion-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .icon:not(:disabled):hover > .reload-icon {
+    transform: rotate(25deg);
+  }
 }
 .spinning > svg,
 svg.spinning {
@@ -1118,11 +1137,23 @@ svg.spinning {
   opacity: 1;
 }
 .device-preference {
+  display: flex;
+  align-items: center;
+  width: 100%;
   min-height: 44px;
-  padding: 8px 18px 8px 66px;
+  padding: 0 18px 10px 66px;
   color: var(--blue);
   text-align: left;
   font-size: 12px;
+}
+.appearance-card > .settings-row {
+  transition: padding-bottom 160ms ease-out;
+}
+.appearance-card > .settings-row:has(+ .preference-reset[data-visible="true"]) {
+  padding-bottom: 0;
+}
+.device-preference:focus-visible {
+  outline-offset: -3px;
 }
 .profile .settings-card form {
   padding: 18px;
@@ -1199,7 +1230,9 @@ svg.spinning {
 }
 
 .update-result {
-  margin: -8px 16px 16px;
+  margin: 0;
+  padding: 10px 18px 12px;
+  border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
@@ -1971,6 +2004,7 @@ footer > button.active > :is(svg, .tab-grade) {
     transition: none !important;
   }
   .course:not(:disabled):is(:hover, :active),
+  .icon:not(:disabled):hover > .reload-icon,
   :is(.primary, .secondary, .icon, .back, .pills button, footer button):not(
       :disabled
     ):active,

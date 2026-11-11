@@ -1,3 +1,13 @@
+# Update notice, alignment and reload icon — November 11, 2026
+
+The owner requested a shorter update notice, corrected App feedback alignment, tighter preference-link spacing and a redesigned reload icon. The notice now fits its **Update ready / Reload** contents rather than spanning the page. Its accessible Reload to update action, disabled states and update safeguards remain intact. Update results now occupy a footer inside the App card; the previous result was outside the Settings grid with a negative top margin, causing the overlap in the owner's screenshot. Manual-preference rows use less bottom padding, bringing their blue reset actions closer while retaining 44-pixel targets and existing slide transitions.
+
+A shared, original rounded clockwise SVG replaces the two-arrow reload glyph in the header, update actions and provider progress. It uses the active theme color, retains busy spinning and suppresses hover rotation under reduced motion.
+
+Build/type check, 306 unit tests, all 41 Chromium flows, 13 focused WebKit flows, 109-file source packaging and formatting passed. Geometry assertions now keep update feedback inside its card and the ready notice compact. The actual service-worker update/form-preservation flow still passes; an additional WebKit layout check covers the notice at 320, 390 and 1280 pixels. Matching synthetic before/after captures were inspected for all three requested layout areas. An interactive local comparison, including all six captures, passed image/control/CSP checks and is preserved in `web/.local-test/motion-preview/comparison/`, with a served copy at `/preview-comparison/index.html?review=1` on localhost. No private student screenshots were copied into release sources.
+
+Changes remain on `codex/pwa-motion`; main, stable v0.2.3 and production are unchanged. No merge, tag, release or production deployment occurred. Owner and physical-device acceptance remain pending.
+
 # Compact controls and quick slides — November 11, 2026
 
 The owner requested matching theme/motion switch proportions, a disappearing device-theme reset action and more clean motion without slowing interactions. Both visual tracks are now 60 × 32 CSS pixels. The theme button retains a 44-pixel tap target, and motion retains its full-row target. **Use device theme** shares the motion reset styling, appears only after a manual choice and slides away when device control is restored. Device mode is indicated beside the current Light/Dark label, with no checkmark.
