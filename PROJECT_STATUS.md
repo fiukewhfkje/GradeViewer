@@ -1,3 +1,13 @@
+# Owner Worker dev deployment — November 11, 2026
+
+The owner accepted the UI and explicitly requested deployment to their existing Cloudflare Worker, while retaining the stable release hold. Approved source `988e4e9` on `codex/pwa-motion` deployed to [GradeViewer](https://gradeviewer.fiukewhfkje.workers.dev) as Worker version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, with 100% of traffic on that version. Verification completed at 14:29 EST. The app version label remains 0.2.3; this is a direct owner dev deployment, not a newly published release.
+
+A fresh build/type check and Worker dry-run passed. The deployment used the existing helper with an explicit owner account, `--keep-vars` and strict configuration checks, with password-upload environment variables removed. The Worker backend, configuration and migrations have no changes relative to main. The clean build excluded local comparison/fixture artifacts. All six checked public HTML/JS/CSS/service-worker/installation/manifest hashes match the local build. All five binding fingerprints match pre-deployment, including the original vault namespace, password and diagnostics secrets, Browser and assets bindings. Existing diagnostic records retain their start identities and nondecreasing counters; locked APIs remain locked.
+
+Verification made no provider requests, human sign-ins or Browser Run sessions. It did not inspect live grades or change provider settings. Private sanitized evidence is retained outside Git in `~/Library/Application Support/GradeViewer/DeploymentChecks/motion-20261111-before.json` and `motion-20261111-after.json`. The diagnostic capability was used only for its two authorized read-only GETs.
+
+Main remains `4550018` and the published v0.2.3 release is untouched. No main merge, tag or stable/prerelease publication occurred, and other installations were not updated. Owner visual acceptance is complete; physical-device acceptance remains separate.
+
 # Preference text alignment — November 11, 2026
 
 The owner spotted a remaining alignment mismatch: the motion subtitle started 2px left of its reset link, and the theme/motion subtitle-to-link gaps measured 18px and 9.5px. The motion row inherited a different flex gap and minimum height from GPA switch styling. Both appearance rows now share grid columns and a minimum 44px content track, with intrinsic outer height. In synthetic 320px and 390px captures, each title, subtitle and reset link shares the same left edge and both vertical gaps measure 13px.

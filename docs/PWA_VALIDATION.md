@@ -1,3 +1,11 @@
+# Owner Worker dev deployment — November 11, 2026
+
+Approved source `988e4e9` deployed directly from `codex/pwa-motion` to the existing owner Worker as version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, verified active at 100% traffic. Fresh production build/type check and Worker dry-run passed before upload. Existing synthetic unit/browser/packaging results remain recorded below; broad suites were not repeated for this deployment-only step.
+
+Post-deployment verification at 2026-11-11T19:29:58Z matched all six checked HTML/JS/CSS/service-worker/installation/manifest hashes to the clean build. All five binding fingerprints match the before snapshot, including the same Durable Object vault namespace, password/diagnostics secret bindings and Browser binding. Both saved diagnostic records retained their start identities and monotone counters. Anonymous status reveals no provider state; report and diagnostic routes reject unauthenticated access. The private operator key was sent only to `/api/carmen/diagnostics` and `/api/campus/diagnostics` through the existing guarded reader.
+
+No provider requests, Browser Run sessions, human sign-ins, live grade reads or persistent-data migrations were performed. Local comparison assets were excluded from the uploaded build. Private evidence is retained outside Git under `~/Library/Application Support/GradeViewer/DeploymentChecks/motion-20261111-{before,after}.json`. Main `4550018`, tags and published stable v0.2.3 remain unchanged; this owner deployment is not a stable or prerelease publication. Physical-device acceptance remains open.
+
 # Preference text alignment — November 11, 2026
 
 The screenshot's remaining mismatch was reproduced with synthetic DOM measurements: theme label/subtitle/link x=83 with an 18px gap, versus motion label/subtitle x=81, link x=83 and a 9.5px gap at 390px viewport width. Shared grid columns and content sizing now produce x=83 for both rows at 390px and x=79 at 320px, with equal 13px gaps. Updated screenshots were inspected.

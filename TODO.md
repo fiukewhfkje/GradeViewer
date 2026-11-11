@@ -1,9 +1,16 @@
+# Owner Worker dev deployment — November 11
+
+- [x] Receive owner UI acceptance and authorization to deploy only their existing Worker, with no stable release.
+- [x] Deploy approved dev source `988e4e9` using the existing Worker, account, vault, secrets and URL; exclude local comparison artifacts.
+- [x] Verify the active 100% deployment, six exact public asset hashes, unchanged binding fingerprints, retained private diagnostic records and locked API access without provider requests or Browser Run.
+- [ ] Keep main, tags and releases unchanged until the owner separately authorizes a stable release. Physical-device acceptance remains open.
+
 # Preference text alignment — November 11
 
 - [x] Reproduce the motion subtitle/reset-link 2px offset and unequal vertical gaps with synthetic measurements.
 - [x] Share appearance-row columns and content sizing; verify aligned title/subtitle/link edges and matching 13px gaps at 320px and 390px.
 - [x] Pass build, focused Chromium/WebKit checks, packaging and formatting; refresh the comparison captures.
-- [ ] Obtain owner acceptance; keep the work on the dev branch without release or deployment.
+- [x] Owner accepted the UI and authorized their existing Worker deployment; keep the source on the dev branch and retain the main/stable release hold.
 
 # Update notice and spacing — November 11
 
@@ -12,7 +19,7 @@
 - [x] Tighten the preference reset-link spacing without reducing tap targets; share a redesigned reload icon across the UI.
 - [x] Capture matching before/after views and provide a local comparison with working controls and all six images.
 - [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 13 focused WebKit flows, additional compact-notice layout checks, 109-file packaging and formatting.
-- [ ] Obtain owner acceptance before merging, deploying or releasing. Physical-device acceptance remains separate.
+- [x] Owner accepted the UI and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
 
 # Compact controls and quick slides — November 11
 
@@ -20,7 +27,7 @@
 - [x] Show the shared device reset action only for a manual preference; slide it away after restoration and keep Device beside Light/Dark without a checkmark.
 - [x] Add short, reversible disclosure slides and dialog dismissal; shorten earlier transitions and retain immediate data actions and reduced-motion behavior.
 - [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 10 focused WebKit flows, 108-file packaging and formatting; inspect matched day/night screenshots.
-- [ ] Obtain owner acceptance on localhost before merging, deploying or releasing. Physical-device acceptance remains separate.
+- [x] Owner accepted the localhost UI and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
 
 # Appearance controls — November 11
 
@@ -28,7 +35,7 @@
 - [x] Add a saved Reduce motion switch in Settings, defaulting to the device preference, with an action to restore device control. Apply it to CSS and screen animations and stop in-flight motion.
 - [x] Validate build/type check, 306 unit tests, 40 Chromium flows, nine focused WebKit flows, 107-file packaging and formatting; inspect day/night control screenshots.
 - [x] Update the synthetic localhost preview on `codex/pwa-motion`, retaining local state and avoiding a stale app shell.
-- [ ] Obtain owner acceptance before merging, deploying or releasing the appearance/motion changes. Physical-device acceptance remains separate.
+- [x] Owner accepted the appearance/motion changes and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
 
 # PWA motion preview — November 11
 
@@ -36,7 +43,7 @@
 - [x] Add restrained navigation, course-card, menu, dialog, disclosure and switch motion on `codex/pwa-motion`, with reduced-motion support and preserved form state.
 - [x] Pass production build/type check, 306 unit tests, both 39-flow browser suites, source packaging, Worker dry-run and formatting. Inspect synthetic phone/desktop screenshots.
 - [x] Start a loopback-only preview with synthetic courses for owner testing, without a stable release or production deployment.
-- [ ] Get the owner's acceptance of the motion before merging or releasing it. Physical iPhone/Android acceptance remains separate from headless browser checks.
+- [x] Owner accepted the motion and authorized their existing Worker deployment. Main/stable remain held; physical iPhone/Android acceptance remains separate.
 
 # Automatic connector maintenance — November 9
 
