@@ -1,3 +1,13 @@
+# Stable v0.2.4 published — November 11, 2026
+
+[v0.2.4](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.4) is published as latest stable from merge commit `3f035ff`, after [PR #22](https://github.com/fiukewhfkje/GradeViewer/pull/22) passed both hosted browser suites and exact workflow provenance. The [tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43103336134) passed both full browser jobs, signed the manifest and published the source package at 16:31 EST. Main verification also passed. The release includes the approved appearance/motion changes, compact update notice, shared reload icon and corrected Settings alignment. Carmen remains Experimental.
+
+Local validation passed build/type check, 306 unit tests, 41 Chromium and 41 WebKit flows, Worker dry-run, 109-file packaging and isolated template install/update-fixture/configuration-secret retention/rollback. The actual downloaded release's manifest/archive hashes and all 109 committed source-file hashes match tag `v0.2.4` at `3f035ff`. Exact official signing workflow, tag and source digest verified through GitHub's Sigstore verifier. The actual v0.2.3 updater applied the signed v0.2.4 package in an isolated copy, retaining its custom Worker configuration and synthetic local secret file.
+
+The owner's existing Worker deployed the release source through [Cloudflare Builds](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/ad86f639-fa87-4936-b249-96645273e4d3) as version `7db9ad4e-75fe-414a-a54e-839837c3837a`, at 100% traffic. At 16:30 EST, all six checked public assets matched the clean build, all five binding fingerprints including the original vault and secrets matched the before snapshot, saved diagnostic records were retained and anonymous APIs remained locked. This verification made no provider requests, live grade reads or Browser Run sessions. Private sanitized evidence is retained outside Git in the `DeploymentChecks/stable-024-20261111-{before,after}.json` files.
+
+Main and the immutable v0.2.4 tag remain at `3f035ff`. The development branch was fast-forwarded to that release before these verification notes. Physical-device acceptance, additional IC districts and enrolled-account Carmen parsing remain the existing acceptance limits; publication does not claim those checks.
+
 # Stable v0.2.4 preparation — November 11, 2026
 
 The owner explicitly authorized stable v0.2.4, lifting the motion branch's main/release hold. The release includes the approved appearance controls, reduced-motion setting, quick disclosure/dialog transitions, compact update notice, corrected Settings spacing/alignment and shared reload icon. Carmen remains Experimental. Package metadata is 0.2.4.

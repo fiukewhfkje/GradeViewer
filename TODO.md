@@ -2,16 +2,16 @@
 
 - [x] Receive explicit stable v0.2.4 authorization and update package metadata and appearance help.
 - [x] Pass local build, all 306 unit tests, both 41-flow browser suites, Worker dry-run, 109-file source packaging and isolated-template checks.
-- [ ] Pass hosted pull-request checks and merge the validated motion branch to main.
-- [ ] Publish signed stable v0.2.4; verify downloaded hashes/provenance and a real v0.2.3 updater application.
-- [ ] Verify the owner's existing Worker serves the release source with its vault/bindings and diagnostics retained.
+- [x] Pass hosted pull-request checks and merge PR #22 to main as `3f035ff`.
+- [x] Publish signed stable v0.2.4; verify all 109 published/source hashes, exact workflow/tag/commit provenance and a real v0.2.3 updater application preserving custom configuration and its synthetic secret file.
+- [x] Verify the owner's existing Worker serves the release source with six matching public asset hashes, unchanged vault/binding fingerprints and retained diagnostic records.
 
 # Owner Worker dev deployment — November 11
 
 - [x] Receive owner UI acceptance and authorization to deploy only their existing Worker, with no stable release.
 - [x] Deploy approved dev source `988e4e9` using the existing Worker, account, vault, secrets and URL; exclude local comparison artifacts.
 - [x] Verify the active 100% deployment, six exact public asset hashes, unchanged binding fingerprints, retained private diagnostic records and locked API access without provider requests or Browser Run.
-- [ ] Keep main, tags and releases unchanged until the owner separately authorizes a stable release. Physical-device acceptance remains open.
+- [x] Owner separately authorized stable v0.2.4, which is now merged, signed and published. Physical-device acceptance remains separate and open.
 
 # Preference text alignment — November 11
 
