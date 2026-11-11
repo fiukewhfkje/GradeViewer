@@ -1,3 +1,7 @@
+# Stable v0.2.4 preparation — November 11, 2026
+
+The versioned release candidate passes production build/type check, all 306 unit tests, all 41 browser flows in each of Chromium and WebKit, Worker dry-run, 109-file source packaging and isolated template install/build/unit/dry-run/update-fixture/configuration-secret retention/rollback. The template test substitutes provenance verification only inside its fixture; actual GitHub signing-workflow/tag/commit provenance must still be verified from the published release. Local fixtures use synthetic data and no Browser Run quota. Hosted CI, merge, signed publication and live release-source verification remain pending at this checkpoint.
+
 # Owner Worker dev deployment — November 11, 2026
 
 Approved source `988e4e9` deployed directly from `codex/pwa-motion` to the existing owner Worker as version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, verified active at 100% traffic. Fresh production build/type check and Worker dry-run passed before upload. Existing synthetic unit/browser/packaging results remain recorded below; broad suites were not repeated for this deployment-only step.

@@ -72,6 +72,10 @@ In **Settings → Connections → CarmenCanvas**, turn on **Use Carmen as main L
 
 In **Settings → Connections → Infinite Campus**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools. After sign-in succeeds, your Worker checks the session automatically every 20 minutes. Disconnect Infinite Campus to stop its checks.
 
+## Appearance and motion
+
+In **Settings → Preferences**, use the sun/moon switch to choose Light or Dark, or choose **Use device theme** to follow your device. **Reduce motion** limits animations; its device-setting action restores automatic behavior. These preferences stay in your browser.
+
 ## Estimated semester GPA
 
 In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see a weighted and unweighted estimate from your Schoology semester grades. Check the suggested course levels, exclude classes that don’t count, and enter semester credits if courses carry different weights. The estimate and its settings stay in your browser and may differ from your official transcript.

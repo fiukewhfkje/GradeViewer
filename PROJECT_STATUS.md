@@ -1,3 +1,9 @@
+# Stable v0.2.4 preparation — November 11, 2026
+
+The owner explicitly authorized stable v0.2.4, lifting the motion branch's main/release hold. The release includes the approved appearance controls, reduced-motion setting, quick disclosure/dialog transitions, compact update notice, corrected Settings spacing/alignment and shared reload icon. Carmen remains Experimental. Package metadata is 0.2.4.
+
+Local build/type check, all 306 unit tests, all 41 browser flows in each of Chromium and WebKit, Worker dry-run, 109-file source packaging and isolated template install/build/update-fixture/configuration-secret retention/rollback passed. The template fixture is not cryptographic provenance evidence. Hosted pull-request checks, merge, signed publication, published-artifact/updater verification and the owner's release-source deployment remain pending; no new release is claimed at this checkpoint.
+
 # Owner Worker dev deployment — November 11, 2026
 
 The owner accepted the UI and explicitly requested deployment to their existing Cloudflare Worker, while retaining the stable release hold. Approved source `988e4e9` on `codex/pwa-motion` deployed to [GradeViewer](https://gradeviewer.fiukewhfkje.workers.dev) as Worker version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, with 100% of traffic on that version. Verification completed at 14:29 EST. The app version label remains 0.2.3; this is a direct owner dev deployment, not a newly published release.

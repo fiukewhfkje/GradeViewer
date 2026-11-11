@@ -1,3 +1,11 @@
+# Stable v0.2.4 — November 11
+
+- [x] Receive explicit stable v0.2.4 authorization and update package metadata and appearance help.
+- [x] Pass local build, all 306 unit tests, both 41-flow browser suites, Worker dry-run, 109-file source packaging and isolated-template checks.
+- [ ] Pass hosted pull-request checks and merge the validated motion branch to main.
+- [ ] Publish signed stable v0.2.4; verify downloaded hashes/provenance and a real v0.2.3 updater application.
+- [ ] Verify the owner's existing Worker serves the release source with its vault/bindings and diagnostics retained.
+
 # Owner Worker dev deployment — November 11
 
 - [x] Receive owner UI acceptance and authorization to deploy only their existing Worker, with no stable release.
