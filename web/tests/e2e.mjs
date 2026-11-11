@@ -126,6 +126,18 @@ async function openConnection(page, title) {
   if (!(await summary.evaluate((node) => node.parentElement.open)))
     await summary.click();
 }
+async function settleMotion(page) {
+  await page.locator("main").evaluate((main) =>
+    Promise.all(
+      main
+        .getAnimations({ subtree: true })
+        .filter(
+          (animation) => animation.effect?.getTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => {})),
+    ),
+  );
+}
 async function completeCarmenSignIn(page, client) {
   await page
     .getByRole("link", { name: "Open CarmenCanvas", exact: true })
@@ -468,6 +480,115 @@ try {
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
       await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+    },
+  );
+  await check(
+    "navigation motion preserves open edits and honors reduced motion",
+    async () => {
+      for (const reducedMotion of ["no-preference", "reduce"]) {
+        const isolated = await browser.newContext({
+          viewport: { width: 1280, height: 900 },
+          ignoreHTTPSErrors: true,
+          reducedMotion,
+        });
+        try {
+          const preview = await isolated.newPage();
+          await preview.addInitScript(() => {
+            window.screenMotions = 0;
+            const animate = Element.prototype.animate;
+            Element.prototype.animate = function (...args) {
+              if (this.tagName === "MAIN") window.screenMotions++;
+              return animate.apply(this, args);
+            };
+          });
+          await isolated.request.post(base + "/api/login", {
+            headers: { Origin: base },
+            data: { password: "synthetic-owner-password-for-tests-only" },
+          });
+          await preview.goto(base);
+          await preview.locator(".courses .course").first().waitFor();
+          await settleMotion(preview);
+          const card = preview.locator(".courses .course").first();
+          await card.hover();
+          if (reducedMotion === "reduce") {
+            assert.equal(
+              await card.evaluate((node) => getComputedStyle(node).transform),
+              "none",
+            );
+          }
+          await card.click();
+          await settleMotion(preview);
+          const motions = await preview.evaluate(() => window.screenMotions);
+          assert.equal(motions > 0, reducedMotion === "no-preference");
+          await preview.getByRole("slider").press("Home");
+          await preview.getByRole("slider").press("End");
+          await preview.getByLabel("Course options", { exact: true }).click();
+          await preview
+            .getByRole("button", { name: "Add Grade", exact: true })
+            .click();
+          const name = preview.getByLabel("Name", { exact: true });
+          await name.fill("Unsubmitted motion check");
+          await name.evaluate((node) => {
+            window.motionInput = node;
+          });
+          const committed = preview.waitForResponse(
+            (response) =>
+              response.url().endsWith("/api/scan/commit") && response.ok(),
+          );
+          await preview.evaluate(() => {
+            for (const value of ["hidden", "visible"]) {
+              Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                value,
+              });
+              document.dispatchEvent(new Event("visibilitychange"));
+            }
+          });
+          await committed;
+          assert.equal(await name.inputValue(), "Unsubmitted motion check");
+          assert.equal(
+            await name.evaluate(
+              (node) =>
+                node === window.motionInput && node === document.activeElement,
+            ),
+            true,
+          );
+          assert.equal(
+            await preview.evaluate(() => window.screenMotions),
+            motions,
+          );
+          if (reducedMotion === "reduce") {
+            assert.equal(
+              await preview.evaluate(() => document.getAnimations().length),
+              0,
+            );
+          }
+          await name.press("Escape");
+          await preview.getByRole("dialog").waitFor({ state: "detached" });
+          await preview
+            .getByRole("button", { name: "Settings", exact: true })
+            .click();
+          await openConnection(preview, "CarmenCanvas");
+          const toggle = preview.getByRole("switch", {
+            name: "Use Carmen as main LMS",
+            exact: true,
+          });
+          await toggle.check();
+          await settleMotion(preview);
+          assert.equal(await toggle.isChecked(), true);
+          assert.equal(
+            await preview
+              .locator(".gpa-toggle-track")
+              .evaluate((node) => getComputedStyle(node, "::before").transform),
+            "matrix(1, 0, 0, 1, 16, 0)",
+          );
+          await preview.screenshot({
+            path: `${directory}/motion-settings-${reducedMotion}.png`,
+          });
+        } finally {
+          await isolated.close();
+        }
+      }
     },
   );
   await check(
@@ -2549,6 +2670,7 @@ try {
         .locator(".courses .course")
         .filter({ hasText: "AP Biology" })
         .waitFor();
+      await settleMotion(page);
       await page.screenshot({ path: directory + "/desktop-grades.png" });
       const cards = await page.locator(".courses .course").all();
       const first = await cards[0].boundingBox(),

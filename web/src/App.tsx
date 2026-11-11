@@ -213,7 +213,8 @@ export default function App() {
     channel = useRef<BroadcastChannel | undefined>(undefined),
     mounted = useRef(false),
     cacheGeneration = useRef(0),
-    app = useRef<HTMLDivElement>(null);
+    app = useRef<HTMLDivElement>(null),
+    content = useRef<HTMLElement>(null);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
@@ -1072,6 +1073,27 @@ export default function App() {
   useEffect(() => {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
+  useLayoutEffect(() => {
+    const preference = matchMedia("(prefers-reduced-motion: reduce)");
+    if (!content.current?.animate || preference.matches) return;
+    // Animate the existing screen so navigation never remounts open forms or
+    // replays on a background refresh, local edit, or chart pointer movement.
+    const animation = content.current.animate(
+      [
+        { opacity: 0.45, transform: "translateY(8px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    );
+    const reduce = () => {
+      if (preference.matches) animation.cancel();
+    };
+    preference.addEventListener("change", reduce);
+    return () => {
+      animation.cancel();
+      preference.removeEventListener("change", reduce);
+    };
+  }, [tab, selected, view, period]);
   const locked = !status?.authenticated && !cachedUnlocked;
   const schoologyConnected = !!(
     status?.schoologyConnected ?? status?.connected
@@ -1263,6 +1285,7 @@ export default function App() {
               </div>
             )}
             <main
+              ref={content}
               className={
                 tab === "profile"
                   ? "profile"
@@ -1617,13 +1640,16 @@ export default function App() {
                     />
                   )}
                   <div className="courses">
-                    {visibleCourses(workspaceCourses).map((c) => {
+                    {visibleCourses(workspaceCourses).map((c, index) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));
                       return (
                         <button
                           className="course row"
                           key={c.id}
+                          style={{
+                            animationDelay: `${Math.min(index, 7) * 28}ms`,
+                          }}
                           onClick={() => choose(c)}
                         >
                           <div className="row-text">

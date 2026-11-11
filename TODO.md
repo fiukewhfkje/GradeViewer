@@ -1,3 +1,11 @@
+# PWA motion preview — November 11
+
+- [x] Preserve the remaining v0.2.3 release-verification notes and remove the old investigative branch locally and on GitHub.
+- [x] Add restrained navigation, course-card, menu, dialog, disclosure and switch motion on `codex/pwa-motion`, with reduced-motion support and preserved form state.
+- [x] Pass production build/type check, 306 unit tests, both 39-flow browser suites, source packaging, Worker dry-run and formatting. Inspect synthetic phone/desktop screenshots.
+- [x] Start a loopback-only preview with synthetic courses for owner testing, without a stable release or production deployment.
+- [ ] Get the owner's acceptance of the motion before merging or releasing it. Physical iPhone/Android acceptance remains separate from headless browser checks.
+
 # Automatic connector maintenance — November 9
 
 - [x] Base badges on setup state and real check results. Reconcile a missing alarm from the saved deadline and trace the owner’s saved Carmen connection to the weekend experiment.

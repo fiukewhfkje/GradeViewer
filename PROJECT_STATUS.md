@@ -1,3 +1,13 @@
+# PWA motion preview — November 11, 2026
+
+The owner requested a motion pass on a new development branch and a localhost preview, with no stable release. `codex/pwa-motion` preserves the remaining v0.2.3 release-verification commit (`7814704`) from `codex/investigate-gpa-carmen`. The old branch was deleted locally and on GitHub; main and the current development branch are the only remaining branches.
+
+The PWA now has brief screen transitions, staggered course-card entrances, hover/press feedback, animated menus and dialogs, disclosure chevrons and sliding switches. Navigation animates the existing DOM rather than remounting forms. Refreshes, local typing and chart selection do not replay screen transitions. Reduced-motion preferences disable decorative motion, including hover displacement, and cancel an active screen animation when enabled. No dependency or provider behavior changed.
+
+Production build/type check, all 306 unit tests, all 39 synthetic browser flows in each of Chromium and WebKit, 106-file source packaging, formatting and Worker dry-run passed. Phone and desktop screenshots were inspected. The local preview at `https://localhost:8917/preview-start` uses five synthetic courses and an ignored fixture-only unlock wrapper; no school credentials are needed. Its configuration and state live under `web/.local-test/motion-preview/` and are excluded from Git and release sources.
+
+Main, signed stable v0.2.3 and the owner's deployed Worker remain unchanged. No merge, tag, release or production deployment was made. Owner acceptance of the motion and physical-device testing remain pending.
+
 # v0.2.3 stable follow-up — November 9, 2026
 
 The owner requested a signed stable release and an update to their existing Worker. v0.2.3 includes automatic session maintenance for both connectors, simpler connection badges, missing-alarm recovery and clearer Connect and Reconnect actions. Carmen remains Experimental.

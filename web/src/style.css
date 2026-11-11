@@ -10,6 +10,7 @@
   --grade: #52bd29;
   --line: #dedbd3;
   --blue: #2567b1;
+  --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -1236,13 +1237,6 @@ svg.spinning {
     min-height: 120px;
     padding: 24px;
     border: 1px solid transparent;
-    transition:
-      border-color 120ms,
-      transform 120ms;
-  }
-  .course:hover {
-    border-color: var(--line);
-    transform: translateY(-2px);
   }
   .course .row-text > strong {
     font-size: 19px;
@@ -1438,12 +1432,12 @@ svg.spinning {
   background: var(--muted);
 }
 .gpa-check input:checked + .gpa-toggle-track {
-  justify-content: flex-end;
   background: var(--blue);
   border-color: var(--blue);
 }
 .gpa-check input:checked + .gpa-toggle-track::before {
   background: var(--bg);
+  transform: translateX(16px);
 }
 .gpa-check input:focus-visible + .gpa-toggle-track {
   outline: 2px solid var(--blue);
@@ -1710,4 +1704,160 @@ svg.spinning {
 }
 .connection[data-health="error"] .status-dot {
   background: #bf574b;
+}
+
+/* Brief motion follows navigation and direct interaction, never grade updates.
+   Keep chart selection and pull-to-refresh geometry under their own control. */
+.course {
+  animation: course-enter 360ms var(--motion-ease) backwards;
+  transition:
+    transform 200ms var(--motion-ease),
+    box-shadow 200ms ease,
+    border-color 160ms ease;
+}
+@keyframes course-enter {
+  from {
+    opacity: 0.35;
+    translate: 0 12px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.primary,
+.secondary,
+.icon,
+.back,
+.pills button,
+footer button,
+.menu summary,
+.menu-items button,
+.settings-provider > summary,
+.settings-action,
+.app-actions .settings-card > button,
+.portal-actions > button {
+  transition:
+    transform 180ms var(--motion-ease),
+    background-color 160ms ease,
+    color 160ms ease;
+}
+:is(.primary, .secondary, .course):not(:disabled):active {
+  transform: scale(0.98);
+}
+:is(.icon, .menu summary):not(:disabled):active {
+  transform: scale(0.9);
+}
+:is(.back, .pills button, footer button):not(:disabled):active {
+  transform: scale(0.96);
+}
+@media (hover: hover) and (pointer: fine) {
+  .course:not(:disabled):hover {
+    border-color: var(--line);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgb(0 0 0 / 0.06);
+  }
+  .course:not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: none;
+  }
+}
+.group-chevron svg,
+.provider-chevron,
+.gpa-card > summary::before {
+  transition: transform 240ms var(--motion-ease);
+}
+.gpa-card[open] > summary::before {
+  content: "▸";
+  transform: rotate(90deg);
+}
+.gpa-toggle-track,
+.gpa-toggle-track::before {
+  transition:
+    transform 240ms var(--motion-ease),
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+.assignment-group[open] > .rows,
+.settings-provider[open] > :not(summary),
+.gpa-card[open] > .gpa-content {
+  animation: disclosure-enter 200ms var(--motion-ease);
+}
+@keyframes disclosure-enter {
+  from {
+    opacity: 0.4;
+    translate: 0 -4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.menu[open] > .menu-items {
+  transform-origin: top right;
+  animation: menu-enter 180ms var(--motion-ease);
+}
+@keyframes menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+dialog[open] {
+  animation: dialog-enter 260ms var(--motion-ease);
+}
+dialog[open]::backdrop {
+  animation: backdrop-enter 200ms ease;
+}
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+footer > button.active > :is(svg, .tab-grade) {
+  animation: nav-select 280ms var(--motion-ease);
+}
+@keyframes nav-select {
+  0% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  dialog::backdrop {
+    animation: none !important;
+    transition: none !important;
+  }
+  .course:not(:disabled):is(:hover, :active),
+  :is(.primary, .secondary, .icon, .back, .pills button, footer button):not(
+      :disabled
+    ):active,
+  .menu summary:not(:disabled):active {
+    transform: none;
+  }
 }

@@ -1,3 +1,9 @@
+# Development motion pass — November 11, 2026
+
+On `codex/pwa-motion`, production build/type check, all 306 unit tests, all 39 HTTPS/Worker browser flows in each of Chromium and WebKit, 106-file local source packaging, formatting and Worker dry-run passed. The new browser flow checks normal and reduced-motion modes, unchanged screen-animation counts during chart interaction and refresh, preservation of an unsaved input's DOM identity/value/focus, Escape dismissal and the checked switch position. The desktop grid check waits for finite entrance animations before retaining its exact alignment assertions.
+
+Phone, desktop and dark-detail screenshots were inspected. The ignored loopback fixture preview serves five synthetic courses at `https://localhost:8917/preview-start`; its temporary unlock route exists only in `web/.local-test/motion-preview/bootstrap.ts`, not production source. No live provider requests, school credentials, Browser Run quota, production mutations or release publication were used. Main/stable v0.2.3 remain unchanged. Physical-device smoothness and owner acceptance remain unverified.
+
 # Stable v0.2.3 — November 9, 2026
 
 The production build, 306 unit tests, both 38-flow browser suites, 106-file source packaging, Worker dry-run and isolated install/update/rollback fixture passed. The first pull-request workflow attempt ran Chromium and provenance during GitHub's Actions incident. The rerun completed both hosted browser suites and exact workflow provenance. [PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42673275592) · [GitHub incident](https://stspg.io/7yw63xl9ztrv).
