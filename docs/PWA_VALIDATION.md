@@ -1,3 +1,59 @@
+# Stable v0.2.4 preparation — November 11, 2026
+
+The versioned release candidate passes production build/type check, all 306 unit tests, all 41 browser flows in each of Chromium and WebKit, Worker dry-run, 109-file source packaging and isolated template install/build/unit/dry-run/update-fixture/configuration-secret retention/rollback. The template test substitutes provenance verification only inside its fixture; actual GitHub signing-workflow/tag/commit provenance must still be verified from the published release. Local fixtures use synthetic data and no Browser Run quota. Hosted CI, merge, signed publication and live release-source verification remain pending at this checkpoint.
+
+# Owner Worker dev deployment — November 11, 2026
+
+Approved source `988e4e9` deployed directly from `codex/pwa-motion` to the existing owner Worker as version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, verified active at 100% traffic. Fresh production build/type check and Worker dry-run passed before upload. Existing synthetic unit/browser/packaging results remain recorded below; broad suites were not repeated for this deployment-only step.
+
+Post-deployment verification at 2026-11-11T19:29:58Z matched all six checked HTML/JS/CSS/service-worker/installation/manifest hashes to the clean build. All five binding fingerprints match the before snapshot, including the same Durable Object vault namespace, password/diagnostics secret bindings and Browser binding. Both saved diagnostic records retained their start identities and monotone counters. Anonymous status reveals no provider state; report and diagnostic routes reject unauthenticated access. The private operator key was sent only to `/api/carmen/diagnostics` and `/api/campus/diagnostics` through the existing guarded reader.
+
+No provider requests, Browser Run sessions, human sign-ins, live grade reads or persistent-data migrations were performed. Local comparison assets were excluded from the uploaded build. Private evidence is retained outside Git under `~/Library/Application Support/GradeViewer/DeploymentChecks/motion-20261111-{before,after}.json`. Main `4550018`, tags and published stable v0.2.3 remain unchanged; this owner deployment is not a stable or prerelease publication. Physical-device acceptance remains open.
+
+# Preference text alignment — November 11, 2026
+
+The screenshot's remaining mismatch was reproduced with synthetic DOM measurements: theme label/subtitle/link x=83 with an 18px gap, versus motion label/subtitle x=81, link x=83 and a 9.5px gap at 390px viewport width. Shared grid columns and content sizing now produce x=83 for both rows at 390px and x=79 at 320px, with equal 13px gaps. Updated screenshots were inspected.
+
+Build/type check, focused Chromium/WebKit appearance and responsive Settings checks, 109-file packaging and formatting passed. The appearance regression now asserts shared left edges and equal vertical gaps after explicitly selecting full animations. Prior broad browser and unit runs remain recorded below; they were not repeated for this CSS-only product change. Comparison captures were refreshed outside Git/release sources. No production deployment or release occurred.
+
+# Update notice, result alignment and spacing — November 11, 2026
+
+Production build/type check, 306 unit tests, all 41 Chromium flows, 13 focused WebKit flows, 109-file source packaging and formatting passed. New geometry assertions verify update-check feedback is contained within its App card and starts after the preceding action, and that the ready-update notice stays compact and inside its parent. The existing real service-worker activation, cross-tab form preservation and unsaved-change guard flow passes with the new Reload presentation. The focused WebKit selection adds final-calculator/categories navigation, phone Settings/install help and online/offline update feedback to the prior ten flows.
+
+An additional synthetic WebKit probe verifies the ready notice and its 44px Reload target at 320, 390 and 1280 CSS pixels. Headless screenshots before and after were captured with identical viewport/theme/preferences for the update notice and reload icon, App result feedback and preference spacing. The update-ready screenshots use a local waiting-worker UI fixture; they do not indicate an update or failure in a real account. All six captures and the comparison viewer's controls loaded under the unchanged content security policy without script or image errors. The local comparison remains outside Git/release sources at `web/.local-test/motion-preview/comparison/` and is served from `/preview-comparison/index.html?review=1` on the synthetic preview.
+
+No provider requests, Browser Run quota, stable publication or production mutation were used. Owner and physical-device acceptance remain open.
+
+# Compact controls and quick slides — November 11, 2026
+
+Build/type check, 306 unit tests, all 41 Chromium browser flows, 10 focused WebKit flows, 108-file source packaging and formatting passed. The focused selection adds disclosure interaction to the prior appearance/navigation/cache/pull/graph checks. The new regression verifies keyboard opening, reversal during closing, focus returning from a panel control to its summary, cleanup of temporary clipping, cancellation when reduced motion is enabled and immediate native toggling afterward. Existing form retention, graph gestures, provider reconnects and password checks remain green in the full Chromium run.
+
+Local screenshots verified the theme and motion tracks both measure 60 × 32 CSS pixels at 320px phone width. Existing containment checks still pass through 3840px. The device-theme reset disappears from the visual and accessibility interfaces in device mode, with Light/Dark · Device remaining visible; both reset actions use the same sliding container. Hidden reset controls are inert.
+
+Local engine capability checks found intrinsic-size CSS interpolation available in Chromium and unavailable in the tested WebKit. The shared disclosure hook uses measured Web Animations heights in both engines rather than relying on that feature; [MDN documents the interpolation support limitation](https://developer.mozilla.org/en-US/docs/Web/CSS/interpolate-size). Slides last 180 ms, reset actions 160 ms and dialog dismissal 120 ms. Measurements happen on user disclosure actions, with no grade-refresh animation loop or extra provider request. No production deployment or release occurred. Physical-device smoothness and owner acceptance remain unverified.
+
+# Appearance controls — November 11, 2026
+
+Production build/type check, 306 unit tests, all 40 Chromium browser flows, nine focused WebKit flows, 107-file source packaging and formatting passed. The focused WebKit selection covers owner connection, responsive Settings, appearance preferences, motion/form preservation, returning startup, cache locking, pull-to-refresh, matching home/detail grades and graph selection. The earlier 39-flow full WebKit pass remains the baseline; this follow-up does not claim a new full WebKit run.
+
+New synthetic checks exercise device-theme changes, keyboard activation, manual theme persistence across reloads, returning to device theme, saved Reduce motion, returning to device motion, explicit full-animation override of a reduced-motion device setting, and immediate cancellation when reduction is enabled. Both normal and reduced modes retain the earlier unsaved-form DOM/value/focus and graph-interaction checks. The motion input owns a full-row touch target. Existing Settings containment checks pass from 320 through 3840 CSS pixels. Day and night control screenshots were inspected.
+
+The fixture wait now ignores suspended transitions in closed disclosures while still waiting for rendered finite motion before layout assertions. The update-check flow explicitly sets its initial online condition, then retains its offline assertions. All checks use local synthetic data. No provider requests, Browser Run quota, production changes or releases were used. Owner acceptance and physical-device smoothness remain open.
+
+# Development motion pass — November 11, 2026
+
+On `codex/pwa-motion`, production build/type check, all 306 unit tests, all 39 HTTPS/Worker browser flows in each of Chromium and WebKit, 106-file local source packaging, formatting and Worker dry-run passed. The new browser flow checks normal and reduced-motion modes, unchanged screen-animation counts during chart interaction and refresh, preservation of an unsaved input's DOM identity/value/focus, Escape dismissal and the checked switch position. The desktop grid check waits for finite entrance animations before retaining its exact alignment assertions.
+
+Phone, desktop and dark-detail screenshots were inspected. The ignored loopback fixture preview serves five synthetic courses at `https://localhost:8917/preview-start`; its temporary unlock route exists only in `web/.local-test/motion-preview/bootstrap.ts`, not production source. No live provider requests, school credentials, Browser Run quota, production mutations or release publication were used. Main/stable v0.2.3 remain unchanged. Physical-device smoothness and owner acceptance remain unverified.
+
+# Stable v0.2.3 — November 9, 2026
+
+The production build, 306 unit tests, both 38-flow browser suites, 106-file source packaging, Worker dry-run and isolated install/update/rollback fixture passed. The first pull-request workflow attempt ran Chromium and provenance during GitHub's Actions incident. The rerun completed both hosted browser suites and exact workflow provenance. [PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42673275592) · [GitHub incident](https://stspg.io/7yw63xl9ztrv).
+
+The owner Worker deployed `4550018` as v0.2.3. All six checked asset hashes matched the build, the vault and password bindings and saved diagnostics verified, and compatibility reports remained private. Verification made no provider requests. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/541daa3d-a01f-47a7-9782-617329a460dd).
+
+The successful tag rerun passed both hosted browser suites, signed the manifest and published the latest stable release. The downloaded 106-file archive matched its hashes and exact GitHub signing workflow, tag and commit. An isolated v0.2.2 updater applied the actual signed v0.2.3 release and preserved the copy's Worker configuration and synthetic password file. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42674247219).
+
 # Stable v0.2.2 — November 9, 2026
 
 Production build and type check, 304 unit tests, 38 Chromium and 38 WebKit browser flows, 106-file release packaging, Worker dry-run and isolated template install/build/update/rollback passed. The isolated updater uses fixture provenance. The pull request verified real GitHub workflow provenance and both hosted browser suites. [Verification run](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42629992436).

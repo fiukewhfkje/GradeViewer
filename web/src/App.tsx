@@ -1,4 +1,7 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
+import { AppearanceSettings, useAppearance } from "./Appearance";
+import { useDisclosureMotion } from "./useDisclosureMotion";
+import { ReloadIcon } from "./ReloadIcon";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -13,7 +16,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronDown,
-  RefreshCw,
   User,
   Settings,
   MoreVertical,
@@ -25,7 +27,6 @@ import {
   Copy,
   ExternalLink,
   Download,
-  SunMoon,
   Globe,
   LockKeyhole,
   KeyRound,
@@ -133,13 +134,41 @@ function Dialog({
   children,
   close,
   initialInput,
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
   initialInput?: RefObject<HTMLInputElement | null>;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const closing = useRef<Animation | undefined>(undefined);
+  useEffect(() => () => closing.current?.cancel(), []);
+  function dismiss() {
+    const dialog = ref.current;
+    if (!dialog || !dismissible || closing.current) return;
+    if (
+      document.documentElement.dataset.motion === "reduce" ||
+      !dialog.animate
+    ) {
+      close();
+      return;
+    }
+    dialog.inert = true;
+    const animation = dialog.animate(
+      [
+        { opacity: 1, transform: "translateY(0) scale(1)" },
+        { opacity: 0, transform: "translateY(6px) scale(0.985)" },
+      ],
+      { duration: 120, easing: "ease-out" },
+    );
+    closing.current = animation;
+    const finish = () => {
+      if (dialog.isConnected) close();
+    };
+    void animation.finished.then(finish, finish);
+  }
   useLayoutEffect(() => {
     const dialog = ref.current;
     if (!dialog || dialog.open) return;
@@ -155,13 +184,18 @@ function Dialog({
       ref={ref}
       onCancel={(event) => {
         event.preventDefault();
-        close();
+        dismiss();
       }}
       aria-label={title}
     >
       <div className="dialog-heading">
         <h2>{title}</h2>
-        <button className="icon" onClick={close} aria-label="Close dialog">
+        <button
+          className="icon"
+          onClick={dismiss}
+          disabled={!dismissible}
+          aria-label="Close dialog"
+        >
           <X />
         </button>
       </div>
@@ -199,21 +233,17 @@ export default function App() {
     [switchingLms, setSwitchingLms] = useState(false),
     [applyingUpdate, setApplyingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
-    [installation, setInstallation] = useState<Installation>(),
-    [theme, setTheme] = useState(() => {
-      try {
-        return localStorage.getItem("theme") ?? "system";
-      } catch {
-        return "system";
-      }
-    });
+    [installation, setInstallation] = useState<Installation>();
+  const appearance = useAppearance();
   const flight = useRef<Promise<void> | undefined>(undefined),
     pendingSaves = useRef(0),
     saveFailed = useRef(false),
     channel = useRef<BroadcastChannel | undefined>(undefined),
     mounted = useRef(false),
     cacheGeneration = useRef(0),
-    app = useRef<HTMLDivElement>(null);
+    app = useRef<HTMLDivElement>(null),
+    content = useRef<HTMLElement>(null);
+  useDisclosureMotion(app);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
@@ -242,14 +272,6 @@ export default function App() {
     setCachedUnlocked(false);
     setFresh(false);
   }
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem("theme", theme);
-    } catch {
-      /* Keep the selected theme in memory when storage is unavailable. */
-    }
-  }, [theme]);
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
@@ -1072,6 +1094,19 @@ export default function App() {
   useEffect(() => {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
+  useLayoutEffect(() => {
+    if (!content.current?.animate || appearance.reducedMotion) return;
+    // Animate the existing screen so navigation never remounts open forms or
+    // replays on a background refresh, local edit, or chart pointer movement.
+    const animation = content.current.animate(
+      [
+        { opacity: 0.45, transform: "translateY(8px)" },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+    );
+    return () => animation.cancel();
+  }, [tab, selected, view, period, appearance.reducedMotion]);
   const locked = !status?.authenticated && !cachedUnlocked;
   const schoologyConnected = !!(
     status?.schoologyConnected ?? status?.connected
@@ -1231,18 +1266,21 @@ export default function App() {
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <RefreshCw size={21} />
+                  <ReloadIcon size={21} />
                 </button>
               )}
             </header>
             {update && (
-              <aside className="update">
-                {applyingUpdate ? "Installing update…" : "An update is ready."}
+              <aside className="update" aria-label="App update">
+                <span>{applyingUpdate ? "Installing…" : "Update ready"}</span>
                 <button
+                  aria-label="Reload to update"
+                  className={applyingUpdate ? "spinning" : undefined}
                   disabled={busy || applyingUpdate || !!modal}
                   onClick={activateUpdate}
                 >
-                  {applyingUpdate ? "Updating…" : "Reload to update"}
+                  <ReloadIcon size={16} />
+                  {applyingUpdate ? "Updating…" : "Reload"}
                 </button>
               </aside>
             )}
@@ -1263,6 +1301,7 @@ export default function App() {
               </div>
             )}
             <main
+              ref={content}
               className={
                 tab === "profile"
                   ? "profile"
@@ -1376,24 +1415,7 @@ export default function App() {
                       )}
                       <section className="settings-group">
                         <h2>Preferences</h2>
-                        <label className="settings-card settings-row">
-                          <span className="settings-icon">
-                            <SunMoon size={20} />
-                          </span>
-                          <span className="settings-label">Theme</span>
-                          <span className="theme-control">
-                            <select
-                              aria-label="Theme"
-                              value={theme}
-                              onChange={(e) => setTheme(e.target.value)}
-                            >
-                              <option value="system">System</option>
-                              <option value="light">Light</option>
-                              <option value="dark">Dark</option>
-                            </select>
-                            <ChevronDown size={15} aria-hidden="true" />
-                          </span>
-                        </label>
+                        <AppearanceSettings appearance={appearance} />
                       </section>
                     </div>
                     <div className="settings-column settings-preferences">
@@ -1520,7 +1542,7 @@ export default function App() {
                               disabled={busy || applyingUpdate || !!modal}
                               onClick={activateUpdate}
                             >
-                              <RefreshCw size={18} />{" "}
+                              <ReloadIcon size={18} />{" "}
                               {applyingUpdate ? "Updating…" : "Update now"}
                             </button>
                           )}
@@ -1532,8 +1554,13 @@ export default function App() {
                                 void refresh(undefined, true).catch(() => {})
                               }
                             >
-                              <RefreshCw size={18} /> Refresh grades
+                              <ReloadIcon size={18} /> Refresh grades
                             </button>
+                          )}
+                          {updateMessage && (
+                            <p className="update-result" role="status">
+                              {updateMessage}
+                            </p>
                           )}
                         </div>
                       </section>
@@ -1549,11 +1576,6 @@ export default function App() {
                       >
                         Setup guide
                       </a>
-                    </p>
-                  )}
-                  {updateMessage && (
-                    <p className="update-result" role="status">
-                      {updateMessage}
                     </p>
                   )}
                   <p className="profile-footnote">GradeViewer {version}</p>
@@ -1617,13 +1639,16 @@ export default function App() {
                     />
                   )}
                   <div className="courses">
-                    {visibleCourses(workspaceCourses).map((c) => {
+                    {visibleCourses(workspaceCourses).map((c, index) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));
                       return (
                         <button
                           className="course row"
                           key={c.id}
+                          style={{
+                            animationDelay: `${Math.min(index, 7) * 18}ms`,
+                          }}
                           onClick={() => choose(c)}
                         >
                           <div className="row-text">
@@ -1864,6 +1889,7 @@ function PasswordChange({
   return (
     <Dialog
       title="Change app password"
+      dismissible={!busy}
       close={() => {
         if (!busy) close();
       }}

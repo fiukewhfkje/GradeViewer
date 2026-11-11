@@ -126,6 +126,28 @@ async function openConnection(page, title) {
   if (!(await summary.evaluate((node) => node.parentElement.open)))
     await summary.click();
 }
+async function settleMotion(page) {
+  // Closed disclosures can retain suspended color transitions. Only rendered
+  // finite motion affects the layout assertions and screenshots below.
+  await page.waitForFunction(() =>
+    document
+      .querySelector("main")
+      .getAnimations({ subtree: true })
+      .every((animation) => {
+        const target = animation.effect?.target;
+        return (
+          animation.effect?.getTiming().iterations === Infinity ||
+          !(target instanceof Element) ||
+          !target.getClientRects().length ||
+          ["finished", "idle"].includes(animation.playState)
+        );
+      }),
+  );
+}
+async function setTheme(page, theme) {
+  const toggle = page.getByRole("switch", { name: "Dark mode", exact: true });
+  if ((await toggle.isChecked()) !== (theme === "dark")) await toggle.click();
+}
 async function completeCarmenSignIn(page, client) {
   await page
     .getByRole("link", { name: "Open CarmenCanvas", exact: true })
@@ -367,7 +389,7 @@ try {
         [3840, 2160],
       ];
       for (const theme of ["light", "dark"]) {
-        await page.getByLabel("Theme", { exact: true }).selectOption(theme);
+        await setTheme(page, theme);
         for (const [width, height] of sizes) {
           await page.setViewportSize({ width, height });
           await page.locator(".app-scroll").evaluate((e) => e.scrollTo(0, 0));
@@ -467,7 +489,388 @@ try {
       }
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+      await setTheme(page, "dark");
+    },
+  );
+  await check(
+    "appearance controls follow the device, persist overrides, and reduce motion",
+    async () => {
+      const isolated = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        ignoreHTTPSErrors: true,
+        colorScheme: "light",
+        reducedMotion: "no-preference",
+      });
+      try {
+        const settings = await isolated.newPage();
+        settings.on("pageerror", (error) => errors.push(error.message));
+        await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        await settings.goto(base);
+        await settings.locator(".courses").waitFor();
+        const openSettings = () =>
+          settings
+            .getByRole("button", { name: "Settings", exact: true })
+            .click();
+        const dark = settings.getByRole("switch", {
+          name: "Dark mode",
+          exact: true,
+        });
+        const motion = settings.getByRole("switch", {
+          name: "Reduce motion",
+          exact: true,
+        });
+        const device = settings.getByRole("button", {
+          name: "Use device theme",
+          exact: true,
+        });
+        const waitMotion = (mode) =>
+          settings.waitForFunction(
+            (mode) => document.documentElement.dataset.motion === mode,
+            mode,
+          );
+        await openSettings();
+        assert.equal(await device.count(), 0);
+        assert.equal(
+          await settings
+            .locator(".appearance-card .settings-label small")
+            .first()
+            .innerText(),
+          "Light · Device",
+        );
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(await motion.isChecked(), false);
+        await settings.emulateMedia({ colorScheme: "dark" });
+        await settings.waitForFunction(
+          () =>
+            document
+              .querySelector('[aria-label="Dark mode"]')
+              .getAttribute("aria-checked") === "true",
+        );
+        await dark.focus();
+        await dark.press("Space");
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(await device.isVisible(), true);
+        assert.equal(
+          await settings.evaluate(() => localStorage.getItem("theme")),
+          "light",
+        );
+        await settings.emulateMedia({ colorScheme: "light" });
+        await settings.emulateMedia({ colorScheme: "dark" });
+        assert.equal(await dark.isChecked(), false);
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        await openSettings();
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(
+          await settings.evaluate(() => document.documentElement.dataset.theme),
+          "light",
+        );
+        await device.click();
+        assert.equal(await dark.isChecked(), true);
+        assert.equal(await device.count(), 0);
+        assert.equal(
+          await settings
+            .locator(".appearance-card .settings-label small")
+            .first()
+            .innerText(),
+          "Dark · Device",
+        );
+        await settleMotion(settings);
+        await settings.screenshot({
+          path: directory + "/appearance-night.png",
+        });
+        await motion.focus();
+        await motion.press("Space");
+        await waitMotion("reduce");
+        assert.equal(
+          await settings.evaluate(() => document.getAnimations().length),
+          0,
+        );
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        assert.equal(
+          await settings.evaluate(
+            () => document.documentElement.dataset.motion,
+          ),
+          "reduce",
+        );
+        await openSettings();
+        assert.equal(await motion.isChecked(), true);
+        await settings
+          .getByRole("button", {
+            name: "Use device motion setting",
+            exact: true,
+          })
+          .click();
+        await waitMotion("full");
+        await settings.emulateMedia({ reducedMotion: "reduce" });
+        await waitMotion("reduce");
+        assert.equal(await motion.isChecked(), true);
+        await motion.uncheck();
+        await waitMotion("full");
+        assert.notEqual(
+          await settings
+            .locator(".theme-orb")
+            .evaluate((node) => getComputedStyle(node).transitionDuration),
+          "0s",
+        );
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        await openSettings();
+        assert.equal(await motion.isChecked(), false);
+        await motion.check();
+        await waitMotion("reduce");
+        await dark.click();
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(
+          await settings.evaluate(() => document.getAnimations().length),
+          0,
+        );
+        await settings.setViewportSize({ width: 320, height: 693 });
+        assert.equal(
+          await settings
+            .locator(".appearance-card")
+            .evaluate((node) => node.scrollWidth <= node.clientWidth),
+          true,
+        );
+        await motion.uncheck();
+        await settleMotion(settings);
+        const alignment = await settings
+          .locator(".appearance-card")
+          .evaluate((card) =>
+            [...card.querySelectorAll(".settings-label")].map(
+              (label, index) => {
+                const subtitle = label
+                  .querySelector("small")
+                  .getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(
+                  card.querySelectorAll(".device-preference")[index],
+                );
+                const link = range.getBoundingClientRect();
+                return {
+                  label: label.getBoundingClientRect().x,
+                  subtitle: subtitle.x,
+                  link: link.x,
+                  gap: link.top - subtitle.bottom,
+                };
+              },
+            ),
+          );
+        for (const row of alignment) {
+          assert.equal(row.label, row.subtitle);
+          assert.equal(row.link, row.subtitle);
+        }
+        assert.equal(alignment[0].gap, alignment[1].gap);
+        await motion.check();
+        await waitMotion("reduce");
+        await settings.screenshot({
+          path: directory + "/appearance-day-reduced.png",
+        });
+      } finally {
+        await isolated.close();
+      }
+    },
+  );
+  await check(
+    "disclosure slides reverse cleanly and reduced motion remains immediate",
+    async () => {
+      const isolated = await browser.newContext({
+        viewport: { width: 1280, height: 900 },
+        ignoreHTTPSErrors: true,
+        reducedMotion: "no-preference",
+      });
+      try {
+        const preview = await isolated.newPage();
+        preview.on("pageerror", (error) => errors.push(error.message));
+        await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        await preview.goto(base);
+        await preview.locator(".courses").waitFor();
+        await preview
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await settleMotion(preview);
+        const summary = preview
+          .locator(".settings-provider > summary")
+          .filter({ hasText: "Infinite Campus" });
+        await summary.focus();
+        await summary.press("Space");
+        await settleMotion(preview);
+        assert.equal(
+          await summary.evaluate((node) => node.parentElement.open),
+          true,
+        );
+        await preview
+          .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+          .focus();
+        const reversed = await summary.evaluate((node) => {
+          const details = node.parentElement;
+          node.click();
+          const closing = details.getAnimations()[0];
+          if (closing) closing.currentTime = 70;
+          const closingHeight = details.getBoundingClientRect().height;
+          node.click();
+          return {
+            target: details.dataset.disclosureOpen,
+            focused: document.activeElement === node,
+            closingHeight,
+          };
+        });
+        assert.equal(reversed.target, "true");
+        assert.equal(reversed.focused, true);
+        await settleMotion(preview);
+        assert.equal(
+          await summary.evaluate(
+            (node) =>
+              node.parentElement.open &&
+              node.parentElement.style.overflow === "",
+          ),
+          true,
+        );
+        await preview
+          .getByRole("button", { name: "Connect Infinite Campus", exact: true })
+          .waitFor();
+        await summary.evaluate((node) => {
+          node.click();
+          document.querySelector('[aria-label="Reduce motion"]').click();
+        });
+        await preview.waitForFunction(
+          () => document.documentElement.dataset.motion === "reduce",
+        );
+        await preview.waitForFunction(
+          () => !document.querySelector("[data-disclosure-open]"),
+        );
+        assert.equal(
+          await summary.evaluate((node) => node.parentElement.open),
+          false,
+        );
+        await summary.press("Space");
+        assert.equal(
+          await summary.evaluate((node) => node.parentElement.open),
+          true,
+        );
+        assert.equal(
+          await preview.evaluate(() => document.getAnimations().length),
+          0,
+        );
+      } finally {
+        await isolated.close();
+      }
+    },
+  );
+  await check(
+    "navigation motion preserves open edits and honors reduced motion",
+    async () => {
+      for (const reducedMotion of ["no-preference", "reduce"]) {
+        const isolated = await browser.newContext({
+          viewport: { width: 1280, height: 900 },
+          ignoreHTTPSErrors: true,
+          reducedMotion,
+        });
+        try {
+          const preview = await isolated.newPage();
+          await preview.addInitScript(() => {
+            window.screenMotions = 0;
+            const animate = Element.prototype.animate;
+            Element.prototype.animate = function (...args) {
+              if (this.tagName === "MAIN") window.screenMotions++;
+              return animate.apply(this, args);
+            };
+          });
+          await isolated.request.post(base + "/api/login", {
+            headers: { Origin: base },
+            data: { password: "synthetic-owner-password-for-tests-only" },
+          });
+          await preview.goto(base);
+          await preview.locator(".courses .course").first().waitFor();
+          await settleMotion(preview);
+          const card = preview.locator(".courses .course").first();
+          await card.hover();
+          if (reducedMotion === "reduce") {
+            assert.equal(
+              await card.evaluate((node) => getComputedStyle(node).transform),
+              "none",
+            );
+          }
+          await card.click();
+          await settleMotion(preview);
+          const motions = await preview.evaluate(() => window.screenMotions);
+          assert.equal(motions > 0, reducedMotion === "no-preference");
+          await preview.getByRole("slider").press("Home");
+          await preview.getByRole("slider").press("End");
+          await preview.getByLabel("Course options", { exact: true }).click();
+          await preview
+            .getByRole("button", { name: "Add Grade", exact: true })
+            .click();
+          const name = preview.getByLabel("Name", { exact: true });
+          await name.fill("Unsubmitted motion check");
+          await name.evaluate((node) => {
+            window.motionInput = node;
+          });
+          const committed = preview.waitForResponse(
+            (response) =>
+              response.url().endsWith("/api/scan/commit") && response.ok(),
+          );
+          await preview.evaluate(() => {
+            for (const value of ["hidden", "visible"]) {
+              Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                value,
+              });
+              document.dispatchEvent(new Event("visibilitychange"));
+            }
+          });
+          await committed;
+          assert.equal(await name.inputValue(), "Unsubmitted motion check");
+          assert.equal(
+            await name.evaluate(
+              (node) =>
+                node === window.motionInput && node === document.activeElement,
+            ),
+            true,
+          );
+          assert.equal(
+            await preview.evaluate(() => window.screenMotions),
+            motions,
+          );
+          if (reducedMotion === "reduce") {
+            assert.equal(
+              await preview.evaluate(() => document.getAnimations().length),
+              0,
+            );
+          }
+          await name.press("Escape");
+          await preview.getByRole("dialog").waitFor({ state: "detached" });
+          await preview
+            .getByRole("button", { name: "Settings", exact: true })
+            .click();
+          await openConnection(preview, "CarmenCanvas");
+          const toggle = preview.getByRole("switch", {
+            name: "Use Carmen as main LMS",
+            exact: true,
+          });
+          await toggle.check();
+          await settleMotion(preview);
+          assert.equal(await toggle.isChecked(), true);
+          assert.equal(
+            await preview
+              .locator(".settings-provider .gpa-toggle-track")
+              .evaluate((node) => getComputedStyle(node, "::before").transform),
+            "matrix(1, 0, 0, 1, 16, 0)",
+          );
+          await preview.screenshot({
+            path: `${directory}/motion-settings-${reducedMotion}.png`,
+          });
+        } finally {
+          await isolated.close();
+        }
+      }
     },
   );
   await check(
@@ -1184,7 +1587,7 @@ try {
         await page.getByLabel("Website address", { exact: true }).inputValue(),
         base,
       );
-      await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+      await setTheme(page, "dark");
       await page.screenshot({ path: directory + "/profile-dark.png" });
       await page
         .getByRole("button", { name: "Add to Home Screen", exact: true })
@@ -1210,10 +1613,28 @@ try {
   await check(
     "Settings update check reports current version and offline state",
     async () => {
+      await context.setOffline(false);
+      await page.waitForFunction(() => navigator.onLine);
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
         .click();
       await page.getByText("You’re up to date.", { exact: true }).waitFor();
+      const feedback = await page.locator(".update-result").evaluate((node) => {
+        const card = node.closest(".settings-card");
+        if (!card) return { contained: false, separated: false };
+        const box = node.getBoundingClientRect();
+        const bounds = card.getBoundingClientRect();
+        const previous = node.previousElementSibling.getBoundingClientRect();
+        return {
+          contained:
+            box.top >= bounds.top &&
+            box.bottom <= bounds.bottom &&
+            box.left >= bounds.left &&
+            box.right <= bounds.right,
+          separated: box.top >= previous.bottom,
+        };
+      });
+      assert.deepEqual(feedback, { contained: true, separated: true });
       await context.setOffline(true);
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
@@ -1618,6 +2039,15 @@ try {
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
+        const notice = await page.locator(".update").evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          const parent = node.parentElement.getBoundingClientRect();
+          return {
+            compact: box.width < Math.min(280, parent.width * 0.9),
+            contained: box.left >= parent.left && box.right <= parent.right,
+          };
+        });
+        assert.deepEqual(notice, { compact: true, contained: true });
         await Promise.all([
           page.waitForNavigation({ waitUntil: "load" }),
           page.getByRole("button", { name: "Update now", exact: true }).click(),
@@ -2549,6 +2979,7 @@ try {
         .locator(".courses .course")
         .filter({ hasText: "AP Biology" })
         .waitFor();
+      await settleMotion(page);
       await page.screenshot({ path: directory + "/desktop-grades.png" });
       const cards = await page.locator(".courses .course").all();
       const first = await cards[0].boundingBox(),

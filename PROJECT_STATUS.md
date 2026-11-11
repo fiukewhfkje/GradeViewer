@@ -1,6 +1,68 @@
+# Stable v0.2.4 preparation — November 11, 2026
+
+The owner explicitly authorized stable v0.2.4, lifting the motion branch's main/release hold. The release includes the approved appearance controls, reduced-motion setting, quick disclosure/dialog transitions, compact update notice, corrected Settings spacing/alignment and shared reload icon. Carmen remains Experimental. Package metadata is 0.2.4.
+
+Local build/type check, all 306 unit tests, all 41 browser flows in each of Chromium and WebKit, Worker dry-run, 109-file source packaging and isolated template install/build/update-fixture/configuration-secret retention/rollback passed. The template fixture is not cryptographic provenance evidence. Hosted pull-request checks, merge, signed publication, published-artifact/updater verification and the owner's release-source deployment remain pending; no new release is claimed at this checkpoint.
+
+# Owner Worker dev deployment — November 11, 2026
+
+The owner accepted the UI and explicitly requested deployment to their existing Cloudflare Worker, while retaining the stable release hold. Approved source `988e4e9` on `codex/pwa-motion` deployed to [GradeViewer](https://gradeviewer.fiukewhfkje.workers.dev) as Worker version `92c3d0e5-da25-4bb0-9474-322ddc6a6a06`, with 100% of traffic on that version. Verification completed at 14:29 EST. The app version label remains 0.2.3; this is a direct owner dev deployment, not a newly published release.
+
+A fresh build/type check and Worker dry-run passed. The deployment used the existing helper with an explicit owner account, `--keep-vars` and strict configuration checks, with password-upload environment variables removed. The Worker backend, configuration and migrations have no changes relative to main. The clean build excluded local comparison/fixture artifacts. All six checked public HTML/JS/CSS/service-worker/installation/manifest hashes match the local build. All five binding fingerprints match pre-deployment, including the original vault namespace, password and diagnostics secrets, Browser and assets bindings. Existing diagnostic records retain their start identities and nondecreasing counters; locked APIs remain locked.
+
+Verification made no provider requests, human sign-ins or Browser Run sessions. It did not inspect live grades or change provider settings. Private sanitized evidence is retained outside Git in `~/Library/Application Support/GradeViewer/DeploymentChecks/motion-20261111-before.json` and `motion-20261111-after.json`. The diagnostic capability was used only for its two authorized read-only GETs.
+
+Main remains `4550018` and the published v0.2.3 release is untouched. No main merge, tag or stable/prerelease publication occurred, and other installations were not updated. Owner visual acceptance is complete; physical-device acceptance remains separate.
+
+# Preference text alignment — November 11, 2026
+
+The owner spotted a remaining alignment mismatch: the motion subtitle started 2px left of its reset link, and the theme/motion subtitle-to-link gaps measured 18px and 9.5px. The motion row inherited a different flex gap and minimum height from GPA switch styling. Both appearance rows now share grid columns and a minimum 44px content track, with intrinsic outer height. In synthetic 320px and 390px captures, each title, subtitle and reset link shares the same left edge and both vertical gaps measure 13px.
+
+Build/type check, focused Chromium and WebKit appearance/Settings checks, 109-file packaging and formatting passed. The existing appearance regression now asserts title/subtitle/link alignment and equal gaps. The comparison's after captures were refreshed, including a cache-busted preference view. This is a CSS-only product change on `codex/pwa-motion`; main, stable and production remain unchanged. Owner acceptance is pending.
+
+# Update notice, alignment and reload icon — November 11, 2026
+
+The owner requested a shorter update notice, corrected App feedback alignment, tighter preference-link spacing and a redesigned reload icon. The notice now fits its **Update ready / Reload** contents rather than spanning the page. Its accessible Reload to update action, disabled states and update safeguards remain intact. Update results now occupy a footer inside the App card; the previous result was outside the Settings grid with a negative top margin, causing the overlap in the owner's screenshot. Manual-preference rows use less bottom padding, bringing their blue reset actions closer while retaining 44-pixel targets and existing slide transitions.
+
+A shared, original rounded clockwise SVG replaces the two-arrow reload glyph in the header, update actions and provider progress. It uses the active theme color, retains busy spinning and suppresses hover rotation under reduced motion.
+
+Build/type check, 306 unit tests, all 41 Chromium flows, 13 focused WebKit flows, 109-file source packaging and formatting passed. Geometry assertions now keep update feedback inside its card and the ready notice compact. The actual service-worker update/form-preservation flow still passes; an additional WebKit layout check covers the notice at 320, 390 and 1280 pixels. Matching synthetic before/after captures were inspected for all three requested layout areas. An interactive local comparison, including all six captures, passed image/control/CSP checks and is preserved in `web/.local-test/motion-preview/comparison/`, with a served copy at `/preview-comparison/index.html?review=1` on localhost. No private student screenshots were copied into release sources.
+
+Changes remain on `codex/pwa-motion`; main, stable v0.2.3 and production are unchanged. No merge, tag, release or production deployment occurred. Owner and physical-device acceptance remain pending.
+
+# Compact controls and quick slides — November 11, 2026
+
+The owner requested matching theme/motion switch proportions, a disappearing device-theme reset action and more clean motion without slowing interactions. Both visual tracks are now 60 × 32 CSS pixels. The theme button retains a 44-pixel tap target, and motion retains its full-row target. **Use device theme** shares the motion reset styling, appears only after a manual choice and slides away when device control is restored. Device mode is indicated beside the current Light/Dark label, with no checkmark.
+
+Provider, assignment, GPA and password-help disclosures slide open and closed in 180 ms, preserving native summary keyboard behavior, controlled provider state and focused controls. Reversing a slide uses its current height; reduced motion completes it immediately. Reset actions expand/collapse in 160 ms and are inert and hidden from assistive technology while closed. Dialog dismissal takes 120 ms; grade saves and data actions retain their immediate behavior. Existing screen, card, menu and theme transitions were shortened to keep the overall response brisk. No recurring animation, network wait or dependency was added.
+
+Build/type check, all 306 unit tests, all 41 Chromium flows, 10 focused WebKit flows, 108-file source packaging and formatting passed. New checks cover keyboard disclosure operation, reversal, focus recovery and reduction during a slide. Matched day/night control screenshots were inspected. Work remains on `codex/pwa-motion` with an updated synthetic localhost preview; main/stable/production remain unchanged. Owner and physical-device acceptance remain pending.
+
+# Appearance controls — November 11, 2026
+
+The owner requested a more expressive light/dark switch and an in-app Reduce motion control. Settings → Preferences now has an original SVG/CSS day/night scene: a sun slides through clouds and becomes a moon against stars. **Use device theme** preserves the existing System behavior. A separate **Reduce motion** switch saves an explicit choice, with a **Use device motion setting** action to restore automatic behavior. Existing theme preferences are retained. No dependency was added; the [day/night reference](https://codepen.io/vihanga/pen/MWPNrVm) supplied visual inspiration, and [web.dev's theme-switch guidance](https://web.dev/articles/building/a-theme-switch-component) informed the accessible control behavior. No external source code was copied.
+
+One resolved motion preference now controls CSS and screen animations, follows device changes by default and cancels in-flight animations when reduction is enabled. Build/type check, 306 unit tests, all 40 Chromium browser flows, nine focused WebKit appearance/navigation/cache/pull/graph flows, 107-file source packaging and formatting passed. Coverage includes keyboard activation, device-theme changes, saved overrides across reloads, reduced-motion overrides in both directions, restoration of device preferences and responsive containment from 320 to 3840 CSS pixels. Day/night control screenshots were inspected. The update test now explicitly establishes its online starting condition before exercising offline behavior; a prior run unexpectedly reported offline.
+
+The synthetic localhost preview was updated on `codex/pwa-motion`. Its temporary entry redirects to a query-qualified app URL so an older local service worker cannot serve the previous shell during this preview. Existing local state is retained. Main, stable v0.2.3 and production remain unchanged; no merge, tag, release or deployment is authorized for this follow-up. Owner and physical-device acceptance remain pending.
+
+# PWA motion preview — November 11, 2026
+
+The owner requested a motion pass on a new development branch and a localhost preview, with no stable release. `codex/pwa-motion` preserves the remaining v0.2.3 release-verification commit (`7814704`) from `codex/investigate-gpa-carmen`. The old branch was deleted locally and on GitHub; main and the current development branch are the only remaining branches.
+
+The PWA now has brief screen transitions, staggered course-card entrances, hover/press feedback, animated menus and dialogs, disclosure chevrons and sliding switches. Navigation animates the existing DOM rather than remounting forms. Refreshes, local typing and chart selection do not replay screen transitions. Reduced-motion preferences disable decorative motion, including hover displacement, and cancel an active screen animation when enabled. No dependency or provider behavior changed.
+
+Production build/type check, all 306 unit tests, all 39 synthetic browser flows in each of Chromium and WebKit, 106-file source packaging, formatting and Worker dry-run passed. Phone and desktop screenshots were inspected. The local preview at `https://localhost:8917/preview-start` uses five synthetic courses and an ignored fixture-only unlock wrapper; no school credentials are needed. Its configuration and state live under `web/.local-test/motion-preview/` and are excluded from Git and release sources.
+
+Main, signed stable v0.2.3 and the owner's deployed Worker remain unchanged. No merge, tag, release or production deployment was made. Owner acceptance of the motion and physical-device testing remain pending.
+
 # v0.2.3 stable follow-up — November 9, 2026
 
 The owner requested a signed stable release and an update to their existing Worker. v0.2.3 includes automatic session maintenance for both connectors, simpler connection badges, missing-alarm recovery and clearer Connect and Reconnect actions. Carmen remains Experimental.
+
+[PR #21](https://github.com/fiukewhfkje/GradeViewer/pull/21) merged as `4550018`. The owner Worker deployed it at 13:27 EST, version `331c190e-211d-4c0b-93e1-f19f7e29e71c`. Six deployed assets matched the tested build. The vault fingerprint and bindings, saved diagnostics endpoints and report authorization passed live checks. No provider login or Browser Run session was used. [Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/541daa3d-a01f-47a7-9782-617329a460dd).
+
+GitHub published [v0.2.3](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.3) as latest stable from the same commit. The third tag attempt ran both browser jobs and signed the release after two attempts affected by the Actions outage. The downloaded manifest, all 106 file hashes and exact tag/workflow provenance verified. The v0.2.2 updater applied the signed package in an isolated copy, preserving its Worker configuration and local secret file. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/42674247219).
 
 # Connector badges — November 9, 2026
 

@@ -1,7 +1,62 @@
+# Stable v0.2.4 — November 11
+
+- [x] Receive explicit stable v0.2.4 authorization and update package metadata and appearance help.
+- [x] Pass local build, all 306 unit tests, both 41-flow browser suites, Worker dry-run, 109-file source packaging and isolated-template checks.
+- [ ] Pass hosted pull-request checks and merge the validated motion branch to main.
+- [ ] Publish signed stable v0.2.4; verify downloaded hashes/provenance and a real v0.2.3 updater application.
+- [ ] Verify the owner's existing Worker serves the release source with its vault/bindings and diagnostics retained.
+
+# Owner Worker dev deployment — November 11
+
+- [x] Receive owner UI acceptance and authorization to deploy only their existing Worker, with no stable release.
+- [x] Deploy approved dev source `988e4e9` using the existing Worker, account, vault, secrets and URL; exclude local comparison artifacts.
+- [x] Verify the active 100% deployment, six exact public asset hashes, unchanged binding fingerprints, retained private diagnostic records and locked API access without provider requests or Browser Run.
+- [ ] Keep main, tags and releases unchanged until the owner separately authorizes a stable release. Physical-device acceptance remains open.
+
+# Preference text alignment — November 11
+
+- [x] Reproduce the motion subtitle/reset-link 2px offset and unequal vertical gaps with synthetic measurements.
+- [x] Share appearance-row columns and content sizing; verify aligned title/subtitle/link edges and matching 13px gaps at 320px and 390px.
+- [x] Pass build, focused Chromium/WebKit checks, packaging and formatting; refresh the comparison captures.
+- [x] Owner accepted the UI and authorized their existing Worker deployment; keep the source on the dev branch and retain the main/stable release hold.
+
+# Update notice and spacing — November 11
+
+- [x] Shorten the ready-update notice and preserve its activation safeguards and accessible action name.
+- [x] Keep update-check feedback inside the App card and remove the overlapping negative-margin placement.
+- [x] Tighten the preference reset-link spacing without reducing tap targets; share a redesigned reload icon across the UI.
+- [x] Capture matching before/after views and provide a local comparison with working controls and all six images.
+- [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 13 focused WebKit flows, additional compact-notice layout checks, 109-file packaging and formatting.
+- [x] Owner accepted the UI and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
+
+# Compact controls and quick slides — November 11
+
+- [x] Match the theme and Reduce motion tracks at 60 × 32 pixels while retaining comfortable tap targets.
+- [x] Show the shared device reset action only for a manual preference; slide it away after restoration and keep Device beside Light/Dark without a checkmark.
+- [x] Add short, reversible disclosure slides and dialog dismissal; shorten earlier transitions and retain immediate data actions and reduced-motion behavior.
+- [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 10 focused WebKit flows, 108-file packaging and formatting; inspect matched day/night screenshots.
+- [x] Owner accepted the localhost UI and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
+
+# Appearance controls — November 11
+
+- [x] Replace the theme dropdown with an animated sun/clouds and moon/stars switch; preserve saved Light/Dark and device-theme behavior.
+- [x] Add a saved Reduce motion switch in Settings, defaulting to the device preference, with an action to restore device control. Apply it to CSS and screen animations and stop in-flight motion.
+- [x] Validate build/type check, 306 unit tests, 40 Chromium flows, nine focused WebKit flows, 107-file packaging and formatting; inspect day/night control screenshots.
+- [x] Update the synthetic localhost preview on `codex/pwa-motion`, retaining local state and avoiding a stale app shell.
+- [x] Owner accepted the appearance/motion changes and authorized their existing Worker deployment. Merge/release authorization and physical-device acceptance remain separate.
+
+# PWA motion preview — November 11
+
+- [x] Preserve the remaining v0.2.3 release-verification notes and remove the old investigative branch locally and on GitHub.
+- [x] Add restrained navigation, course-card, menu, dialog, disclosure and switch motion on `codex/pwa-motion`, with reduced-motion support and preserved form state.
+- [x] Pass production build/type check, 306 unit tests, both 39-flow browser suites, source packaging, Worker dry-run and formatting. Inspect synthetic phone/desktop screenshots.
+- [x] Start a loopback-only preview with synthetic courses for owner testing, without a stable release or production deployment.
+- [x] Owner accepted the motion and authorized their existing Worker deployment. Main/stable remain held; physical iPhone/Android acceptance remains separate.
+
 # Automatic connector maintenance — November 9
 
 - [x] Base badges on setup state and real check results. Reconcile a missing alarm from the saved deadline and trace the owner’s saved Carmen connection to the weekend experiment.
-- [ ] Publish signed stable v0.2.3 and verify the owner Worker serves the release. Both earlier alpha.1 attempts stalled after asset upload.
+- [x] Publish signed stable v0.2.3 and verify the owner Worker serves the exact release build. Verify the published hashes, provenance and a v0.2.2 upgrade in an isolated copy.
 - [x] Schedule both connectors automatically after successful sign-in and migrate older eligible connections on unlocked status. Remove both maintenance switches and keep the bounded failure behavior.
 - [x] Validate and deploy the owner-only build. Verify the live assets, vault binding, saved diagnostics and locked report route.
 
