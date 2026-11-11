@@ -1,3 +1,11 @@
+# Compact controls and quick slides — November 11, 2026
+
+Build/type check, 306 unit tests, all 41 Chromium browser flows, 10 focused WebKit flows, 108-file source packaging and formatting passed. The focused selection adds disclosure interaction to the prior appearance/navigation/cache/pull/graph checks. The new regression verifies keyboard opening, reversal during closing, focus returning from a panel control to its summary, cleanup of temporary clipping, cancellation when reduced motion is enabled and immediate native toggling afterward. Existing form retention, graph gestures, provider reconnects and password checks remain green in the full Chromium run.
+
+Local screenshots verified the theme and motion tracks both measure 60 × 32 CSS pixels at 320px phone width. Existing containment checks still pass through 3840px. The device-theme reset disappears from the visual and accessibility interfaces in device mode, with Light/Dark · Device remaining visible; both reset actions use the same sliding container. Hidden reset controls are inert.
+
+Local engine capability checks found intrinsic-size CSS interpolation available in Chromium and unavailable in the tested WebKit. The shared disclosure hook uses measured Web Animations heights in both engines rather than relying on that feature; [MDN documents the interpolation support limitation](https://developer.mozilla.org/en-US/docs/Web/CSS/interpolate-size). Slides last 180 ms, reset actions 160 ms and dialog dismissal 120 ms. Measurements happen on user disclosure actions, with no grade-refresh animation loop or extra provider request. No production deployment or release occurred. Physical-device smoothness and owner acceptance remain unverified.
+
 # Appearance controls — November 11, 2026
 
 Production build/type check, 306 unit tests, all 40 Chromium browser flows, nine focused WebKit flows, 107-file source packaging and formatting passed. The focused WebKit selection covers owner connection, responsive Settings, appearance preferences, motion/form preservation, returning startup, cache locking, pull-to-refresh, matching home/detail grades and graph selection. The earlier 39-flow full WebKit pass remains the baseline; this follow-up does not claim a new full WebKit run.

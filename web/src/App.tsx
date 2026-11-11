@@ -1,5 +1,6 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { AppearanceSettings, useAppearance } from "./Appearance";
+import { useDisclosureMotion } from "./useDisclosureMotion";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -133,13 +134,41 @@ function Dialog({
   children,
   close,
   initialInput,
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   close: () => void;
   initialInput?: RefObject<HTMLInputElement | null>;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const closing = useRef<Animation | undefined>(undefined);
+  useEffect(() => () => closing.current?.cancel(), []);
+  function dismiss() {
+    const dialog = ref.current;
+    if (!dialog || !dismissible || closing.current) return;
+    if (
+      document.documentElement.dataset.motion === "reduce" ||
+      !dialog.animate
+    ) {
+      close();
+      return;
+    }
+    dialog.inert = true;
+    const animation = dialog.animate(
+      [
+        { opacity: 1, transform: "translateY(0) scale(1)" },
+        { opacity: 0, transform: "translateY(6px) scale(0.985)" },
+      ],
+      { duration: 120, easing: "ease-out" },
+    );
+    closing.current = animation;
+    const finish = () => {
+      if (dialog.isConnected) close();
+    };
+    void animation.finished.then(finish, finish);
+  }
   useLayoutEffect(() => {
     const dialog = ref.current;
     if (!dialog || dialog.open) return;
@@ -155,13 +184,18 @@ function Dialog({
       ref={ref}
       onCancel={(event) => {
         event.preventDefault();
-        close();
+        dismiss();
       }}
       aria-label={title}
     >
       <div className="dialog-heading">
         <h2>{title}</h2>
-        <button className="icon" onClick={close} aria-label="Close dialog">
+        <button
+          className="icon"
+          onClick={dismiss}
+          disabled={!dismissible}
+          aria-label="Close dialog"
+        >
           <X />
         </button>
       </div>
@@ -209,6 +243,7 @@ export default function App() {
     cacheGeneration = useRef(0),
     app = useRef<HTMLDivElement>(null),
     content = useRef<HTMLElement>(null);
+  useDisclosureMotion(app);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
@@ -1068,7 +1103,7 @@ export default function App() {
         { opacity: 0.45, transform: "translateY(8px)" },
         { opacity: 1, transform: "translateY(0)" },
       ],
-      { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+      { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
     return () => animation.cancel();
   }, [tab, selected, view, period, appearance.reducedMotion]);
@@ -1609,7 +1644,7 @@ export default function App() {
                           className="course row"
                           key={c.id}
                           style={{
-                            animationDelay: `${Math.min(index, 7) * 28}ms`,
+                            animationDelay: `${Math.min(index, 7) * 18}ms`,
                           }}
                           onClick={() => choose(c)}
                         >
@@ -1851,6 +1886,7 @@ function PasswordChange({
   return (
     <Dialog
       title="Change app password"
+      dismissible={!busy}
       close={() => {
         if (!busy) close();
       }}

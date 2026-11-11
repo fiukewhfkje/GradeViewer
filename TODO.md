@@ -1,3 +1,11 @@
+# Compact controls and quick slides — November 11
+
+- [x] Match the theme and Reduce motion tracks at 60 × 32 pixels while retaining comfortable tap targets.
+- [x] Show the shared device reset action only for a manual preference; slide it away after restoration and keep Device beside Light/Dark without a checkmark.
+- [x] Add short, reversible disclosure slides and dialog dismissal; shorten earlier transitions and retain immediate data actions and reduced-motion behavior.
+- [x] Pass build/type check, 306 unit tests, 41 Chromium flows, 10 focused WebKit flows, 108-file packaging and formatting; inspect matched day/night screenshots.
+- [ ] Obtain owner acceptance on localhost before merging, deploying or releasing. Physical-device acceptance remains separate.
+
 # Appearance controls — November 11
 
 - [x] Replace the theme dropdown with an animated sun/clouds and moon/stars switch; preserve saved Light/Dark and device-theme behavior.
