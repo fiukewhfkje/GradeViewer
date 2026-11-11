@@ -1,3 +1,9 @@
+# Preference text alignment — November 11, 2026
+
+The owner spotted a remaining alignment mismatch: the motion subtitle started 2px left of its reset link, and the theme/motion subtitle-to-link gaps measured 18px and 9.5px. The motion row inherited a different flex gap and minimum height from GPA switch styling. Both appearance rows now share grid columns and a minimum 44px content track, with intrinsic outer height. In synthetic 320px and 390px captures, each title, subtitle and reset link shares the same left edge and both vertical gaps measure 13px.
+
+Build/type check, focused Chromium and WebKit appearance/Settings checks, 109-file packaging and formatting passed. The existing appearance regression now asserts title/subtitle/link alignment and equal gaps. The comparison's after captures were refreshed, including a cache-busted preference view. This is a CSS-only product change on `codex/pwa-motion`; main, stable and production remain unchanged. Owner acceptance is pending.
+
 # Update notice, alignment and reload icon — November 11, 2026
 
 The owner requested a shorter update notice, corrected App feedback alignment, tighter preference-link spacing and a redesigned reload icon. The notice now fits its **Update ready / Reload** contents rather than spanning the page. Its accessible Reload to update action, disabled states and update safeguards remain intact. Update results now occupy a footer inside the App card; the previous result was outside the Settings grid with a negative top margin, causing the overlap in the owner's screenshot. Manual-preference rows use less bottom padding, bringing their blue reset actions closer while retaining 44-pixel targets and existing slide transitions.

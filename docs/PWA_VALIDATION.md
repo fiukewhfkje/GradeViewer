@@ -1,3 +1,9 @@
+# Preference text alignment — November 11, 2026
+
+The screenshot's remaining mismatch was reproduced with synthetic DOM measurements: theme label/subtitle/link x=83 with an 18px gap, versus motion label/subtitle x=81, link x=83 and a 9.5px gap at 390px viewport width. Shared grid columns and content sizing now produce x=83 for both rows at 390px and x=79 at 320px, with equal 13px gaps. Updated screenshots were inspected.
+
+Build/type check, focused Chromium/WebKit appearance and responsive Settings checks, 109-file packaging and formatting passed. The appearance regression now asserts shared left edges and equal vertical gaps after explicitly selecting full animations. Prior broad browser and unit runs remain recorded below; they were not repeated for this CSS-only product change. Comparison captures were refreshed outside Git/release sources. No production deployment or release occurred.
+
 # Update notice, result alignment and spacing — November 11, 2026
 
 Production build/type check, 306 unit tests, all 41 Chromium flows, 13 focused WebKit flows, 109-file source packaging and formatting passed. New geometry assertions verify update-check feedback is contained within its App card and starts after the preceding action, and that the ready-update notice stays compact and inside its parent. The existing real service-worker activation, cross-tab form preservation and unsaved-change guard flow passes with the new Reload presentation. The focused WebKit selection adds final-calculator/categories navigation, phone Settings/install help and online/offline update feedback to the prior ten flows.

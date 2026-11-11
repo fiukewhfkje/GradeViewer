@@ -636,6 +636,37 @@ try {
             .evaluate((node) => node.scrollWidth <= node.clientWidth),
           true,
         );
+        await motion.uncheck();
+        await settleMotion(settings);
+        const alignment = await settings
+          .locator(".appearance-card")
+          .evaluate((card) =>
+            [...card.querySelectorAll(".settings-label")].map(
+              (label, index) => {
+                const subtitle = label
+                  .querySelector("small")
+                  .getBoundingClientRect();
+                const range = document.createRange();
+                range.selectNodeContents(
+                  card.querySelectorAll(".device-preference")[index],
+                );
+                const link = range.getBoundingClientRect();
+                return {
+                  label: label.getBoundingClientRect().x,
+                  subtitle: subtitle.x,
+                  link: link.x,
+                  gap: link.top - subtitle.bottom,
+                };
+              },
+            ),
+          );
+        for (const row of alignment) {
+          assert.equal(row.label, row.subtitle);
+          assert.equal(row.link, row.subtitle);
+        }
+        assert.equal(alignment[0].gap, alignment[1].gap);
+        await motion.check();
+        await waitMotion("reduce");
         await settings.screenshot({
           path: directory + "/appearance-day-reduced.png",
         });

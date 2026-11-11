@@ -1,3 +1,10 @@
+# Preference text alignment — November 11
+
+- [x] Reproduce the motion subtitle/reset-link 2px offset and unequal vertical gaps with synthetic measurements.
+- [x] Share appearance-row columns and content sizing; verify aligned title/subtitle/link edges and matching 13px gaps at 320px and 390px.
+- [x] Pass build, focused Chromium/WebKit checks, packaging and formatting; refresh the comparison captures.
+- [ ] Obtain owner acceptance; keep the work on the dev branch without release or deployment.
+
 # Update notice and spacing — November 11
 
 - [x] Shorten the ready-update notice and preserve its activation safeguards and accessible action name.

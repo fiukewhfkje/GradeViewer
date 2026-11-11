@@ -1147,6 +1147,11 @@ svg.spinning {
   font-size: 12px;
 }
 .appearance-card > .settings-row {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: 36px minmax(0, 1fr) 60px;
+  grid-template-rows: minmax(44px, auto);
+  gap: 0 12px;
   transition: padding-bottom 160ms ease-out;
 }
 .appearance-card > .settings-row:has(+ .preference-reset[data-visible="true"]) {
