@@ -127,16 +127,26 @@ async function openConnection(page, title) {
     await summary.click();
 }
 async function settleMotion(page) {
-  await page.locator("main").evaluate((main) =>
-    Promise.all(
-      main
-        .getAnimations({ subtree: true })
-        .filter(
-          (animation) => animation.effect?.getTiming().iterations !== Infinity,
-        )
-        .map((animation) => animation.finished.catch(() => {})),
-    ),
+  // Closed disclosures can retain suspended color transitions. Only rendered
+  // finite motion affects the layout assertions and screenshots below.
+  await page.waitForFunction(() =>
+    document
+      .querySelector("main")
+      .getAnimations({ subtree: true })
+      .every((animation) => {
+        const target = animation.effect?.target;
+        return (
+          animation.effect?.getTiming().iterations === Infinity ||
+          !(target instanceof Element) ||
+          !target.getClientRects().length ||
+          ["finished", "idle"].includes(animation.playState)
+        );
+      }),
   );
+}
+async function setTheme(page, theme) {
+  const toggle = page.getByRole("switch", { name: "Dark mode", exact: true });
+  if ((await toggle.isChecked()) !== (theme === "dark")) await toggle.click();
 }
 async function completeCarmenSignIn(page, client) {
   await page
@@ -379,7 +389,7 @@ try {
         [3840, 2160],
       ];
       for (const theme of ["light", "dark"]) {
-        await page.getByLabel("Theme", { exact: true }).selectOption(theme);
+        await setTheme(page, theme);
         for (const [width, height] of sizes) {
           await page.setViewportSize({ width, height });
           await page.locator(".app-scroll").evaluate((e) => e.scrollTo(0, 0));
@@ -479,7 +489,144 @@ try {
       }
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+      await setTheme(page, "dark");
+    },
+  );
+  await check(
+    "appearance controls follow the device, persist overrides, and reduce motion",
+    async () => {
+      const isolated = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        ignoreHTTPSErrors: true,
+        colorScheme: "light",
+        reducedMotion: "no-preference",
+      });
+      try {
+        const settings = await isolated.newPage();
+        settings.on("pageerror", (error) => errors.push(error.message));
+        await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        await settings.goto(base);
+        await settings.locator(".courses").waitFor();
+        const openSettings = () =>
+          settings
+            .getByRole("button", { name: "Settings", exact: true })
+            .click();
+        const dark = settings.getByRole("switch", {
+          name: "Dark mode",
+          exact: true,
+        });
+        const motion = settings.getByRole("switch", {
+          name: "Reduce motion",
+          exact: true,
+        });
+        const device = settings.getByRole("button", {
+          name: "Use device theme",
+          exact: true,
+        });
+        const waitMotion = (mode) =>
+          settings.waitForFunction(
+            (mode) => document.documentElement.dataset.motion === mode,
+            mode,
+          );
+        await openSettings();
+        assert.equal(await device.getAttribute("aria-pressed"), "true");
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(await motion.isChecked(), false);
+        await settings.emulateMedia({ colorScheme: "dark" });
+        await settings.waitForFunction(
+          () =>
+            document
+              .querySelector('[aria-label="Dark mode"]')
+              .getAttribute("aria-checked") === "true",
+        );
+        await dark.focus();
+        await dark.press("Space");
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(await device.getAttribute("aria-pressed"), "false");
+        assert.equal(
+          await settings.evaluate(() => localStorage.getItem("theme")),
+          "light",
+        );
+        await settings.emulateMedia({ colorScheme: "light" });
+        await settings.emulateMedia({ colorScheme: "dark" });
+        assert.equal(await dark.isChecked(), false);
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        await openSettings();
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(
+          await settings.evaluate(() => document.documentElement.dataset.theme),
+          "light",
+        );
+        await device.click();
+        assert.equal(await dark.isChecked(), true);
+        await settleMotion(settings);
+        await settings.screenshot({
+          path: directory + "/appearance-night.png",
+        });
+        await motion.focus();
+        await motion.press("Space");
+        await waitMotion("reduce");
+        assert.equal(
+          await settings.evaluate(() => document.getAnimations().length),
+          0,
+        );
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        assert.equal(
+          await settings.evaluate(
+            () => document.documentElement.dataset.motion,
+          ),
+          "reduce",
+        );
+        await openSettings();
+        assert.equal(await motion.isChecked(), true);
+        await settings
+          .getByRole("button", {
+            name: "Use device motion setting",
+            exact: true,
+          })
+          .click();
+        await waitMotion("full");
+        await settings.emulateMedia({ reducedMotion: "reduce" });
+        await waitMotion("reduce");
+        assert.equal(await motion.isChecked(), true);
+        await motion.uncheck();
+        await waitMotion("full");
+        assert.notEqual(
+          await settings
+            .locator(".theme-orb")
+            .evaluate((node) => getComputedStyle(node).transitionDuration),
+          "0s",
+        );
+        await settings.reload();
+        await settings.locator(".courses").waitFor();
+        await openSettings();
+        assert.equal(await motion.isChecked(), false);
+        await motion.check();
+        await waitMotion("reduce");
+        await dark.click();
+        assert.equal(await dark.isChecked(), false);
+        assert.equal(
+          await settings.evaluate(() => document.getAnimations().length),
+          0,
+        );
+        await settings.setViewportSize({ width: 320, height: 693 });
+        assert.equal(
+          await settings
+            .locator(".appearance-card")
+            .evaluate((node) => node.scrollWidth <= node.clientWidth),
+          true,
+        );
+        await settings.screenshot({
+          path: directory + "/appearance-day-reduced.png",
+        });
+      } finally {
+        await isolated.close();
+      }
     },
   );
   await check(
@@ -578,7 +725,7 @@ try {
           assert.equal(await toggle.isChecked(), true);
           assert.equal(
             await preview
-              .locator(".gpa-toggle-track")
+              .locator(".settings-provider .gpa-toggle-track")
               .evaluate((node) => getComputedStyle(node, "::before").transform),
             "matrix(1, 0, 0, 1, 16, 0)",
           );
@@ -1305,7 +1452,7 @@ try {
         await page.getByLabel("Website address", { exact: true }).inputValue(),
         base,
       );
-      await page.getByLabel("Theme", { exact: true }).selectOption("dark");
+      await setTheme(page, "dark");
       await page.screenshot({ path: directory + "/profile-dark.png" });
       await page
         .getByRole("button", { name: "Add to Home Screen", exact: true })
@@ -1331,6 +1478,8 @@ try {
   await check(
     "Settings update check reports current version and offline state",
     async () => {
+      await context.setOffline(false);
+      await page.waitForFunction(() => navigator.onLine);
       await page
         .getByRole("button", { name: "Check for updates", exact: true })
         .click();

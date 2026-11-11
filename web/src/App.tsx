@@ -1,4 +1,5 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
+import { AppearanceSettings, useAppearance } from "./Appearance";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -25,7 +26,6 @@ import {
   Copy,
   ExternalLink,
   Download,
-  SunMoon,
   Globe,
   LockKeyhole,
   KeyRound,
@@ -199,14 +199,8 @@ export default function App() {
     [switchingLms, setSwitchingLms] = useState(false),
     [applyingUpdate, setApplyingUpdate] = useState(false),
     [updateMessage, setUpdateMessage] = useState(""),
-    [installation, setInstallation] = useState<Installation>(),
-    [theme, setTheme] = useState(() => {
-      try {
-        return localStorage.getItem("theme") ?? "system";
-      } catch {
-        return "system";
-      }
-    });
+    [installation, setInstallation] = useState<Installation>();
+  const appearance = useAppearance();
   const flight = useRef<Promise<void> | undefined>(undefined),
     pendingSaves = useRef(0),
     saveFailed = useRef(false),
@@ -243,14 +237,6 @@ export default function App() {
     setCachedUnlocked(false);
     setFresh(false);
   }
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem("theme", theme);
-    } catch {
-      /* Keep the selected theme in memory when storage is unavailable. */
-    }
-  }, [theme]);
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
@@ -1074,8 +1060,7 @@ export default function App() {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
   useLayoutEffect(() => {
-    const preference = matchMedia("(prefers-reduced-motion: reduce)");
-    if (!content.current?.animate || preference.matches) return;
+    if (!content.current?.animate || appearance.reducedMotion) return;
     // Animate the existing screen so navigation never remounts open forms or
     // replays on a background refresh, local edit, or chart pointer movement.
     const animation = content.current.animate(
@@ -1085,15 +1070,8 @@ export default function App() {
       ],
       { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
-    const reduce = () => {
-      if (preference.matches) animation.cancel();
-    };
-    preference.addEventListener("change", reduce);
-    return () => {
-      animation.cancel();
-      preference.removeEventListener("change", reduce);
-    };
-  }, [tab, selected, view, period]);
+    return () => animation.cancel();
+  }, [tab, selected, view, period, appearance.reducedMotion]);
   const locked = !status?.authenticated && !cachedUnlocked;
   const schoologyConnected = !!(
     status?.schoologyConnected ?? status?.connected
@@ -1399,24 +1377,7 @@ export default function App() {
                       )}
                       <section className="settings-group">
                         <h2>Preferences</h2>
-                        <label className="settings-card settings-row">
-                          <span className="settings-icon">
-                            <SunMoon size={20} />
-                          </span>
-                          <span className="settings-label">Theme</span>
-                          <span className="theme-control">
-                            <select
-                              aria-label="Theme"
-                              value={theme}
-                              onChange={(e) => setTheme(e.target.value)}
-                            >
-                              <option value="system">System</option>
-                              <option value="light">Light</option>
-                              <option value="dark">Dark</option>
-                            </select>
-                            <ChevronDown size={15} aria-hidden="true" />
-                          </span>
-                        </label>
+                        <AppearanceSettings appearance={appearance} />
                       </section>
                     </div>
                     <div className="settings-column settings-preferences">

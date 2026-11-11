@@ -1,3 +1,11 @@
+# Appearance controls — November 11, 2026
+
+Production build/type check, 306 unit tests, all 40 Chromium browser flows, nine focused WebKit flows, 107-file source packaging and formatting passed. The focused WebKit selection covers owner connection, responsive Settings, appearance preferences, motion/form preservation, returning startup, cache locking, pull-to-refresh, matching home/detail grades and graph selection. The earlier 39-flow full WebKit pass remains the baseline; this follow-up does not claim a new full WebKit run.
+
+New synthetic checks exercise device-theme changes, keyboard activation, manual theme persistence across reloads, returning to device theme, saved Reduce motion, returning to device motion, explicit full-animation override of a reduced-motion device setting, and immediate cancellation when reduction is enabled. Both normal and reduced modes retain the earlier unsaved-form DOM/value/focus and graph-interaction checks. The motion input owns a full-row touch target. Existing Settings containment checks pass from 320 through 3840 CSS pixels. Day and night control screenshots were inspected.
+
+The fixture wait now ignores suspended transitions in closed disclosures while still waiting for rendered finite motion before layout assertions. The update-check flow explicitly sets its initial online condition, then retains its offline assertions. All checks use local synthetic data. No provider requests, Browser Run quota, production changes or releases were used. Owner acceptance and physical-device smoothness remain open.
+
 # Development motion pass — November 11, 2026
 
 On `codex/pwa-motion`, production build/type check, all 306 unit tests, all 39 HTTPS/Worker browser flows in each of Chromium and WebKit, 106-file local source packaging, formatting and Worker dry-run passed. The new browser flow checks normal and reduced-motion modes, unchanged screen-animation counts during chart interaction and refresh, preservation of an unsaved input's DOM identity/value/focus, Escape dismissal and the checked switch position. The desktop grid check waits for finite entrance animations before retaining its exact alignment assertions.

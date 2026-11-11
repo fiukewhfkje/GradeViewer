@@ -1,3 +1,11 @@
+# Appearance controls — November 11
+
+- [x] Replace the theme dropdown with an animated sun/clouds and moon/stars switch; preserve saved Light/Dark and device-theme behavior.
+- [x] Add a saved Reduce motion switch in Settings, defaulting to the device preference, with an action to restore device control. Apply it to CSS and screen animations and stop in-flight motion.
+- [x] Validate build/type check, 306 unit tests, 40 Chromium flows, nine focused WebKit flows, 107-file packaging and formatting; inspect day/night control screenshots.
+- [x] Update the synthetic localhost preview on `codex/pwa-motion`, retaining local state and avoiding a stale app shell.
+- [ ] Obtain owner acceptance before merging, deploying or releasing the appearance/motion changes. Physical-device acceptance remains separate.
+
 # PWA motion preview — November 11
 
 - [x] Preserve the remaining v0.2.3 release-verification notes and remove the old investigative branch locally and on GitHub.
