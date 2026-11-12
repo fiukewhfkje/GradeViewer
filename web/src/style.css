@@ -211,6 +211,11 @@ body,
 .icon:hover {
   background: var(--row);
 }
+.desktop-refresh {
+  border-radius: 14px;
+  background: var(--row);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 65%, transparent);
+}
 main > section,
 main > form {
   margin-bottom: 28px;
@@ -258,6 +263,15 @@ main > section + section {
   text-align: left;
   width: 100%;
   min-height: 102px;
+}
+.course,
+.summary,
+.assignment-group,
+.gpa-card {
+  /* Keep the edge outside the card's animated hover shadow so changing
+     themes cannot briefly carry a light shadow into the dark surface. */
+  outline: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  outline-offset: -1px;
 }
 .grade {
   color: var(--grade);
@@ -417,6 +431,14 @@ select {
   padding: 11px 12px;
   color: var(--ink);
   font-size: 16px;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+input:focus-visible,
+select:focus-visible {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--bg) 65%, var(--row));
 }
 input[readonly] {
   font-weight: 400;
@@ -553,6 +575,7 @@ select {
   display: grid;
   place-items: center;
   cursor: pointer;
+  border-radius: 12px;
 }
 .menu summary::-webkit-details-marker {
   display: none;
@@ -565,8 +588,8 @@ select {
   max-width: calc(100vw - 48px);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 13px;
-  box-shadow: 0 6px 24px #0002;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
   z-index: 10;
   padding: 6px;
 }
@@ -628,6 +651,7 @@ dialog {
   max-width: 460px;
   max-height: calc(100dvh - 48px);
   overflow: auto;
+  box-shadow: 0 20px 70px -20px rgb(0 0 0 / 0.35);
 }
 dialog::backdrop {
   background: #0007;
@@ -732,8 +756,8 @@ dialog p {
 .updated {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-weight: 600;
+  gap: 6px;
+  font-weight: 500;
 }
 .updated.fresh {
   color: var(--grade);
@@ -2062,6 +2086,7 @@ dialog[open]::backdrop {
   border-radius: 14px;
   background: var(--bg);
   pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 35%, transparent);
   transition: transform 220ms var(--motion-ease);
 }
 .primary-nav[data-tab="profile"]::before {
@@ -2137,6 +2162,7 @@ dialog[data-closing="true"]::backdrop {
   }
 }
 .course > svg:last-child {
+  color: var(--muted);
   transition: transform 160ms var(--motion-ease);
 }
 .sidebar-courses button {
@@ -2145,6 +2171,19 @@ dialog[data-closing="true"]::backdrop {
     color 160ms ease;
 }
 @media (hover: hover) and (pointer: fine) {
+  .desktop-refresh:not(:disabled):hover {
+    background: color-mix(in srgb, var(--grade) 8%, var(--row));
+    color: var(--ink);
+  }
+  .primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--ink) 90%, var(--bg));
+  }
+  .settings-provider > summary:hover,
+  .settings-action:not(:disabled):hover,
+  .app-actions .settings-card > button:not(:disabled):hover,
+  .portal-actions > button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--bg) 55%, var(--row));
+  }
   .course:hover > svg:last-child {
     transform: translateX(2px);
   }

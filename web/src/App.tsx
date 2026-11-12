@@ -1417,7 +1417,7 @@ export default function App() {
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <RefreshIcon size={22} loading={busy} />
+                  <RefreshIcon size={24} loading={busy} />
                 </button>
               )}
             </header>

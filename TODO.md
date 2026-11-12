@@ -1,3 +1,11 @@
+# Final visual polish and owner deployment — November 12
+
+- [x] Keep the rounded refresh button and use an open, two-arrow idle symbol with a clear center; preserve the truthful active loader.
+- [x] Polish card/navigation edges, timestamp hierarchy, chevrons, row hovers, inputs, menus and dialogs; preserve reduced motion, keyboard focus and existing layouts.
+- [x] Pass full browser suites, focused final motion/layout checks, build, source packaging and isolated template preservation/rollback. Inspect synthetic light/dark/phone/detail captures.
+- [x] Owner accepted the visual revision and authorized only the existing Worker deployment, with no release.
+- [ ] Capture private preflight fingerprints, deploy the accepted source without changing secrets/vault/URL, and verify exact public assets and retained diagnostics.
+
 # CI and release flow — November 12
 
 - [x] Benchmark the original, intermediate and final hosted verification runs with step timings; preserve the rejected native-runner trial separately.
@@ -6,7 +14,7 @@
 - [x] Overlap independent checks with failure propagation; eliminate repeated dependency installs/builds from source packaging and retain exact-tag/provenance gates.
 - [x] Measure 154 → 124 seconds for verification and 7.003 → 0.206 seconds for identical source preparation; verify Node 24 packaging without dependencies.
 - [x] Pass build, unit checks, both local browser suites, final hosted CI, Worker dry-run, 118-file local packaging and formatting. Do not deploy or publish.
-- [ ] Finish the owner's additional idle reload-icon redesign and general visual polish, then refresh the synthetic localhost preview.
+- [x] Finish the owner's idle reload-icon redesign and general polish; refresh the synthetic localhost preview and receive visual acceptance.
 
 # Loading and motion polish — November 12
 
@@ -14,7 +22,7 @@
 - [x] Add restrained sliding navigation, directional course changes, Settings/feedback entrances and backdrop dismissal while preserving forms and reduced motion.
 - [x] Pass build/type check, 336 tests, both 42-flow browser suites, Worker dry-run, 118-file packaging, isolated template preservation/rollback and formatting; inspect synthetic day/night/phone captures.
 - [x] Start and request the synthetic localhost preview in the browser panel for owner review; keep deployment/merge/tag/release held.
-- [ ] Benchmark CI/release before/after and reduce redundant tests/work without dropping meaningful safety checks.
+- [x] Benchmark CI/release before/after and consolidate repeated checks while retaining all input variants and safety checks.
 
 # Second optimization pass — November 12
 
