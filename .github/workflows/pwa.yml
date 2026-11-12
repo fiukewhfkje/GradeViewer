@@ -20,6 +20,9 @@ jobs:
       matrix:
         browser: [chromium, webkit]
     runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.browser == 'webkit' && 'mcr.microsoft.com/playwright:v1.64.1-noble' || '' }}
+      options: --ipc=host --init
     timeout-minutes: 10
     env:
       GRADEVIEWER_BROWSER: ${{ matrix.browser }}
@@ -35,24 +38,27 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - name: Install locked Chromium headless shell
-        if: matrix.browser == 'chromium'
-        run: node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
-      - name: Install locked WebKit
+      - name: Check preinstalled WebKit compatibility
         if: matrix.browser == 'webkit'
-        run: node node_modules/playwright-core/cli.js install --with-deps webkit
+        run: node -e "if(require('playwright-core/package.json').version !== '1.64.1') throw new Error('Update the Playwright CI image to match package-lock.json')"
       - name: Build, unit and browser checks
         if: matrix.browser == 'chromium'
         run: |
           npm test &
           unit_pid=$!
+          node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium &
+          browser_pid=$!
           result=0
-          npm run build && npm run test:e2e:ci || result=1
+          npm run build || result=1
+          wait "$browser_pid" || result=1
           wait "$unit_pid" || result=1
+          if [ "$result" -eq 0 ]; then
+            npm run test:e2e:ci || result=1
+          fi
           exit "$result"
       - run: npm run build
         if: matrix.browser == 'webkit'
-      - run: npm run test:e2e:ci
+      - run: npm run test:e2e
         if: matrix.browser == 'webkit'
       - run: npx wrangler deploy --dry-run --outdir .local-test/production
         if: matrix.browser == 'chromium'
