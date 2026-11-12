@@ -77,7 +77,7 @@ export class FixtureVault extends CredentialVault {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status"].includes(kind))
+      if (!["provider", "status", "scan"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -99,6 +99,15 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
     if (path === "/api/status") await this.waitForGate("status");
+    if (
+      path === "/api/status" &&
+      (await this.fixtureState.storage.get("synthetic-status-failure"))
+    )
+      return Response.json(
+        { error: "syntheticStatusUnavailable" },
+        { status: 503 },
+      );
+    if (path === "/api/scan/start") await this.waitForGate("scan");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))
@@ -198,6 +207,14 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
 
+    if (path === "/api/fixture/status-failure" && request.method === "POST") {
+      const { enabled } = (await request.json()) as { enabled: boolean };
+      await this.fixtureState.storage.put(
+        "synthetic-status-failure",
+        enabled === true,
+      );
+      return Response.json({ ok: true });
+    }
     if (
       new URL(request.url).pathname === "/api/fixture/delay" &&
       request.method === "POST"

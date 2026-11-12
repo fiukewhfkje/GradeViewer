@@ -1,5 +1,6 @@
 import { openDB } from "idb";
 import { emptyState, type SavedState } from "./core/model";
+import { planRefreshRetry, type RefreshRetry } from "./refresh-retry";
 export interface Pending {
   state: SavedState;
   account: string;
@@ -82,6 +83,48 @@ export async function cancel() {
 export async function clear() {
   const d = await db();
   await d.clear("state");
+}
+
+export async function refreshRetry(): Promise<RefreshRetry | undefined> {
+  return (await db()).get("state", "refresh-retry");
+}
+export async function planRetry(account: string, retryAfter: number) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const next = planRefreshRetry(
+    await tx.store.get("refresh-retry"),
+    account,
+    retryAfter,
+  );
+  await tx.store.put(next, "refresh-retry");
+  await tx.done;
+  return next;
+}
+export async function claimRetry(account: string, now = Date.now()) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const retry: RefreshRetry | undefined = await tx.store.get("refresh-retry");
+  const access: BrowserAccess | undefined = await tx.store.get("access");
+  const saved: SavedState | undefined = await tx.store.get("active");
+  const allowed =
+    retry?.account === account &&
+    retry.phase === "waiting" &&
+    retry.due <= now &&
+    !access?.locked &&
+    access?.account === account &&
+    (access.expires ?? 0) > now &&
+    saved?.account === account;
+  if (allowed)
+    await tx.store.put({ ...retry, phase: "attempted" }, "refresh-retry");
+  await tx.done;
+  return allowed;
+}
+export async function finishRetry(account: string, succeeded: boolean) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const retry: RefreshRetry | undefined = await tx.store.get("refresh-retry");
+  if (retry?.account === account) {
+    if (succeeded) await tx.store.delete("refresh-retry");
+    else await tx.store.put({ ...retry, phase: "failed" }, "refresh-retry");
+  }
+  await tx.done;
 }
 
 // This receipt unlocks only this browser's existing local cache. Provider/API

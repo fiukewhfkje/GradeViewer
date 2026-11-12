@@ -9,6 +9,9 @@ import * as repository from "../src/repository";
 import { visibleCourses } from "../src/core/periods";
 describe("complete snapshot and cache integration", () => {
   let requests = 0,
+    appRequests: string[] = [],
+    legacyWorker = false,
+    changedGrades = false,
     cookie = "",
     omitBulkOwner = false,
     slow = false,
@@ -27,6 +30,8 @@ describe("complete snapshot and cache integration", () => {
   beforeEach(async () => {
     await repository.clear();
     requests = 0;
+    appRequests = [];
+    legacyWorker = changedGrades = false;
     cookie = "";
     omitBulkOwner = false;
     slow = limited = redirects = large = false;
@@ -98,6 +103,17 @@ describe("complete snapshot and cache integration", () => {
               metadataCompleted++;
           }
           const url = new URL(req.url);
+          if (changedGrades && url.pathname.endsWith("/grades")) {
+            const value = (await response.json()) as {
+              section: Record<string, unknown>[];
+            };
+            return Response.json({
+              ...value,
+              section: value.section.map((row, i) =>
+                i === 0 ? { ...row, syntheticRevision: 2 } : row,
+              ),
+            });
+          }
           if (missingTitles && url.pathname.endsWith("/grade_items")) {
             const value = (await response.json()) as {
               assignment: Record<string, unknown>[];
@@ -133,6 +149,13 @@ describe("complete snapshot and cache integration", () => {
       { APP_PASSWORD: "synthetic-owner-password-for-tests-only" } as Env,
     );
     vi.stubGlobal("fetch", async (path: string, init: RequestInit = {}) => {
+      appRequests.push(path);
+      if (legacyWorker && path === "/api/scan/start") {
+        const { reuse, prefetch, prefetchMetadata, ...body } = JSON.parse(
+          String(init.body),
+        );
+        init = { ...init, body: JSON.stringify(body) };
+      }
       if (path === "/api/scan/read-batch")
         batches.push(
           JSON.parse(String(init.body)).jobs.map(
@@ -147,6 +170,13 @@ describe("complete snapshot and cache integration", () => {
       );
       const next = r.headers.get("Set-Cookie");
       if (next) cookie = next.split(";")[0];
+      if (path === "/api/scan/start" && r.ok) {
+        const start = (await r.clone().json()) as {
+          prefetched?: { jobs: { resource: string }[] };
+        };
+        if (start.prefetched)
+          batches.push(start.prefetched.jobs.map((job) => job.resource));
+      }
       return r;
     });
     await api("login", { password: "synthetic-owner-password-for-tests-only" });
@@ -301,14 +331,128 @@ describe("complete snapshot and cache integration", () => {
       secret: "fixture-secret",
     });
     expect(requests).toBe(23);
+    expect(appRequests.slice(-3)).toEqual([
+      "/api/status",
+      "/api/scan/start",
+      "/api/scan/commit",
+    ]);
     const cacheStamp = cold.metadata!["100"].fetched;
     requests = 0;
+    appRequests = [];
     const warm = await readSnapshot(cold, await status());
     expect(requests).toBe(3);
+    expect(appRequests).toEqual([
+      "/api/status",
+      "/api/scan/start",
+      "/api/scan/commit",
+    ]);
     expect(warm.metadata!["100"].fetched).toBe(cacheStamp);
     requests = 0;
+    appRequests = [];
     await readSnapshot(warm, await status(), undefined, true);
     expect(requests).toBe(23);
+    expect(appRequests).toEqual([
+      "/api/status",
+      "/api/scan/start",
+      "/api/scan/commit",
+    ]);
+  });
+  it("shares the initial invocation's redirect budget with prefetched metadata", async () => {
+    redirects = true;
+    requests = 0;
+    const started = await api<{
+      scan: string;
+      prefetched: { results: { ok: boolean; error?: string }[] };
+    }>("scan/start", {
+      key: "fixture",
+      secret: "fixture-secret",
+      includeRoots: true,
+      prefetchMetadata: true,
+    });
+    expect(requests).toBe(44);
+    expect(
+      started.prefetched.results.some(
+        (result) => result.error === "batchDeferred",
+      ),
+    ).toBe(true);
+    await expect(
+      api("scan/commit", { scan: started.scan }),
+    ).rejects.toMatchObject({ code: "incompleteSnapshot" });
+    await api("scan/cancel", { scan: started.scan });
+  });
+  it("falls back to scan/reuse when an older Worker does not fold receipts into scan/start", async () => {
+    const cold = await readSnapshot(emptyState(), await status(), {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    legacyWorker = true;
+    requests = 0;
+    appRequests = [];
+    const warm = await readSnapshot(cold, await status());
+    expect(requests).toBe(3);
+    expect(appRequests).toContain("/api/scan/reuse");
+    expect(warm.metadata).toEqual(cold.metadata);
+  });
+  it("renews changed fingerprints instead of accepting the browser's reuse proposal", async () => {
+    const cold = await readSnapshot(emptyState(), await status(), {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    changedGrades = true;
+    requests = 0;
+    const next = await readSnapshot(cold, await status());
+    expect(requests).toBe(7); // identity + fresh roots + four required metadata reads
+    expect(next.metadata!["100"].fingerprint).not.toBe(
+      cold.metadata!["100"].fingerprint,
+    );
+    expect(next.metadata!["101"]).toEqual(cold.metadata!["101"]);
+  });
+  it("validates reuse proposals before provider reads and rejects missing, expired or manual receipts", async () => {
+    await readSnapshot(emptyState(), await status(), {
+      key: "fixture",
+      secret: "fixture-secret",
+    });
+    requests = 0;
+    for (const reuse of [
+      ["100", "100"],
+      ["100/grades"],
+      Array(33).fill("100"),
+      "100",
+    ]) {
+      await expect(
+        api("scan/start", { reuse, includeRoots: true }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(requests).toBe(0);
+    const started = await api<{ scan: string; reused: string[] }>(
+      "scan/start",
+      { includeRoots: true, reuse: ["100", "999"] },
+    );
+    expect(started.reused).toEqual(["100"]);
+    await expect(
+      api("scan/commit", { scan: started.scan }),
+    ).rejects.toMatchObject({ code: "incompleteSnapshot" });
+    await api("scan/cancel", { scan: started.scan });
+    const manual = await api<{ scan: string; reused: string[] }>("scan/start", {
+      includeRoots: true,
+      reuse: ["100"],
+      refreshMetadata: true,
+    });
+    expect(manual.reused).toEqual([]);
+    await api("scan/cancel", { scan: manual.scan });
+    const clock = vi
+      .spyOn(Date, "now")
+      .mockReturnValue(Date.now() + 5 * 60000 + 1);
+    try {
+      const expired = await api<{ scan: string; reused: string[] }>(
+        "scan/start",
+        { includeRoots: true, reuse: ["100"] },
+      );
+      expect(expired.reused).toEqual([]);
+      await api("scan/cancel", { scan: expired.scan });
+    } finally {
+      clock.mockRestore();
+    }
   });
   it("does not retry a short provider rate limit inside the same scan", async () => {
     limited = true;
@@ -360,8 +504,16 @@ describe("complete snapshot and cache integration", () => {
     const returning = await readSnapshot(previous, await status());
     expect(optionalTitleReads).toBe(0);
     expect(returning.courses).toHaveLength(cold.courses.length);
-    await readSnapshot(returning, await status(), undefined, true);
+    const manual = await readSnapshot(
+      returning,
+      await status(),
+      undefined,
+      true,
+    );
     expect(optionalTitleReads).toBeGreaterThan(0);
+    optionalTitleReads = 0;
+    await readSnapshot(manual, await status(), undefined, true);
+    expect(optionalTitleReads).toBe(0); // Fresh full catalogs still run; failed optional lookups honor their backoff.
   });
   it("retains the active account/snapshot after malformed credential replacement", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {

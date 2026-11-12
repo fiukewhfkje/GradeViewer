@@ -1,3 +1,14 @@
+# Grade refresh optimizations — November 12
+
+- [x] Preserve v0.2.4 verification notes on `codex/grade-refresh-optimizations`; delete the old motion branch locally and on GitHub.
+- [x] Measure an archived before implementation and the real updated Worker/client with the same synthetic harness; record raw samples, p50/p95, provider counts, concurrency and normalized output hashes.
+- [x] Eliminate one app round trip without extending metadata expiry or skipping full manual verification; retain pagination, alias, old-Worker, redirect and payload-budget fallback.
+- [x] Refill three IC/Carmen slots, stop queued work on failure and keep the longest 429 cooldown; honor optional title-failure backoff without skipping required catalogs.
+- [x] Add one persisted Schoology cooldown retry with waiting/running/failure messages; stop after failure, reload or interruption cannot re-arm it, and success restores the normal UI.
+- [x] Cover hidden/offline deferral, early status failure, cross-tab atomic allowance, local Lock/account/expiry guards, UI countdowns and honest busy state with synthetic checks.
+- [x] Pass final build/type check, 317 unit tests, both full 41-flow browser suites, focused retry checks, Worker dry-run, 114-file packaging and isolated-template preservation/rollback checks.
+- [ ] Measure the owner's real refresh times after a separately authorized deployment; synthetic savings do not establish a production/device latency guarantee.
+
 # Stable v0.2.4 — November 11
 
 - [x] Receive explicit stable v0.2.4 authorization and update package metadata and appearance help.

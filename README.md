@@ -80,6 +80,8 @@ In **Settings → Preferences**, use the sun/moon switch to choose Light or Dark
 
 In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see a weighted and unweighted estimate from your Schoology semester grades. Check the suggested course levels, exclude classes that don’t count, and enter semester credits if courses carry different weights. The estimate and its settings stay in your browser and may differ from your official transcript.
 
+If Schoology limits requests, GradeViewer keeps saved grades visible and announces one automatic refresh after the server’s cooldown plus a short buffer. It retries only while the app is visible, online and unlocked. A failed automatic attempt stops further retries; the message explains when to try manually. Successful refresh clears the message.
+
 ## Your data
 
 Schoology keys are encrypted in your own Cloudflare account. Grades, history and hypothetical changes stay in each browser. Ordinary updates preserve the Worker, password, connection and browser storage. Clearing browser storage can lose local-only history and edits. Change the unlock password under **Settings → Security**. This keeps the encrypted connections and asks other browsers to unlock again. If you forget it, deploy your new password as a secret named `APP_PASSWORD_RESET` in your Worker’s Cloudflare **Settings → Variables and Secrets**. Unlock once with the new password. It becomes your regular app password. Remove the reset secret and deploy again to apply the deletion. Your new password still works. For another reset, reuse the same secret name with a fresh password. Leave the original `APP_PASSWORD` binding in place so the Worker can still decrypt your connections. Disconnect before switching students.

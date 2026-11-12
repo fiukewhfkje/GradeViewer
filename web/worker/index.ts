@@ -105,6 +105,29 @@ function metadataReady(scan: Scan, section: string) {
     scan.done.includes(r + ":" + section + ":"),
   );
 }
+function reusableMetadata(
+  scan: Scan,
+  vault: Vault,
+  section: string,
+  now: number,
+) {
+  const cached = vault.metadata?.[section];
+  return !!(
+    !scan.replacement &&
+    !scan.freshMetadata &&
+    scan.sections.includes(section) &&
+    cached &&
+    cached.account === scan.account &&
+    cached.expires > now &&
+    cached.fingerprint === scan.fingerprints[section]
+  );
+}
+function reuseMetadata(scan: Scan, vault: Vault, section: string) {
+  for (const resource of ["section", "items", "categories", "periods"])
+    scan.done.push(resource + ":" + section + ":");
+  scan.owners[section] = vault.metadata[section].owner;
+  scan.reused.push(section);
+}
 function snapshotReady(scan: Scan) {
   const complete = (r: string, s = "") => scan.done.includes(r + ":" + s + ":");
   return (
@@ -402,6 +425,7 @@ export class CredentialVault {
     vault: Vault,
     now: number,
     verifiedCredentials?: Credentials,
+    upstream: Fetcher = this.upstream,
   ) {
     if (now < vault.cooldown)
       throw new ApiError(
@@ -418,12 +442,12 @@ export class CredentialVault {
       readProvider(
         `users/${scan.account}/sections?limit=200`,
         credentials,
-        this.upstream,
+        upstream,
       ),
       readProvider(
         `users/${scan.account}/grades?limit=200`,
         credentials,
-        this.upstream,
+        upstream,
       ),
     ]);
     for (const r of [sectionResult, gradeResult])
@@ -447,7 +471,7 @@ export class CredentialVault {
     try {
       if (gradeResult.status === "rejected") throw gradeResult.reason;
       grades = {
-        ok: true,
+        ok: true as const,
         value: await this.read(
           scan,
           vault,
@@ -461,13 +485,120 @@ export class CredentialVault {
       const e =
         error instanceof ApiError ? error : new ApiError(500, "requestFailed");
       grades = {
-        ok: false,
+        ok: false as const,
         error: e.code,
         status: e.status,
         retryAfter: e.retryAfter,
       };
     }
     return { sections, grades };
+  }
+  private async readBatch(
+    scan: Scan,
+    vault: Vault,
+    input: unknown,
+    now: number,
+    provider: Fetcher = this.upstream,
+    responseBudget = 4000000,
+  ) {
+    ensure(Array.isArray(input) && input.length > 0 && input.length <= 32);
+    const jobs = input as Record<string, unknown>[];
+    ensure(
+      jobs.every(
+        (job) =>
+          job &&
+          typeof job === "object" &&
+          [
+            "grades",
+            "section",
+            "items",
+            "categories",
+            "periods",
+            "scales",
+            "assignment",
+          ].includes(String(job.resource)) &&
+          typeof job.section === "string" &&
+          scan.sections.includes(job.section) &&
+          !job.next &&
+          (job.resource === "assignment"
+            ? typeof job.extra === "string" && validID(job.extra)
+            : job.extra === undefined),
+      ),
+    );
+    ensure(
+      new Set(
+        jobs.map(
+          (job) => job.resource + ":" + job.section + ":" + (job.extra ?? ""),
+        ),
+      ).size === jobs.length,
+    );
+    const results: unknown[] = new Array(jobs.length);
+    // Optional scale reads must wait for all required data, including
+    // pagination and authoritative alias resolution. Keep their original
+    // result indices so the client can consume a single bounded batch.
+    const required = jobs.flatMap((j, i) =>
+        j.resource === "scales" ? [] : [i],
+      ),
+      optional = jobs.flatMap((j, i) => (j.resource === "scales" ? [i] : []));
+    let scheduled = required;
+    // Keep a Free-plan invocation below 50 subrequests, including redirects.
+    // Retain the existing conservative five-read concurrency cap.
+    let cursor = 0,
+      subrequests = 0,
+      responseBytes = 0;
+    const originalUpstream = provider;
+    const upstream: Fetcher = (request) => {
+      if (subrequests >= 44) throw new ApiError(502, "batchDeferred");
+      subrequests++;
+      return originalUpstream(request);
+    };
+    const run = async () => {
+      while (cursor < scheduled.length) {
+        const index = scheduled[cursor++];
+        try {
+          const value = await this.read(
+            scan,
+            vault,
+            jobs[index],
+            now,
+            upstream,
+          );
+          const bytes = new TextEncoder().encode(JSON.stringify(value)).length;
+          if (responseBytes + bytes > responseBudget)
+            throw new ApiError(502, "batchDeferred");
+          responseBytes += bytes;
+          results[index] = { ok: true, value };
+        } catch (error) {
+          const e =
+            error instanceof ApiError
+              ? error
+              : new ApiError(500, "requestFailed");
+          results[index] = {
+            ok: false,
+            error: e.code,
+            status: e.status,
+            retryAfter: e.retryAfter,
+          };
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(5, scheduled.length) }, run),
+    );
+    if (snapshotReady(scan)) {
+      scheduled = optional;
+      cursor = 0;
+      await Promise.all(
+        Array.from({ length: Math.min(5, scheduled.length) }, run),
+      );
+    } else
+      for (const index of optional)
+        results[index] = {
+          ok: false,
+          error: "batchDeferred",
+          status: 502,
+        };
+    return { results };
   }
   private async handle(request: Request) {
     let vault: Vault | undefined;
@@ -637,6 +768,42 @@ export class CredentialVault {
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "scan/start" && post) {
           const b = await body(request);
+          const reuse = b.reuse ?? [];
+          ensure(
+            Array.isArray(reuse) &&
+              reuse.length <= 32 &&
+              reuse.every(validID) &&
+              new Set(reuse).size === reuse.length,
+          );
+          const prefetch = b.prefetch ?? [];
+          ensure(
+            Array.isArray(prefetch) &&
+              prefetch.length <= 32 &&
+              prefetch.every(
+                (job) =>
+                  job &&
+                  typeof job === "object" &&
+                  [
+                    "section",
+                    "items",
+                    "categories",
+                    "periods",
+                    "scales",
+                  ].includes(job.resource) &&
+                  validID(job.section) &&
+                  job.extra === undefined &&
+                  !job.next,
+              ),
+          );
+          // The initial identity, roots and any prefetched metadata share one
+          // invocation budget, including every redirect.
+          let subrequests = 0;
+          const provider = this.upstream;
+          const upstream: Fetcher = (request) => {
+            if (subrequests >= 44) throw new ApiError(502, "batchDeferred");
+            subrequests++;
+            return provider(request);
+          };
           let credentials: Credentials;
           if (b.key !== undefined || b.secret !== undefined) {
             ensure(
@@ -669,7 +836,7 @@ export class CredentialVault {
               "rateLimited",
               Math.ceil((vault.cooldown - now) / 1000),
             );
-          const me = await readProvider("users/me", credentials, this.upstream),
+          const me = await readProvider("users/me", credentials, upstream),
             account = String(me.uid ?? me.id ?? "");
           if (!validID(account)) throw new ApiError(502, "malformedProvider");
           if (vault.account && vault.account !== account)
@@ -694,20 +861,85 @@ export class CredentialVault {
             freshMetadata: b.refreshMetadata === true || b.key !== undefined,
             cachedOwners: [],
           };
+          const scan = vault.scans[id];
+          const roots =
+            b.includeRoots === true
+              ? await this.roots(scan, vault, Date.now(), credentials, upstream)
+              : undefined;
+          // Fresh roots establish owners/fingerprints before the same fixed-expiry
+          // receipt checks used by scan/reuse. Browser metadata is never trusted.
+          if (roots)
+            for (const section of reuse)
+              if (reusableMetadata(scan, vault, section, Date.now()))
+                reuseMetadata(scan, vault, section);
+          let prefetched;
+          if (
+            b.prefetchMetadata === true &&
+            roots &&
+            !roots.sections.next &&
+            roots.grades.ok &&
+            !roots.grades.value.next
+          ) {
+            const jobs = new Map<
+              string,
+              { resource: string; section: string }
+            >();
+            const add = (resource: string, section: string) =>
+              jobs.set(resource + ":" + section, { resource, section });
+            for (const section of scan.sections)
+              if (!scan.owners[section]) add("grades", section);
+            // Unique fresh bulk owners are exactly the client's selected scopes.
+            // Ambiguous aliases wait for the existing client selection/read path.
+            for (const section of scan.sections)
+              if (
+                scan.owners[section] &&
+                scan.owners[section] !== "empty" &&
+                !metadataReady(scan, section) &&
+                Object.values(scan.owners).filter(
+                  (owner) => owner === scan.owners[section],
+                ).length === 1
+              )
+                for (const resource of [
+                  "section",
+                  "items",
+                  "categories",
+                  "periods",
+                ])
+                  add(resource, section);
+            for (const job of prefetch)
+              if (
+                scan.sections.includes(job.section) &&
+                !scan.done.includes(job.resource + ":" + job.section + ":")
+              )
+                add(job.resource, job.section);
+            const selected = [...jobs.values()]
+              .sort(
+                (a, b) =>
+                  Number(a.resource === "scales") -
+                  Number(b.resource === "scales"),
+              )
+              .slice(0, 32);
+            const responseBudget =
+              4000000 - new TextEncoder().encode(JSON.stringify(roots)).length;
+            if (selected.length && responseBudget > 0)
+              prefetched = {
+                jobs: selected,
+                ...(await this.readBatch(
+                  scan,
+                  vault,
+                  selected,
+                  Date.now(),
+                  upstream,
+                  responseBudget,
+                )),
+              };
+          }
           result = json({
             scan: id,
             account,
             revision: vault.revision,
-            ...(b.includeRoots === true
-              ? {
-                  roots: await this.roots(
-                    vault.scans[id],
-                    vault,
-                    Date.now(),
-                    credentials,
-                  ),
-                }
-              : {}),
+            ...(roots ? { roots, reused: scan.reused } : {}),
+            ...(prefetched ? { prefetched } : {}),
           });
         } else if (route === "scan/reuse" && post) {
           const b = await body(request),
@@ -722,27 +954,12 @@ export class CredentialVault {
           );
           if (
             !scan ||
-            scan.replacement ||
-            scan.freshMetadata ||
-            sections.some((section) => {
-              const cached = vault!.metadata?.[section];
-              return (
-                !scan.sections.includes(section) ||
-                !cached ||
-                cached.account !== scan.account ||
-                cached.expires < now ||
-                cached.fingerprint !== scan.fingerprints[section]
-              );
-            })
+            sections.some(
+              (section) => !reusableMetadata(scan, vault!, section, now),
+            )
           )
             throw new ApiError(409, "metadataExpired");
-          for (const section of sections) {
-            const cached = vault.metadata[section];
-            for (const r of ["section", "items", "categories", "periods"])
-              scan.done.push(r + ":" + section + ":");
-            scan.owners[section] = cached.owner;
-            scan.reused.push(section);
-          }
+          for (const section of sections) reuseMetadata(scan, vault, section);
           result = json({ ok: true });
         } else if (route === "scan/roots" && post) {
           const b = await body(request),
@@ -756,111 +973,7 @@ export class CredentialVault {
           if (route === "scan/read")
             result = json(await this.read(scan, vault, b, now));
           else {
-            ensure(
-              Array.isArray(b.jobs) && b.jobs.length > 0 && b.jobs.length <= 32,
-            );
-            const jobs = b.jobs as Record<string, unknown>[];
-            ensure(
-              jobs.every(
-                (job) =>
-                  job &&
-                  typeof job === "object" &&
-                  [
-                    "grades",
-                    "section",
-                    "items",
-                    "categories",
-                    "periods",
-                    "scales",
-                    "assignment",
-                  ].includes(String(job.resource)) &&
-                  typeof job.section === "string" &&
-                  scan.sections.includes(job.section) &&
-                  !job.next &&
-                  (job.resource === "assignment"
-                    ? typeof job.extra === "string" && validID(job.extra)
-                    : job.extra === undefined),
-              ),
-            );
-            ensure(
-              new Set(
-                jobs.map(
-                  (job) =>
-                    job.resource + ":" + job.section + ":" + (job.extra ?? ""),
-                ),
-              ).size === jobs.length,
-            );
-            const results: unknown[] = new Array(jobs.length);
-            // Optional scale reads must wait for all required data, including
-            // pagination and authoritative alias resolution. Keep their original
-            // result indices so the client can consume a single bounded batch.
-            const required = jobs.flatMap((j, i) =>
-                j.resource === "scales" ? [] : [i],
-              ),
-              optional = jobs.flatMap((j, i) =>
-                j.resource === "scales" ? [i] : [],
-              );
-            let scheduled = required;
-            // Keep a Free-plan invocation below 50 subrequests, including redirects.
-            // Five in-flight reads leave one slot under Cloudflare's six-connection limit.
-            let cursor = 0,
-              subrequests = 0,
-              responseBytes = 0;
-            const originalUpstream = this.upstream;
-            const upstream: Fetcher = (request) => {
-              if (subrequests >= 44) throw new ApiError(502, "batchDeferred");
-              subrequests++;
-              return originalUpstream(request);
-            };
-            const run = async () => {
-              while (cursor < scheduled.length) {
-                const index = scheduled[cursor++];
-                try {
-                  const value = await this.read(
-                    scan,
-                    vault!,
-                    jobs[index],
-                    now,
-                    upstream,
-                  );
-                  const bytes = new TextEncoder().encode(
-                    JSON.stringify(value),
-                  ).length;
-                  if (responseBytes + bytes > 4000000)
-                    throw new ApiError(502, "batchDeferred");
-                  responseBytes += bytes;
-                  results[index] = { ok: true, value };
-                } catch (error) {
-                  const e =
-                    error instanceof ApiError
-                      ? error
-                      : new ApiError(500, "requestFailed");
-                  results[index] = {
-                    ok: false,
-                    error: e.code,
-                    status: e.status,
-                    retryAfter: e.retryAfter,
-                  };
-                }
-              }
-            };
-            await Promise.all(
-              Array.from({ length: Math.min(5, scheduled.length) }, run),
-            );
-            if (snapshotReady(scan)) {
-              scheduled = optional;
-              cursor = 0;
-              await Promise.all(
-                Array.from({ length: Math.min(5, scheduled.length) }, run),
-              );
-            } else
-              for (const index of optional)
-                results[index] = {
-                  ok: false,
-                  error: "batchDeferred",
-                  status: 502,
-                };
-            result = json({ results });
+            result = json(await this.readBatch(scan, vault, b.jobs, now));
           }
         } else if (route === "scan/commit" && post) {
           const b = await body(request),

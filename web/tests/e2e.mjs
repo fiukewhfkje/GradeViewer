@@ -3171,12 +3171,14 @@ try {
     },
   );
   await check(
-    "fresh opens and real returns refresh once; idle time and cooldown expiry stay quiet",
+    "fresh opens coalesce and Schoology gets one visible cooldown retry with honest feedback",
     async () => {
       const isolated = await browser.newContext({ ignoreHTTPSErrors: true });
       try {
         const quiet = await isolated.newPage();
+        await quiet.emulateMedia({ reducedMotion: "reduce" });
         await quiet.clock.install();
+        await quiet.clock.pauseAt(new Date());
         let scans = 0;
         quiet.on("request", (request) => {
           if (request.url().endsWith("/api/scan/start")) scans++;
@@ -3239,6 +3241,20 @@ try {
           .filter({ hasText: "Schoology is limiting requests" })
           .waitFor();
         assert.equal(scans, 3);
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await quiet.screenshot({ path: directory + "/retry-waiting.png" });
+        await quiet.setViewportSize({ width: 390, height: 844 });
+        assert.equal(
+          await quiet.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+          true,
+        );
+        await quiet.screenshot({ path: directory + "/retry-phone.png" });
+        await quiet.setViewportSize({ width: 1280, height: 720 });
         await quiet.clock.fastForward(2000);
         await quiet
           .getByRole("button", { name: "Retry", exact: true })
@@ -3249,8 +3265,38 @@ try {
             .isEnabled(),
           true,
         );
+        assert.equal(scans, 3); // The cooldown's extra safety buffer still applies.
+        const retryGate = await holdFixture(isolated.request, "scan");
+        try {
+          await quiet.clock.fastForward(5000);
+          await retryGate.received();
+          await quiet
+            .locator("[data-refresh-retry]")
+            .filter({ hasText: "Retrying Schoology now" })
+            .waitFor();
+          assert.equal(
+            await quiet.locator(".desktop-refresh.spinning").count(),
+            1,
+          );
+          await quiet.screenshot({ path: directory + "/retry-running.png" });
+        } finally {
+          await retryGate.close();
+        }
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        assert.equal(scans, 4);
+        await quiet.screenshot({ path: directory + "/retry-failed.png" });
         await quiet.clock.fastForward("30:00");
-        assert.equal(scans, 3);
+        assert.equal(scans, 4);
+        await quiet.reload();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        await quiet.clock.fastForward("30:00");
+        assert.equal(scans, 5); // Fresh-on-open remains; reload does not replenish the retry.
         assert.equal(await quiet.locator(".courses .course").count(), 5);
         await isolated.request.post(base + "/api/fixture/rate-limit", {
           data: { enabled: false },
@@ -3261,15 +3307,86 @@ try {
         await quiet.getByRole("button", { name: "Retry", exact: true }).click();
         await retried;
         await ready();
-        assert.equal(scans, 4);
+        assert.equal(scans, 6);
+        assert.equal(await quiet.locator("[data-refresh-retry]").count(), 0);
+        await quiet.clock.fastForward(10); // The next open occurs after this saved snapshot.
         const reopened = quiet.waitForResponse(
           (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
         );
         await quiet.reload();
         await reopened;
         await ready();
-        assert.equal(scans, 5);
+        assert.equal(scans, 7);
+        // A later independent episode can recover automatically and remove its notice.
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: true },
+        });
+        await quiet.getByLabel("Refresh grades", { exact: true }).click();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: false },
+        });
+        const autoRecovered = quiet.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await quiet.evaluate(() =>
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            value: "hidden",
+          }),
+        );
+        await quiet.clock.fastForward(7000);
+        assert.equal(scans, 8); // A due timer must not read a provider while hidden.
+        await quiet.evaluate(() => {
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            value: "visible",
+          });
+          Object.defineProperty(navigator, "onLine", {
+            configurable: true,
+            value: false,
+          });
+          window.dispatchEvent(new Event("online"));
+        });
+        assert.equal(scans, 8);
+        await quiet.evaluate(() => {
+          Object.defineProperty(navigator, "onLine", {
+            configurable: true,
+            value: true,
+          });
+          window.dispatchEvent(new Event("online"));
+        });
+        await autoRecovered;
+        await ready();
+        assert.equal(scans, 9);
+        assert.equal(await quiet.locator("[data-refresh-retry]").count(), 0);
+        // Failure before status returns must also spend the one attempt.
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: true },
+        });
+        await quiet.getByLabel("Refresh grades", { exact: true }).click();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await isolated.request.post(base + "/api/fixture/status-failure", {
+          data: { enabled: true },
+        });
+        await quiet.clock.fastForward(7000);
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        assert.equal(scans, 10);
+        await quiet.clock.fastForward("30:00");
+        assert.equal(scans, 10);
       } finally {
+        await isolated.request.post(base + "/api/fixture/status-failure", {
+          data: { enabled: false },
+        });
         await isolated.request.post(base + "/api/fixture/rate-limit", {
           data: { enabled: false },
         });

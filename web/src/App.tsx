@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
+import type { RefreshRetry } from "./refresh-retry";
 import { readSnapshot } from "./refresh";
 import {
   type Course,
@@ -213,6 +214,8 @@ export default function App() {
     [cachedUnlocked, setCachedUnlocked] = useState(false),
     [error, setError] = useState(""),
     [deadline, setDeadline] = useState(0),
+    [refreshRetry, setRefreshRetry] = useState<RefreshRetry>(),
+    [retryRunning, setRetryRunning] = useState(false),
     [tick, setTick] = useState(Date.now()),
     [selected, setSelected] = useState<string>(),
     [view, setView] = useState("detail"),
@@ -271,16 +274,37 @@ export default function App() {
     cacheGeneration.current++;
     setCachedUnlocked(false);
     setFresh(false);
+    setRefreshRetry(undefined);
+  }
+  async function recordRefreshFailure(
+    error: unknown,
+    account?: string,
+    automatic = false,
+  ) {
+    if (automatic)
+      setRefreshRetry((retry) => retry && { ...retry, phase: "failed" });
+    if (!account) return;
+    setTick(Date.now());
+    if (error instanceof RequestError && error.code === "rateLimited") {
+      setRefreshRetry(
+        await repository.planRetry(account, error.retryAfter ?? 60),
+      );
+    } else if (automatic) {
+      await repository.finishRetry(account, false);
+      setRefreshRetry(await repository.refreshRetry());
+    }
   }
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
-    scope: "active" | "all" | "campus" | "carmen" = "active",
+    scope: "active" | "all" | "campus" | "carmen" | "schoology-only" = "active",
+    automaticRetry = false,
   ) {
     if (flight.current) return flight.current;
     const queuedAt = Date.now();
     const run = async () => {
       const generation = cacheGeneration.current;
+      let account: string | undefined = stateRef.current.account;
       setBusy(true);
       setError("");
       try {
@@ -291,6 +315,7 @@ export default function App() {
           repository.access(),
         ]);
         setStatus(s);
+        account = s.account;
         if (
           !s.authenticated ||
           access?.locked ||
@@ -305,6 +330,36 @@ export default function App() {
         }
         if (access?.account && s.account && access.account !== s.account) {
           hideCache();
+        }
+        const retry = await repository.refreshRetry();
+        setRefreshRetry(retry?.account === s.account ? retry : undefined);
+        if (automaticRetry) {
+          if (s.account && s.cooldown && s.cooldown > Date.now()) {
+            setRefreshRetry(
+              await repository.planRetry(
+                s.account,
+                Math.ceil((s.cooldown - Date.now()) / 1000),
+              ),
+            );
+            return;
+          }
+          if (
+            !s.account ||
+            latest.primaryLms === "carmen" ||
+            !s.schoologyConnected ||
+            !(await repository.claimRetry(s.account))
+          ) {
+            if (s.account) await repository.finishRetry(s.account, false);
+            setRefreshRetry(await repository.refreshRetry());
+            return;
+          }
+          setRefreshRetry(retry && { ...retry, phase: "attempted" });
+          setRetryRunning(true);
+        } else if (manual && s.account) {
+          // A deliberate manual attempt may start a new episode; foreground
+          // events and reloads never replenish an already-spent allowance.
+          await repository.finishRetry(s.account, true);
+          setRefreshRetry(undefined);
         }
         if (!s.connected && !credentials) {
           hideCache();
@@ -365,6 +420,8 @@ export default function App() {
                 Math.ceil((s.cooldown - Date.now()) / 1000),
               );
             next = await readSnapshot(stateRef.current, s, credentials, manual);
+            if (s.account) await repository.finishRetry(s.account, true);
+            setRefreshRetry(undefined);
           }
         } catch (e) {
           if (credentials || stateRef.current.account !== s.account) throw e;
@@ -412,6 +469,7 @@ export default function App() {
         }
         if (schoologyError) {
           setError(errorMessage(schoologyError));
+          await recordRefreshFailure(schoologyError, s.account, automaticRetry);
           if (
             schoologyError instanceof RequestError &&
             schoologyError.retryAfter
@@ -436,10 +494,12 @@ export default function App() {
         });
       } catch (e) {
         setError(errorMessage(e));
+        await recordRefreshFailure(e, account, automaticRetry);
         if (e instanceof RequestError && e.retryAfter)
           setDeadline(Date.now() + e.retryAfter * 1000);
         throw e;
       } finally {
+        setRetryRunning(false);
         setBusy(false);
         flight.current = undefined;
       }
@@ -480,6 +540,8 @@ export default function App() {
           return;
         }
         const saved = await repository.load();
+        const retry = await repository.refreshRetry();
+        setRefreshRetry(retry?.account === remote.account ? retry : undefined);
         if (remote.connected && saved.account === remote.account) {
           apply(saved);
           if (event.data === "saved") setFresh(true);
@@ -569,6 +631,7 @@ export default function App() {
   }, [passwordChanged]);
   useEffect(() => {
     if (!deadline) return;
+    setTick(Date.now());
     const timer = setInterval(() => {
       setTick(Date.now());
       if (Date.now() >= deadline) {
@@ -577,6 +640,40 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, [deadline]);
+  useEffect(() => {
+    if (
+      !refreshRetry ||
+      refreshRetry.phase !== "waiting" ||
+      busy ||
+      !status?.authenticated ||
+      state.primaryLms === "carmen"
+    )
+      return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      clearTimeout(timer);
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      const delay = refreshRetry.due - Date.now();
+      if (delay > 0) {
+        timer = setTimeout(attempt, Math.min(delay, 2_147_000_000));
+        return;
+      }
+      void refresh(undefined, true, "schoology-only", true).catch(() => {});
+    };
+    attempt();
+    document.addEventListener("visibilitychange", attempt);
+    window.addEventListener("online", attempt);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", attempt);
+      window.removeEventListener("online", attempt);
+    };
+  }, [refreshRetry, busy, status?.authenticated, state.primaryLms]);
+  useEffect(() => {
+    if (refreshRetry?.phase !== "waiting") return;
+    const timer = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [refreshRetry?.phase]);
   async function persist(next: SavedState) {
     pendingSaves.current++;
     try {
@@ -1289,12 +1386,23 @@ export default function App() {
                 {error}
               </p>
             )}
+            {(retryRunning || (refreshRetry && !usingCarmen)) && (
+              <p className="notice" role="status" data-refresh-retry>
+                {retryRunning
+                  ? "Retrying Schoology now. Checking fresh grades…"
+                  : refreshRetry?.phase === "waiting"
+                    ? `Schoology is limiting requests. One automatic refresh in ${Math.max(0, Math.ceil((refreshRetry.due - tick) / 1000))}s, when this app is visible and online. Saved grades stay visible.`
+                    : refreshRetry?.phase === "attempted"
+                      ? "An automatic Schoology refresh already started. If it was interrupted, use Retry. No further automatic attempts are scheduled."
+                      : "The automatic refresh did not complete. Saved grades are retained. Automatic retries have stopped; use Retry after the cooldown."}
+              </p>
+            )}
             {fresh && tab === "grades" && error && (
               <div className="refresh-status" role="status">
                 Showing saved grades.{" "}
                 <button
                   disabled={!canRefresh}
-                  onClick={() => void refresh().catch(() => {})}
+                  onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
                   Retry
                 </button>
@@ -1595,7 +1703,7 @@ export default function App() {
                       </p>
                       {deadline > Date.now() && (
                         <p>
-                          Retrying in{" "}
+                          Retry available in{" "}
                           {Math.max(0, Math.ceil((deadline - tick) / 1000))}s
                         </p>
                       )}
@@ -1605,7 +1713,7 @@ export default function App() {
                         onClick={() =>
                           locked && status
                             ? setTab("profile")
-                            : void refresh().catch(() => {})
+                            : void refresh(undefined, true).catch(() => {})
                         }
                       >
                         {locked && status ? "Open Settings" : "Retry"}

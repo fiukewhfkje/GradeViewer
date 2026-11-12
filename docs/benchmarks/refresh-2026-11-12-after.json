@@ -1,0 +1,237 @@
+{
+  "conditions": {
+    "version": 1,
+    "appRoundTripMs": 80,
+    "providerReadMs": 80,
+    "icSkewedDetailMs": [
+      320,
+      40,
+      40,
+      320,
+      40,
+      40
+    ],
+    "storage": "in-memory Durable Object + fake IndexedDB",
+    "network": "local synthetic delays; no provider or Cloudflare requests"
+  },
+  "samples": 9,
+  "results": [
+    {
+      "scenario": "schoology-cold",
+      "samplesMs": [
+        791.1,
+        787.5,
+        784.8,
+        782.6,
+        781.9,
+        784,
+        788.1,
+        785,
+        783.1
+      ],
+      "medianMs": 784.8,
+      "p95Ms": 791.1,
+      "apiRequests": 3,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 866.8,
+      "improvementPercent": 9.5
+    },
+    {
+      "scenario": "schoology-warm",
+      "samplesMs": [
+        431.4,
+        439,
+        437.6,
+        438.8,
+        440,
+        437.8,
+        437.1,
+        436.3,
+        437.4
+      ],
+      "medianMs": 437.6,
+      "p95Ms": 440,
+      "apiRequests": 3,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 522.6,
+      "improvementPercent": 16.3
+    },
+    {
+      "scenario": "schoology-alias-warm",
+      "samplesMs": [
+        437.8,
+        437.6,
+        433.1,
+        436,
+        431.6,
+        432.8,
+        433.5,
+        433.4,
+        432.1
+      ],
+      "medianMs": 433.4,
+      "p95Ms": 437.8,
+      "apiRequests": 3,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "digest": "b9cc433dfe451ca96b3b97b348bcfca24461a507193ff795890926dd58b287e7",
+      "beforeMedianMs": 522.3,
+      "improvementPercent": 17
+    },
+    {
+      "scenario": "schoology-expired",
+      "samplesMs": [
+        772.4,
+        774,
+        768.9,
+        783.9,
+        781.5,
+        780.7,
+        784.6,
+        782.7,
+        780.2
+      ],
+      "medianMs": 780.7,
+      "p95Ms": 784.6,
+      "apiRequests": 3,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 869.2,
+      "improvementPercent": 10.2
+    },
+    {
+      "scenario": "schoology-manual",
+      "samplesMs": [
+        782.9,
+        779.8,
+        782.4,
+        778.8,
+        780.4,
+        782,
+        781.9,
+        780.2,
+        778.6
+      ],
+      "medianMs": 780.4,
+      "p95Ms": 782.9,
+      "apiRequests": 3,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 867.3,
+      "improvementPercent": 10
+    },
+    {
+      "scenario": "schoology-unresolved-title-repeat",
+      "samplesMs": [
+        786.5,
+        783.7,
+        776,
+        781.8,
+        781.7,
+        780.3,
+        784.5,
+        782.2,
+        782.1
+      ],
+      "medianMs": 782.1,
+      "p95Ms": 786.5,
+      "apiRequests": 3,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "digest": "bad70fb5e65a2ea16e625e83cc6106d727d94c3b6c02c1eb3ff256a1d7f8dffa",
+      "beforeMedianMs": 3392.2,
+      "improvementPercent": 76.9
+    },
+    {
+      "scenario": "ic-one",
+      "samplesMs": [
+        426.6,
+        425,
+        423.8,
+        420.5,
+        423.9,
+        423.1,
+        424.9,
+        423.9,
+        426.1
+      ],
+      "medianMs": 423.9,
+      "p95Ms": 426.6,
+      "apiRequests": 2,
+      "providerRequests": 3,
+      "peakConcurrency": 1,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 424.7,
+      "improvementPercent": 0.2
+    },
+    {
+      "scenario": "ic-six-uniform",
+      "samplesMs": [
+        507.4,
+        506.4,
+        505.1,
+        505.3,
+        508.3,
+        507.4,
+        510.6,
+        507,
+        509.6
+      ],
+      "medianMs": 507.4,
+      "p95Ms": 510.6,
+      "apiRequests": 2,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b",
+      "beforeMedianMs": 507.5,
+      "improvementPercent": 0
+    },
+    {
+      "scenario": "ic-six-skewed",
+      "samplesMs": [
+        707.2,
+        707.1,
+        706.8,
+        703.9,
+        705.5,
+        707.6,
+        703.9,
+        705.8,
+        707
+      ],
+      "medianMs": 706.8,
+      "p95Ms": 707.6,
+      "apiRequests": 2,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b",
+      "beforeMedianMs": 988,
+      "improvementPercent": 28.5
+    }
+  ],
+  "source": "aea38d39f50e6b0c649c17dad3db5ba47da6ce0b",
+  "dirty": true,
+  "recordedAt": "2026-11-12T12:46:17.509Z",
+  "node": "v26.7.0",
+  "implementation": {
+    "src/refresh.ts": "cf2cdf10cd9ec3b538d012c52bf51cd320b92016378041b215a9d2fdd952c832",
+    "src/portal-refresh.ts": "5def5b739532904739c694bddd208b98c57929c0791c2daed85c7beca68e3dc0",
+    "src/repository.ts": "82c460ca30d3380909644a56190a49141ccea2e5cb05e97e248f753d4b14639a",
+    "worker/index.ts": "ccca90379b0a5de88d79822fc7c896c56027be19abfb4a20a22f06f0cfb66ad1",
+    "worker/portal.ts": "e2f502d198cbc7ea885c3255ded29b4e4730f2c8c51d1150871f752e9ba9be67",
+    "worker/provider.ts": "b9bab7ee59848bc4f2beb4040eba28f584348266a44741bed4af4c74fe15e7f6"
+  },
+  "harness": {
+    "scripts/benchmark-refresh.mjs": "c568bcd704a98630fe22314b5a2e950858969a39a219a1009ef9deda1f7d19f9",
+    "tests/refresh-benchmark.ts": "c03991122f0d07e48633a75fa60c161f37b6c13fe03e9b6cc5f28824ae503376",
+    "tests/fixture-worker.ts": "3bb4c53cd23b40a29dce3e57efc6e43933078dba7bcc6b4e8ad26a6243d6dfcb",
+    "tests/campus-fixture.ts": "7b60cef3ecda83cc0c408fd63e5dcde69be3c67d7a04872a39dd4f68cd8eb191",
+    "tests/schoology-fixture.ts": "65165ef69daafeee955eea449893d6209fda5b53dc101e1c4ca141d4917fca02"
+  }
+}

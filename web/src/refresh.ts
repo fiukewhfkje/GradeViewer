@@ -52,12 +52,54 @@ export async function readSnapshot(
     await repository.save(next);
     return next;
   }
+  const reuse =
+    !credentials && !refreshMetadata
+      ? Object.entries(previous.metadata ?? {})
+          .filter(
+            ([, cached]) =>
+              cached.account === previous.account &&
+              Date.now() - cached.fetched < 5 * 60000,
+          )
+          .map(([id]) => id)
+          .slice(0, 32)
+      : [];
+  const metadataJobs = Object.entries(previous.metadata ?? {})
+    .filter(
+      ([, cached]) =>
+        cached.account === (status.account ?? previous.account) &&
+        (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000),
+    )
+    .flatMap(([section]) =>
+      [
+        "section",
+        "items",
+        "categories",
+        "periods",
+        ...(previous.courses.some(
+          (c) => c.fields.section_id === section && c.fields.reported_scale_id,
+        )
+          ? ["scales"]
+          : []),
+      ].map((resource) => ({ resource, section })),
+    );
   const started = await api<{
     scan: string;
     account: string;
     revision?: string;
     roots?: { sections: Page; grades: ReadResult };
-  }>("scan/start", { ...credentials, refreshMetadata, includeRoots: true });
+    reused?: string[];
+    prefetched?: {
+      jobs: { resource: string; section: string }[];
+      results: ReadResult[];
+    };
+  }>("scan/start", {
+    ...credentials,
+    refreshMetadata,
+    includeRoots: true,
+    reuse,
+    prefetch: metadataJobs.slice(0, 32),
+    prefetchMetadata: true,
+  });
   const { scan, account: schoologyAccount } = started;
   const account = status.account ?? schoologyAccount;
   async function fingerprintGrade(row: Row) {
@@ -176,6 +218,18 @@ export async function readSnapshot(
     return values;
   }
   try {
+    if (started.prefetched) {
+      const { jobs, results } = started.prefetched;
+      if (
+        !Array.isArray(jobs) ||
+        !Array.isArray(results) ||
+        results.length !== jobs.length
+      )
+        throw new Error("malformed");
+      jobs.forEach((job, i) =>
+        prefetched.set(job.resource + ":" + job.section + ":", results[i]),
+      );
+    }
     const roots =
       started.roots ??
       (await api<{ sections: Page; grades: ReadResult }>("scan/roots", {
@@ -214,31 +268,7 @@ export async function readSnapshot(
       // These already-enrolled sections can renew alongside alias discovery;
       // neither read depends on the other's result. Only fresh server results
       // decide the owner and which payload is ultimately committed.
-      ...enrollmentIDs
-        .filter((id) => {
-          const cached = previous.metadata?.[id];
-          return (
-            cached?.account === account &&
-            (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000)
-          );
-        })
-        .flatMap((section) =>
-          [
-            "section",
-            "items",
-            "categories",
-            "periods",
-            ...(previous.courses.some(
-              (c) =>
-                c.fields.section_id === section && c.fields.reported_scale_id,
-            )
-              ? ["scales"]
-              : []),
-          ].map((resource) => ({
-            resource,
-            section,
-          })),
-        ),
+      ...metadataJobs.filter((job) => enrollmentIDs.includes(job.section)),
     ]);
     for (const enrollment of sections) {
       const id = nonempty(enrollment.id);
@@ -296,8 +326,13 @@ export async function readSnapshot(
       )
         candidates.push(id);
     }
-    for (let offset = 0; offset < candidates.length; offset += 32) {
-      const sections = candidates.slice(offset, offset + 32);
+    for (const id of candidates)
+      if (started.reused?.includes(id)) reused.add(id);
+    // Older Workers, paginated roots and section-specific grade reads still
+    // use the existing receipt endpoint after their fresh fingerprints arrive.
+    const remaining = candidates.filter((id) => !reused.has(id));
+    for (let offset = 0; offset < remaining.length; offset += 32) {
+      const sections = remaining.slice(offset, offset + 32);
       try {
         await api("scan/reuse", { scan, sections });
         sections.forEach((id) => reused.add(id));
@@ -429,13 +464,12 @@ export async function readSnapshot(
                   ?.assignments.some(
                     (old) => old.id === a.id && hasTitle(old),
                   ) &&
-                (refreshMetadata ||
-                  Number(
-                    previous.courses
-                      .find((x) => x.id === c.id)
-                      ?.assignments.find((old) => old.id === a.id)?.fields
-                      .title_lookup_retry_after ?? 0,
-                  ) <= Date.now()),
+                Number(
+                  previous.courses
+                    .find((x) => x.id === c.id)
+                    ?.assignments.find((old) => old.id === a.id)?.fields
+                    .title_lookup_retry_after ?? 0,
+                ) <= Date.now(),
             )
             .map((a) => ({ a, c })),
         );

@@ -1295,9 +1295,29 @@ export class PortalService {
         // At most 20 detail reads plus identity/discovery, below a Worker subrequest budget.
         try {
           let aggregate = JSON.stringify(fresh.summary).length;
-          for (let offset = 0; offset < live.length; offset += 3) {
-            const results = await Promise.allSettled(
-              live.slice(offset, offset + 3).map(async (x) => {
+          let cursor = 0;
+          let failure: { error: unknown } | undefined;
+          const fail = (error: unknown) => {
+            // A peer may report throttling after another failure. Keep the
+            // longest delay rather than triggering authentication recovery.
+            const limited =
+              error instanceof ApiError && error.code === "portalRateLimited";
+            const previous = failure?.error;
+            if (
+              !failure ||
+              (limited &&
+                (!(previous instanceof ApiError) ||
+                  previous.code !== "portalRateLimited" ||
+                  (error.retryAfter ?? 60) > (previous.retryAfter ?? 60)))
+            )
+              failure = { error };
+          };
+          const run = async () => {
+            // Refill a free slot without waiting for its two peers. Stop
+            // scheduling on failure and drain in-flight reads before saving cookies.
+            while (!failure && cursor < live.length) {
+              const x = live[cursor++];
+              try {
                 if (this.kind === "carmen") {
                   fresh.details[x.id + ":groups"] = await this.read(
                     c!,
@@ -1309,7 +1329,7 @@ export class PortalService {
                     `/api/v1/courses/${x.id}/enrollments?user_id=${c!.subject}&type[]=StudentEnrollment&per_page=100`,
                     fresh.jar,
                   );
-                  return;
+                  continue;
                 }
                 const detail = await this.read(
                   c!,
@@ -1320,13 +1340,15 @@ export class PortalService {
                 if (aggregate > 4_000_000)
                   throw new ApiError(502, "portalTooLarge");
                 fresh.details[x.section] = detail;
-              }),
-            );
-            const rejected = results.find(
-              (x): x is PromiseRejectedResult => x.status === "rejected",
-            );
-            if (rejected) throw rejected.reason;
-          }
+              } catch (error) {
+                fail(error);
+              }
+            }
+          };
+          await Promise.all(
+            Array.from({ length: Math.min(3, live.length) }, run),
+          );
+          if (failure) throw failure.error;
         } finally {
           this.retainJar(c, fresh.jar);
         }
