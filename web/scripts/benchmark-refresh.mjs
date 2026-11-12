@@ -36,6 +36,9 @@ const implementation = await hashes([
   "worker/provider.ts",
   "src/api.ts",
   "src/App.tsx",
+  "src/core/calculator.ts",
+  "src/core/model.ts",
+  "src/core/progression.ts",
   ...(await access("worker/request-pool.ts").then(
     () => ["worker/request-pool.ts"],
     () => [],

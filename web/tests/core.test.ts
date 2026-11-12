@@ -1,11 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { calculate, hypothetical, requiredFinal } from "../src/core/calculator";
+import {
+  calculate,
+  calculatePrefixes,
+  hypothetical,
+  requiredFinal,
+} from "../src/core/calculator";
 import {
   type SourceCourse,
   type Course,
   type Assignment,
   emptyScenario,
   scoreInput,
+  percentText,
+  pointsText,
   updateAge,
 } from "../src/core/model";
 import {
@@ -105,6 +112,71 @@ function periods(exam?: number, q1Weight = 40, q2Weight = 35, examWeight = 25) {
   ];
 }
 describe("native calculator rules", () => {
+  it("matches numeric prefixes with exclusions, multipliers and zero-point starts without mutating inputs", () => {
+    for (const method of ["points", "percent"] as const) {
+      const rows = [
+        { ...score(99, 100, "excluded"), excluded: true },
+        score(5, method === "points" ? 0 : 20, "extra"),
+        score(-5, 20, "negative"),
+        { ...score(30, 20, "weighted"), multiplier: 1.25 },
+        {
+          ...score(0, 100, "excused"),
+          score: { earned: 0, possible: 100, excused: true },
+        },
+        { ...score(10, 20, "category"), categoryID: "excluded" },
+      ];
+      const c = source(rows);
+      c.method = method;
+      c.categories = [
+        {
+          id: "excluded",
+          name: "Excluded",
+          method: "points",
+          dropLowest: 0,
+          excluded: true,
+        },
+      ];
+      const before = structuredClone(c);
+      for (const row of rows) {
+        Object.freeze(row.score);
+        Object.freeze(row);
+      }
+      Object.freeze(rows);
+      const expected = rows.map((_, i) => {
+        try {
+          return calculate({ ...c, assignments: rows.slice(0, i + 1) });
+        } catch {
+          return undefined;
+        }
+      });
+      expect(calculatePrefixes(c, rows)).toEqual(expected);
+      calculate(c, { scores: { negative: 9 }, ignored: [], added: [] });
+      expect(c).toEqual(before);
+      expect(
+        calculatePrefixes({ ...c, method: "weightedCategories" }, rows),
+      ).toBeUndefined();
+    }
+  });
+  it("preserves native locale formatting, precision validation and unavailable values", () => {
+    for (const digits of [0, 1, 2, 3, 1.5])
+      for (const value of [-0, -1.255, 89.999, 1000.25]) {
+        expect(percentText(value, digits)).toBe(
+          new Intl.NumberFormat(undefined, {
+            maximumFractionDigits: digits,
+          }).format(value) + "%",
+        );
+        expect(pointsText(value)).toBe(
+          new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
+            value,
+          ),
+        );
+      }
+    expect(() => percentText(1, -1)).toThrow(RangeError);
+    for (const value of [undefined, NaN, Infinity]) {
+      expect(percentText(value)).toBe("—");
+      expect(pointsText(value)).toBe("—");
+    }
+  });
   it("uses points, multipliers and signed extra credit", () => {
     const c = source([score(-5, 20), { ...score(30, 20, "b"), multiplier: 2 }]);
     expect(calculate(c)).toBeCloseTo((55 / 60) * 100);

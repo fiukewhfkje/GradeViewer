@@ -123,14 +123,27 @@ export const normalize = (s: string) =>
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
+const numberFormats = new Map<number, Intl.NumberFormat>();
+function numberFormat(digits: number) {
+  // The app uses 0/1/2 digits. Keep other public inputs on Intl's ordinary
+  // validation path without letting arbitrary arguments grow a global cache.
+  if (digits !== 0 && digits !== 1 && digits !== 2)
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: digits });
+  let format = numberFormats.get(digits);
+  if (!format) {
+    format = new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: digits,
+    });
+    numberFormats.set(digits, format);
+  }
+  return format;
+}
 export const percentText = (n?: number, digits = 2) =>
   n !== undefined && Number.isFinite(n)
-    ? `${new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n)}%`
+    ? `${numberFormat(digits).format(n)}%`
     : "—";
 export const pointsText = (n?: number) =>
-  n !== undefined && Number.isFinite(n)
-    ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n)
-    : "—";
+  n !== undefined && Number.isFinite(n) ? numberFormat(2).format(n) : "—";
 export function scoreInput(s: string): number | undefined {
   const t = s.trim().replaceAll("−", "-").replaceAll(",", ".");
   return /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(t) &&
