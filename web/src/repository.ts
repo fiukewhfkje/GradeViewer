@@ -1,5 +1,10 @@
 import { openDB } from "idb";
-import { emptyState, type SavedState } from "./core/model";
+import {
+  emptyState,
+  type SavedState,
+  type SchoologyVisibility,
+} from "./core/model";
+import { withVisibility } from "./core/visibility";
 import { planRefreshRetry, type RefreshRetry } from "./refresh-retry";
 export interface Pending {
   state: SavedState;
@@ -46,13 +51,66 @@ export async function load(): Promise<SavedState> {
     s = await d.get("state", "active");
   return restoreCourseList(s ?? emptyState());
 }
-export async function save(s: SavedState) {
+export async function save(
+  s: SavedState,
+  options?: { clearVisibility?: boolean },
+) {
   try {
     const d = await db();
-    await d.put("state", s, "active");
+    const tx = d.transaction("state", "readwrite");
+    const saved = await writeSnapshot(tx.store, s, options?.clearVisibility);
+    await tx.done;
+    return saved;
   } catch {
     throw new Error("storageFailed");
   }
+}
+async function writeSnapshot(
+  store: {
+    get(key: string): Promise<unknown>;
+    put(value: SavedState, key: string): Promise<unknown>;
+  },
+  next: SavedState,
+  clearVisibility = false,
+) {
+  const current = (await store.get("active")) as SavedState | undefined;
+  const visibility = current?.schoologyVisibility;
+  // The authenticated preference is independently merged. An older grade
+  // refresh, prepared save or local form cannot replace it.
+  if (!clearVisibility && current?.account === next.account && visibility) {
+    next = {
+      ...next,
+      schoologyVisibility: visibility,
+      hiddenSchoology: current?.hiddenSchoology,
+    };
+  }
+  await store.put(next, "active");
+  return next;
+}
+// Merge only the preference into the newest local snapshot, never a stale
+// course/history/scenario copy captured before the network request.
+export async function mergeVisibility(
+  account: string,
+  remote: SchoologyVisibility,
+  expectedSource?: string,
+) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const saved: SavedState | undefined = await tx.store.get("active");
+  const access: BrowserAccess | undefined = await tx.store.get("access");
+  const source = saved?.schoologyVisibility?.scope;
+  if (
+    access?.locked ||
+    !saved ||
+    saved.account !== account ||
+    (source !== expectedSource && source !== remote.scope)
+  ) {
+    await tx.done;
+    return undefined;
+  }
+  const next = withVisibility(saved, remote);
+  if (next !== saved) await tx.store.put(next, "active");
+  await tx.done;
+  return restoreCourseList(next);
 }
 export async function prepare(p: Pending) {
   try {
@@ -70,9 +128,10 @@ export async function activate(s: SavedState) {
   try {
     const d = await db(),
       tx = d.transaction("state", "readwrite");
-    await tx.store.put(s, "active");
+    const saved = await writeSnapshot(tx.store, s);
     await tx.store.delete("pending");
     await tx.done;
+    return saved;
   } catch {
     throw new Error("storageFailed");
   }

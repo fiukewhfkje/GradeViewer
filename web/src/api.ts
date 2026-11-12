@@ -2,6 +2,7 @@ import type {
   CarmenDiagnostics,
   CarmenRecoveryStep,
 } from "./core/carmen-diagnostics";
+import type { SchoologyVisibility } from "./core/model";
 export class RequestError extends Error {
   constructor(
     public code: string,
@@ -40,6 +41,7 @@ export interface PortalStatus {
   cooldown?: number;
 }
 export interface Status {
+  schoologyVisibility?: SchoologyVisibility;
   portals?: { campus?: PortalStatus; carmen?: PortalStatus };
   schoologyConnected?: boolean;
   authenticated: boolean;

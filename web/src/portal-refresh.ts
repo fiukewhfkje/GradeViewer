@@ -59,6 +59,5 @@ export async function refreshCampus(
       base.courses,
     ),
   };
-  await repository.save(next);
-  return next;
+  return repository.save(next);
 }

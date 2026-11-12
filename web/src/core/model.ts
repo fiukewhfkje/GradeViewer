@@ -73,6 +73,7 @@ export interface SavedState {
   account?: string;
   courses: Course[];
   hiddenSchoology?: string[];
+  schoologyVisibility?: Omit<SchoologyVisibility, "hidden">;
   scenarios: Record<string, Scenario>;
   gpa?: GpaSettings;
   carmenGpa?: GpaSettings;
@@ -91,6 +92,12 @@ export interface SavedState {
       };
     }
   >;
+}
+export interface SchoologyVisibility {
+  account: string;
+  scope: string;
+  revision: number;
+  hidden: string[];
 }
 export const emptyScenario = (): Scenario => ({
   scores: {},

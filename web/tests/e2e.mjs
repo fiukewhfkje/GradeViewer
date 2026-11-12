@@ -1892,14 +1892,16 @@ try {
         if (!card) return { contained: false, separated: false };
         const box = node.getBoundingClientRect();
         const bounds = card.getBoundingClientRect();
-        const previous = node.previousElementSibling.getBoundingClientRect();
+        const action = card
+          .querySelector(".update-action")
+          .getBoundingClientRect();
         return {
           contained:
             box.top >= bounds.top &&
             box.bottom <= bounds.bottom &&
             box.left >= bounds.left &&
             box.right <= bounds.right,
-          separated: box.top >= previous.bottom,
+          separated: box.top >= action.bottom - 1,
         };
       });
       assert.deepEqual(feedback, { contained: true, separated: true });
@@ -2225,9 +2227,15 @@ try {
         await freshPage
           .getByRole("button", { name: "Settings", exact: true })
           .click();
-        await freshPage
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
+        if (
+          await freshPage
+            .getByRole("button", { name: "Check for updates", exact: true })
+            .isVisible()
+        )
+          await freshPage.locator(".update-action").evaluate((button) => {
+            if (button.getAttribute("aria-label") === "Check for updates")
+              button.click();
+          });
         await freshPage
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
@@ -2251,9 +2259,10 @@ try {
         await otherTab
           .getByRole("button", { name: "Settings", exact: true })
           .click();
-        await otherTab
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
+        await otherTab.locator(".update-action").evaluate((button) => {
+          if (button.getAttribute("aria-label") === "Check for updates")
+            button.click();
+        });
         await otherTab
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
@@ -2299,11 +2308,14 @@ try {
           .getByRole("button", { name: "Settings", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
-        await page
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
+        assert.equal(
+          await page.getByRole("complementary", { name: "App update" }).count(),
+          0,
+        );
+        assert.equal(await page.locator(".update-action").count(), 1);
+        await page.getByRole("button", { name: "Grades", exact: true }).click();
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
@@ -2316,6 +2328,9 @@ try {
           };
         });
         assert.deepEqual(notice, { compact: true, contained: true });
+        await page
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
         await Promise.all([
           page.waitForNavigation({ waitUntil: "load" }),
           page.getByRole("button", { name: "Update now", exact: true }).click(),
@@ -3334,6 +3349,7 @@ try {
     "blank enrollments and legacy hidden flags do not override current visibility preferences",
     async () => {
       const fresh = await browser.newContext({ ignoreHTTPSErrors: true });
+      const otherDevice = await browser.newContext({ ignoreHTTPSErrors: true });
       try {
         const blank = await fresh.newPage();
         await blank.goto(base);
@@ -3452,6 +3468,22 @@ try {
           .click();
         await blank.locator(".courses").waitFor();
         assert.equal(await blank.locator(".courses .course").count(), 4);
+        const unlocked = await otherDevice.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        assert.ok(unlocked.ok());
+        const second = await otherDevice.newPage();
+        await second.goto(base);
+        await second.locator(".courses .course").first().waitFor();
+        await second
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await second.locator(".courses .course").count(), 4);
+        assert.doesNotMatch(
+          await second.locator(".courses").innerText(),
+          /AP Biology/,
+        );
         assert.doesNotMatch(
           await blank.locator(".courses").innerText(),
           /AP Biology/,
@@ -3502,6 +3534,21 @@ try {
               await hidden.evaluate((el) => el.scrollWidth <= el.clientWidth),
               true,
             );
+            assert.ok(
+              await hidden.locator(".hidden-course").evaluate((row) => {
+                const name = row
+                  .querySelector(".hidden-course-name")
+                  .getBoundingClientRect();
+                const button = row
+                  .querySelector("button")
+                  .getBoundingClientRect();
+                return (
+                  Math.abs(
+                    name.y + name.height / 2 - button.y - button.height / 2,
+                  ) < 1 && button.height >= 44
+                );
+              }),
+            );
             await hidden.screenshot({
               path: `${directory}/hidden-schoology-${width}-${theme}.png`,
             });
@@ -3511,6 +3558,17 @@ try {
           .getByRole("button", { name: "Restore AP Biology", exact: true })
           .click();
         await hidden.waitFor({ state: "detached" });
+        await second
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await second
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .waitFor();
+        await second
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await second.locator(".courses .course").count(), 5);
         await blank
           .getByRole("button", { name: "Grades", exact: true })
           .click();
@@ -3525,6 +3583,7 @@ try {
         );
         await blank.getByLabel("Close course", { exact: true }).click();
       } finally {
+        await otherDevice.close();
         await fresh.close();
       }
     },

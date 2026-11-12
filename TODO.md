@@ -1,3 +1,10 @@
+# UI refinement and synced visibility — November 12
+
+- [x] Align the Restore row, normalize Settings and course spacing, improve grade contrast, and consolidate the update notice and action.
+- [x] Sync hide and restore through the existing authenticated Worker. Keep browser cache, account isolation and local grades/history/edits.
+- [x] Verify encrypted preference storage, legacy import, stale requests, two independent browser sessions, responsive layouts and safe update activation.
+- [x] Open the synthetic localhost app and 12-pair comparison for owner review. Keep this pass on the development branch.
+
 # Further optimization and Schoology visibility — November 12
 
 - [x] Measure a fresh deployed-code baseline, intermediate trials and final refresh/CPU/hosted CI results; preserve all samples and distinguish the WebKit completion-time plateau from the Chromium gain.

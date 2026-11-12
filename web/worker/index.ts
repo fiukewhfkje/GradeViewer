@@ -23,6 +23,12 @@ import {
 } from "./provider";
 import { latestRelease } from "./updates";
 import { pooledFetcher } from "./request-pool";
+import type { SchoologyVisibility } from "../src/core/model";
+interface VisibilityStore {
+  account: string;
+  revision: number;
+  choices: Record<string, boolean>;
+}
 export interface Env {
   APP_PASSWORD: string;
   APP_PASSWORD_RESET?: string;
@@ -51,6 +57,8 @@ interface Scan {
   freshMetadata?: boolean;
 }
 interface Vault {
+  visibility?: Envelope;
+  visibilityScope?: string;
   credentials?: Envelope;
   account?: string;
   workspace?: string;
@@ -804,7 +812,14 @@ export class CredentialVault {
       : undefined;
     if (carmen?.connected && !vault.workspace)
       vault.workspace = vault.account ?? "workspace:" + random();
+    // A preference record that cannot be opened should never block grades or
+    // erase the last confirmed choices on the browser.
+    const visibility =
+      authenticated && vault.account && vault.credentials
+        ? await this.visibility(vault).catch(() => undefined)
+        : undefined;
     return {
+      ...(visibility ? { schoologyVisibility: visibility } : {}),
       ...(authenticated ? { portals: { campus, carmen } } : {}),
       authenticated,
       connected: authenticated && (!!vault.credentials || !!carmen?.connected),
@@ -814,6 +829,64 @@ export class CredentialVault {
       revision: authenticated ? vault.revision : undefined,
       cooldown: authenticated ? vault.cooldown : undefined,
     };
+  }
+  private async visibilityStore(vault: Vault): Promise<VisibilityStore> {
+    const saved = vault.visibility
+      ? await unseal<VisibilityStore>(vault.visibility, this.env.APP_PASSWORD)
+      : undefined;
+    return saved && saved.account === vault.account
+      ? saved
+      : {
+          account: vault.account!,
+          revision: 0,
+          choices: {},
+        };
+  }
+  private async visibility(vault: Vault): Promise<SchoologyVisibility> {
+    const saved = await this.visibilityStore(vault);
+    return {
+      account: saved.account,
+      scope: (vault.visibilityScope ??= random()),
+      revision: saved.revision,
+      hidden: Object.keys(saved.choices)
+        .filter((key) => saved.choices[key])
+        .sort(),
+    };
+  }
+  private async changeVisibility(vault: Vault, b: Record<string, unknown>) {
+    if (
+      !vault.account ||
+      !vault.credentials ||
+      b.account !== vault.account ||
+      !vault.visibilityScope ||
+      b.scope !== vault.visibilityScope
+    )
+      throw new ApiError(409, "visibilityAccountChanged");
+    const importing = b.import !== undefined;
+    ensure(
+      importing
+        ? Array.isArray(b.import) &&
+            b.import.length <= 64 &&
+            b.import.every(validID) &&
+            b.section === undefined &&
+            b.hidden === undefined
+        : validID(b.section) && typeof b.hidden === "boolean",
+    );
+    const saved = await this.visibilityStore(vault);
+    const choices = new Map(Object.entries(saved.choices));
+    if (importing) {
+      for (const section of b.import as string[])
+        if (!choices.has(section)) choices.set(section, true);
+    } else choices.set(b.section as string, b.hidden as boolean);
+    ensure(choices.size <= 512);
+    const next = Object.fromEntries(choices);
+    if (JSON.stringify(next) !== JSON.stringify(saved.choices)) {
+      vault.visibility = await seal(
+        { ...saved, revision: saved.revision + 1, choices: next },
+        this.env.APP_PASSWORD,
+      );
+    }
+    return this.visibility(vault);
   }
   private async startRefresh(
     vault: Vault,
@@ -1042,7 +1115,11 @@ export class CredentialVault {
         );
       } else {
         if (!authenticated) throw new ApiError(401, "unlockRequired");
-        if (route === "password" && post) {
+        if (route === "course-visibility" && post) {
+          result = json(
+            await this.changeVisibility(vault, await body(request)),
+          );
+        } else if (route === "password" && post) {
           const { currentPassword, newPassword } = await body(request);
           if (
             typeof newPassword !== "string" ||
@@ -1083,6 +1160,8 @@ export class CredentialVault {
           )
             vault.workspace = vault.account ?? "workspace:" + random();
         } else if (route === "schoology/disconnect" && post) {
+          delete vault.visibility;
+          delete vault.visibilityScope;
           delete vault.credentials;
           delete vault.account;
           vault.scans = {};
@@ -1183,6 +1262,10 @@ export class CredentialVault {
                 owner: scan.owners[s],
               };
           vault.credentials = scan.credentials;
+          if (vault.account !== scan.account) {
+            delete vault.visibility;
+            delete vault.visibilityScope;
+          }
           vault.account = scan.account;
           vault.revision = random();
           vault.scans = {};

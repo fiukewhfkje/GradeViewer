@@ -155,14 +155,15 @@ export async function readSnapshot(
       ),
       metadata: undefined,
       gpa: undefined,
+      hiddenSchoology: undefined,
+      schoologyVisibility: undefined,
       scenarios: Object.fromEntries(
         Object.entries(base.scenarios).filter(
           ([id]) => id.startsWith("carmen:") || id.startsWith("campus:"),
         ),
       ),
     };
-    await repository.save(next);
-    return next;
+    return repository.save(next, { clearVisibility: true });
   }
   const { metadataJobs, body } = snapshotRequest(
     previous,
@@ -678,6 +679,10 @@ export async function readSnapshot(
           : undefined,
       hiddenSchoology:
         preserved.account === account ? preserved.hiddenSchoology : undefined,
+      schoologyVisibility:
+        preserved.account === account
+          ? preserved.schoologyVisibility
+          : undefined,
       scenarios: preserved.account === account ? preserved.scenarios : {},
       ...(preserved.account === account && preserved.gpa
         ? { gpa: preserved.gpa }
@@ -691,9 +696,9 @@ export async function readSnapshot(
     });
     await api("scan/commit", { scan });
     committed = true;
-    await repository.activate(next);
+    const active = await repository.activate(next);
     void navigator.storage?.persist?.().catch(() => {});
-    return next;
+    return active;
   } catch (e) {
     if (!committed) {
       await repository.cancel();
