@@ -525,9 +525,12 @@ try {
                 requestAnimationFrame(() => requestAnimationFrame(r)),
               ),
           );
-          await page.screenshot({
-            path: `${directory}/settings-${width}-${theme}.png`,
-          });
+          // Assertions cover every size. Keep representative artifacts rather
+          // than repeatedly encoding screenshots with the same layout.
+          if ([320, 768, 1440, 3840].includes(width))
+            await page.screenshot({
+              path: `${directory}/settings-${width}-${theme}.png`,
+            });
         }
       }
       await openConnection(page, "Schoology");
@@ -550,9 +553,10 @@ try {
               requestAnimationFrame(() => requestAnimationFrame(r)),
             ),
         );
-        await page.screenshot({
-          path: `${directory}/settings-form-${width}.png`,
-        });
+        if ([320, 1440].includes(width))
+          await page.screenshot({
+            path: `${directory}/settings-form-${width}.png`,
+          });
       }
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
