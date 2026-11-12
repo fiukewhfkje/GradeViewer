@@ -1,11 +1,11 @@
 name: PWA verification and releases
 on:
   pull_request:
-    paths: ['web/**', '.github/workflows/**']
+    paths: ["web/**", ".github/workflows/**"]
   push:
     branches: [main]
-    tags: ['v0.*']
-    paths: ['web/**', '.github/workflows/**']
+    tags: ["v0.*"]
+    paths: ["web/**", ".github/workflows/**"]
   workflow_dispatch:
 concurrency:
   group: pwa-${{ github.ref }}
@@ -47,17 +47,17 @@ jobs:
           npm test &
           unit_pid=$!
           result=0
-          npm run build && npm run test:e2e || result=1
+          npm run build && npm run test:e2e:ci || result=1
           wait "$unit_pid" || result=1
           exit "$result"
       - run: npm run build
         if: matrix.browser == 'webkit'
-      - run: npm run test:e2e
+      - run: npm run test:e2e:ci
         if: matrix.browser == 'webkit'
       - run: npx wrangler deploy --dry-run --outdir .local-test/production
         if: matrix.browser == 'chromium'
         env:
-          WRANGLER_SEND_METRICS: 'false'
+          WRANGLER_SEND_METRICS: "false"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

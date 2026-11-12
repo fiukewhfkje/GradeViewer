@@ -5,12 +5,17 @@ import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
-const port = 8901,
+import { mkdir, rm, readFile, writeFile, cp } from "node:fs/promises";
+const group = process.env.GRADEVIEWER_E2E_GROUP ?? "full";
+assert.ok(["full", "functional", "motion"].includes(group));
+const port = Number(process.env.GRADEVIEWER_E2E_PORT ?? 8901),
   base = `https://localhost:${port}`,
   engine = process.env.GRADEVIEWER_BROWSER ?? "chromium",
   directory =
-    engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e";
+    (engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e") +
+    (group === "full" ? "" : "-" + group),
+  assets = group === "motion" ? directory + "/assets" : "dist";
+assert.ok(Number.isInteger(port) && port >= 1024 && port <= 64535);
 assert.ok(["chromium", "webkit"].includes(engine));
 const profile = process.env.GRADEVIEWER_E2E_PROFILE ?? "full";
 assert.ok(["full", "platform"].includes(profile));
@@ -28,11 +33,21 @@ const sharedChecks = new Set([
   "Carmen standalone connection, GPA, expiry, reconnect, and independent Schoology removal",
 ]);
 let omitted = 0;
+const bootstrap = "owner unlock and complete Schoology connection";
+// These contexts have their own browser storage and leave the functional
+// scenario untouched. CI runs them on a separate Worker and asset copy.
+const motionChecks = new Set([
+  "appearance controls follow the device, persist overrides, and reduce motion",
+  "disclosure slides reverse cleanly and reduced motion remains immediate",
+  "navigation motion preserves open edits and honors reduced motion",
+  "loading orbit follows real work and navigation surfaces honor reduced motion",
+]);
+let omittedMotion = 0;
 // Secure host cookies must be tested over HTTPS: WebKit correctly rejects
 // __Host- cookies over plain HTTP, including the localhost exception in Chromium.
 // This CA is confined to this synthetic loopback test process and its children.
 if (!process.env.GRADEVIEWER_TEST_TLS_CERT) {
-  const tls = resolve(".local-test/e2e-tls");
+  const tls = resolve(".local-test/e2e-tls-" + group);
   await mkdir(tls, { recursive: true });
   execFileSync(
     "openssl",
@@ -75,6 +90,7 @@ if (!process.env.GRADEVIEWER_TEST_TLS_CERT) {
 }
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
+if (group === "motion") await cp("dist", assets, { recursive: true });
 let server,
   browser,
   log = "",
@@ -91,6 +107,10 @@ async function start() {
       "wrangler.test.jsonc",
       "--port",
       String(port),
+      "--inspector-port",
+      String(port + 1000),
+      "--assets",
+      assets,
       "--ip",
       "127.0.0.1",
       "--local-protocol",
@@ -194,6 +214,12 @@ async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
   if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
     return;
+  if (group === "motion" && name !== bootstrap && !motionChecks.has(name))
+    return;
+  if (group === "functional" && motionChecks.has(name)) {
+    omittedMotion++;
+    return;
+  }
   if (engine === "webkit" && profile === "platform" && sharedChecks.has(name)) {
     omitted++;
     console.log(`COVERED IN CHROMIUM + UNIT: ${name}`);
@@ -212,7 +238,9 @@ async function check(name, run) {
       }),
     ]);
     completed++;
-    console.log(`PASS ${name} (${Math.round(performance.now() - started)} ms)`);
+    console.log(
+      `PASS [${group}] ${name} (${Math.round(performance.now() - started)} ms)`,
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -3727,6 +3755,7 @@ try {
   if (
     engine === "webkit" &&
     profile === "platform" &&
+    group !== "motion" &&
     !process.env.GRADEVIEWER_E2E_CHECK
   )
     assert.equal(
@@ -3734,6 +3763,10 @@ try {
       sharedChecks.size,
       "Browser coverage exclusions must match actual checks",
     );
+  if (!process.env.GRADEVIEWER_E2E_CHECK) {
+    if (group === "motion") assert.equal(completed, motionChecks.size + 1);
+    if (group === "functional") assert.equal(omittedMotion, motionChecks.size);
+  }
   console.log(`Completed ${completed} browser/integration checks.`);
 } catch (e) {
   console.error(e);
