@@ -5,19 +5,49 @@ import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
-const port = 8901,
+import { mkdir, rm, readFile, writeFile, cp } from "node:fs/promises";
+const group = process.env.GRADEVIEWER_E2E_GROUP ?? "full";
+assert.ok(["full", "functional", "motion"].includes(group));
+const port = Number(process.env.GRADEVIEWER_E2E_PORT ?? 8901),
   base = `https://localhost:${port}`,
   engine = process.env.GRADEVIEWER_BROWSER ?? "chromium",
   directory =
-    engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e";
+    (engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e") +
+    (group === "full" ? "" : "-" + group),
+  assets = group === "motion" ? directory + "/assets" : "dist";
+assert.ok(Number.isInteger(port) && port >= 1024 && port <= 64535);
 assert.ok(["chromium", "webkit"].includes(engine));
+const profile = process.env.GRADEVIEWER_E2E_PROFILE ?? "full";
+assert.ok(["full", "platform"].includes(profile));
+// Shared business/provider paths run in the complete Chromium suite and unit
+// tests. Safari keeps forms, touch, cache, updates, sessions and cross-tab state.
+// Exact exclusions make new tests opt in to both engines automatically.
+const sharedChecks = new Set([
+  "private API and security headers", // Node fetch, independent of browser.
+  "direct Add Grade, extra credit and removal",
+  "period scopes and named ungraded rows",
+  "Settings update check reports current version and offline state",
+  "official release pending, stalled and unavailable states",
+  "failed credential replacement retains current connection and local data",
+  "Carmen experiment switches LMS views without losing sessions, grades or diagnostics",
+  "Carmen standalone connection, GPA, expiry, reconnect, and independent Schoology removal",
+]);
+let omitted = 0;
+const bootstrap = "owner unlock and complete Schoology connection";
+// These contexts have their own browser storage and leave the functional
+// scenario untouched. CI runs them on a separate Worker and asset copy.
+const motionChecks = new Set([
+  "appearance controls follow the device, persist overrides, and reduce motion",
+  "disclosure slides reverse cleanly and reduced motion remains immediate",
+  "navigation motion preserves open edits and honors reduced motion",
+  "loading orbit follows real work and navigation surfaces honor reduced motion",
+]);
+let omittedMotion = 0;
 // Secure host cookies must be tested over HTTPS: WebKit correctly rejects
 // __Host- cookies over plain HTTP, including the localhost exception in Chromium.
 // This CA is confined to this synthetic loopback test process and its children.
 if (!process.env.GRADEVIEWER_TEST_TLS_CERT) {
-  const tls = resolve(".local-test/e2e-tls");
+  const tls = resolve(".local-test/e2e-tls-" + group);
   await mkdir(tls, { recursive: true });
   execFileSync(
     "openssl",
@@ -60,6 +90,7 @@ if (!process.env.GRADEVIEWER_TEST_TLS_CERT) {
 }
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
+if (group === "motion") await cp("dist", assets, { recursive: true });
 let server,
   browser,
   log = "",
@@ -76,6 +107,10 @@ async function start() {
       "wrangler.test.jsonc",
       "--port",
       String(port),
+      "--inspector-port",
+      String(port + 1000),
+      "--assets",
+      assets,
       "--ip",
       "127.0.0.1",
       "--local-protocol",
@@ -148,20 +183,48 @@ async function setTheme(page, theme) {
   const toggle = page.getByRole("switch", { name: "Dark mode", exact: true });
   if ((await toggle.isChecked()) !== (theme === "dark")) await toggle.click();
 }
-async function completeCarmenSignIn(page, client) {
-  await page
-    .getByRole("link", { name: "Open CarmenCanvas", exact: true })
-    .click();
-  await client.post(base + "/api/fixture/carmen", { data: { signedIn: true } });
-  await page
-    .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
-    .waitFor();
-  await page.waitForFunction(() => !document.querySelector(".portal-progress"));
+async function completeCarmenSignIn(page, client, reconnect = false) {
+  const progress = await holdFixture(client, "portal-progress");
+  try {
+    await page
+      .getByRole("button", {
+        name: reconnect ? "Reconnect CarmenCanvas" : "Connect CarmenCanvas",
+        exact: true,
+      })
+      .click();
+    await progress.received();
+    await page
+      .getByRole("link", { name: "Open CarmenCanvas", exact: true })
+      .click();
+    await client.post(base + "/api/fixture/carmen", {
+      data: { signedIn: true },
+    });
+    await progress.release();
+    await page
+      .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
+      .waitFor();
+    await page.waitForFunction(
+      () => !document.querySelector(".portal-progress"),
+    );
+  } finally {
+    await progress.close();
+  }
 }
 async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
   if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
     return;
+  if (group === "motion" && name !== bootstrap && !motionChecks.has(name))
+    return;
+  if (group === "functional" && motionChecks.has(name)) {
+    omittedMotion++;
+    return;
+  }
+  if (engine === "webkit" && profile === "platform" && sharedChecks.has(name)) {
+    omitted++;
+    console.log(`COVERED IN CHROMIUM + UNIT: ${name}`);
+    return;
+  }
   let timer;
   const started = performance.now();
   try {
@@ -175,42 +238,73 @@ async function check(name, run) {
       }),
     ]);
     completed++;
-    console.log(`PASS ${name} (${Math.round(performance.now() - started)} ms)`);
+    console.log(
+      `PASS [${group}] ${name} (${Math.round(performance.now() - started)} ms)`,
+    );
   } finally {
     clearTimeout(timer);
   }
 }
-// Hold the response until the UI assertion completes instead of sleeping for
-// seconds and hoping a slow CI runner reaches the assertion before it arrives.
-async function holdRequest(page, pattern) {
-  let release, received;
-  const gate = new Promise((resolve) => {
-    release = resolve;
-  });
-  const seen = new Promise((resolve) => {
-    received = resolve;
-  });
-  const running = new Set();
-  const handler = (route) => {
-    const task = (async () => {
-      received();
-      await gate;
-      await route.continue();
-    })();
-    running.add(task);
-    return task.finally(() => running.delete(task));
-  };
-  await page.route(pattern, handler);
-  return {
-    received: seen,
-    release,
-    close: async () => {
-      release();
-      await Promise.all([...running]);
-      await page.unroute(pattern, handler);
-    },
-  };
+function startsProvider(request, provider = "schoology") {
+  return (
+    request
+      .url()
+      .endsWith(
+        provider === "schoology"
+          ? "/api/scan/start"
+          : "/api/" + provider + "/snapshot",
+      ) ||
+    (request.url().endsWith("/api/refresh/start") &&
+      request.postDataJSON()?.provider === provider)
+  );
 }
+async function captureLoadingPreview(page) {
+  // Export the actual SVG/CSS in an isolated synthetic context; no grade UI
+  // enters this small light/dark preview.
+  const frames = directory + "/loading-preview";
+  await mkdir(frames, { recursive: true });
+  await page.evaluate(() => {
+    const icon = document.querySelector(".desktop-refresh .loading-indicator");
+    const panel = document.createElement("div");
+    panel.id = "loading-preview";
+    panel.style.cssText =
+      "position:fixed;left:0;top:0;z-index:9999;width:400px;height:180px;display:grid;grid-template-columns:1fr 1fr";
+    for (const dark of [false, true]) {
+      const cell = document.createElement("div");
+      cell.style.cssText = `display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:${dark ? "#1d1d1c" : "#fcf9f2"};color:${dark ? "#b1afa7" : "#6d6b63"};font:13px system-ui`;
+      cell.style.setProperty("--grade", dark ? "#4dd112" : "#52bd29");
+      const clone = icon.cloneNode(true);
+      clone.setAttribute("width", "52");
+      clone.setAttribute("height", "52");
+      const label = document.createElement("span");
+      label.textContent = "Refreshing grades";
+      cell.append(clone, label);
+      panel.append(cell);
+    }
+    document.body.append(panel);
+    for (const animation of panel.getAnimations({ subtree: true })) {
+      if (animation.effect.getTiming().iterations === Infinity)
+        animation.pause();
+      else animation.finish();
+    }
+  });
+  for (let frame = 0; frame < 72; frame++) {
+    await page.evaluate((time) => {
+      for (const animation of document
+        .querySelector("#loading-preview")
+        .getAnimations({ subtree: true }))
+        if (animation.effect.getTiming().iterations === Infinity)
+          animation.currentTime = time;
+    }, frame * 50);
+    await page.locator("#loading-preview").screenshot({
+      path: frames + `/frame-${String(frame).padStart(3, "0")}.png`,
+    });
+  }
+  await page.evaluate(() =>
+    document.querySelector("#loading-preview").remove(),
+  );
+}
+// Gate in the synthetic Worker so service-worker requests are held too.
 async function holdFixture(client, kind) {
   const url = base + "/api/fixture/gate?kind=" + kind;
   await client.post(url, { data: { held: true } });
@@ -244,11 +338,9 @@ try {
     engine === "webkit"
       ? await webkit.launch()
       : await chromium.launch({
-          executablePath:
-            process.env.CHROMIUM_PATH ??
-            (existsSync("/usr/bin/chromium")
-              ? "/usr/bin/chromium"
-              : chromium.executablePath()),
+          // Let Playwright choose its matching headless binary. An explicit
+          // system-browser override remains available for local environments.
+          executablePath: process.env.CHROMIUM_PATH || undefined,
           args: [
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -260,6 +352,9 @@ try {
       ignoreHTTPSErrors: true,
       isMobile: true,
       hasTouch: true,
+      // Functional flows need final states. Dedicated contexts above/below
+      // exercise full motion, interruption and device/user preference changes.
+      reducedMotion: "reduce",
     }),
     page = await context.newPage(),
     errors = [];
@@ -458,9 +553,12 @@ try {
                 requestAnimationFrame(() => requestAnimationFrame(r)),
               ),
           );
-          await page.screenshot({
-            path: `${directory}/settings-${width}-${theme}.png`,
-          });
+          // Assertions cover every size. Keep representative artifacts rather
+          // than repeatedly encoding screenshots with the same layout.
+          if ([320, 768, 1440, 3840].includes(width))
+            await page.screenshot({
+              path: `${directory}/settings-${width}-${theme}.png`,
+            });
         }
       }
       await openConnection(page, "Schoology");
@@ -483,9 +581,10 @@ try {
               requestAnimationFrame(() => requestAnimationFrame(r)),
             ),
         );
-        await page.screenshot({
-          path: `${directory}/settings-form-${width}.png`,
-        });
+        if ([320, 1440].includes(width))
+          await page.screenshot({
+            path: `${directory}/settings-form-${width}.png`,
+          });
       }
       await page.getByRole("button", { name: "Cancel", exact: true }).click();
       await page.setViewportSize({ width: 390, height: 844 });
@@ -874,6 +973,173 @@ try {
     },
   );
   await check(
+    "loading orbit follows real work and navigation surfaces honor reduced motion",
+    async () => {
+      const isolated = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width: 1280, height: 900 },
+        reducedMotion: "no-preference",
+      });
+      try {
+        await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        const preview = await isolated.newPage();
+        await preview.addInitScript(() => {
+          window.screenMotions = 0;
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (...args) {
+            if (this.tagName === "MAIN") window.screenMotions++;
+            return animate.apply(this, args);
+          };
+        });
+        await preview.goto(base);
+        const refresh = preview.locator(".desktop-refresh");
+        await refresh.waitFor({ state: "visible" });
+        await preview.waitForFunction(
+          () => !document.querySelector(".desktop-refresh").disabled,
+        );
+        await settleMotion(preview);
+        assert.equal(await refresh.locator(".reload-icon").count(), 1);
+        const motions = await preview.evaluate(() => window.screenMotions);
+        const held = await holdFixture(isolated.request, "provider");
+        try {
+          await refresh.click();
+          await held.received();
+          const loader = refresh.locator(
+            '.loading-indicator[data-active="true"]',
+          );
+          await loader.waitFor();
+          assert.equal(await refresh.getAttribute("aria-busy"), "true");
+          assert.equal(await refresh.isDisabled(), true);
+          assert.equal(
+            await loader.evaluate(
+              (node) =>
+                node
+                  .getAnimations({ subtree: true })
+                  .filter((a) => a.effect.getTiming().iterations === Infinity)
+                  .length,
+            ),
+            2,
+          );
+          const position = await loader
+            .locator(".loading-orbit")
+            .evaluate((node) => getComputedStyle(node).transform);
+          await preview.waitForFunction(
+            (before) =>
+              getComputedStyle(
+                document.querySelector(".desktop-refresh .loading-orbit"),
+              ).transform !== before,
+            position,
+          );
+          await preview.screenshot({
+            path: directory + "/loading-orbit-light.png",
+          });
+          await preview.emulateMedia({ colorScheme: "dark" });
+          await preview.screenshot({
+            path: directory + "/loading-orbit-dark.png",
+          });
+          if (process.env.GRADEVIEWER_CAPTURE_MOTION === "true")
+            await captureLoadingPreview(preview);
+          await preview.emulateMedia({ reducedMotion: "reduce" });
+          await preview.waitForFunction(
+            () => document.documentElement.dataset.motion === "reduce",
+          );
+          assert.equal(
+            await loader.evaluate(
+              (node) => node.getAnimations({ subtree: true }).length,
+            ),
+            0,
+          );
+          assert.equal(await refresh.getAttribute("aria-busy"), "true");
+          await preview.emulateMedia({ reducedMotion: "no-preference" });
+          await preview.waitForFunction(
+            () => document.documentElement.dataset.motion === "full",
+          );
+          assert.equal(
+            await preview.evaluate(() => window.screenMotions),
+            motions,
+          );
+        } finally {
+          await held.close();
+        }
+        await preview.waitForFunction(
+          () => !document.querySelector(".desktop-refresh").disabled,
+        );
+        assert.equal(await refresh.locator(".reload-icon").count(), 1);
+        assert.equal(await refresh.getAttribute("aria-busy"), "false");
+        assert.equal(
+          await preview.evaluate(
+            () =>
+              document
+                .getAnimations()
+                .filter((a) => a.effect.getTiming().iterations === Infinity)
+                .length,
+          ),
+          0,
+        );
+        for (const width of [1280, 390, 320]) {
+          await preview.setViewportSize({ width, height: 900 });
+          const nav = preview.getByRole("navigation", {
+            name: "Main navigation",
+          });
+          for (const label of ["Settings", "Grades"]) {
+            await nav.getByRole("button", { name: label, exact: true }).click();
+            await preview.waitForFunction(() => {
+              const nav = document.querySelector(".primary-nav"),
+                button = nav.querySelector('[aria-pressed="true"]');
+              const style = getComputedStyle(nav, "::before"),
+                transform = new DOMMatrixReadOnly(
+                  style.transform === "none" ? undefined : style.transform,
+                );
+              const box = nav.getBoundingClientRect(),
+                target = button.getBoundingClientRect();
+              return (
+                Math.abs(
+                  box.x +
+                    parseFloat(style.left) +
+                    transform.e +
+                    parseFloat(style.width) / 2 -
+                    (target.x + target.width / 2),
+                ) < 0.6 &&
+                Math.abs(
+                  box.y +
+                    parseFloat(style.top) +
+                    transform.f +
+                    parseFloat(style.height) / 2 -
+                    (target.y + target.height / 2),
+                ) < 0.6
+              );
+            });
+            assert.equal(
+              await preview.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+              ),
+              true,
+            );
+            await settleMotion(preview);
+          }
+          if (width === 390)
+            await preview.screenshot({
+              path: directory + "/motion-phone-nav.png",
+            });
+        }
+        await preview.emulateMedia({ reducedMotion: "reduce" });
+        await preview
+          .getByRole("navigation", { name: "Main navigation" })
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        assert.equal(
+          await preview.evaluate(() => document.getAnimations().length),
+          0,
+        );
+      } finally {
+        await isolated.close();
+      }
+    },
+  );
+  await check(
     "returning startup shows saved grades during a slow refresh with one status check",
     async () => {
       await page.waitForFunction(
@@ -883,8 +1149,12 @@ try {
       let statuses = 0,
         scans = 0;
       const count = (request) => {
-        if (request.url().endsWith("/api/status")) statuses++;
-        if (request.url().endsWith("/api/scan/start")) scans++;
+        if (
+          request.url().endsWith("/api/status") ||
+          request.url().endsWith("/api/refresh/start")
+        )
+          statuses++;
+        if (startsProvider(request)) scans++;
       };
       page.on("request", count);
       try {
@@ -977,7 +1247,7 @@ try {
       let scans = 0,
         manual = false;
       const request = (r) => {
-        if (r.url().endsWith("/api/scan/start")) {
+        if (startsProvider(r)) {
           scans++;
           manual = r.postDataJSON().refreshMetadata === true;
         }
@@ -1374,9 +1644,7 @@ try {
       const held = await holdFixture(context.request, "provider");
       const started = Date.now();
       try {
-        const refreshing = page.waitForRequest((r) =>
-          r.url().endsWith("/api/scan/start"),
-        );
+        const refreshing = page.waitForRequest((r) => startsProvider(r));
         await page.evaluate(() => {
           for (const value of ["hidden", "visible"]) {
             Object.defineProperty(document, "visibilityState", {
@@ -1624,14 +1892,16 @@ try {
         if (!card) return { contained: false, separated: false };
         const box = node.getBoundingClientRect();
         const bounds = card.getBoundingClientRect();
-        const previous = node.previousElementSibling.getBoundingClientRect();
+        const action = card
+          .querySelector(".update-action")
+          .getBoundingClientRect();
         return {
           contained:
             box.top >= bounds.top &&
             box.bottom <= bounds.bottom &&
             box.left >= bounds.left &&
             box.right <= bounds.right,
-          separated: box.top >= previous.bottom,
+          separated: box.top >= action.bottom - 1,
         };
       });
       assert.deepEqual(feedback, { contained: true, separated: true });
@@ -1957,9 +2227,15 @@ try {
         await freshPage
           .getByRole("button", { name: "Settings", exact: true })
           .click();
-        await freshPage
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
+        if (
+          await freshPage
+            .getByRole("button", { name: "Check for updates", exact: true })
+            .isVisible()
+        )
+          await freshPage.locator(".update-action").evaluate((button) => {
+            if (button.getAttribute("aria-label") === "Check for updates")
+              button.click();
+          });
         await freshPage
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
@@ -1983,9 +2259,10 @@ try {
         await otherTab
           .getByRole("button", { name: "Settings", exact: true })
           .click();
-        await otherTab
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
+        await otherTab.locator(".update-action").evaluate((button) => {
+          if (button.getAttribute("aria-label") === "Check for updates")
+            button.click();
+        });
         await otherTab
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
@@ -2031,11 +2308,14 @@ try {
           .getByRole("button", { name: "Settings", exact: true })
           .click();
         await page
-          .getByRole("button", { name: "Check for updates", exact: true })
-          .click();
-        await page
           .getByRole("button", { name: "Update now", exact: true })
           .waitFor();
+        assert.equal(
+          await page.getByRole("complementary", { name: "App update" }).count(),
+          0,
+        );
+        assert.equal(await page.locator(".update-action").count(), 1);
+        await page.getByRole("button", { name: "Grades", exact: true }).click();
         await page
           .getByRole("button", { name: "Reload to update", exact: true })
           .waitFor();
@@ -2048,6 +2328,9 @@ try {
           };
         });
         assert.deepEqual(notice, { compact: true, contained: true });
+        await page
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
         await Promise.all([
           page.waitForNavigation({ waitUntil: "load" }),
           page.getByRole("button", { name: "Update now", exact: true }).click(),
@@ -2254,7 +2537,7 @@ try {
         };
         let scans = 0;
         appPage.on("request", (r) => {
-          if (r.url().endsWith("/api/scan/start")) scans++;
+          if (startsProvider(r)) scans++;
         });
         const pull = async () => {
           await appPage
@@ -2366,9 +2649,10 @@ try {
       await context.request.post(base + "/api/fixture/campus", {
         data: { startLimited: false },
       });
-      let progress = await holdRequest(page, "**/api/campus/progress");
+      let progress = await holdFixture(context.request, "portal-progress");
       try {
         await connect.click();
+        await progress.received();
         await openSignIn.waitFor();
         assert.equal(
           await page.locator("body").getAttribute("data-campus-popup"),
@@ -2390,7 +2674,7 @@ try {
         await context.request.post(base + "/api/fixture/campus", {
           data: { signedIn: true },
         });
-        progress.release();
+        await progress.release();
         await page
           .getByRole("heading", { name: "Choose your classes", exact: true })
           .waitFor();
@@ -2406,7 +2690,7 @@ try {
         .check();
       let schoologyScans = 0;
       const countSchoology = (request) => {
-        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+        if (startsProvider(request)) schoologyScans++;
       };
       page.on("request", countSchoology);
       await page
@@ -2486,7 +2770,9 @@ try {
         .getByRole("heading", { name: "Choose your classes", exact: true })
         .waitFor({ timeout: 500 });
       await page.getByText("Loading IC courses…", { exact: true }).waitFor();
-      await page.getByText(/Both copies of a class count toward GPA/).waitFor();
+      await page
+        .getByText(/hide its Schoology copy from Course options/)
+        .waitFor();
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .waitFor();
@@ -2525,7 +2811,7 @@ try {
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
-      progress = await holdRequest(page, "**/api/campus/progress");
+      progress = await holdFixture(context.request, "portal-progress");
       try {
         await page
           .getByRole("button", { name: "Settings", exact: true })
@@ -2540,13 +2826,14 @@ try {
             exact: true,
           })
           .click();
+        await progress.received();
         await openSignIn.click();
         const signedIn = await context.request.post(
           base + "/api/fixture/portal-window?provider=campus",
           { headers: { Origin: base } },
         );
         assert.equal(signedIn.ok(), true);
-        progress.release();
+        await progress.release();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
           .locator('[data-health="connected"]')
@@ -2586,7 +2873,7 @@ try {
       ).json();
       let schoologyScans = 0;
       const countSchoology = (request) => {
-        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+        if (startsProvider(request)) schoologyScans++;
       };
       page.on("request", countSchoology);
       await page
@@ -2598,9 +2885,6 @@ try {
         name: "Copy compatibility report",
       });
       assert.equal(await copyReport.isEnabled(), false);
-      await page
-        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
-        .click();
       await completeCarmenSignIn(page, context.request);
       const otherConnections = page.locator(".connection-heading > strong", {
         hasText: /^(Schoology|Infinite Campus)$/,
@@ -2704,7 +2988,7 @@ try {
       });
       const refreshed = page.waitForResponse(
         (response) =>
-          response.url().endsWith("/api/carmen/snapshot") && response.ok(),
+          startsProvider(response.request(), "carmen") && response.ok(),
       );
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
@@ -2822,9 +3106,6 @@ try {
         await page.getByLabel("Schoology API key", { exact: true }).count(),
         0,
       );
-      await page
-        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
-        .click();
       await completeCarmenSignIn(page, context.request);
       await page.screenshot({ path: directory + "/settings-carmen.png" });
       const status = await (
@@ -2882,10 +3163,7 @@ try {
         data: { failure: false },
       });
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page
-        .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
-        .click();
-      await completeCarmenSignIn(page, context.request);
+      await completeCarmenSignIn(page, context.request, true);
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .account,
@@ -3068,9 +3346,10 @@ try {
     },
   );
   await check(
-    "blank enrollments stay omitted and retired hide controls are absent",
+    "blank enrollments and legacy hidden flags do not override current visibility preferences",
     async () => {
       const fresh = await browser.newContext({ ignoreHTTPSErrors: true });
+      const otherDevice = await browser.newContext({ ignoreHTTPSErrors: true });
       try {
         const blank = await fresh.newPage();
         await blank.goto(base);
@@ -3099,6 +3378,14 @@ try {
           .locator(".courses .course")
           .filter({ hasText: "AP Biology" })
           .click();
+        await blank.locator(".assignment .menu summary").first().click();
+        await blank
+          .getByRole("button", { name: "Edit Grade", exact: true })
+          .click();
+        await blank.getByLabel("Score", { exact: true }).fill("17.25");
+        await blank.getByRole("button", { name: "Save", exact: true }).click();
+        await blank.getByLabel("What-If grade", { exact: true }).waitFor();
+        const savedRows = await blank.locator(".rows").first().innerText();
         await blank.getByLabel("Course options", { exact: true }).click();
         assert.equal(
           await blank
@@ -3141,7 +3428,9 @@ try {
               };
             }),
         );
-        await blank.route("**/api/status", (route) => route.abort("failed"));
+        await blank.route(/\/api\/(?:status|refresh\/start)$/, (route) =>
+          route.abort("failed"),
+        );
         await blank.reload();
         await blank.locator(".courses").waitFor();
         assert.equal(await blank.locator(".courses .course").count(), 5);
@@ -3165,21 +3454,152 @@ try {
             .count(),
           0,
         );
+        await blank.unroute(/\/api\/(?:status|refresh\/start)$/);
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .click();
+        await blank.getByLabel("Course options", { exact: true }).click();
+        await blank
+          .getByRole("button", { name: "Hide Schoology course", exact: true })
+          .click();
+        await blank.locator(".courses").waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        const unlocked = await otherDevice.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        assert.ok(unlocked.ok());
+        const second = await otherDevice.newPage();
+        await second.goto(base);
+        await second.locator(".courses .course").first().waitFor();
+        await second
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await second.locator(".courses .course").count(), 4);
+        assert.doesNotMatch(
+          await second.locator(".courses").innerText(),
+          /AP Biology/,
+        );
+        assert.doesNotMatch(
+          await blank.locator(".courses").innerText(),
+          /AP Biology/,
+        );
+        const reopened = blank.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await blank.reload();
+        await blank.locator(".courses").waitFor();
+        await reopened;
+        await blank
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        const refreshed = blank.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await blank
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await refreshed;
+        await blank
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        await blank
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        const hidden = blank.locator(".hidden-courses");
+        await hidden
+          .getByRole("heading", {
+            name: "Hidden Schoology courses",
+            exact: true,
+          })
+          .waitFor();
+        assert.equal(
+          await hidden
+            .getByRole("button", { name: "Restore AP Biology", exact: true })
+            .count(),
+          1,
+        );
+        for (const width of [320, 1280]) {
+          await blank.setViewportSize({ width, height: 900 });
+          for (const theme of ["light", "dark"]) {
+            await setTheme(blank, theme);
+            await settleMotion(blank);
+            assert.equal(
+              await hidden.evaluate((el) => el.scrollWidth <= el.clientWidth),
+              true,
+            );
+            assert.ok(
+              await hidden.locator(".hidden-course").evaluate((row) => {
+                const name = row
+                  .querySelector(".hidden-course-name")
+                  .getBoundingClientRect();
+                const button = row
+                  .querySelector("button")
+                  .getBoundingClientRect();
+                return (
+                  Math.abs(
+                    name.y + name.height / 2 - button.y - button.height / 2,
+                  ) < 1 && button.height >= 44
+                );
+              }),
+            );
+            await hidden.screenshot({
+              path: `${directory}/hidden-schoology-${width}-${theme}.png`,
+            });
+          }
+        }
+        await hidden
+          .getByRole("button", { name: "Restore AP Biology", exact: true })
+          .click();
+        await hidden.waitFor({ state: "detached" });
+        await second
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await second
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .waitFor();
+        await second
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await second.locator(".courses .course").count(), 5);
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .click();
+        assert.equal(
+          await blank.locator(".rows").first().innerText(),
+          savedRows,
+        );
+        await blank.getByLabel("Close course", { exact: true }).click();
       } finally {
+        await otherDevice.close();
         await fresh.close();
       }
     },
   );
   await check(
-    "fresh opens and real returns refresh once; idle time and cooldown expiry stay quiet",
+    "fresh opens coalesce and Schoology gets one visible cooldown retry with honest feedback",
     async () => {
       const isolated = await browser.newContext({ ignoreHTTPSErrors: true });
       try {
         const quiet = await isolated.newPage();
+        await quiet.emulateMedia({ reducedMotion: "reduce" });
         await quiet.clock.install();
+        await quiet.clock.pauseAt(new Date());
         let scans = 0;
         quiet.on("request", (request) => {
-          if (request.url().endsWith("/api/scan/start")) scans++;
+          if (startsProvider(request)) scans++;
         });
         const unlocked = await isolated.request.post(base + "/api/login", {
           headers: { Origin: base },
@@ -3239,6 +3659,20 @@ try {
           .filter({ hasText: "Schoology is limiting requests" })
           .waitFor();
         assert.equal(scans, 3);
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await quiet.screenshot({ path: directory + "/retry-waiting.png" });
+        await quiet.setViewportSize({ width: 390, height: 844 });
+        assert.equal(
+          await quiet.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+          true,
+        );
+        await quiet.screenshot({ path: directory + "/retry-phone.png" });
+        await quiet.setViewportSize({ width: 1280, height: 720 });
         await quiet.clock.fastForward(2000);
         await quiet
           .getByRole("button", { name: "Retry", exact: true })
@@ -3249,8 +3683,42 @@ try {
             .isEnabled(),
           true,
         );
+        assert.equal(scans, 3); // The cooldown's extra safety buffer still applies.
+        const retryGate = await holdFixture(isolated.request, "scan");
+        try {
+          await quiet.clock.fastForward(5000);
+          await retryGate.received();
+          await quiet
+            .locator("[data-refresh-retry]")
+            .filter({ hasText: "Retrying Schoology now" })
+            .waitFor();
+          assert.equal(
+            await quiet
+              .locator(
+                '.desktop-refresh[aria-busy="true"] .loading-indicator[data-active="true"]',
+              )
+              .count(),
+            1,
+          );
+          await quiet.screenshot({ path: directory + "/retry-running.png" });
+        } finally {
+          await retryGate.close();
+        }
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        assert.equal(scans, 4);
+        await quiet.screenshot({ path: directory + "/retry-failed.png" });
         await quiet.clock.fastForward("30:00");
-        assert.equal(scans, 3);
+        assert.equal(scans, 4);
+        await quiet.reload();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        await quiet.clock.fastForward("30:00");
+        assert.equal(scans, 5); // Fresh-on-open remains; reload does not replenish the retry.
         assert.equal(await quiet.locator(".courses .course").count(), 5);
         await isolated.request.post(base + "/api/fixture/rate-limit", {
           data: { enabled: false },
@@ -3261,15 +3729,86 @@ try {
         await quiet.getByRole("button", { name: "Retry", exact: true }).click();
         await retried;
         await ready();
-        assert.equal(scans, 4);
+        assert.equal(scans, 6);
+        assert.equal(await quiet.locator("[data-refresh-retry]").count(), 0);
+        await quiet.clock.fastForward(10); // The next open occurs after this saved snapshot.
         const reopened = quiet.waitForResponse(
           (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
         );
         await quiet.reload();
         await reopened;
         await ready();
-        assert.equal(scans, 5);
+        assert.equal(scans, 7);
+        // A later independent episode can recover automatically and remove its notice.
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: true },
+        });
+        await quiet.getByLabel("Refresh grades", { exact: true }).click();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: false },
+        });
+        const autoRecovered = quiet.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await quiet.evaluate(() =>
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            value: "hidden",
+          }),
+        );
+        await quiet.clock.fastForward(7000);
+        assert.equal(scans, 8); // A due timer must not read a provider while hidden.
+        await quiet.evaluate(() => {
+          Object.defineProperty(document, "visibilityState", {
+            configurable: true,
+            value: "visible",
+          });
+          Object.defineProperty(navigator, "onLine", {
+            configurable: true,
+            value: false,
+          });
+          window.dispatchEvent(new Event("online"));
+        });
+        assert.equal(scans, 8);
+        await quiet.evaluate(() => {
+          Object.defineProperty(navigator, "onLine", {
+            configurable: true,
+            value: true,
+          });
+          window.dispatchEvent(new Event("online"));
+        });
+        await autoRecovered;
+        await ready();
+        assert.equal(scans, 9);
+        assert.equal(await quiet.locator("[data-refresh-retry]").count(), 0);
+        // Failure before status returns must also spend the one attempt.
+        await isolated.request.post(base + "/api/fixture/rate-limit", {
+          data: { enabled: true },
+        });
+        await quiet.getByLabel("Refresh grades", { exact: true }).click();
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "One automatic refresh" })
+          .waitFor();
+        await isolated.request.post(base + "/api/fixture/status-failure", {
+          data: { enabled: true },
+        });
+        await quiet.clock.fastForward(7000);
+        await quiet
+          .locator("[data-refresh-retry]")
+          .filter({ hasText: "Automatic retries have stopped" })
+          .waitFor();
+        assert.equal(scans, 10);
+        await quiet.clock.fastForward("30:00");
+        assert.equal(scans, 10);
       } finally {
+        await isolated.request.post(base + "/api/fixture/status-failure", {
+          data: { enabled: false },
+        });
         await isolated.request.post(base + "/api/fixture/rate-limit", {
           data: { enabled: false },
         });
@@ -3368,6 +3907,21 @@ try {
     },
   );
   assert.deepEqual(errors, []);
+  if (
+    engine === "webkit" &&
+    profile === "platform" &&
+    group !== "motion" &&
+    !process.env.GRADEVIEWER_E2E_CHECK
+  )
+    assert.equal(
+      omitted,
+      sharedChecks.size,
+      "Browser coverage exclusions must match actual checks",
+    );
+  if (!process.env.GRADEVIEWER_E2E_CHECK) {
+    if (group === "motion") assert.equal(completed, motionChecks.size + 1);
+    if (group === "functional") assert.equal(omittedMotion, motionChecks.size);
+  }
   console.log(`Completed ${completed} browser/integration checks.`);
 } catch (e) {
   console.error(e);

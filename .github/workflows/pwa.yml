@@ -1,11 +1,11 @@
 name: PWA verification and releases
 on:
   pull_request:
-    paths: ['web/**', '.github/workflows/**']
+    paths: ["web/**", ".github/workflows/**"]
   push:
     branches: [main]
-    tags: ['v0.*']
-    paths: ['web/**', '.github/workflows/**']
+    tags: ["v0.*"]
+    paths: ["web/**", ".github/workflows/**"]
   workflow_dispatch:
 concurrency:
   group: pwa-${{ github.ref }}
@@ -21,11 +21,12 @@ jobs:
         browser: [chromium, webkit]
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ${{ matrix.browser == 'webkit' && 'mcr.microsoft.com/playwright:v1.64.1-noble' || '' }}
       options: --ipc=host --init
     timeout-minutes: 10
     env:
       GRADEVIEWER_BROWSER: ${{ matrix.browser }}
+      GRADEVIEWER_E2E_PROFILE: ${{ matrix.browser == 'webkit' && 'platform' || 'full' }}
     defaults:
       run:
         working-directory: web
@@ -36,17 +37,33 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - name: Check preinstalled browser compatibility
+      - run: npm ci --no-audit --no-fund
+      - name: Check preinstalled WebKit compatibility
+        if: matrix.browser == 'webkit'
         run: node -e "if(require('playwright-core/package.json').version !== '1.64.1') throw new Error('Update the Playwright CI image to match package-lock.json')"
-      - run: npm run build
-      - run: npm test
+      - name: Build, unit and browser checks
         if: matrix.browser == 'chromium'
+        run: |
+          node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium &
+          browser_pid=$!
+          result=0
+          npm run build || result=1
+          wait "$browser_pid" || result=1
+          if [ "$result" -eq 0 ]; then
+            npm test &
+            unit_pid=$!
+            npm run test:e2e:ci || result=1
+            wait "$unit_pid" || result=1
+          fi
+          exit "$result"
+      - run: npm run build
+        if: matrix.browser == 'webkit'
       - run: npm run test:e2e
+        if: matrix.browser == 'webkit'
       - run: npx wrangler deploy --dry-run --outdir .local-test/production
         if: matrix.browser == 'chromium'
         env:
-          WRANGLER_SEND_METRICS: 'false'
+          WRANGLER_SEND_METRICS: "false"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -65,7 +82,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci && npm run release:package
+      - run: npm run release:package
         working-directory: web
       - uses: actions/attest-build-provenance@v3
         id: provenance
@@ -94,7 +111,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci && npm run build && npm run release:package
+      # Both browser jobs already built/type-checked this exact tagged source.
+      # The published artifact contains source, and packaging uses only Node.
+      - run: npm run release:package
         working-directory: web
       - uses: actions/attest-build-provenance@v3
         id: provenance

@@ -150,9 +150,14 @@ describe("selected IC normalization", () => {
       result.rows.find((r) => r.title === "Synthetic IC-only course"),
     ).toMatchObject({ points: 3.67, reason: undefined });
   });
-  it.each(["missing", "duplicate", "foreign", "wrong-quarter", "self"])(
-    "withholds an inferred semester span for %s child links",
-    (problem) => {
+  it("withholds inferred semester spans for invalid child links", () => {
+    for (const problem of [
+      "missing",
+      "duplicate",
+      "foreign",
+      "wrong-quarter",
+      "self",
+    ]) {
       const { summary, detail } = campusCompositeFixture();
       const final = detail.details.find(
         (entry) => entry.children?.length === 3,
@@ -182,8 +187,8 @@ describe("selected IC normalization", () => {
         { weighting: "equal", courses: {} },
       ).rows.find((r) => r.title === s.title);
       expect(row?.points).toBeUndefined();
-    },
-  );
+    }
+  });
   it("uses sectionID, scoped identities and normal calculator/GPA behavior", () => {
     expect(campusChoices(campusSummary)[0]).toMatchObject({
       id: "1:100",
@@ -246,26 +251,29 @@ describe("selected IC normalization", () => {
         .grade,
     ).toEqual({ percent: 0, letter: "F" });
   });
-  it.each([{}, "<html>login</html>", [{ schoolID: 1 }], null])(
-    "rejects malformed summary %#",
-    (input) => expect(() => campusChoices(input)).toThrow(),
-  );
-  it.each([
-    [],
-    { details: null },
-    {
-      details: [
-        {
-          task: { termID: 5, taskID: 1 },
-          categories: [{ name: "Invalid", assignments: [] }],
-        },
-      ],
-    },
-  ])("rejects malformed detail %#", (detail) =>
-    expect(() =>
-      parseCampus(campusSummary, { "100": detail }, ["1:100"], "account"),
-    ).toThrow(),
-  );
+  it("rejects malformed summaries", () => {
+    for (const input of [{}, "<html>login</html>", { schoolID: 1 }, null]) {
+      expect(() => campusChoices(input)).toThrow();
+    }
+  });
+  it("rejects malformed details", () => {
+    for (const detail of [
+      undefined,
+      { details: null },
+      {
+        details: [
+          {
+            task: { termID: 5, taskID: 1 },
+            categories: [{ name: "Invalid", assignments: [] }],
+          },
+        ],
+      },
+    ]) {
+      expect(() =>
+        parseCampus(campusSummary, { "100": detail }, ["1:100"], "account"),
+      ).toThrow();
+    }
+  });
   it("requires student identity and refuses nested teacher identities", () => {
     expect(campusStudent({ personID: 101 })).toBe("101");
     expect(() => campusStudent([{ teacher: { personID: 101 } }])).toThrow(
@@ -645,14 +653,16 @@ describe("encrypted IC session and selected snapshots", () => {
     );
     expect((await h.service.status()).selected).toEqual(["1:100"]);
   });
-  it.each([
-    "http://fixture.infinitecampus.org/campus/portal/students/x.jsp",
-    "https://evil.test/campus/portal/students/x.jsp",
-    "https://localhost/campus/portal/students/x.jsp",
-    "https://fixture.infinitecampus.org/campus/portal/students/x.jsp?token=bad",
-  ])("rejects unsafe district URL %s", (url) =>
-    expect(() => campusURL(url)).toThrow(),
-  );
+  it("rejects unsafe district URLs", () => {
+    for (const url of [
+      "http://fixture.infinitecampus.org/campus/portal/students/x.jsp",
+      "https://evil.test/campus/portal/students/x.jsp",
+      "https://localhost/campus/portal/students/x.jsp",
+      "https://fixture.infinitecampus.org/campus/portal/students/x.jsp?token=bad",
+    ]) {
+      expect(() => campusURL(url)).toThrow();
+    }
+  });
   it("isolates cookie host/path and never sends IdP cookies with grade reads", () => {
     const state = structuredClone(campusState);
     state.cookies.push({

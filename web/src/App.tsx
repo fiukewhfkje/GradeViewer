@@ -1,8 +1,9 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { AppearanceSettings, useAppearance } from "./Appearance";
 import { useDisclosureMotion } from "./useDisclosureMotion";
-import { ReloadIcon } from "./ReloadIcon";
+import { LoadingIndicator, RefreshIcon } from "./LoadingIndicator";
 import { refreshCampus } from "./portal-refresh";
+import { synchronizeVisibility } from "./course-visibility";
 import {
   useState,
   useEffect,
@@ -33,7 +34,13 @@ import {
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
-import { readSnapshot } from "./refresh";
+import type { RefreshRetry } from "./refresh-retry";
+import {
+  beginRefresh,
+  readSnapshot,
+  type RefreshScope,
+  type RefreshStart,
+} from "./refresh";
 import {
   type Course,
   type Assignment,
@@ -59,7 +66,13 @@ import {
   exams,
   estimateQuarter,
   latestGradeUpdate,
+  physicalKey,
 } from "./core/periods";
+import {
+  schoologyHidden,
+  workspaceCourses as selectWorkspaceCourses,
+  parseVisibility,
+} from "./core/visibility";
 import { hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
 import { GradeGraph } from "./GradeGraph";
@@ -156,6 +169,7 @@ function Dialog({
       return;
     }
     dialog.inert = true;
+    dialog.dataset.closing = "true";
     const animation = dialog.animate(
       [
         { opacity: 1, transform: "translateY(0) scale(1)" },
@@ -212,7 +226,11 @@ export default function App() {
     [fresh, setFresh] = useState(false),
     [cachedUnlocked, setCachedUnlocked] = useState(false),
     [error, setError] = useState(""),
+    [visibilitySaving, setVisibilitySaving] = useState(false),
+    [visibilityError, setVisibilityError] = useState(""),
     [deadline, setDeadline] = useState(0),
+    [refreshRetry, setRefreshRetry] = useState<RefreshRetry>(),
+    [retryRunning, setRetryRunning] = useState(false),
     [tick, setTick] = useState(Date.now()),
     [selected, setSelected] = useState<string>(),
     [view, setView] = useState("detail"),
@@ -229,6 +247,7 @@ export default function App() {
     [prompt, setPrompt] = useState<InstallEvent>(),
     [copied, setCopied] = useState(false),
     [update, setUpdate] = useState<ServiceWorker>(),
+    [updateProblem, setUpdateProblem] = useState(""),
     [checkingUpdate, setCheckingUpdate] = useState(false),
     [switchingLms, setSwitchingLms] = useState(false),
     [applyingUpdate, setApplyingUpdate] = useState(false),
@@ -243,10 +262,26 @@ export default function App() {
     cacheGeneration = useRef(0),
     app = useRef<HTMLDivElement>(null),
     content = useRef<HTMLElement>(null);
+  const previousNavigation = useRef<
+    | { tab: string; selected?: string; view: string; period?: string }
+    | undefined
+  >(undefined);
   useDisclosureMotion(app);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
+  }
+  async function receiveVisibility(local: SavedState, remote: Status) {
+    try {
+      const next = await synchronizeVisibility(local, remote);
+      setVisibilityError("");
+      return next;
+    } catch {
+      setVisibilityError(
+        "Couldn’t sync course visibility. Your saved choices are retained; try refreshing when connected.",
+      );
+      return local;
+    }
   }
   async function restoreCache() {
     const generation = cacheGeneration.current;
@@ -271,32 +306,81 @@ export default function App() {
     cacheGeneration.current++;
     setCachedUnlocked(false);
     setFresh(false);
+    setRefreshRetry(undefined);
+    setVisibilityError("");
+  }
+  async function recordRefreshFailure(
+    error: unknown,
+    account?: string,
+    automatic = false,
+  ) {
+    if (automatic)
+      setRefreshRetry((retry) => retry && { ...retry, phase: "failed" });
+    if (!account) return;
+    setTick(Date.now());
+    if (error instanceof RequestError && error.code === "rateLimited") {
+      setRefreshRetry(
+        await repository.planRetry(account, error.retryAfter ?? 60),
+      );
+    } else if (automatic) {
+      await repository.finishRetry(account, false);
+      setRefreshRetry(await repository.refreshRetry());
+    }
   }
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
-    scope: "active" | "all" | "campus" | "carmen" = "active",
+    scope: RefreshScope = "active",
+    automaticRetry = false,
   ) {
     if (flight.current) return flight.current;
     const queuedAt = Date.now();
     const run = async () => {
       const generation = cacheGeneration.current;
+      let account: string | undefined = stateRef.current.account;
       setBusy(true);
       setError("");
       try {
-        const [s, latest, recovered, access] = await Promise.all([
-          api<Status>("status"),
+        let [latest, recovered, access] = await Promise.all([
           repository.load(),
           repository.pending(),
           repository.access(),
         ]);
+        // Check local Lock and cross-tab coalescing before starting provider work.
+        // The one-shot cooldown retry must claim its allowance after status first.
+        const mayCoalesce =
+          !manual &&
+          latest.courses.length > 0 &&
+          latest.courses.every((c) => c.fetched >= queuedAt);
+        const primaryLms = latest.primaryLms ?? stateRef.current.primaryLms;
+        const target = credentials
+          ? "schoology"
+          : scope === "active"
+            ? primaryLms === "carmen"
+              ? "carmen"
+              : "schoology"
+            : scope;
+        const startup: RefreshStart =
+          credentials ||
+          automaticRetry ||
+          access?.locked ||
+          mayCoalesce ||
+          recovered
+            ? { status: await api<Status>("status") }
+            : await beginRefresh({ ...latest, primaryLms }, manual, scope);
+        const s = startup.status;
         setStatus(s);
+        account = s.account;
         if (
           !s.authenticated ||
           access?.locked ||
           (generation !== cacheGeneration.current &&
             (await repository.access())?.locked)
         ) {
+          if (startup.schoology?.ok)
+            await api("scan/cancel", {
+              scan: startup.schoology.value.scan,
+            }).catch(() => {});
           hideCache();
           setStatus({ ...s, authenticated: false });
           await repository.lock();
@@ -305,6 +389,36 @@ export default function App() {
         }
         if (access?.account && s.account && access.account !== s.account) {
           hideCache();
+        }
+        const retry = await repository.refreshRetry();
+        setRefreshRetry(retry?.account === s.account ? retry : undefined);
+        if (automaticRetry) {
+          if (s.account && s.cooldown && s.cooldown > Date.now()) {
+            setRefreshRetry(
+              await repository.planRetry(
+                s.account,
+                Math.ceil((s.cooldown - Date.now()) / 1000),
+              ),
+            );
+            return;
+          }
+          if (
+            !s.account ||
+            latest.primaryLms === "carmen" ||
+            !s.schoologyConnected ||
+            !(await repository.claimRetry(s.account))
+          ) {
+            if (s.account) await repository.finishRetry(s.account, false);
+            setRefreshRetry(await repository.refreshRetry());
+            return;
+          }
+          setRefreshRetry(retry && { ...retry, phase: "attempted" });
+          setRetryRunning(true);
+        } else if (manual && s.account) {
+          // A deliberate manual attempt may start a new episode; foreground
+          // events and reloads never replenish an already-spent allowance.
+          await repository.finishRetry(s.account, true);
+          setRefreshRetry(undefined);
         }
         if (!s.connected && !credentials) {
           hideCache();
@@ -331,9 +445,17 @@ export default function App() {
           recovered.account === s.account &&
           s.revision !== recovered.previousRevision
         ) {
-          await repository.activate(recovered.state);
-          apply(recovered.state);
+          latest = await repository.activate(recovered.state);
+          apply(latest);
           setFresh(recovered.state.courses.length > 0);
+        }
+        latest = await receiveVisibility(latest, s);
+        if (stateRef.current.account === latest.account) {
+          apply({
+            ...stateRef.current,
+            hiddenSchoology: latest.hiddenSchoology,
+            schoologyVisibility: latest.schoologyVisibility,
+          });
         }
         if (
           !credentials &&
@@ -345,13 +467,6 @@ export default function App() {
           setFresh(true);
           return;
         }
-        const target = credentials
-          ? "schoology"
-          : scope === "active"
-            ? (latest.primaryLms ?? stateRef.current.primaryLms) === "carmen"
-              ? "carmen"
-              : "schoology"
-            : scope;
         const portalOnly = target === "campus" || target === "carmen";
         let schoologyError: unknown;
         let next = stateRef.current;
@@ -359,12 +474,20 @@ export default function App() {
           next = await readSnapshot(next, { ...s, schoologyConnected: false });
         try {
           if (!portalOnly) {
-            if (s.cooldown && s.cooldown > Date.now())
+            if (!startup.schoology && s.cooldown && s.cooldown > Date.now())
               throw new RequestError(
                 "rateLimited",
                 Math.ceil((s.cooldown - Date.now()) / 1000),
               );
-            next = await readSnapshot(stateRef.current, s, credentials, manual);
+            next = await readSnapshot(
+              stateRef.current,
+              s,
+              credentials,
+              manual,
+              startup.schoology,
+            );
+            if (s.account) await repository.finishRetry(s.account, true);
+            setRefreshRetry(undefined);
           }
         } catch (e) {
           if (credentials || stateRef.current.account !== s.account) throw e;
@@ -386,7 +509,12 @@ export default function App() {
             next.courses.some((c) => c.fields.provider === "campus"))
         ) {
           try {
-            next = await refreshCampus(next, portalStatus.portals?.campus);
+            next = await refreshCampus(
+              next,
+              portalStatus.portals?.campus,
+              "campus",
+              startup.campus,
+            );
             apply(next);
           } catch (e) {
             portalFailed = true;
@@ -403,6 +531,7 @@ export default function App() {
               next,
               portalStatus.portals?.carmen,
               "carmen",
+              startup.carmen,
             );
             apply(next);
           } catch (e) {
@@ -412,6 +541,7 @@ export default function App() {
         }
         if (schoologyError) {
           setError(errorMessage(schoologyError));
+          await recordRefreshFailure(schoologyError, s.account, automaticRetry);
           if (
             schoologyError instanceof RequestError &&
             schoologyError.retryAfter
@@ -426,20 +556,31 @@ export default function App() {
         await repository.rememberAccess(next.account, s.sessionExpires);
         setCachedUnlocked(true);
         channel.current?.postMessage("saved");
-        setStatus({
-          ...(credentials || portalFailed || target === "carmen"
+        const finalStatus = {
+          ...(credentials ||
+          ((portalFailed || target === "carmen") &&
+            !(target === "carmen"
+              ? startup.carmen
+              : target === "all"
+                ? undefined
+                : startup.campus))
             ? await api<Status>("status")
             : portalStatus),
           connected: true,
           account: next.account,
           cooldown: undefined,
-        });
+        };
+        setStatus(finalStatus);
+        if (credentials || latest.account !== next.account)
+          apply(await receiveVisibility(next, finalStatus));
       } catch (e) {
         setError(errorMessage(e));
+        await recordRefreshFailure(e, account, automaticRetry);
         if (e instanceof RequestError && e.retryAfter)
           setDeadline(Date.now() + e.retryAfter * 1000);
         throw e;
       } finally {
+        setRetryRunning(false);
         setBusy(false);
         flight.current = undefined;
       }
@@ -479,7 +620,9 @@ export default function App() {
           setTab("profile");
           return;
         }
-        const saved = await repository.load();
+        const saved = await receiveVisibility(await repository.load(), remote);
+        const retry = await repository.refreshRetry();
+        setRefreshRetry(retry?.account === remote.account ? retry : undefined);
         if (remote.connected && saved.account === remote.account) {
           apply(saved);
           if (event.data === "saved") setFresh(true);
@@ -569,6 +712,7 @@ export default function App() {
   }, [passwordChanged]);
   useEffect(() => {
     if (!deadline) return;
+    setTick(Date.now());
     const timer = setInterval(() => {
       setTick(Date.now());
       if (Date.now() >= deadline) {
@@ -577,6 +721,40 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, [deadline]);
+  useEffect(() => {
+    if (
+      !refreshRetry ||
+      refreshRetry.phase !== "waiting" ||
+      busy ||
+      !status?.authenticated ||
+      state.primaryLms === "carmen"
+    )
+      return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      clearTimeout(timer);
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      const delay = refreshRetry.due - Date.now();
+      if (delay > 0) {
+        timer = setTimeout(attempt, Math.min(delay, 2_147_000_000));
+        return;
+      }
+      void refresh(undefined, true, "schoology-only", true).catch(() => {});
+    };
+    attempt();
+    document.addEventListener("visibilitychange", attempt);
+    window.addEventListener("online", attempt);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", attempt);
+      window.removeEventListener("online", attempt);
+    };
+  }, [refreshRetry, busy, status?.authenticated, state.primaryLms]);
+  useEffect(() => {
+    if (refreshRetry?.phase !== "waiting") return;
+    const timer = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [refreshRetry?.phase]);
   async function persist(next: SavedState) {
     pendingSaves.current++;
     try {
@@ -605,6 +783,14 @@ export default function App() {
             next.primaryLms !== before.primaryLms
               ? next.primaryLms
               : current.primaryLms,
+          hiddenSchoology:
+            next.hiddenSchoology !== before.hiddenSchoology
+              ? next.hiddenSchoology
+              : current.hiddenSchoology,
+          schoologyVisibility:
+            next.schoologyVisibility !== before.schoologyVisibility
+              ? next.schoologyVisibility
+              : current.schoologyVisibility,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -620,8 +806,7 @@ export default function App() {
           }),
         };
       }
-      await repository.save(next);
-      apply(next);
+      apply(await repository.save(next));
       channel.current?.postMessage("local");
       saveFailed.current = false;
       return true;
@@ -651,11 +836,59 @@ export default function App() {
     });
   }
   const usingCarmen = state.primaryLms === "carmen";
-  const workspaceCourses = state.courses.filter((c) =>
-    usingCarmen
-      ? c.fields.provider === "carmen"
-      : c.fields.provider !== "carmen",
-  );
+  const workspaceCourses = selectWorkspaceCourses(state);
+  const hiddenSchoology = [
+    ...new Map(
+      state.courses
+        .filter((c) => schoologyHidden(c, state.hiddenSchoology))
+        .map((c) => [physicalKey(c), c]),
+    ).values(),
+  ].sort((a, b) => a.title.localeCompare(b.title));
+  async function setSchoologyHidden(c: Course, hidden: boolean) {
+    if (visibilitySaving) return;
+    setVisibilitySaving(true);
+    pendingSaves.current++;
+    setVisibilityError("");
+    try {
+      const local = stateRef.current;
+      const source = status?.schoologyVisibility ?? local.schoologyVisibility;
+      if (!navigator.onLine || !source || !local.account)
+        throw new Error("offline");
+      const remote = parseVisibility(
+        await api("course-visibility", {
+          account: source.account,
+          scope: source.scope,
+          section: physicalKey(c),
+          hidden,
+        }),
+      );
+      const next = await repository.mergeVisibility(
+        local.account,
+        remote,
+        local.schoologyVisibility?.scope,
+      );
+      if (!next) throw new Error("accountChanged");
+      apply(next);
+      channel.current?.postMessage("local");
+    } catch {
+      setVisibilityError(
+        "Couldn’t sync this change. Connect and try again; your existing choices are retained.",
+      );
+    } finally {
+      pendingSaves.current--;
+      setVisibilitySaving(false);
+    }
+  }
+  useEffect(() => {
+    if (
+      state.courses.some(
+        (c) => c.id === selected && schoologyHidden(c, state.hiddenSchoology),
+      )
+    ) {
+      setSelected(undefined);
+      setModal(undefined);
+    }
+  }, [selected, state.courses, state.hiddenSchoology]);
   const original = workspaceCourses.find((c) => c.id === selected),
     course = original
       ? ((view !== "detail"
@@ -950,6 +1183,19 @@ export default function App() {
                 Restore Removed Assignments
               </button>
             )}
+            {(c.fields.provider ?? "schoology") === "schoology" && (
+              <button
+                disabled={
+                  busy ||
+                  visibilitySaving ||
+                  !(status?.schoologyVisibility || state.schoologyVisibility)
+                }
+                title="Hide from Grades and GPA on your devices"
+                onClick={() => void setSchoologyHidden(c, true)}
+              >
+                Hide Schoology course
+              </button>
+            )}
           </Menu>
         </div>
 
@@ -989,27 +1235,35 @@ export default function App() {
       saveFailed.current ||
       document.querySelector("form[data-dirty='true']")
     ) {
-      setUpdateMessage(
+      setUpdateProblem(
         flight.current
           ? "Finishing your grade refresh. Try Update now in a moment."
           : "Save or close your open changes before updating.",
       );
       return;
     }
+    setUpdateProblem("");
     setApplyingUpdate(true);
     try {
       await activateAppUpdate(update, () => location.reload());
     } catch {
-      setUpdateMessage(
+      setUpdateProblem(
         "The update could not activate. Your data is retained. Check again and retry.",
       );
       setApplyingUpdate(false);
+      if (update.state === "redundant") {
+        setUpdate(undefined);
+        setUpdateMessage(
+          "The update could not activate. Check again and retry.",
+        );
+      }
     }
   }
   async function checkUpdates() {
     if (checkingUpdate) return;
     setCheckingUpdate(true);
     setUpdateMessage("");
+    setUpdateProblem("");
     try {
       if (!navigator.onLine) throw new Error("offline");
       const registration =
@@ -1023,19 +1277,14 @@ export default function App() {
         readInstallation(),
         api<OfficialRelease>("releases/latest"),
       ]);
-      let worker = shell.status === "fulfilled" ? shell.value : undefined;
+      const worker = shell.status === "fulfilled" ? shell.value : undefined;
       if (deployed.status === "fulfilled") {
         setInstallation(deployed.value);
       }
       if (worker) {
         setUpdate(worker);
-        setUpdateMessage(
-          "Update ready. Save any open changes, then choose Update now.",
-        );
       } else if (update && update.state !== "redundant") {
-        setUpdateMessage(
-          "Update ready. Save any open changes, then choose Update now.",
-        );
+        return;
       } else if (shell.status === "rejected") throw shell.reason;
       else if (
         deployed.status === "fulfilled" &&
@@ -1072,8 +1321,10 @@ export default function App() {
           ),
           metadata: undefined,
           gpa: undefined,
+          hiddenSchoology: undefined,
+          schoologyVisibility: undefined,
         };
-        await repository.save(next);
+        await repository.save(next, { clearVisibility: true });
         apply(next);
         await refresh(undefined, true);
         return;
@@ -1095,13 +1346,36 @@ export default function App() {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
   useLayoutEffect(() => {
+    const previous = previousNavigation.current;
+    previousNavigation.current = { tab, selected, view, period };
     if (!content.current?.animate || appearance.reducedMotion) return;
+    if (
+      previous &&
+      previous.tab === tab &&
+      previous.selected === selected &&
+      previous.view === view &&
+      previous.period === period
+    )
+      return;
     // Animate the existing screen so navigation never remounts open forms or
     // replays on a background refresh, local edit, or chart pointer movement.
+    const returning =
+      previous &&
+      ((previous.selected && !selected) ||
+        (previous.view !== "detail" && view === "detail"));
+    const horizontal =
+      previous &&
+      previous.tab === tab &&
+      (previous.selected !== selected || previous.view !== view);
     const animation = content.current.animate(
       [
-        { opacity: 0.45, transform: "translateY(8px)" },
-        { opacity: 1, transform: "translateY(0)" },
+        {
+          opacity: 0.55,
+          transform: horizontal
+            ? `translateX(${returning ? -8 : 10}px)`
+            : "translateY(6px)",
+        },
+        { opacity: 1, transform: "translate(0)" },
       ],
       { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
@@ -1139,6 +1413,7 @@ export default function App() {
       return;
     }
     setStatus(current);
+    apply(await receiveVisibility(stateRef.current, current));
   }
   async function switchLms(carmen: boolean) {
     const before = stateRef.current.primaryLms;
@@ -1188,33 +1463,16 @@ export default function App() {
             data-phase={pull.phase}
             style={{ transform: `translateY(${pull.distance - 50}px)` }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className={pull.phase === "refreshing" ? "spinning" : ""}
+            <LoadingIndicator
+              size={22}
+              active={pull.phase === "refreshing"}
+              progress={pull.progress}
               style={
                 pull.phase === "refreshing"
                   ? undefined
                   : { transform: `rotate(${pull.distance * 4}deg)` }
               }
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <line
-                  key={i}
-                  x1="12"
-                  y1="3"
-                  x2="12"
-                  y2="6"
-                  transform={`rotate(${i * 30} 12 12)`}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  opacity={(i + 1) / 12}
-                />
-              ))}
-            </svg>
+            />
             <span className="sr-only">
               {pull.phase === "refreshing" ? "Refreshing grades" : ""}
             </span>
@@ -1224,7 +1482,7 @@ export default function App() {
             data-pulling={pull.phase === "pulling"}
             style={{ transform: `translateY(${pull.distance}px)` }}
           >
-            <header>
+            <header className={selected ? "course-header" : undefined}>
               <div>
                 {selected && (
                   <button
@@ -1253,7 +1511,7 @@ export default function App() {
               </div>
               {selected ? (
                 <button
-                  className="icon"
+                  className="icon close-course"
                   aria-label="Close course"
                   onClick={() => setSelected(undefined)}
                 >
@@ -1261,27 +1519,33 @@ export default function App() {
                 </button>
               ) : (
                 <button
-                  className={"icon desktop-refresh " + (busy ? "spinning" : "")}
+                  className="icon desktop-refresh"
                   aria-label="Refresh grades"
+                  aria-busy={busy}
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <ReloadIcon size={21} />
+                  <RefreshIcon size={24} loading={busy} />
                 </button>
               )}
             </header>
-            {update && (
+            {update && tab !== "profile" && (
               <aside className="update" aria-label="App update">
                 <span>{applyingUpdate ? "Installing…" : "Update ready"}</span>
                 <button
                   aria-label="Reload to update"
-                  className={applyingUpdate ? "spinning" : undefined}
+                  aria-busy={applyingUpdate}
                   disabled={busy || applyingUpdate || !!modal}
                   onClick={activateUpdate}
                 >
-                  <ReloadIcon size={16} />
+                  <RefreshIcon size={16} loading={applyingUpdate} />
                   {applyingUpdate ? "Updating…" : "Reload"}
                 </button>
+                {updateProblem && (
+                  <p className="update-result" role="status">
+                    {updateProblem}
+                  </p>
+                )}
               </aside>
             )}
             {error && (
@@ -1289,12 +1553,28 @@ export default function App() {
                 {error}
               </p>
             )}
+            {visibilityError && (
+              <p role="status" className="notice">
+                {visibilityError}
+              </p>
+            )}
+            {(retryRunning || (refreshRetry && !usingCarmen)) && (
+              <p className="notice" role="status" data-refresh-retry>
+                {retryRunning
+                  ? "Retrying Schoology now. Checking fresh grades…"
+                  : refreshRetry?.phase === "waiting"
+                    ? `Schoology is limiting requests. One automatic refresh in ${Math.max(0, Math.ceil((refreshRetry.due - tick) / 1000))}s, when this app is visible and online. Saved grades stay visible.`
+                    : refreshRetry?.phase === "attempted"
+                      ? "An automatic Schoology refresh already started. If it was interrupted, use Retry. No further automatic attempts are scheduled."
+                      : "The automatic refresh did not complete. Saved grades are retained. Automatic retries have stopped; use Retry after the cooldown."}
+              </p>
+            )}
             {fresh && tab === "grades" && error && (
               <div className="refresh-status" role="status">
                 Showing saved grades.{" "}
                 <button
                   disabled={!canRefresh}
-                  onClick={() => void refresh().catch(() => {})}
+                  onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
                   Retry
                 </button>
@@ -1417,6 +1697,49 @@ export default function App() {
                         <h2>Preferences</h2>
                         <AppearanceSettings appearance={appearance} />
                       </section>
+                      {!locked &&
+                        !usingCarmen &&
+                        hiddenSchoology.length > 0 && (
+                          <section className="settings-group hidden-courses">
+                            <h2>Hidden Schoology courses</h2>
+                            <div className="settings-card hidden-course-card">
+                              <p className="settings-description">
+                                {state.schoologyVisibility
+                                  ? "Hidden from Grades and GPA across your devices. Restore at any time."
+                                  : "Saved on this device. Connect to sync your hidden courses."}
+                              </p>
+                              {hiddenSchoology.map((c) => (
+                                <div
+                                  className="hidden-course"
+                                  key={physicalKey(c)}
+                                >
+                                  <span className="hidden-course-name">
+                                    <strong>{c.title}</strong>
+                                    {c.teacher && <small>{c.teacher}</small>}
+                                  </span>
+                                  <button
+                                    className="secondary"
+                                    aria-label={"Restore " + c.title}
+                                    disabled={
+                                      busy ||
+                                      visibilitySaving ||
+                                      !(
+                                        status?.schoologyVisibility ||
+                                        state.schoologyVisibility
+                                      )
+                                    }
+                                    aria-busy={visibilitySaving}
+                                    onClick={() =>
+                                      void setSchoologyHidden(c, false)
+                                    }
+                                  >
+                                    Restore
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
                     </div>
                     <div className="settings-column settings-preferences">
                       {!locked && (
@@ -1523,44 +1846,64 @@ export default function App() {
                       <section className="settings-group app-actions">
                         <h2>App</h2>
                         <div className="settings-card">
-                          <button
-                            disabled={
-                              checkingUpdate || applyingUpdate || !!modal
-                            }
-                            onClick={() => void checkUpdates()}
-                          >
-                            <Download
-                              size={18}
-                              className={checkingUpdate ? "spinning" : ""}
-                            />
-                            {checkingUpdate
-                              ? "Checking for updates…"
-                              : "Check for updates"}
-                          </button>
-                          {update && (
-                            <button
-                              disabled={busy || applyingUpdate || !!modal}
-                              onClick={activateUpdate}
+                          <div className="app-update-row">
+                            <span
+                              className="app-update-icon"
+                              aria-hidden="true"
                             >
-                              <ReloadIcon size={18} />{" "}
-                              {applyingUpdate ? "Updating…" : "Update now"}
+                              {checkingUpdate || applyingUpdate ? (
+                                <LoadingIndicator size={20} />
+                              ) : (
+                                <Download size={20} />
+                              )}
+                            </span>
+                            <div className="app-update-copy">
+                              <strong>
+                                {update ? "Update ready" : "App updates"}
+                              </strong>
+                              <p className="update-result" role="status">
+                                {applyingUpdate
+                                  ? "Installing your update…"
+                                  : checkingUpdate
+                                    ? "Checking for updates…"
+                                    : update
+                                      ? updateProblem || "Reload to install."
+                                      : updateMessage || `Version ${version}`}
+                              </p>
+                            </div>
+                            <button
+                              className="update-action"
+                              disabled={
+                                checkingUpdate ||
+                                applyingUpdate ||
+                                !!modal ||
+                                (!!update && busy)
+                              }
+                              onClick={() =>
+                                update
+                                  ? void activateUpdate()
+                                  : void checkUpdates()
+                              }
+                              aria-busy={checkingUpdate || applyingUpdate}
+                              aria-label={
+                                update ? "Update now" : "Check for updates"
+                              }
+                            >
+                              {update ? "Update now" : "Check"}
                             </button>
-                          )}
+                          </div>
                           {(status?.authenticated || cachedUnlocked) && (
                             <button
                               className="secondary full"
                               disabled={!canRefresh}
+                              aria-busy={busy}
                               onClick={() =>
                                 void refresh(undefined, true).catch(() => {})
                               }
                             >
-                              <ReloadIcon size={18} /> Refresh grades
+                              <RefreshIcon size={18} loading={busy} /> Refresh
+                              grades
                             </button>
-                          )}
-                          {updateMessage && (
-                            <p className="update-result" role="status">
-                              {updateMessage}
-                            </p>
                           )}
                         </div>
                       </section>
@@ -1578,7 +1921,6 @@ export default function App() {
                       </a>
                     </p>
                   )}
-                  <p className="profile-footnote">GradeViewer {version}</p>
                 </>
               ) : !fresh ? (
                 !busy && (
@@ -1595,7 +1937,7 @@ export default function App() {
                       </p>
                       {deadline > Date.now() && (
                         <p>
-                          Retrying in{" "}
+                          Retry available in{" "}
                           {Math.max(0, Math.ceil((deadline - tick) / 1000))}s
                         </p>
                       )}
@@ -1605,7 +1947,7 @@ export default function App() {
                         onClick={() =>
                           locked && status
                             ? setTab("profile")
-                            : void refresh().catch(() => {})
+                            : void refresh(undefined, true).catch(() => {})
                         }
                       >
                         {locked && status ? "Open Settings" : "Retry"}
@@ -1618,9 +1960,7 @@ export default function App() {
                   {!usingCarmen && (
                     <GpaSummary
                       key={state.account}
-                      courses={state.courses.filter(
-                        (c) => c.fields.provider !== "carmen",
-                      )}
+                      courses={workspaceCourses}
                       settings={state.gpa}
                       save={(gpa) => persist({ ...stateRef.current, gpa })}
                     />
@@ -1629,9 +1969,7 @@ export default function App() {
                     <GpaSummary
                       key={state.account + ":carmen"}
                       policy="osu"
-                      courses={state.courses.filter(
-                        (c) => c.fields.provider === "carmen",
-                      )}
+                      courses={workspaceCourses}
                       settings={state.carmenGpa}
                       save={(carmenGpa) =>
                         persist({ ...stateRef.current, carmenGpa })
@@ -1639,6 +1977,14 @@ export default function App() {
                     />
                   )}
                   <div className="courses">
+                    {!usingCarmen &&
+                      hiddenSchoology.length > 0 &&
+                      visibleCourses(workspaceCourses).length === 0 && (
+                        <p className="notice">
+                          No courses shown. Restore Schoology courses in
+                          Settings or choose classes under Infinite Campus.
+                        </p>
+                      )}
                     {visibleCourses(workspaceCourses).map((c, index) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));
@@ -1735,10 +2081,10 @@ export default function App() {
                     />
                   </div>
                   <section className="recent-assignments">
-                    <h2>Recently Graded Assignments</h2>
+                    <h2>Recently graded</h2>
                     {list(course)}
                     <button
-                      className="primary full view-all"
+                      className="secondary full view-all"
                       onClick={() => {
                         setView("assignments");
                         setPeriod(course.id);
@@ -1759,30 +2105,36 @@ export default function App() {
               width={56}
               height={56}
             />
-            <button
-              className={tab === "grades" ? "active" : ""}
-              aria-label="Grades"
-              aria-pressed={tab === "grades"}
-              onClick={() => {
-                setTab("grades");
-                setSelected(undefined);
-              }}
+            <nav
+              className="primary-nav"
+              data-tab={tab}
+              aria-label="Main navigation"
             >
-              <span className="tab-grade">A+</span>
-              <span>grades</span>
-            </button>
-            <button
-              className={tab === "profile" ? "active" : ""}
-              aria-label="Settings"
-              aria-pressed={tab === "profile"}
-              onClick={() => {
-                setTab("profile");
-                setSelected(undefined);
-              }}
-            >
-              <Settings strokeWidth={1.4} />
-              <span>settings</span>
-            </button>
+              <button
+                className={tab === "grades" ? "active" : ""}
+                aria-label="Grades"
+                aria-pressed={tab === "grades"}
+                onClick={() => {
+                  setTab("grades");
+                  setSelected(undefined);
+                }}
+              >
+                <span className="tab-grade">A+</span>
+                <span>grades</span>
+              </button>
+              <button
+                className={tab === "profile" ? "active" : ""}
+                aria-label="Settings"
+                aria-pressed={tab === "profile"}
+                onClick={() => {
+                  setTab("profile");
+                  setSelected(undefined);
+                }}
+              >
+                <Settings strokeWidth={1.4} />
+                <span>settings</span>
+              </button>
+            </nav>
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
               {fresh &&

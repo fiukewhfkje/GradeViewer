@@ -70,7 +70,7 @@ In **Settings → Connections → CarmenCanvas**, turn on **Use Carmen as main L
 
 ## Optional Infinite Campus classes
 
-In **Settings → Connections → Infinite Campus**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select only IC-exclusive classes: each selection adds a separate class, and selecting a class already in Schoology counts both copies toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools. After sign-in succeeds, your Worker checks the session automatically every 20 minutes. Disconnect Infinite Campus to stop its checks.
+In **Settings → Connections → Infinite Campus**, choose **Connect Infinite Campus**. When the browser is ready, choose **Open Campus Student**, find your district, select the student portal, and complete your normal school sign-in. GradeViewer verifies the connection automatically, closes the temporary browser and shows the course picker in Settings. Select the classes you want to use from IC. To replace a Schoology class, open that class’s **Course options → Hide Schoology course**, then select its IC version here. Hidden Schoology classes are excluded from Grades and GPA on devices using your GradeViewer address. Hide and restore while connected. Devices pick up the choice when they open, return to the foreground or refresh. Grades, history and local edits stay on each device. Restore them under **Settings → Hidden Schoology courses**. Each visible provider copy counts separately toward GPA. IC classes use the same grade screens and GPA course controls when a usable semester grade is available. No course linking is needed. Your district is remembered for reconnects, along with selected classes and local data. District compatibility still needs testing across additional schools. After sign-in succeeds, your Worker checks the session automatically every 20 minutes. Disconnect Infinite Campus to stop its checks.
 
 ## Appearance and motion
 
@@ -79,6 +79,8 @@ In **Settings → Preferences**, use the sun/moon switch to choose Light or Dark
 ## Estimated semester GPA
 
 In **Grades → Estimated semester GPA**, choose **Use Dublin GPA scale** to see a weighted and unweighted estimate from your Schoology semester grades. Check the suggested course levels, exclude classes that don’t count, and enter semester credits if courses carry different weights. The estimate and its settings stay in your browser and may differ from your official transcript.
+
+If Schoology limits requests, GradeViewer keeps saved grades visible and announces one automatic refresh after the server’s cooldown plus a short buffer. It retries only while the app is visible, online and unlocked. A failed automatic attempt stops further retries; the message explains when to try manually. Successful refresh clears the message.
 
 ## Your data
 

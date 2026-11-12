@@ -55,19 +55,21 @@ describe("signed update verification", () => {
       verifyRelease(r.manifest, r.signature, r.archive, other.publicKey),
     ).toThrow();
   });
-  it.each([
-    "../escape",
-    "/absolute",
-    "src/../../escape",
-    ".dev.vars",
-    ".env.production",
-    "node_modules/bad",
-    "src/.git/config",
-  ])("rejects unsafe archive path %s", (path) => {
-    const r = release(path);
-    expect(() =>
-      verifyRelease(r.manifest, r.signature, r.archive, publicKey),
-    ).toThrow();
+  it("rejects unsafe archive paths", () => {
+    for (const path of [
+      "../escape",
+      "/absolute",
+      "src/../../escape",
+      ".dev.vars",
+      ".env.production",
+      "node_modules/bad",
+      "src/.git/config",
+    ]) {
+      const r = release(path);
+      expect(() =>
+        verifyRelease(r.manifest, r.signature, r.archive, publicKey),
+      ).toThrow();
+    }
   });
 });
 

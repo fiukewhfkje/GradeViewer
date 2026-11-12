@@ -3,11 +3,13 @@
   color: #242421;
   background: #fcf9f2;
   font-synthesis: none;
+  line-height: 1.45;
   --bg: #fcf9f2;
   --row: #f3efe8;
   --ink: #242421;
   --muted: #6d6b63;
   --grade: #52bd29;
+  --grade-text: #306d23;
   --line: #dedbd3;
   --blue: #2567b1;
   --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -20,6 +22,7 @@
     --ink: #f4f2eb;
     --muted: #b1afa7;
     --grade: #4dd112;
+    --grade-text: #94dc66;
     --line: #484741;
     --blue: #8dbbfa;
     color-scheme: dark;
@@ -31,6 +34,7 @@
   --ink: #f4f2eb;
   --muted: #b1afa7;
   --grade: #4dd112;
+  --grade-text: #94dc66;
   --line: #484741;
   --blue: #8dbbfa;
   color-scheme: dark;
@@ -94,15 +98,17 @@ p {
 h1 {
   font-size: 32px;
   line-height: 1.15;
-  letter-spacing: -1px;
+  letter-spacing: -0.8px;
 }
 h2 {
   font-size: 19px;
+  font-weight: 600;
   letter-spacing: -0.3px;
   margin-bottom: 18px;
 }
 h3 {
   font-size: 17px;
+  font-weight: 600;
   margin-top: 24px;
   margin-bottom: 8px;
 }
@@ -122,6 +128,26 @@ header {
 }
 header > div {
   min-width: 0;
+}
+.course-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 12px;
+}
+.course-header > div {
+  display: contents;
+}
+.course-header .back {
+  grid-area: 1 / 1;
+  justify-self: start;
+  margin-bottom: 0;
+}
+.course-header h1 {
+  grid-area: 2 / 1;
+  overflow-wrap: anywhere;
+}
+.course-header .close-course {
+  grid-area: 2 / 2;
 }
 .back {
   display: flex;
@@ -211,6 +237,11 @@ body,
 .icon:hover {
   background: var(--row);
 }
+.desktop-refresh {
+  border-radius: 14px;
+  background: var(--row);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 65%, transparent);
+}
 main > section,
 main > form {
   margin-bottom: 28px;
@@ -238,8 +269,9 @@ main > section + section {
   overflow-wrap: anywhere;
 }
 .row-text > strong {
-  font-size: 18px;
-  line-height: 1.25;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
 }
 .row small {
   font-size: 13px;
@@ -259,10 +291,19 @@ main > section + section {
   width: 100%;
   min-height: 102px;
 }
+.course,
+.summary,
+.assignment-group,
+.gpa-card {
+  /* Keep the edge outside the card's animated hover shadow so changing
+     themes cannot briefly carry a light shadow into the dark surface. */
+  outline: 1px solid color-mix(in srgb, var(--line) 45%, transparent);
+  outline-offset: -1px;
+}
 .grade {
-  color: var(--grade);
+  color: var(--grade-text);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -292,7 +333,7 @@ main > section + section {
   font-weight: 600;
 }
 .score {
-  color: var(--grade);
+  color: var(--grade-text);
   text-align: right;
   flex-shrink: 0;
   font-size: 15px;
@@ -352,7 +393,13 @@ main > section + section {
   width: 100%;
 }
 .view-all {
-  padding: 24px 18px;
+  padding: 14px 18px;
+  min-height: 52px;
+  color: var(--ink);
+  background: var(--row);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 500;
 }
 .button-row {
   display: flex;
@@ -417,6 +464,14 @@ select {
   padding: 11px 12px;
   color: var(--ink);
   font-size: 16px;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+input:focus-visible,
+select:focus-visible {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--bg) 65%, var(--row));
 }
 input[readonly] {
   font-weight: 400;
@@ -553,6 +608,7 @@ select {
   display: grid;
   place-items: center;
   cursor: pointer;
+  border-radius: 12px;
 }
 .menu summary::-webkit-details-marker {
   display: none;
@@ -565,8 +621,8 @@ select {
   max-width: calc(100vw - 48px);
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 13px;
-  box-shadow: 0 6px 24px #0002;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.12);
   z-index: 10;
   padding: 6px;
 }
@@ -628,6 +684,7 @@ dialog {
   max-width: 460px;
   max-height: calc(100dvh - 48px);
   overflow: auto;
+  box-shadow: 0 20px 70px -20px rgb(0 0 0 / 0.35);
 }
 dialog::backdrop {
   background: #0007;
@@ -647,17 +704,25 @@ dialog p {
   font-size: 14px;
 }
 .update {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: fit-content;
   max-width: 100%;
-  gap: 10px;
+  gap: 0 16px;
   align-items: center;
   font-size: 13px;
-  padding: 4px 5px 4px 12px;
+  padding: 4px 8px 4px 14px;
   background: var(--row);
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: 12px;
   margin: 0 0 14px auto;
+}
+.update:has(.update-result) {
+  width: min(100%, 256px);
+}
+.update > .update-result {
+  grid-column: 1 / -1;
+  padding: 0 6px 8px 0;
 }
 .update button {
   display: inline-flex;
@@ -666,9 +731,9 @@ dialog p {
   justify-content: center;
   padding: 8px 12px;
   border-radius: 10px;
-  background: var(--ink);
-  color: var(--bg);
-  font-weight: 600;
+  background: transparent;
+  color: var(--blue);
+  font-weight: 500;
   min-height: 44px;
 }
 .reload-icon {
@@ -678,15 +743,6 @@ dialog p {
 @media (hover: hover) and (pointer: fine) {
   .icon:not(:disabled):hover > .reload-icon {
     transform: rotate(25deg);
-  }
-}
-.spinning > svg,
-svg.spinning {
-  animation: spin 1.2s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 @media (min-width: 700px) {
@@ -703,10 +759,10 @@ svg.spinning {
     min-height: 108px;
   }
   .row-text > strong {
-    font-size: 20px;
+    font-size: 19px;
   }
   h1 {
-    font-size: 38px;
+    font-size: 34px;
   }
 }
 @media (max-width: 360px) {
@@ -741,11 +797,11 @@ svg.spinning {
 .updated {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-weight: 600;
+  gap: 6px;
+  font-weight: 500;
 }
 .updated.fresh {
-  color: var(--grade);
+  color: var(--grade-text);
 }
 .scenario-grade {
   display: flex;
@@ -939,7 +995,7 @@ svg.spinning {
   cursor: pointer;
   flex-wrap: nowrap;
   gap: 8px;
-  padding-inline: 14px;
+  padding-inline: 18px;
 }
 .settings-provider > summary::-webkit-details-marker {
   display: none;
@@ -1176,7 +1232,7 @@ svg.spinning {
   font-weight: 500;
 }
 .site-card > label {
-  margin: 0 16px;
+  margin: 0 18px;
   font-size: 12px;
   color: var(--muted);
 }
@@ -1185,7 +1241,7 @@ svg.spinning {
   font-size: 14px;
 }
 .site-card .button-row {
-  margin: 12px 16px 16px;
+  margin: 12px 18px 18px;
 }
 .site-card .button-row > * {
   background: var(--bg);
@@ -1198,7 +1254,7 @@ svg.spinning {
 .site-card > button {
   border-top: 1px solid var(--line);
   border-radius: 0;
-  padding: 16px;
+  padding: 14px 18px;
   font-size: 15px;
   font-weight: 400;
   justify-content: flex-start;
@@ -1212,13 +1268,6 @@ svg.spinning {
   font-size: 12px;
   line-height: 1.5;
 }
-.profile-footnote {
-  text-align: center;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.8;
-  padding: 24px 8px 8px;
-}
 
 .summary {
   padding: 24px 6px 24px 16px;
@@ -1226,6 +1275,10 @@ svg.spinning {
 }
 .summary .grade {
   font-size: 22px;
+}
+.summary .row-text > strong {
+  font-size: 16px;
+  font-weight: 500;
 }
 .summary .menu summary {
   width: 32px;
@@ -1236,11 +1289,93 @@ svg.spinning {
 
 .update-result {
   margin: 0;
-  padding: 10px 18px 12px;
-  border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
+}
+.settings-description {
+  padding: 18px 18px 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.hidden-course {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 72px;
+  padding: 12px 18px;
+}
+.hidden-course + .hidden-course {
+  border-top: 1px solid var(--line);
+}
+.hidden-course-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hidden-course-name strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.hidden-course-name small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.hidden-course button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 500;
+}
+.app-update-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 10px 18px 16px;
+}
+.app-update-copy {
+  display: contents;
+}
+.app-update-copy > strong {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 15px;
+  font-weight: 500;
+}
+.app-update-copy > .update-result {
+  grid-column: 2 / -1;
+  grid-row: 2;
+}
+.app-update-icon {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+.update-action {
+  grid-column: 3;
+  grid-row: 1;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 500;
+}
+.app-actions .settings-card > button > svg,
+.site-card > button > svg {
+  width: 20px;
+  flex: 0 0 20px;
 }
 
 .refresh-status {
@@ -1312,7 +1447,7 @@ svg.spinning {
     margin: 0 4px 12px;
     clip-path: inset(16.2% round 10px);
   }
-  footer > button {
+  .primary-nav > button {
     flex: 0 0 auto;
     flex-direction: row;
     justify-content: flex-start;
@@ -1323,16 +1458,16 @@ svg.spinning {
     font-size: 15px;
     text-transform: capitalize;
   }
-  footer > button.active {
-    background: var(--row);
+  .primary-nav > button.active {
+    background: transparent;
     font-weight: 600;
   }
-  footer > button:hover,
+  .primary-nav > button:hover,
   .sidebar-courses button:hover {
     background: var(--row);
   }
   footer .tab-grade,
-  footer > button svg {
+  .primary-nav > button svg {
     width: 28px;
   }
   .sidebar-courses {
@@ -1371,7 +1506,7 @@ svg.spinning {
   }
   .sidebar-percent {
     font-variant-numeric: tabular-nums;
-    color: var(--grade);
+    color: var(--grade-text);
     white-space: nowrap;
   }
   .courses {
@@ -1410,7 +1545,7 @@ svg.spinning {
   }
   .graph-section h2,
   .recent-assignments h2 {
-    font-size: 17px;
+    font-size: 16px;
   }
   .chart {
     height: 240px;
@@ -1727,6 +1862,7 @@ svg.spinning {
 .portal-course-name {
   min-width: 0;
   flex: 1;
+  overflow-wrap: anywhere;
 }
 .portal-course-name strong {
   display: block;
@@ -1977,9 +2113,6 @@ dialog[open]::backdrop {
     opacity: 1;
   }
 }
-footer > button.active > :is(svg, .tab-grade) {
-  animation: nav-select 200ms var(--motion-ease);
-}
 .assignment-group[data-disclosure-open="false"] > summary .group-chevron svg {
   transform: rotate(0);
 }
@@ -1989,17 +2122,194 @@ footer > button.active > :is(svg, .tab-grade) {
 .gpa-card[data-disclosure-open="false"] > summary::before {
   transform: rotate(0);
 }
-@keyframes nav-select {
-  0% {
-    transform: scale(0.85);
+/* Loading follows actual work; a hidden pull indicator never loops. */
+.loading-indicator {
+  display: block;
+  flex-shrink: 0;
+  color: var(--grade);
+}
+.loading-track {
+  opacity: 0.15;
+}
+.loading-tail {
+  opacity: 0.3;
+}
+.loading-orbit,
+.loading-inner {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.loading-inner {
+  opacity: 0.5;
+  transform: rotate(120deg);
+}
+.loading-indicator[data-active="true"] {
+  animation: loading-enter 140ms ease-out;
+}
+.loading-indicator[data-active="true"] .loading-orbit {
+  animation: loading-orbit 1.2s linear infinite;
+}
+.loading-indicator[data-active="true"] .loading-inner {
+  animation: loading-counter-orbit 1.8s linear infinite;
+}
+@keyframes loading-enter {
+  from {
+    opacity: 0;
   }
-  60% {
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1);
+  to {
+    opacity: 1;
   }
 }
+@keyframes loading-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes loading-counter-orbit {
+  from {
+    transform: rotate(120deg);
+  }
+  to {
+    transform: rotate(-240deg);
+  }
+}
+.desktop-refresh[aria-busy="true"] {
+  opacity: 1;
+  color: var(--grade);
+  background: color-mix(in srgb, var(--grade) 8%, transparent);
+}
+.settings-card button[aria-busy="true"],
+.update button[aria-busy="true"] {
+  opacity: 1;
+}
+@media (max-width: 760px) and (pointer: coarse) {
+  .desktop-refresh .loading-indicator,
+  .desktop-refresh .loading-orbit,
+  .desktop-refresh .loading-inner {
+    animation: none;
+  }
+}
+
+/* The selection surface follows navigation, horizontally on phone and
+   vertically in the desktop sidebar, without moving the focus targets. */
+.primary-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  position: relative;
+  flex: 1;
+  isolation: isolate;
+}
+.primary-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 4px;
+  width: calc(50% - 8px);
+  border-radius: 14px;
+  background: var(--bg);
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 35%, transparent);
+  transition: transform 220ms var(--motion-ease);
+}
+.primary-nav[data-tab="profile"]::before {
+  transform: translateX(calc(100% + 8px));
+}
+.primary-nav > button {
+  position: relative;
+  z-index: 1;
+  border-radius: 12px;
+}
+@media (min-width: 1000px) {
+  .primary-nav {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 6px;
+  }
+  .primary-nav::before {
+    inset: 0 0 auto;
+    width: 100%;
+    height: calc((100% - 6px) / 2);
+    border-radius: 12px;
+    background: var(--row);
+  }
+  .primary-nav[data-tab="profile"]::before {
+    transform: translateY(calc(100% + 6px));
+  }
+}
+.settings-column > .settings-group {
+  animation: settings-enter 220ms var(--motion-ease) backwards;
+}
+.settings-column > .settings-group:nth-child(2) {
+  animation-delay: 24ms;
+}
+.settings-column > .settings-group:nth-child(3) {
+  animation-delay: 48ms;
+}
+.settings-column > .settings-group:nth-child(n + 4) {
+  animation-delay: 72ms;
+}
+@keyframes settings-enter {
+  from {
+    opacity: 0.55;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.notice,
+.refresh-status,
+.update-result,
+.portal-progress,
+.portal-notice,
+.update {
+  animation: feedback-enter 160ms var(--motion-ease);
+}
+@keyframes feedback-enter {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+dialog[data-closing="true"]::backdrop {
+  animation: backdrop-leave 120ms ease-out forwards;
+}
+@keyframes backdrop-leave {
+  to {
+    opacity: 0;
+  }
+}
+.course > svg:last-child {
+  color: var(--muted);
+  transition: transform 160ms var(--motion-ease);
+}
+.sidebar-courses button {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .desktop-refresh:not(:disabled):hover {
+    background: color-mix(in srgb, var(--grade) 8%, var(--row));
+    color: var(--ink);
+  }
+  .primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--ink) 90%, var(--bg));
+  }
+  .settings-provider > summary:hover,
+  .settings-action:not(:disabled):hover,
+  .app-actions .settings-card > button:not(:disabled):hover,
+  .portal-actions > button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--bg) 55%, var(--row));
+  }
+  .course:hover > svg:last-child {
+    transform: translateX(2px);
+  }
+}
+
 :root[data-motion="reduce"] {
   *,
   *::before,
@@ -2008,6 +2318,7 @@ footer > button.active > :is(svg, .tab-grade) {
     animation: none !important;
     transition: none !important;
   }
+  .course:hover > svg:last-child,
   .course:not(:disabled):is(:hover, :active),
   .icon:not(:disabled):hover > .reload-icon,
   :is(.primary, .secondary, .icon, .back, .pills button, footer button):not(

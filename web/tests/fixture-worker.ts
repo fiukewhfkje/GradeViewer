@@ -1,7 +1,7 @@
 import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
-import { ApiError } from "../worker/provider";
+import { ApiError, type Fetcher } from "../worker/provider";
 import {
   campusSummary,
   campusDetail,
@@ -36,7 +36,10 @@ export class FixtureVault extends CredentialVault {
   ) {
     super(fixtureState, fixtureEnv);
   }
-  protected override portals(kind: "campus" | "carmen" = "campus") {
+  protected override portals(
+    kind: "campus" | "carmen" = "campus",
+    upstream: Fetcher = this.upstream,
+  ) {
     const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
@@ -69,7 +72,7 @@ export class FixtureVault extends CredentialVault {
       this.fixtureState.storage,
       this.fixtureEnv.APP_PASSWORD,
       undefined,
-      this.upstream,
+      upstream,
       kind,
     );
   }
@@ -77,7 +80,7 @@ export class FixtureVault extends CredentialVault {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status"].includes(kind))
+      if (!["provider", "status", "scan", "portal-progress"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -96,9 +99,32 @@ export class FixtureVault extends CredentialVault {
     if (path === "/api/fixture/rate-limit" && request.method === "POST") {
       const { enabled } = (await request.json()) as { enabled: boolean };
       await this.fixtureState.storage.put("synthetic-scan-limit", !!enabled);
+      if (!enabled) {
+        // UI time is virtual; the Worker clock is real. Ending this fixture
+        // also ends its artificial cooldown. Worker tests verify real expiry.
+        const vault = await this.fixtureState.storage.get<{ cooldown: number }>(
+          "vault",
+        );
+        if (vault) {
+          vault.cooldown = 0;
+          await this.fixtureState.storage.put("vault", vault);
+        }
+      }
       return Response.json({ ok: true });
     }
-    if (path === "/api/status") await this.waitForGate("status");
+    if (["/api/status", "/api/refresh/start"].includes(path))
+      await this.waitForGate("status");
+    if (
+      ["/api/status", "/api/refresh/start"].includes(path) &&
+      (await this.fixtureState.storage.get("synthetic-status-failure"))
+    )
+      return Response.json(
+        { error: "syntheticStatusUnavailable" },
+        { status: 503 },
+      );
+    if (path === "/api/scan/start") await this.waitForGate("scan");
+    if (/^\/api\/(campus|carmen)\/progress$/.test(path))
+      await this.waitForGate("portal-progress");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))
@@ -198,6 +224,14 @@ export class FixtureVault extends CredentialVault {
       return Response.json({ ok: true });
     }
 
+    if (path === "/api/fixture/status-failure" && request.method === "POST") {
+      const { enabled } = (await request.json()) as { enabled: boolean };
+      await this.fixtureState.storage.put(
+        "synthetic-status-failure",
+        enabled === true,
+      );
+      return Response.json({ ok: true });
+    }
     if (
       new URL(request.url).pathname === "/api/fixture/delay" &&
       request.method === "POST"
@@ -278,6 +312,11 @@ export class FixtureVault extends CredentialVault {
 
     if (new URL(request.url).pathname.endsWith("/users/me")) {
       await this.waitForGate("provider");
+      if (await this.fixtureState.storage.get("synthetic-scan-limit"))
+        return new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "1" },
+        });
       const delay = await this.fixtureState.storage.get<number>(
         "synthetic-provider-delay",
       );

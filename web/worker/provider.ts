@@ -10,6 +10,15 @@ export class ApiError extends Error {
 }
 export type Fetcher = (request: Request) => Promise<Response>;
 export const origin = "https://api.schoology.com";
+export function retryAfterSeconds(raw: string | null, now = Date.now()) {
+  const seconds =
+    raw && /^\d+$/.test(raw)
+      ? Number(raw)
+      : raw
+        ? Math.ceil((Date.parse(raw) - now) / 1000)
+        : 60;
+  return Math.max(1, Number.isFinite(seconds) ? seconds : 60);
+}
 export const validID = (v: unknown): v is string =>
   typeof v === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(v);
 export function safeURL(input: string | URL, expected?: URL) {
@@ -104,19 +113,9 @@ export async function readProvider(
       continue;
     }
     if (response.status === 429) {
-      const raw = response.headers.get("Retry-After"),
-        seconds =
-          raw && /^\d+$/.test(raw)
-            ? Number(raw)
-            : raw
-              ? Math.ceil((Date.parse(raw) - Date.now()) / 1000)
-              : 60;
+      const seconds = retryAfterSeconds(response.headers.get("Retry-After"));
       await response.body?.cancel();
-      throw new ApiError(
-        429,
-        "rateLimited",
-        Math.max(1, Number.isFinite(seconds) ? seconds : 60),
-      );
+      throw new ApiError(429, "rateLimited", seconds);
     }
     if (!response.ok) {
       await response.body?.cancel();

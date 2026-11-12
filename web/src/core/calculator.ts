@@ -17,24 +17,29 @@ export class CalculationError extends Error {
     super(code);
   }
 }
+function accumulator(method: "points" | "percent") {
+  let earned = 0,
+    possible = 0;
+  return {
+    add(a: Assignment) {
+      const value = method === "percent" ? scorePercent(a) : a.score.earned;
+      if (value === undefined) throw new CalculationError("incompleteData");
+      earned += value * a.multiplier;
+      possible += (method === "percent" ? 1 : a.score.possible!) * a.multiplier;
+    },
+    value() {
+      if (method === "points" && possible <= 0)
+        throw new CalculationError("noGradedAssignments");
+      return method === "points"
+        ? (earned / possible) * 100
+        : earned / possible;
+    },
+  };
+}
 function aggregate(rows: Assignment[], method: "points" | "percent"): number {
-  if (method === "percent") {
-    if (rows.some((a) => scorePercent(a) === undefined))
-      throw new CalculationError("incompleteData");
-    return (
-      rows.reduce((s, a) => s + scorePercent(a)! * a.multiplier, 0) /
-      rows.reduce((s, a) => s + a.multiplier, 0)
-    );
-  }
-  const possible = rows.reduce(
-    (s, a) => s + a.score.possible! * a.multiplier,
-    0,
-  );
-  if (possible <= 0) throw new CalculationError("noGradedAssignments");
-  return (
-    (rows.reduce((s, a) => s + a.score.earned! * a.multiplier, 0) / possible) *
-    100
-  );
+  const total = accumulator(method);
+  rows.forEach((row) => total.add(row));
+  return total.value();
 }
 export function normalizeScenario(c: SourceCourse, h: Scenario): Scenario {
   const rows = new Map([...c.assignments, ...h.added].map((a) => [a.id, a]));
@@ -52,11 +57,7 @@ export function normalizeScenario(c: SourceCourse, h: Scenario): Scenario {
     ignored: h.ignored.filter((id) => rows.has(id)),
   };
 }
-export function calculate(
-  c: SourceCourse,
-  h: Scenario = emptyScenario(),
-): number {
-  if (c.method === "unknown") throw new CalculationError("unknownRules");
+function calculationRows(c: SourceCourse, h: Scenario) {
   const included = [...c.assignments, ...h.added]
     .filter(
       (a) =>
@@ -65,10 +66,14 @@ export function calculate(
         !a.score.excused &&
         !c.categories.some((k) => k.id === a.categoryID && k.excluded),
     )
-    .map((a) => ({
-      ...a,
-      score: { ...a.score, earned: h.scores[a.id] ?? a.score.earned },
-    }));
+    .map((a) => {
+      const earned = h.scores[a.id] ?? a.score.earned;
+      // Most calculations (including every graph prefix) have no edited
+      // score. Keep those immutable inputs instead of cloning both objects.
+      return Object.is(earned, a.score.earned)
+        ? a
+        : { ...a, score: { ...a.score, earned } };
+    });
   if (included.some((a) => graded(a) && a.score.earned === undefined))
     throw new CalculationError("incompleteData");
   const rows = included.filter((a) => a.score.earned !== undefined);
@@ -84,6 +89,14 @@ export function calculate(
   )
     throw new CalculationError("invalidInput");
   if (!rows.length) throw new CalculationError("noGradedAssignments");
+  return rows;
+}
+export function calculate(
+  c: SourceCourse,
+  h: Scenario = emptyScenario(),
+): number {
+  if (c.method === "unknown") throw new CalculationError("unknownRules");
+  const rows = calculationRows(c, h);
   if (c.method === "points" || c.method === "percent")
     return aggregate(rows, c.method);
   let sum = 0,
@@ -110,6 +123,33 @@ export function calculate(
     throw new CalculationError("incompleteData");
   if (weight <= 0) throw new CalculationError("noGradedAssignments");
   return sum / weight;
+}
+/** Prefixes of an already validated numeric course. Category/drop rules keep
+ * the ordinary calculator path. Inclusion, validation and arithmetic are shared. */
+export function calculatePrefixes(c: SourceCourse, ordered: Assignment[]) {
+  if (c.method !== "points" && c.method !== "percent") return undefined;
+  const included = new Set(
+    calculationRows({ ...c, assignments: ordered }, emptyScenario()),
+  );
+  const total = accumulator(c.method);
+  let count = 0;
+  return ordered.map((row) => {
+    if (included.has(row)) {
+      total.add(row);
+      count++;
+    }
+    if (!count) return undefined;
+    try {
+      return total.value();
+    } catch (error) {
+      if (
+        error instanceof CalculationError &&
+        error.code === "noGradedAssignments"
+      )
+        return undefined;
+      throw error;
+    }
+  });
 }
 export function safelyCalculate(c: SourceCourse, h?: Scenario) {
   try {

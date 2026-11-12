@@ -57,9 +57,8 @@ describe("documented Canvas student normalization", () => {
     });
     expect(parse(d)[0].assignments[1].score.earned).toBeUndefined();
   });
-  it.each(["drop_lowest", "drop_highest", "never_drop"])(
-    "withholds incompatible Canvas %s math while retaining reported total",
-    (rule) => {
+  it("withholds incompatible Canvas drop math while retaining reported totals", () => {
+    for (const rule of ["drop_lowest", "drop_highest", "never_drop"]) {
       const d = canvasDetails();
       Object.assign(d["101:groups"][0].rules, {
         [rule]: rule === "never_drop" ? [201] : 1,
@@ -67,8 +66,8 @@ describe("documented Canvas student normalization", () => {
       const c = parse(d)[0];
       expect(c.method).toBe("unknown");
       expect(c.grade.percent).toBe(86);
-    },
-  );
+    }
+  });
   it("withholds grading-period and grade-override math", () => {
     const d = canvasDetails();
     d["101:enrollments"][0].has_grading_periods = true;
@@ -175,14 +174,16 @@ describe("bounded Canvas pagination", () => {
       next.href,
     );
   });
-  it.each([
-    "https://evil.test/api/v1/courses",
-    "https://osu.instructure.com/api/v1/courses?access_token=bad",
-    "https://osu.instructure.com/api/v1/users/self/profile",
-    "https://osu.instructure.com/api/v1/courses?enrollment_type=teacher",
-  ])("rejects unsafe next URL %s", (url) =>
-    expect(() => canvasNext(`<${url}>; rel="next"`, first, first)).toThrow(),
-  );
+  it("rejects unsafe next URLs", () => {
+    for (const url of [
+      "https://evil.test/api/v1/courses",
+      "https://osu.instructure.com/api/v1/courses?access_token=bad",
+      "https://osu.instructure.com/api/v1/users/self/profile",
+      "https://osu.instructure.com/api/v1/courses?enrollment_type=teacher",
+    ]) {
+      expect(() => canvasNext(`<${url}>; rel="next"`, first, first)).toThrow();
+    }
+  });
   it("accepts only the fixed OSU origin", () =>
     expect(() => canvasURL("https://canvas.other.test")).toThrow());
 });

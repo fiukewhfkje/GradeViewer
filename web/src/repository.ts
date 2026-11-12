@@ -1,5 +1,11 @@
 import { openDB } from "idb";
-import { emptyState, type SavedState } from "./core/model";
+import {
+  emptyState,
+  type SavedState,
+  type SchoologyVisibility,
+} from "./core/model";
+import { withVisibility } from "./core/visibility";
+import { planRefreshRetry, type RefreshRetry } from "./refresh-retry";
 export interface Pending {
   state: SavedState;
   account: string;
@@ -45,13 +51,66 @@ export async function load(): Promise<SavedState> {
     s = await d.get("state", "active");
   return restoreCourseList(s ?? emptyState());
 }
-export async function save(s: SavedState) {
+export async function save(
+  s: SavedState,
+  options?: { clearVisibility?: boolean },
+) {
   try {
     const d = await db();
-    await d.put("state", s, "active");
+    const tx = d.transaction("state", "readwrite");
+    const saved = await writeSnapshot(tx.store, s, options?.clearVisibility);
+    await tx.done;
+    return saved;
   } catch {
     throw new Error("storageFailed");
   }
+}
+async function writeSnapshot(
+  store: {
+    get(key: string): Promise<unknown>;
+    put(value: SavedState, key: string): Promise<unknown>;
+  },
+  next: SavedState,
+  clearVisibility = false,
+) {
+  const current = (await store.get("active")) as SavedState | undefined;
+  const visibility = current?.schoologyVisibility;
+  // The authenticated preference is independently merged. An older grade
+  // refresh, prepared save or local form cannot replace it.
+  if (!clearVisibility && current?.account === next.account && visibility) {
+    next = {
+      ...next,
+      schoologyVisibility: visibility,
+      hiddenSchoology: current?.hiddenSchoology,
+    };
+  }
+  await store.put(next, "active");
+  return next;
+}
+// Merge only the preference into the newest local snapshot, never a stale
+// course/history/scenario copy captured before the network request.
+export async function mergeVisibility(
+  account: string,
+  remote: SchoologyVisibility,
+  expectedSource?: string,
+) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const saved: SavedState | undefined = await tx.store.get("active");
+  const access: BrowserAccess | undefined = await tx.store.get("access");
+  const source = saved?.schoologyVisibility?.scope;
+  if (
+    access?.locked ||
+    !saved ||
+    saved.account !== account ||
+    (source !== expectedSource && source !== remote.scope)
+  ) {
+    await tx.done;
+    return undefined;
+  }
+  const next = withVisibility(saved, remote);
+  if (next !== saved) await tx.store.put(next, "active");
+  await tx.done;
+  return restoreCourseList(next);
 }
 export async function prepare(p: Pending) {
   try {
@@ -69,9 +128,10 @@ export async function activate(s: SavedState) {
   try {
     const d = await db(),
       tx = d.transaction("state", "readwrite");
-    await tx.store.put(s, "active");
+    const saved = await writeSnapshot(tx.store, s);
     await tx.store.delete("pending");
     await tx.done;
+    return saved;
   } catch {
     throw new Error("storageFailed");
   }
@@ -82,6 +142,48 @@ export async function cancel() {
 export async function clear() {
   const d = await db();
   await d.clear("state");
+}
+
+export async function refreshRetry(): Promise<RefreshRetry | undefined> {
+  return (await db()).get("state", "refresh-retry");
+}
+export async function planRetry(account: string, retryAfter: number) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const next = planRefreshRetry(
+    await tx.store.get("refresh-retry"),
+    account,
+    retryAfter,
+  );
+  await tx.store.put(next, "refresh-retry");
+  await tx.done;
+  return next;
+}
+export async function claimRetry(account: string, now = Date.now()) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const retry: RefreshRetry | undefined = await tx.store.get("refresh-retry");
+  const access: BrowserAccess | undefined = await tx.store.get("access");
+  const saved: SavedState | undefined = await tx.store.get("active");
+  const allowed =
+    retry?.account === account &&
+    retry.phase === "waiting" &&
+    retry.due <= now &&
+    !access?.locked &&
+    access?.account === account &&
+    (access.expires ?? 0) > now &&
+    saved?.account === account;
+  if (allowed)
+    await tx.store.put({ ...retry, phase: "attempted" }, "refresh-retry");
+  await tx.done;
+  return allowed;
+}
+export async function finishRetry(account: string, succeeded: boolean) {
+  const tx = (await db()).transaction("state", "readwrite");
+  const retry: RefreshRetry | undefined = await tx.store.get("refresh-retry");
+  if (retry?.account === account) {
+    if (succeeded) await tx.store.delete("refresh-retry");
+    else await tx.store.put({ ...retry, phase: "failed" }, "refresh-retry");
+  }
+  await tx.done;
 }
 
 // This receipt unlocks only this browser's existing local cache. Provider/API

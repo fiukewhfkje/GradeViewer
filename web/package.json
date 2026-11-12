@@ -1,6 +1,6 @@
 {
   "name": "gradeviewer-pwa",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "passwordSchema": 1,
   "type": "module",
@@ -9,6 +9,8 @@
     "build": "tsc --noEmit && vite build && node scripts/service-worker.mjs",
     "test": "vitest run",
     "test:e2e": "node tests/e2e.mjs",
+    "test:e2e:ci": "node scripts/verify-browser.mjs",
+    "benchmark:refresh": "node scripts/benchmark-refresh.mjs",
     "preview": "wrangler dev --port 8787",
     "preview:local": "npm run build && wrangler dev --local --config wrangler.test.jsonc --ip 127.0.0.1 --port 8917 --local-protocol https --persist-to .local-test/settings-preview/state",
     "deploy": "node scripts/deploy.mjs",

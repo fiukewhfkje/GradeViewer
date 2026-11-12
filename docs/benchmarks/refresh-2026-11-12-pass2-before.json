@@ -1,0 +1,509 @@
+{
+  "conditions": {
+    "version": 2,
+    "appRoundTripMs": 80,
+    "providerReadMs": 80,
+    "icSkewedDetailMs": [
+      320,
+      40,
+      40,
+      320,
+      40,
+      40
+    ],
+    "slowerCombined": {
+      "appRoundTripMs": 120,
+      "providerReadMs": 250
+    },
+    "storage": "in-memory Durable Object + fake IndexedDB",
+    "network": "local synthetic delays; no provider or Cloudflare requests"
+  },
+  "samples": 9,
+  "results": [
+    {
+      "scenario": "schoology-cold",
+      "samplesMs": [
+        851.3,
+        839.9,
+        844,
+        837.4,
+        839.9,
+        835.2,
+        838.3,
+        844.9,
+        857.3
+      ],
+      "medianMs": 839.9,
+      "p95Ms": 857.3,
+      "apiRequests": 4,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 44,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9"
+    },
+    {
+      "scenario": "schoology-new-browser",
+      "samplesMs": [
+        856.6,
+        854.7,
+        856.5,
+        857.9,
+        855.7,
+        857.3,
+        856,
+        853,
+        857.8
+      ],
+      "medianMs": 856.5,
+      "p95Ms": 857.9,
+      "apiRequests": 4,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 46,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9"
+    },
+    {
+      "scenario": "schoology-warm",
+      "samplesMs": [
+        513.6,
+        514.9,
+        510.5,
+        513.1,
+        516.9,
+        512,
+        513.4,
+        511.2,
+        512.7
+      ],
+      "medianMs": 513.1,
+      "p95Ms": 516.9,
+      "apiRequests": 4,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 0
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9"
+    },
+    {
+      "scenario": "schoology-alias-warm",
+      "samplesMs": [
+        518.7,
+        515,
+        513.4,
+        515.5,
+        511.7,
+        514.3,
+        515.7,
+        513.3,
+        515.8
+      ],
+      "medianMs": 515,
+      "p95Ms": 518.7,
+      "apiRequests": 4,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 0
+      },
+      "cryptoDecryptions": 6,
+      "digest": "b9cc433dfe451ca96b3b97b348bcfca24461a507193ff795890926dd58b287e7"
+    },
+    {
+      "scenario": "schoology-expired",
+      "samplesMs": [
+        856.2,
+        861.2,
+        856.6,
+        858.3,
+        854.9,
+        856.1,
+        860.4,
+        851.6,
+        857.7
+      ],
+      "medianMs": 856.6,
+      "p95Ms": 861.2,
+      "apiRequests": 4,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 46,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9"
+    },
+    {
+      "scenario": "schoology-manual",
+      "samplesMs": [
+        857.3,
+        852.5,
+        857.1,
+        862.3,
+        864.2,
+        857.7,
+        861.8,
+        861.9,
+        864.4
+      ],
+      "medianMs": 861.8,
+      "p95Ms": 864.4,
+      "apiRequests": 4,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 46,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9"
+    },
+    {
+      "scenario": "schoology-unresolved-title-repeat",
+      "samplesMs": [
+        3350.1,
+        3364.9,
+        3345.1,
+        3359.7,
+        3347.7,
+        3340.9,
+        3341.4,
+        3347.7,
+        3346.7
+      ],
+      "medianMs": 3347.7,
+      "p95Ms": 3364.9,
+      "apiRequests": 19,
+      "providerRequests": 38,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 38,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 76,
+      "digest": "bad70fb5e65a2ea16e625e83cc6106d727d94c3b6c02c1eb3ff256a1d7f8dffa"
+    },
+    {
+      "scenario": "ic-one",
+      "samplesMs": [
+        417.9,
+        418.5,
+        417.4,
+        419.3,
+        419.1,
+        418.8,
+        417.9,
+        419.4,
+        420.5
+      ],
+      "medianMs": 418.8,
+      "p95Ms": 420.5,
+      "apiRequests": 2,
+      "providerRequests": 3,
+      "peakConcurrency": 1,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 1
+      },
+      "cryptoDecryptions": 4,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    },
+    {
+      "scenario": "ic-six-uniform",
+      "samplesMs": [
+        501.2,
+        500.9,
+        503,
+        501.4,
+        502.3,
+        501.9,
+        503.1,
+        499.5,
+        499.1
+      ],
+      "medianMs": 501.4,
+      "p95Ms": 503.1,
+      "apiRequests": 2,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "cryptoDecryptions": 4,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b"
+    },
+    {
+      "scenario": "ic-six-skewed",
+      "samplesMs": [
+        982.5,
+        980.7,
+        982.5,
+        981.5,
+        982.2,
+        982.3,
+        982.1,
+        979.1,
+        982.3
+      ],
+      "medianMs": 982.2,
+      "p95Ms": 982.5,
+      "apiRequests": 2,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "cryptoDecryptions": 4,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b"
+    },
+    {
+      "scenario": "combined-one-warm",
+      "samplesMs": [
+        850.1,
+        852.9,
+        855.3,
+        849.6,
+        847.3,
+        850.8,
+        852.3,
+        852.6,
+        845
+      ],
+      "medianMs": 850.8,
+      "p95Ms": 855.3,
+      "apiRequests": 5,
+      "providerRequests": 6,
+      "peakConcurrency": 2,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 1
+      },
+      "cryptoDecryptions": 10,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    },
+    {
+      "scenario": "combined-one-manual",
+      "samplesMs": [
+        1192,
+        1190.6,
+        1195.5,
+        1196.3,
+        1197.4,
+        1196.5,
+        1195.7,
+        1188.3,
+        1192.2
+      ],
+      "medianMs": 1195.5,
+      "p95Ms": 1197.4,
+      "apiRequests": 5,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 50,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    },
+    {
+      "scenario": "combined-six-manual",
+      "samplesMs": [
+        1275.9,
+        1272.3,
+        1264.9,
+        1275.6,
+        1271.7,
+        1276.3,
+        1282.9,
+        1283.1,
+        1283.6
+      ],
+      "medianMs": 1275.9,
+      "p95Ms": 1283.6,
+      "apiRequests": 5,
+      "providerRequests": 31,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 3
+      },
+      "cryptoDecryptions": 50,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b"
+    },
+    {
+      "scenario": "combined-one-expired",
+      "samplesMs": [
+        1192.3,
+        1196.5,
+        1193.4,
+        1197.1,
+        1191.6,
+        1190.1,
+        1192.3,
+        1196.7,
+        1194.8
+      ],
+      "medianMs": 1193.4,
+      "p95Ms": 1197.1,
+      "apiRequests": 5,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 50,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    },
+    {
+      "scenario": "combined-one-slower-manual",
+      "samplesMs": [
+        2925.7,
+        2928.1,
+        2924.9,
+        2924.3,
+        2915.6,
+        2905.9,
+        2919.5,
+        2929.3,
+        2921.4
+      ],
+      "medianMs": 2924.3,
+      "p95Ms": 2929.3,
+      "apiRequests": 5,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 50,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    },
+    {
+      "scenario": "combined-profile-bound-slower-manual",
+      "samplesMs": [
+        2671.6,
+        2674.7,
+        2671,
+        2672.2,
+        2671.9,
+        2672.9,
+        2672.5,
+        2671.6,
+        2676.2
+      ],
+      "medianMs": 2672.2,
+      "p95Ms": 2676.2,
+      "apiRequests": 5,
+      "providerRequests": 25,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 2
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 50,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5"
+    }
+  ],
+  "source": "aea38d39f50e6b0c649c17dad3db5ba47da6ce0b",
+  "dirty": false,
+  "recordedAt": "2026-11-12T14:20:59.610Z",
+  "node": "v26.7.0",
+  "implementation": {
+    "src/refresh.ts": "00ac99be4a4c94ec1fa4a1bc13286719aaa3d016eb20dc58a9c45f1ea582b582",
+    "src/portal-refresh.ts": "5def5b739532904739c694bddd208b98c57929c0791c2daed85c7beca68e3dc0",
+    "src/repository.ts": "c9398cb58871508bfa8e67b9bc2c91a2df09833266260badc99cc1787b4c3b4e",
+    "worker/index.ts": "70d39c5917384f9b7c009aa48b0eb029c691f9273533ada5685568433434a118",
+    "worker/portal.ts": "918086abf87bccd8e416834241a3040df0f7e249220987438304b14a3ae1e58a",
+    "worker/provider.ts": "b9bab7ee59848bc4f2beb4040eba28f584348266a44741bed4af4c74fe15e7f6",
+    "src/api.ts": "8f8fb4cd88c89784c1215b7d3c789d62b94a3d67fcbcc504e76f718e8565eae1",
+    "src/App.tsx": "4703de0e251826996ef0fdf6a973fb5ec1b1952c98e167d8601ad9d6ccfb94ae"
+  },
+  "harness": {
+    "scripts/benchmark-refresh.mjs": "86eb7a953409e4a1274428065fc33d64a2b537e08ddf2829f2d7a0f0e2ae11ba",
+    "tests/refresh-benchmark.ts": "c69fc533e88e2852a306008680340d3e91fbd2c1597daa1421398da48a54df83",
+    "tests/fixture-worker.ts": "9a17edabae9533cd9de93d73e94530e6e33aacdd3aff2d2cf463e71907b28d85",
+    "tests/campus-fixture.ts": "7b60cef3ecda83cc0c408fd63e5dcde69be3c67d7a04872a39dd4f68cd8eb191",
+    "tests/schoology-fixture.ts": "65165ef69daafeee955eea449893d6209fda5b53dc101e1c4ca141d4917fca02"
+  }
+}

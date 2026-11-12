@@ -13,15 +13,17 @@ export function ReloadIcon({
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.9}
+      strokeWidth={1.85}
       strokeLinecap="round"
       strokeLinejoin="round"
       className={"reload-icon " + className}
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M19.3 8.6a8 8 0 1 0 0 6.8" />
-      <path d="m15.3 7.9 4 .7.7-4" />
+      <path d="M4.7 9.3a7.8 7.8 0 0 1 14.6 0" />
+      <path d="m16.3 7.9 3 1.4 1.3-3" />
+      <path d="M19.3 14.7a7.8 7.8 0 0 1-14.6 0" />
+      <path d="m7.7 16.1-3-1.4-1.3 3" />
     </svg>
   );
 }

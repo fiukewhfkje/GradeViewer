@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { seal, unseal, authorization, encode, hash } from "../worker/crypto";
-import { safeURL, nextPage, readProvider, ApiError } from "../worker/provider";
+import {
+  safeURL,
+  nextPage,
+  readProvider,
+  retryAfterSeconds,
+  ApiError,
+} from "../worker/provider";
 import worker, { CredentialVault, type Env } from "../worker/index";
 const password = "synthetic-password-at-least-20-characters";
 describe("vault cryptography", () => {
@@ -48,13 +54,25 @@ describe("vault cryptography", () => {
   });
 });
 describe("read-only provider transport", () => {
-  it.each([
-    "http://api.schoology.com/v1/users/me",
-    "https://evil.test/v1/users/me",
-    "https://api.schoology.com/v1/users/me#secret",
-    "https://api.schoology.com/v1/users/me?url=bad",
-    "https://api.schoology.com/v1/users/me?limit=10000",
-  ])("rejects unsafe URL %s", (url) => expect(() => safeURL(url)).toThrow());
+  it("honors Retry-After seconds and HTTP dates with a safe fallback", () => {
+    const now = Date.parse("2026-11-12T12:00:00Z");
+    expect(retryAfterSeconds("120", now)).toBe(120);
+    expect(retryAfterSeconds("Thu, 12 Nov 2026 12:02:00 GMT", now)).toBe(120);
+    expect(retryAfterSeconds("Thu, 12 Nov 2026 11:00:00 GMT", now)).toBe(1);
+    expect(retryAfterSeconds("invalid", now)).toBe(60);
+    expect(retryAfterSeconds(null, now)).toBe(60);
+  });
+  it("rejects unsafe provider URLs", () => {
+    for (const url of [
+      "http://api.schoology.com/v1/users/me",
+      "https://evil.test/v1/users/me",
+      "https://api.schoology.com/v1/users/me#secret",
+      "https://api.schoology.com/v1/users/me?url=bad",
+      "https://api.schoology.com/v1/users/me?limit=10000",
+    ]) {
+      expect(() => safeURL(url)).toThrow();
+    }
+  });
   it("re-signs owner redirects and sends only GET", async () => {
     const headers: string[] = [];
     let calls = 0;
@@ -357,5 +375,169 @@ describe("owner authentication and persistent lifecycle", () => {
     expect((await h.send("proxy", { url: "https://evil.test" })).status).toBe(
       404,
     );
+  });
+});
+
+describe("shared Schoology visibility", () => {
+  async function connected() {
+    const h = harness();
+    await h.send("login", { password });
+    const { scan } = (await (
+      await h.send("scan/start", { key: "test", secret: "synthetic-secret" })
+    ).json()) as { scan: string };
+    await h.send("scan/read", { scan, resource: "sections" });
+    expect((await h.send("scan/commit", { scan })).status).toBe(200);
+    const status = (await (await h.send("status")).json()) as {
+      schoologyVisibility: { scope: string };
+    };
+    return {
+      ...h,
+      get calls() {
+        return h.calls;
+      },
+      scope: status.schoologyVisibility.scope,
+    };
+  }
+  it("requires owner auth, same-origin mutations, matching student and bounded valid input without provider reads", async () => {
+    const h = harness();
+    const initialEdit = {
+      account: "student",
+      section: "visibility-course-a",
+      hidden: true,
+    };
+    expect((await h.send("course-visibility", initialEdit)).status).toBe(401);
+    await h.send("login", { password });
+    expect((await h.send("course-visibility", initialEdit)).status).toBe(409);
+    const active = await connected(),
+      before = active.calls;
+    const edit = { ...initialEdit, scope: active.scope };
+    expect(
+      (await active.send("course-visibility", edit, "https://evil.test"))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await active.send("course-visibility", {
+          ...edit,
+          account: "other-student",
+        })
+      ).status,
+    ).toBe(409);
+    for (const invalid of [
+      { ...edit, hidden: "true" },
+      { ...edit, section: "../other" },
+      {
+        account: "student",
+        scope: active.scope,
+        import: Array(65).fill("course"),
+      },
+      { ...edit, import: ["course"] },
+    ])
+      expect((await active.send("course-visibility", invalid)).status).toBe(
+        400,
+      );
+    expect(active.calls).toBe(before);
+    expect(
+      ((await (await active.send("status")).json()) as any).schoologyVisibility
+        .hidden,
+    ).toEqual([]);
+  });
+  it("patches independent courses atomically, keeps restore tombstones during late legacy imports and persists only ciphertext", async () => {
+    const h = await connected(),
+      before = h.calls;
+    const edit = (section: string, hidden: boolean) =>
+      h.send("course-visibility", {
+        account: "student",
+        scope: h.scope,
+        section,
+        hidden,
+      });
+    await Promise.all([
+      edit("visibility-course-a", true),
+      edit("visibility-course-b", true),
+    ]);
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility,
+    ).toEqual({
+      account: "student",
+      scope: h.scope,
+      revision: 2,
+      hidden: ["visibility-course-a", "visibility-course-b"],
+    });
+    const unchanged = JSON.stringify(h.values.get("vault"));
+    await edit("visibility-course-b", true);
+    expect(JSON.stringify(h.values.get("vault"))).toBe(unchanged);
+    await edit("visibility-course-a", false);
+    const imported = (await (
+      await h.send("course-visibility", {
+        account: "student",
+        scope: h.scope,
+        import: ["visibility-course-a", "visibility-course-c"],
+      })
+    ).json()) as any;
+    expect(imported.hidden).toEqual([
+      "visibility-course-b",
+      "visibility-course-c",
+    ]);
+    expect(JSON.stringify([...h.values.values()])).not.toContain(
+      "visibility-course-",
+    );
+    h.restart();
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility,
+    ).toEqual(imported);
+    expect(h.calls).toBe(before);
+    const vault = h.values.get("vault") as { visibility: { data: string } };
+    vault.visibility.data = "invalid-ciphertext";
+    h.values.set("vault", vault);
+    const unreadable = (await (await h.send("status")).json()) as {
+      schoologyVisibility?: unknown;
+      connected: boolean;
+    };
+    expect(unreadable.connected).toBe(true);
+    expect(unreadable.schoologyVisibility).toBeUndefined();
+    await h.send("logout", {});
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility,
+    ).toBeUndefined();
+  });
+  it("preserves visibility through password changes and clears its student scope on Schoology disconnect", async () => {
+    const h = await connected();
+    await h.send("course-visibility", {
+      account: "student",
+      scope: h.scope,
+      section: "visibility-course-a",
+      hidden: true,
+    });
+    await h.send("password", {
+      currentPassword: password,
+      newPassword: "synthetic-new-owner-password",
+    });
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility
+        .hidden,
+    ).toEqual(["visibility-course-a"]);
+    const vault = h.values.get("vault") as any;
+    vault.account = "other-student";
+    h.values.set("vault", vault);
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility
+        .hidden,
+    ).toEqual([]);
+    expect(
+      (
+        await h.send("course-visibility", {
+          account: "student",
+          scope: h.scope,
+          section: "visibility-course-a",
+          hidden: false,
+        })
+      ).status,
+    ).toBe(409);
+    await h.send("schoology/disconnect", {});
+    expect((h.values.get("vault") as any).visibility).toBeUndefined();
+    expect(
+      ((await (await h.send("status")).json()) as any).schoologyVisibility,
+    ).toBeUndefined();
   });
 });

@@ -22,7 +22,7 @@ import {
 import type { CampusChoice } from "./core/campus";
 import { usePortalHealth, type ConnectionTone } from "./portal-health";
 import { CarmenReport } from "./CarmenReport";
-import { ReloadIcon } from "./ReloadIcon";
+import { LoadingIndicator } from "./LoadingIndicator";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
@@ -309,8 +309,9 @@ export function PortalConnection({
               <div>
                 <h3>Choose your classes</h3>
                 <p>
-                  Choose classes missing from Schoology. Both copies of a class
-                  count toward GPA.
+                  Choose the classes you want from IC. If a class also appears
+                  in Schoology, hide its Schoology copy from Course options to
+                  avoid counting both toward GPA.
                 </p>
               </div>
               <span className="portal-count">{selected.length} selected</span>
@@ -453,7 +454,7 @@ export function PortalConnection({
         )}
         {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">
-            <ReloadIcon size={14} className="spinning" /> {working}
+            <LoadingIndicator size={16} /> {working}
           </div>
         )}
         {message && (

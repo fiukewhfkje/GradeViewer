@@ -1,17 +1,80 @@
+# UI refinement and synced visibility — November 12
+
+- [x] Align the Restore row, normalize Settings and course spacing, improve grade contrast, and consolidate the update notice and action.
+- [x] Sync hide and restore through the existing authenticated Worker. Keep browser cache, account isolation and local grades/history/edits.
+- [x] Verify encrypted preference storage, legacy import, stale requests, two independent browser sessions, responsive layouts and safe update activation.
+- [x] Open the synthetic localhost app and 12-pair comparison for owner review. Keep this pass on the development branch.
+
+# Further optimization and Schoology visibility — November 12
+
+- [x] Measure a fresh deployed-code baseline, intermediate trials and final refresh/CPU/hosted CI results; preserve all samples and distinguish the WebKit completion-time plateau from the Chromium gain.
+- [x] Reuse numeric graph totals and native number formatters; retain exact frozen outputs and category/drop fallbacks.
+- [x] Keep locked native Chromium, safe setup overlap and isolated motion/functional checks; retain pinned sequential WebKit platform coverage and all release gates. Reject the measured native WebKit/setup race trials.
+- [x] Implement reversible local Schoology section hiding, exclude it from Grades/GPA, preserve saved grades/history/edits, and keep selected IC courses independent. Document the owner-authorized scope change.
+- [x] Pass full local browser coverage, 287 units, build/type checks, final hosted jobs, Worker dry-run, 121-file packaging and isolated template preservation/rollback; inspect phone/desktop light/dark restore cards.
+- [x] Deploy `84d1123` only to the existing owner Worker as `604b1aac-b8f9-4cda-af0d-1562dfa7fc19` at 100%; verify all six exact assets, five preserved bindings, vault, diagnostics and locked APIs. Keep main/stable unchanged; no provider reads or Browser Run sessions.
+
+# Final visual polish and owner deployment — November 12
+
+- [x] Keep the rounded refresh button and use an open, two-arrow idle symbol with a clear center; preserve the truthful active loader.
+- [x] Polish card/navigation edges, timestamp hierarchy, chevrons, row hovers, inputs, menus and dialogs; preserve reduced motion, keyboard focus and existing layouts.
+- [x] Pass full browser suites, focused final motion/layout checks, build, source packaging and isolated template preservation/rollback. Inspect synthetic light/dark/phone/detail captures.
+- [x] Owner accepted the visual revision and authorized only the existing Worker deployment, with no release.
+- [x] Capture private preflight fingerprints, deploy source `9969d2f` to the owner Worker at 100%, and verify six exact assets, all five preserved bindings, retained diagnostics and locked APIs. No release/main merge.
+
+# CI and release flow — November 12
+
+- [x] Benchmark the original, intermediate and final hosted verification runs with step timings; preserve the rejected native-runner trial separately.
+- [x] Reduce named unit checks from 336 to 284 by consolidating related input variants, preserving every assertion/input and meaningful regression boundary.
+- [x] Keep all 42 flows in both browsers, retain dedicated full-motion contexts and replace synthetic sign-in timer waits with a service-worker-safe Worker barrier.
+- [x] Overlap independent checks with failure propagation; eliminate repeated dependency installs/builds from source packaging and retain exact-tag/provenance gates.
+- [x] Measure 154 → 124 seconds for verification and 7.003 → 0.206 seconds for identical source preparation; verify Node 24 packaging without dependencies.
+- [x] Pass build, unit checks, both local browser suites, final hosted CI, Worker dry-run, 118-file local packaging and formatting. Do not deploy or publish.
+- [x] Finish the owner's idle reload-icon redesign and general polish; refresh the synthetic localhost preview and receive visual acceptance.
+
+# Loading and motion polish — November 12
+
+- [x] Add the shared orbit loader, gesture-driven pull arc and truthful real-work busy state without provider changes or idle loops.
+- [x] Add restrained sliding navigation, directional course changes, Settings/feedback entrances and backdrop dismissal while preserving forms and reduced motion.
+- [x] Pass build/type check, 336 tests, both 42-flow browser suites, Worker dry-run, 118-file packaging, isolated template preservation/rollback and formatting; inspect synthetic day/night/phone captures.
+- [x] Start and request the synthetic localhost preview in the browser panel for owner review; keep deployment/merge/tag/release held.
+- [x] Benchmark CI/release before/after and consolidate repeated checks while retaining all input variants and safety checks.
+
+# Second optimization pass — November 12
+
+- [x] Compare the original implementation, first-pass commit and second pass using one frozen 16-scenario harness with nine samples per stage and matched normalized output hashes.
+- [x] Benchmark the full Schoology + IC path, slower I/O and existing profile-bound IC behavior; retain raw p50/p95, HTTP counts, per-provider/global peaks and decryption counts.
+- [x] Consolidate status/start, overlap independent provider reads and keep five complete bodies/44 subrequests with an IC reserve, no extra normal provider reads and unchanged own-provider caps.
+- [x] Reuse verified credentials only within an invocation; return saved portal health without another decrypt/status call; preserve full manual verification and existing metadata expiry.
+- [x] Verify Lock, prepared-save recovery, coalescing, one-shot retry claims, lost-response no-retry, independent provider failure, queued 429 suppression, longest cooldowns, empty/malformed responses and local-edit preservation.
+- [x] Pass build/type check, 336 tests, both 41-flow browser suites, Worker dry-run, 117-file packaging and isolated template preservation/rollback checks.
+- [ ] Measure actual owner refresh latency on the newly deployed development build with a separately scoped live check; synthetic results do not establish a device latency guarantee.
+
+# Grade refresh optimizations — November 12
+
+- [x] Preserve v0.2.4 verification notes on `codex/grade-refresh-optimizations`; delete the old motion branch locally and on GitHub.
+- [x] Measure an archived before implementation and the real updated Worker/client with the same synthetic harness; record raw samples, p50/p95, provider counts, concurrency and normalized output hashes.
+- [x] Eliminate one app round trip without extending metadata expiry or skipping full manual verification; retain pagination, alias, old-Worker, redirect and payload-budget fallback.
+- [x] Refill three IC/Carmen slots, stop queued work on failure and keep the longest 429 cooldown; honor optional title-failure backoff without skipping required catalogs.
+- [x] Add one persisted Schoology cooldown retry with waiting/running/failure messages; stop after failure, reload or interruption cannot re-arm it, and success restores the normal UI.
+- [x] Cover hidden/offline deferral, early status failure, cross-tab atomic allowance, local Lock/account/expiry guards, UI countdowns and honest busy state with synthetic checks.
+- [x] Pass final build/type check, 317 unit tests, both full 41-flow browser suites, focused retry checks, Worker dry-run, 114-file packaging and isolated-template preservation/rollback checks.
+- [ ] Measure the owner's real refresh times after a separately authorized deployment; synthetic savings do not establish a production/device latency guarantee.
+
 # Stable v0.2.4 — November 11
 
 - [x] Receive explicit stable v0.2.4 authorization and update package metadata and appearance help.
 - [x] Pass local build, all 306 unit tests, both 41-flow browser suites, Worker dry-run, 109-file source packaging and isolated-template checks.
-- [ ] Pass hosted pull-request checks and merge the validated motion branch to main.
-- [ ] Publish signed stable v0.2.4; verify downloaded hashes/provenance and a real v0.2.3 updater application.
-- [ ] Verify the owner's existing Worker serves the release source with its vault/bindings and diagnostics retained.
+- [x] Pass hosted pull-request checks and merge PR #22 to main as `3f035ff`.
+- [x] Publish signed stable v0.2.4; verify all 109 published/source hashes, exact workflow/tag/commit provenance and a real v0.2.3 updater application preserving custom configuration and its synthetic secret file.
+- [x] Verify the owner's existing Worker serves the release source with six matching public asset hashes, unchanged vault/binding fingerprints and retained diagnostic records.
 
 # Owner Worker dev deployment — November 11
 
 - [x] Receive owner UI acceptance and authorization to deploy only their existing Worker, with no stable release.
 - [x] Deploy approved dev source `988e4e9` using the existing Worker, account, vault, secrets and URL; exclude local comparison artifacts.
 - [x] Verify the active 100% deployment, six exact public asset hashes, unchanged binding fingerprints, retained private diagnostic records and locked API access without provider requests or Browser Run.
-- [ ] Keep main, tags and releases unchanged until the owner separately authorizes a stable release. Physical-device acceptance remains open.
+- [x] Owner separately authorized stable v0.2.4, which is now merged, signed and published. Physical-device acceptance remains separate and open.
 
 # Preference text alignment — November 11
 

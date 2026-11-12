@@ -1,4 +1,11 @@
-import { api, RequestError, type Status } from "./api";
+import {
+  api,
+  RequestError,
+  resultValue,
+  type ApiResult,
+  type Status,
+} from "./api";
+import type { PortalSnapshot } from "./portal-refresh";
 import {
   type SourceCourse,
   type SavedState,
@@ -16,11 +23,116 @@ import {
 } from "./core/parser";
 import { reconcile } from "./core/reconcile";
 import * as repository from "./repository";
+type Page = { data: Row; next: boolean; owners?: Record<string, string> };
+type ReadResult = ApiResult<Page>;
+export interface SnapshotStart {
+  scan: string;
+  account: string;
+  revision?: string;
+  roots?: { sections: Page; grades: ReadResult };
+  reused?: string[];
+  prefetched?: {
+    jobs: { resource: string; section: string }[];
+    results: ReadResult[];
+  };
+}
+export type RefreshScope =
+  "active" | "all" | "campus" | "carmen" | "schoology-only";
+export interface RefreshStart {
+  status: Status;
+  schoology?: ApiResult<SnapshotStart>;
+  campus?: ApiResult<PortalSnapshot>;
+  carmen?: ApiResult<PortalSnapshot>;
+}
+function snapshotRequest(
+  previous: SavedState,
+  cacheAccount?: string,
+  credentials?: { key: string; secret: string },
+  refreshMetadata = false,
+) {
+  const reuse =
+    !credentials && !refreshMetadata
+      ? Object.entries(previous.metadata ?? {})
+          .filter(
+            ([, cached]) =>
+              cached.account === previous.account &&
+              Date.now() - cached.fetched < 5 * 60000,
+          )
+          .map(([id]) => id)
+          .slice(0, 32)
+      : [];
+  const metadataJobs = Object.entries(previous.metadata ?? {})
+    .filter(
+      ([, cached]) =>
+        cached.account === (cacheAccount ?? previous.account) &&
+        (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000),
+    )
+    .flatMap(([section]) =>
+      [
+        "section",
+        "items",
+        "categories",
+        "periods",
+        ...(previous.courses.some(
+          (c) => c.fields.section_id === section && c.fields.reported_scale_id,
+        )
+          ? ["scales"]
+          : []),
+      ].map((resource) => ({ resource, section })),
+    );
+  return {
+    metadataJobs,
+    body: {
+      ...credentials,
+      refreshMetadata,
+      includeRoots: true,
+      reuse,
+      prefetch: metadataJobs.slice(0, 32),
+      prefetchMetadata: true,
+    },
+  };
+}
+
+export async function beginRefresh(
+  previous: SavedState,
+  manual = false,
+  scope: RefreshScope = "active",
+): Promise<RefreshStart> {
+  const provider =
+    scope === "campus" || scope === "carmen"
+      ? scope
+      : scope === "active" && previous.primaryLms === "carmen"
+        ? "carmen"
+        : "schoology";
+  const body =
+    provider === "schoology"
+      ? snapshotRequest(previous, previous.account, undefined, manual).body
+      : {};
+  try {
+    return await api<RefreshStart>("refresh/start", {
+      ...body,
+      provider,
+      previousAccount: previous.account,
+      includeCampus: provider === "schoology" && scope !== "schoology-only",
+    });
+  } catch (error) {
+    // An older Worker has not performed any provider read for this route.
+    if (
+      !(error instanceof RequestError) ||
+      (![404, 405].includes(error.status ?? 0) &&
+        error.code !== "unlockRequired")
+    )
+      throw error;
+    return { status: await api<Status>("status") };
+  }
+}
+
 export async function readSnapshot(
   previous: SavedState,
   status: Status,
   credentials?: { key: string; secret: string },
   refreshMetadata = false,
+  initial?: ApiResult<SnapshotStart>,
 ): Promise<SavedState> {
   if (status.schoologyConnected === false && !credentials) {
     const latest = await repository.load(),
@@ -43,21 +155,25 @@ export async function readSnapshot(
       ),
       metadata: undefined,
       gpa: undefined,
+      hiddenSchoology: undefined,
+      schoologyVisibility: undefined,
       scenarios: Object.fromEntries(
         Object.entries(base.scenarios).filter(
           ([id]) => id.startsWith("carmen:") || id.startsWith("campus:"),
         ),
       ),
     };
-    await repository.save(next);
-    return next;
+    return repository.save(next, { clearVisibility: true });
   }
-  const started = await api<{
-    scan: string;
-    account: string;
-    revision?: string;
-    roots?: { sections: Page; grades: ReadResult };
-  }>("scan/start", { ...credentials, refreshMetadata, includeRoots: true });
+  const { metadataJobs, body } = snapshotRequest(
+    previous,
+    status.account,
+    credentials,
+    refreshMetadata,
+  );
+  const started = initial
+    ? resultValue(initial)
+    : await api<SnapshotStart>("scan/start", body);
   const { scan, account: schoologyAccount } = started;
   const account = status.account ?? schoologyAccount;
   async function fingerprintGrade(row: Row) {
@@ -74,10 +190,6 @@ export async function readSnapshot(
   }
   let committed = false;
   const gradeOwners: Record<string, string> = {};
-  type Page = { data: Row; next: boolean; owners?: Record<string, string> };
-  type ReadResult =
-    | { ok: true; value: Page }
-    | { ok: false; error: string; status: number; retryAfter?: number };
   const prefetched = new Map<string, ReadResult>();
   async function preload(
     jobs: { resource: string; section: string; extra?: string }[],
@@ -176,6 +288,18 @@ export async function readSnapshot(
     return values;
   }
   try {
+    if (started.prefetched) {
+      const { jobs, results } = started.prefetched;
+      if (
+        !Array.isArray(jobs) ||
+        !Array.isArray(results) ||
+        results.length !== jobs.length
+      )
+        throw new Error("malformed");
+      jobs.forEach((job, i) =>
+        prefetched.set(job.resource + ":" + job.section + ":", results[i]),
+      );
+    }
     const roots =
       started.roots ??
       (await api<{ sections: Page; grades: ReadResult }>("scan/roots", {
@@ -214,31 +338,7 @@ export async function readSnapshot(
       // These already-enrolled sections can renew alongside alias discovery;
       // neither read depends on the other's result. Only fresh server results
       // decide the owner and which payload is ultimately committed.
-      ...enrollmentIDs
-        .filter((id) => {
-          const cached = previous.metadata?.[id];
-          return (
-            cached?.account === account &&
-            (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000)
-          );
-        })
-        .flatMap((section) =>
-          [
-            "section",
-            "items",
-            "categories",
-            "periods",
-            ...(previous.courses.some(
-              (c) =>
-                c.fields.section_id === section && c.fields.reported_scale_id,
-            )
-              ? ["scales"]
-              : []),
-          ].map((resource) => ({
-            resource,
-            section,
-          })),
-        ),
+      ...metadataJobs.filter((job) => enrollmentIDs.includes(job.section)),
     ]);
     for (const enrollment of sections) {
       const id = nonempty(enrollment.id);
@@ -296,8 +396,13 @@ export async function readSnapshot(
       )
         candidates.push(id);
     }
-    for (let offset = 0; offset < candidates.length; offset += 32) {
-      const sections = candidates.slice(offset, offset + 32);
+    for (const id of candidates)
+      if (started.reused?.includes(id)) reused.add(id);
+    // Older Workers, paginated roots and section-specific grade reads still
+    // use the existing receipt endpoint after their fresh fingerprints arrive.
+    const remaining = candidates.filter((id) => !reused.has(id));
+    for (let offset = 0; offset < remaining.length; offset += 32) {
+      const sections = remaining.slice(offset, offset + 32);
       try {
         await api("scan/reuse", { scan, sections });
         sections.forEach((id) => reused.add(id));
@@ -429,13 +534,12 @@ export async function readSnapshot(
                   ?.assignments.some(
                     (old) => old.id === a.id && hasTitle(old),
                   ) &&
-                (refreshMetadata ||
-                  Number(
-                    previous.courses
-                      .find((x) => x.id === c.id)
-                      ?.assignments.find((old) => old.id === a.id)?.fields
-                      .title_lookup_retry_after ?? 0,
-                  ) <= Date.now()),
+                Number(
+                  previous.courses
+                    .find((x) => x.id === c.id)
+                    ?.assignments.find((old) => old.id === a.id)?.fields
+                    .title_lookup_retry_after ?? 0,
+                ) <= Date.now(),
             )
             .map((a) => ({ a, c })),
         );
@@ -573,6 +677,12 @@ export async function readSnapshot(
         preserved.account === account || !preserved.account
           ? preserved.primaryLms
           : undefined,
+      hiddenSchoology:
+        preserved.account === account ? preserved.hiddenSchoology : undefined,
+      schoologyVisibility:
+        preserved.account === account
+          ? preserved.schoologyVisibility
+          : undefined,
       scenarios: preserved.account === account ? preserved.scenarios : {},
       ...(preserved.account === account && preserved.gpa
         ? { gpa: preserved.gpa }
@@ -586,9 +696,9 @@ export async function readSnapshot(
     });
     await api("scan/commit", { scan });
     committed = true;
-    await repository.activate(next);
+    const active = await repository.activate(next);
     void navigator.storage?.persist?.().catch(() => {});
-    return next;
+    return active;
   } catch (e) {
     if (!committed) {
       await repository.cancel();

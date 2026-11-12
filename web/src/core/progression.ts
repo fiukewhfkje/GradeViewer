@@ -4,7 +4,7 @@ import {
   calculationSource,
   graded,
 } from "./model";
-import { calculate, reliable } from "./calculator";
+import { calculate, calculatePrefixes, reliable } from "./calculator";
 import {
   assignmentPeriods,
   includesHistory,
@@ -55,10 +55,14 @@ export function calculatedPoints(
         (a.due ?? -Infinity) - (b.due ?? -Infinity) ||
         a.id.localeCompare(b.id),
     ),
-    result: GraphPoint[] = [];
+    result: GraphPoint[] = [],
+    prefixes = calculatePrefixes(c, ordered);
   for (let i = 0; i < ordered.length; i++) {
     try {
-      const n = calculate({ ...c, assignments: ordered.slice(0, i + 1) });
+      const n = prefixes
+        ? prefixes[i]
+        : calculate({ ...c, assignments: ordered.slice(0, i + 1) });
+      if (n === undefined) continue;
       result.push({
         id: "calculated:" + ordered[i].id,
         date: (ordered[i].updated ?? ordered[i].due)!,
