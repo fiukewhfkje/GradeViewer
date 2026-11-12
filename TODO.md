@@ -5,7 +5,7 @@
 - [x] Keep locked native Chromium, safe setup overlap and isolated motion/functional checks; retain pinned sequential WebKit platform coverage and all release gates. Reject the measured native WebKit/setup race trials.
 - [x] Implement reversible local Schoology section hiding, exclude it from Grades/GPA, preserve saved grades/history/edits, and keep selected IC courses independent. Document the owner-authorized scope change.
 - [x] Pass full local browser coverage, 287 units, build/type checks, final hosted jobs, Worker dry-run, 121-file packaging and isolated template preservation/rollback; inspect phone/desktop light/dark restore cards.
-- [ ] Deploy the final validated development source only to the existing owner Worker; verify assets, bindings, vault, diagnostics and locked APIs. Keep main and stable unchanged.
+- [x] Deploy `84d1123` only to the existing owner Worker as `604b1aac-b8f9-4cda-af0d-1562dfa7fc19` at 100%; verify all six exact assets, five preserved bindings, vault, diagnostics and locked APIs. Keep main/stable unchanged; no provider reads or Browser Run sessions.
 
 # Final visual polish and owner deployment — November 12
 
