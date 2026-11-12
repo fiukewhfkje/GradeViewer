@@ -39,10 +39,19 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Check preinstalled browser compatibility
         run: node -e "if(require('playwright-core/package.json').version !== '1.64.1') throw new Error('Update the Playwright CI image to match package-lock.json')"
-      - run: npm run build
-      - run: npm test
+      - name: Build, unit and browser checks
         if: matrix.browser == 'chromium'
+        run: |
+          npm test &
+          unit_pid=$!
+          result=0
+          npm run build && npm run test:e2e || result=1
+          wait "$unit_pid" || result=1
+          exit "$result"
+      - run: npm run build
+        if: matrix.browser == 'webkit'
       - run: npm run test:e2e
+        if: matrix.browser == 'webkit'
       - run: npx wrangler deploy --dry-run --outdir .local-test/production
         if: matrix.browser == 'chromium'
         env:

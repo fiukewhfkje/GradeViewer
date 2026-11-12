@@ -197,8 +197,6 @@ async function check(name, run) {
     clearTimeout(timer);
   }
 }
-// Hold the response until the UI assertion completes instead of sleeping for
-// seconds and hoping a slow CI runner reaches the assertion before it arrives.
 function startsProvider(request, provider = "schoology") {
   return (
     request
@@ -211,35 +209,6 @@ function startsProvider(request, provider = "schoology") {
     (request.url().endsWith("/api/refresh/start") &&
       request.postDataJSON()?.provider === provider)
   );
-}
-async function holdRequest(page, pattern) {
-  let release, received;
-  const gate = new Promise((resolve) => {
-    release = resolve;
-  });
-  const seen = new Promise((resolve) => {
-    received = resolve;
-  });
-  const running = new Set();
-  const handler = (route) => {
-    const task = (async () => {
-      received();
-      await gate;
-      await route.continue();
-    })();
-    running.add(task);
-    return task.finally(() => running.delete(task));
-  };
-  await page.route(pattern, handler);
-  return {
-    received: seen,
-    release,
-    close: async () => {
-      release();
-      await Promise.all([...running]);
-      await page.unroute(pattern, handler);
-    },
-  };
 }
 async function captureLoadingPreview(page) {
   // Export the actual SVG/CSS in an isolated synthetic context; no grade UI
@@ -287,6 +256,7 @@ async function captureLoadingPreview(page) {
     document.querySelector("#loading-preview").remove(),
   );
 }
+// Gate in the synthetic Worker so service-worker requests are held too.
 async function holdFixture(client, kind) {
   const url = base + "/api/fixture/gate?kind=" + kind;
   await client.post(url, { data: { held: true } });
