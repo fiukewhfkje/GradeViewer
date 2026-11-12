@@ -4,7 +4,7 @@
 - [x] Polish card/navigation edges, timestamp hierarchy, chevrons, row hovers, inputs, menus and dialogs; preserve reduced motion, keyboard focus and existing layouts.
 - [x] Pass full browser suites, focused final motion/layout checks, build, source packaging and isolated template preservation/rollback. Inspect synthetic light/dark/phone/detail captures.
 - [x] Owner accepted the visual revision and authorized only the existing Worker deployment, with no release.
-- [ ] Capture private preflight fingerprints, deploy the accepted source without changing secrets/vault/URL, and verify exact public assets and retained diagnostics.
+- [x] Capture private preflight fingerprints, deploy source `9969d2f` to the owner Worker at 100%, and verify six exact assets, all five preserved bindings, retained diagnostics and locked APIs. No release/main merge.
 
 # CI and release flow — November 12
 
@@ -32,7 +32,7 @@
 - [x] Reuse verified credentials only within an invocation; return saved portal health without another decrypt/status call; preserve full manual verification and existing metadata expiry.
 - [x] Verify Lock, prepared-save recovery, coalescing, one-shot retry claims, lost-response no-retry, independent provider failure, queued 429 suppression, longest cooldowns, empty/malformed responses and local-edit preservation.
 - [x] Pass build/type check, 336 tests, both 41-flow browser suites, Worker dry-run, 117-file packaging and isolated template preservation/rollback checks.
-- [ ] Instrument the owner's deployment after separate deployment authorization; no live-speed or physical-device guarantee is inferred from synthetic measurements.
+- [ ] Measure actual owner refresh latency on the newly deployed development build with a separately scoped live check; synthetic results do not establish a device latency guarantee.
 
 # Grade refresh optimizations — November 12
 

@@ -1,3 +1,11 @@
+# Owner deployment verification — November 12, 2026
+
+Accepted dev source **`9969d2f`** deployed to the original `gradeviewer` Worker as **`1eeb2e93-9f5b-42cc-aa8e-6d8e0abc916b`**. The deployment API confirms **100% traffic**. At **18:48:56.529 UTC**, all six public asset hashes match the clean production build; all five binding fingerprints match preflight; vault and secret bindings are preserved; saved IC/Carmen diagnostic identities/counters are retained; anonymous APIs remain locked. The existing deployment helper used the explicit original account/Worker, `--keep-vars` and `--strict`, with password-upload variables unset. Fresh build/type check and production dry-run passed before upload.
+
+The verifier reads Cloudflare metadata, public assets, anonymous lock state and only the two allowed private diagnostic GETs through the guarded utility. It performs no provider/grade reads or Browser Run launches. Enrolled-account functionality and real refresh latency were not claimed from these checks. Private before/after receipts are outside Git in the documented DeploymentChecks directory. The local synthetic suites/template checks and measured before/middle/after refresh and CI reports above remain their separate evidence.
+
+Remote main remains `3f035ff`, and latest stable remains v0.2.4 with the original November 11 publication time. No release, tag, main merge or other installation update was performed. The source remains on `codex/grade-refresh-optimizations`; the post-deployment commit records this receipt only.
+
 # Final idle icon and polish validation — November 12, 2026
 
 The open two-arrow idle SVG and rounded refresh control retain the same real-work busy state and disabled/accessibility semantics. Production build/type check passes. Both complete 42-flow Chromium/WebKit suites passed for the polish; subsequent six-flow layout/appearance/disclosure/navigation/loader runs and final two-flow idle/loader runs passed in both engines after the card-edge and final glyph refinements. The isolated source template passes build/unit/dry-run, update-fixture/configuration-secret retention and rollback; all 118 source files package locally, and formatting passes.
