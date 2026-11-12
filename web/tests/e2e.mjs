@@ -5,7 +5,6 @@ import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { mkdir, rm, readFile, writeFile } from "node:fs/promises";
 const port = 8901,
   base = `https://localhost:${port}`,
@@ -13,6 +12,22 @@ const port = 8901,
   directory =
     engine === "webkit" ? ".local-test/e2e-webkit" : ".local-test/e2e";
 assert.ok(["chromium", "webkit"].includes(engine));
+const profile = process.env.GRADEVIEWER_E2E_PROFILE ?? "full";
+assert.ok(["full", "platform"].includes(profile));
+// Shared business/provider paths run in the complete Chromium suite and unit
+// tests. Safari keeps forms, touch, cache, updates, sessions and cross-tab state.
+// Exact exclusions make new tests opt in to both engines automatically.
+const sharedChecks = new Set([
+  "private API and security headers", // Node fetch, independent of browser.
+  "direct Add Grade, extra credit and removal",
+  "period scopes and named ungraded rows",
+  "Settings update check reports current version and offline state",
+  "official release pending, stalled and unavailable states",
+  "failed credential replacement retains current connection and local data",
+  "Carmen experiment switches LMS views without losing sessions, grades or diagnostics",
+  "Carmen standalone connection, GPA, expiry, reconnect, and independent Schoology removal",
+]);
+let omitted = 0;
 // Secure host cookies must be tested over HTTPS: WebKit correctly rejects
 // __Host- cookies over plain HTTP, including the localhost exception in Chromium.
 // This CA is confined to this synthetic loopback test process and its children.
@@ -179,6 +194,11 @@ async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
   if (filter && !filter.split(",").some((part) => name.includes(part.trim())))
     return;
+  if (engine === "webkit" && profile === "platform" && sharedChecks.has(name)) {
+    omitted++;
+    console.log(`COVERED IN CHROMIUM + UNIT: ${name}`);
+    return;
+  }
   let timer;
   const started = performance.now();
   try {
@@ -290,11 +310,9 @@ try {
     engine === "webkit"
       ? await webkit.launch()
       : await chromium.launch({
-          executablePath:
-            process.env.CHROMIUM_PATH ??
-            (existsSync("/usr/bin/chromium")
-              ? "/usr/bin/chromium"
-              : chromium.executablePath()),
+          // Let Playwright choose its matching headless binary. An explicit
+          // system-browser override remains available for local environments.
+          executablePath: process.env.CHROMIUM_PATH || undefined,
           args: [
             "--no-sandbox",
             "--disable-dev-shm-usage",
@@ -3702,6 +3720,16 @@ try {
     },
   );
   assert.deepEqual(errors, []);
+  if (
+    engine === "webkit" &&
+    profile === "platform" &&
+    !process.env.GRADEVIEWER_E2E_CHECK
+  )
+    assert.equal(
+      omitted,
+      sharedChecks.size,
+      "Browser coverage exclusions must match actual checks",
+    );
   console.log(`Completed ${completed} browser/integration checks.`);
 } catch (e) {
   console.error(e);

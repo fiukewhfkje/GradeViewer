@@ -21,11 +21,12 @@ jobs:
         browser: [chromium, webkit]
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      image: ${{ matrix.browser == 'webkit' && 'mcr.microsoft.com/playwright:v1.64.1-noble' || '' }}
       options: --ipc=host --init
     timeout-minutes: 10
     env:
       GRADEVIEWER_BROWSER: ${{ matrix.browser }}
+      GRADEVIEWER_E2E_PROFILE: ${{ matrix.browser == 'webkit' && 'platform' || 'full' }}
     defaults:
       run:
         working-directory: web
@@ -38,7 +39,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci --no-audit --no-fund
       - name: Check preinstalled browser compatibility
+        if: matrix.browser == 'webkit'
         run: node -e "if(require('playwright-core/package.json').version !== '1.64.1') throw new Error('Update the Playwright CI image to match package-lock.json')"
+      - name: Install locked Chromium headless shell
+        if: matrix.browser == 'chromium'
+        run: node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium
       - name: Build, unit and browser checks
         if: matrix.browser == 'chromium'
         run: |
