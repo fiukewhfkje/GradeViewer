@@ -44,16 +44,16 @@ jobs:
       - name: Build, unit and browser checks
         if: matrix.browser == 'chromium'
         run: |
-          npm test &
-          unit_pid=$!
           node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium &
           browser_pid=$!
           result=0
           npm run build || result=1
           wait "$browser_pid" || result=1
-          wait "$unit_pid" || result=1
           if [ "$result" -eq 0 ]; then
+            npm test &
+            unit_pid=$!
             npm run test:e2e:ci || result=1
+            wait "$unit_pid" || result=1
           fi
           exit "$result"
       - run: npm run build
