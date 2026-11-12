@@ -20,9 +20,6 @@ jobs:
       matrix:
         browser: [chromium, webkit]
     runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v1.64.1-noble
-      options: --ipc=host --init
     timeout-minutes: 10
     env:
       GRADEVIEWER_BROWSER: ${{ matrix.browser }}
@@ -36,9 +33,9 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - name: Check preinstalled browser compatibility
-        run: node -e "if(require('playwright-core/package.json').version !== '1.64.1') throw new Error('Update the Playwright CI image to match package-lock.json')"
+      - run: npm ci --no-audit --no-fund
+      - name: Install the locked browser and its system dependencies
+        run: node node_modules/playwright-core/cli.js install --with-deps "${GRADEVIEWER_BROWSER}"
       - run: npm run build
       - run: npm test
         if: matrix.browser == 'chromium'
@@ -65,7 +62,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci && npm run release:package
+      - run: npm run release:package
         working-directory: web
       - uses: actions/attest-build-provenance@v3
         id: provenance
@@ -94,7 +91,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci && npm run build && npm run release:package
+      # Both browser jobs already built/type-checked this exact tagged source.
+      # The published artifact contains source, and packaging uses only Node.
+      - run: npm run release:package
         working-directory: web
       - uses: actions/attest-build-provenance@v3
         id: provenance

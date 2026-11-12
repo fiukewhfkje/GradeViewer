@@ -319,6 +319,9 @@ try {
       ignoreHTTPSErrors: true,
       isMobile: true,
       hasTouch: true,
+      // Functional flows need final states. Dedicated contexts above/below
+      // exercise full motion, interruption and device/user preference changes.
+      reducedMotion: "reduce",
     }),
     page = await context.newPage(),
     errors = [];

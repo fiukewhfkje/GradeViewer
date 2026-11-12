@@ -62,13 +62,17 @@ describe("read-only provider transport", () => {
     expect(retryAfterSeconds("invalid", now)).toBe(60);
     expect(retryAfterSeconds(null, now)).toBe(60);
   });
-  it.each([
-    "http://api.schoology.com/v1/users/me",
-    "https://evil.test/v1/users/me",
-    "https://api.schoology.com/v1/users/me#secret",
-    "https://api.schoology.com/v1/users/me?url=bad",
-    "https://api.schoology.com/v1/users/me?limit=10000",
-  ])("rejects unsafe URL %s", (url) => expect(() => safeURL(url)).toThrow());
+  it("rejects unsafe provider URLs", () => {
+    for (const url of [
+      "http://api.schoology.com/v1/users/me",
+      "https://evil.test/v1/users/me",
+      "https://api.schoology.com/v1/users/me#secret",
+      "https://api.schoology.com/v1/users/me?url=bad",
+      "https://api.schoology.com/v1/users/me?limit=10000",
+    ]) {
+      expect(() => safeURL(url)).toThrow();
+    }
+  });
   it("re-signs owner redirects and sends only GET", async () => {
     const headers: string[] = [];
     let calls = 0;

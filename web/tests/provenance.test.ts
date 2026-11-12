@@ -46,19 +46,18 @@ describe("official release provenance policy", () => {
         verifyProvenance(manifest(), Buffer.from("{}"), "0.1.0", () => result),
       ).rejects.toThrow("verification failed");
   });
-  it.each([
-    { schema: 1 },
-    { verification: "untrusted" },
-    { version: "0.2.0" },
-    { sourceCommit: "main" },
-  ])(
-    "rejects unsupported provenance before invoking a verifier: %j",
-    async (change) => {
+  it("rejects unsupported provenance before invoking a verifier", async () => {
+    for (const change of [
+      { schema: 1 },
+      { verification: "untrusted" },
+      { version: "0.2.0" },
+      { sourceCommit: "main" },
+    ]) {
       await expect(
         verifyProvenance(manifest(change), Buffer.from("{}"), "0.1.0", () => {
           throw new Error("must not run");
         }),
       ).rejects.toThrow("Unsupported release provenance");
-    },
-  );
+    }
+  });
 });

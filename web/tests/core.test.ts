@@ -171,17 +171,21 @@ describe("native calculator rules", () => {
     ];
     expect(calculate(c)).toBe(50);
   });
-  it.each(["unknown", "missingCategory", "missingPoints", "badMultiplier"])(
-    "rejects %s instead of guessing",
-    (kind) => {
+  it("rejects unsupported calculator inputs instead of guessing", () => {
+    for (const kind of [
+      "unknown",
+      "missingCategory",
+      "missingPoints",
+      "badMultiplier",
+    ]) {
       const c = source();
       if (kind === "unknown") c.method = "unknown";
       if (kind === "missingCategory") c.method = "equalCategories";
       if (kind === "missingPoints") c.assignments[0].score.possible = undefined;
       if (kind === "badMultiplier") c.assignments[0].multiplier = 0;
       expect(() => calculate(c)).toThrow();
-    },
-  );
+    }
+  });
   it("excludes excused, dropped and explicitly excluded assignments", () => {
     const c = source([
       score(80),
@@ -214,15 +218,19 @@ describe("native calculator rules", () => {
     expect(requiredFinal(80, 90, 0.2)).toBe(130);
     expect(() => requiredFinal(80, 90, 0)).toThrow();
   });
-  it.each([
-    ["-1.25", -1.25],
-    ["105.5", 105.5],
-    [".5", 0.5],
-    ["1,25", 1.25],
-    ["−3", -3],
-    ["Infinity", undefined],
-    ["", undefined],
-  ])("parses score %s", (s, n) => expect(scoreInput(String(s))).toBe(n));
+  it("parses signed decimal and invalid score inputs", () => {
+    for (const [s, n] of [
+      ["-1.25", -1.25],
+      ["105.5", 105.5],
+      [".5", 0.5],
+      ["1,25", 1.25],
+      ["−3", -3],
+      ["Infinity", undefined],
+      ["", undefined],
+    ]) {
+      expect(scoreInput(String(s))).toBe(n);
+    }
+  });
 });
 describe("unavailable scenarios", () => {
   it("withholds a total when every graded assignment is dropped", () => {
@@ -249,9 +257,8 @@ describe("Schoology parsing and replacement", () => {
     return p;
   }
 
-  it.each([undefined, 0])(
-    "uses straight points when weighting is off, category weights are %s and there is no reported quarter",
-    (weight) => {
+  it("uses straight points with absent or zero category weights", () => {
+    for (const weight of [undefined, 0]) {
       const p = pointsComparison(null);
       for (const category of p.categories) {
         category.weight = weight;
@@ -267,8 +274,8 @@ describe("Schoology parsing and replacement", () => {
         scores: { [c.assignments[1].id]: 60 },
       };
       expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
-    },
-  );
+    }
+  });
 
   it("preserves explicit category calculation rules when weights are zero", () => {
     const p = pointsComparison(null);
@@ -414,15 +421,14 @@ describe("Schoology parsing and replacement", () => {
   });
 });
 describe("native periods and estimates", () => {
-  it.each([undefined, 64, 0, 115])(
-    "recovers missing quarter with exam %s",
-    (exam) => {
+  it("recovers a missing quarter across exam states", () => {
+    for (const exam of [undefined, 64, 0, 115]) {
       const p = periods(exam),
         e = estimateQuarter(p[1], p);
       expect(e?.percent).toBeCloseTo(70);
       expect(e?.blankExam).toBe(exam === undefined);
-    },
-  );
+    }
+  });
   it("limits precision for rounded and amplified inputs", () => {
     let p = periods(undefined, 45, 45, 10);
     p[0].grade.percent = 93.97;
@@ -435,22 +441,24 @@ describe("native periods and estimates", () => {
     p = periods(undefined, 99, 1, 0);
     expect(estimateQuarter(p[1], p)).toBeUndefined();
   });
-  it.each([
-    "overlap",
-    "missingWeight",
-    "override",
-    "letter",
-    "unknownExam",
-    "noTitle",
-  ])("withholds unsafe estimate %s", (kind) => {
-    const p = periods();
-    if (kind === "overlap") p.push({ ...p[2], id: "another-semester" });
-    if (kind === "missingWeight") p[1].term.weight = undefined;
-    if (kind === "override") p[2].fields.overall_override = "true";
-    if (kind === "letter") p[1].grade.letter = "P";
-    if (kind === "unknownExam") p[3].grade.letter = "P";
-    if (kind === "noTitle") p[1].assignments = [];
-    expect(estimateQuarter(p[1], p)).toBeUndefined();
+  it("withholds unsafe quarter estimates", () => {
+    for (const kind of [
+      "overlap",
+      "missingWeight",
+      "override",
+      "letter",
+      "unknownExam",
+      "noTitle",
+    ]) {
+      const p = periods();
+      if (kind === "overlap") p.push({ ...p[2], id: "another-semester" });
+      if (kind === "missingWeight") p[1].term.weight = undefined;
+      if (kind === "override") p[2].fields.overall_override = "true";
+      if (kind === "letter") p[1].grade.letter = "P";
+      if (kind === "unknownExam") p[3].grade.letter = "P";
+      if (kind === "noTitle") p[1].assignments = [];
+      expect(estimateQuarter(p[1], p)).toBeUndefined();
+    }
   });
   it("replaces estimates with actual totals without changing inputs", () => {
     const p = periods(),
@@ -480,20 +488,21 @@ describe("native periods and estimates", () => {
   });
 });
 describe("native progression regressions", () => {
-  it.each([
-    ["semester", "Semester"],
-    ["quarter", "Quarter"],
-  ])("labels an explicitly typed %s with no ordinal", (kind, label) => {
-    const c = source([]);
-    c.term.name = "Final";
-    c.fields.period_kind = kind;
-    expect(descriptor(c).label).toBe(label);
-    c.term.name = label + " 2";
-    expect(descriptor(c).label).toBe(label[0] + "2");
+  it("labels explicitly typed terms without ordinals", () => {
+    for (const [kind, label] of [
+      ["semester", "Semester"],
+      ["quarter", "Quarter"],
+    ]) {
+      const c = source([]);
+      c.term.name = "Final";
+      c.fields.period_kind = kind;
+      expect(descriptor(c).label).toBe(label);
+      c.term.name = label + " 2";
+      expect(descriptor(c).label).toBe(label[0] + "2");
+    }
   });
-  it.each([89.991, 89.996, 90.004, 90.009])(
-    "anchors prefix %s in its own interval",
-    (first) => {
+  it("anchors rounded prefixes in their own intervals", () => {
+    for (const first of [89.991, 89.996, 90.004, 90.009]) {
       const c = course(
         source([
           score(first),
@@ -519,8 +528,8 @@ describe("native progression regressions", () => {
         90, 90, 80, 80,
       ]);
       expect(JSON.stringify(c)).toBe(before);
-    },
-  );
+    }
+  });
   it("preserves real hundredth changes and does not propagate large offsets", () => {
     const c = course(
       source([score(90.009), { ...score(69.991, 100, "b"), updated: 2000 }]),
