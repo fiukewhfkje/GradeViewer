@@ -1,0 +1,700 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "kind": "real hosted synthetic verification; no release or deployment",
+  "runs": [
+    {
+      "stage": "before",
+      "id": 43274508084,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43274508084",
+      "sourceCommit": "c744563bc984f8e2fd3a40ce93a46ba63a514a3a",
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T17:55:37Z",
+      "completedAt": "2026-11-12T17:58:16Z",
+      "elapsedIncludingSchedulingSeconds": 159.0,
+      "jobs": [
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "seconds": 140.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 32.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run npm ci",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 92.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "seconds": 154.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 31.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3.0
+            },
+            {
+              "name": "Run npm ci",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "success",
+              "seconds": 8.0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 94.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        }
+      ],
+      "longestVerificationJobSeconds": 154.0
+    },
+    {
+      "stage": "rejected-native-runner-experiment",
+      "id": 43275194446,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43275194446",
+      "sourceCommit": "3e3c8f9153ae2e9868d572faedfd7f0ef2f43100",
+      "event": "workflow_dispatch",
+      "conclusion": "failure",
+      "createdAt": "2026-11-12T17:59:46Z",
+      "completedAt": "2026-11-12T18:02:20Z",
+      "elapsedIncludingSchedulingSeconds": 154.0,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "failure",
+          "seconds": 150.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5.0
+            },
+            {
+              "name": "Install the locked browser and its system dependencies",
+              "conclusion": "success",
+              "seconds": 21.0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 7.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "success",
+              "seconds": 8.0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "failure",
+              "seconds": 101.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "seconds": 131.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5.0
+            },
+            {
+              "name": "Install the locked browser and its system dependencies",
+              "conclusion": "success",
+              "seconds": 39.0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 5.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 73.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3.0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        }
+      ],
+      "longestVerificationJobSeconds": 150.0,
+      "rejectionReason": "Native Chromium target crashed; full verification failed. Container configuration restored; this run is excluded from accepted performance claims."
+    },
+    {
+      "stage": "middle-with-sequential-unit-checks",
+      "id": 43276324746,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43276324746",
+      "sourceCommit": "4b7acdd5ce38b985a1c82a11d3c57570823977d0",
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T18:06:12Z",
+      "completedAt": "2026-11-12T18:08:29Z",
+      "elapsedIncludingSchedulingSeconds": 137.0,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "seconds": 133.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 35.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 3.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 7.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "success",
+              "seconds": 8.0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 65.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "seconds": 104.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 32.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Run npm test",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 56.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        }
+      ],
+      "longestVerificationJobSeconds": 133.0
+    },
+    {
+      "stage": "after",
+      "id": 43277337084,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43277337084",
+      "sourceCommit": "dd443dae5b2f3bcdc120bc8aa3a39839ae34fcb2",
+      "event": "workflow_dispatch",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T18:12:03Z",
+      "completedAt": "2026-11-12T18:14:12Z",
+      "elapsedIncludingSchedulingSeconds": 129.0,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "seconds": 124.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 25.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 81.0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "seconds": 108.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 32.0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4.0
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 5.0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 58.0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        }
+      ],
+      "longestVerificationJobSeconds": 124.0
+    }
+  ]
+}

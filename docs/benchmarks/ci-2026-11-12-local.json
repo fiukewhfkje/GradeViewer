@@ -1,0 +1,191 @@
+{
+  "schema": 1,
+  "date": "2026-11-12",
+  "kind": "local synthetic tooling benchmark",
+  "node": "26.7.0",
+  "sourceBefore": "c744563",
+  "sourceAfter": "3e3c8f9",
+  "method": "One discarded warm-up and three measured samples; same commands, machine and locked dependencies. Packaging uses a frozen c744563 source copy for both paths.",
+  "units": {
+    "before": {
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 7078.33925,
+          "tests": 336
+        },
+        {
+          "warmup": false,
+          "ms": 6773.132708,
+          "tests": 336
+        },
+        {
+          "warmup": false,
+          "ms": 6864.382375000001,
+          "tests": 336
+        },
+        {
+          "warmup": false,
+          "ms": 6831.733,
+          "tests": 336
+        }
+      ],
+      "medianMs": 6831.733,
+      "fileCaseCounts": {
+        "assignment-score.test.ts": 5,
+        "cache-access.test.ts": 3,
+        "campus.test.ts": 41,
+        "canvas.test.ts": 40,
+        "carmen-benchmark.test.ts": 11,
+        "carmen-browser-budget.test.ts": 10,
+        "carmen-login-lab.test.ts": 18,
+        "carmen-session.test.ts": 11,
+        "combined-refresh.test.ts": 16,
+        "copy-readme.test.ts": 5,
+        "core.test.ts": 62,
+        "deploy.test.ts": 4,
+        "gpa.test.ts": 5,
+        "graph.test.ts": 9,
+        "portal-refresh-performance.test.ts": 4,
+        "provenance.test.ts": 6,
+        "refresh-retry.test.ts": 3,
+        "refresh.test.ts": 19,
+        "release-check.test.ts": 4,
+        "releases.test.ts": 10,
+        "request-pool.test.ts": 2,
+        "security.test.ts": 25,
+        "updater.test.ts": 14,
+        "updates.test.ts": 9
+      }
+    },
+    "after": {
+      "samples": [
+        {
+          "warmup": true,
+          "ms": 6942.804542,
+          "tests": 284
+        },
+        {
+          "warmup": false,
+          "ms": 6951.465334,
+          "tests": 284
+        },
+        {
+          "warmup": false,
+          "ms": 6970.360084,
+          "tests": 284
+        },
+        {
+          "warmup": false,
+          "ms": 6782.312583000003,
+          "tests": 284
+        }
+      ],
+      "medianMs": 6951.465334,
+      "fileCaseCounts": {
+        "assignment-score.test.ts": 5,
+        "cache-access.test.ts": 3,
+        "campus.test.ts": 29,
+        "canvas.test.ts": 35,
+        "carmen-benchmark.test.ts": 11,
+        "carmen-browser-budget.test.ts": 10,
+        "carmen-login-lab.test.ts": 18,
+        "carmen-session.test.ts": 11,
+        "combined-refresh.test.ts": 16,
+        "copy-readme.test.ts": 5,
+        "core.test.ts": 40,
+        "deploy.test.ts": 4,
+        "gpa.test.ts": 5,
+        "graph.test.ts": 9,
+        "portal-refresh-performance.test.ts": 4,
+        "provenance.test.ts": 3,
+        "refresh-retry.test.ts": 3,
+        "refresh.test.ts": 19,
+        "release-check.test.ts": 4,
+        "releases.test.ts": 4,
+        "request-pool.test.ts": 2,
+        "security.test.ts": 21,
+        "updater.test.ts": 14,
+        "updates.test.ts": 9
+      }
+    },
+    "assertionRetention": {
+      "files": [
+        "core",
+        "campus",
+        "canvas",
+        "security",
+        "provenance",
+        "releases"
+      ],
+      "expectCallLocationsBefore": 418,
+      "expectCallLocationsAfter": 418,
+      "tableInputVariants": "All retained, including Vitest nested-row argument expansion.",
+      "namedCasesBefore": 336,
+      "namedCasesAfter": 284
+    }
+  },
+  "releasePreparation": {
+    "source": "c744563",
+    "samples": [
+      {
+        "stage": "before",
+        "warmup": true,
+        "ms": 7810.919667,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "after",
+        "warmup": true,
+        "ms": 233.36166699999922,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "before",
+        "warmup": false,
+        "ms": 6947.844583,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "after",
+        "warmup": false,
+        "ms": 205.74691600000006,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "before",
+        "warmup": false,
+        "ms": 7488.07375,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "after",
+        "warmup": false,
+        "ms": 210.1598329999979,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "before",
+        "warmup": false,
+        "ms": 7002.683125,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      },
+      {
+        "stage": "after",
+        "warmup": false,
+        "ms": 206.35487499999726,
+        "archiveSha256": "dad81862f7965fd85533d606f3d55a51f114a3e98f5c3e3419ec5c2cd7517cf9"
+      }
+    ],
+    "commandsBefore": [
+      "npm ci",
+      "npm run build",
+      "npm run release:package"
+    ],
+    "commandsAfter": [
+      "npm run release:package"
+    ],
+    "afterHasNodeModules": false,
+    "node24DependencyFreeCheck": "Passed in the isolated copy using npm exec --package=node@24."
+  }
+}

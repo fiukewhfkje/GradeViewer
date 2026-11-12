@@ -1,3 +1,13 @@
+# CI and release flow — November 12
+
+- [x] Benchmark the original, intermediate and final hosted verification runs with step timings; preserve the rejected native-runner trial separately.
+- [x] Reduce named unit checks from 336 to 284 by consolidating related input variants, preserving every assertion/input and meaningful regression boundary.
+- [x] Keep all 42 flows in both browsers, retain dedicated full-motion contexts and replace synthetic sign-in timer waits with a service-worker-safe Worker barrier.
+- [x] Overlap independent checks with failure propagation; eliminate repeated dependency installs/builds from source packaging and retain exact-tag/provenance gates.
+- [x] Measure 154 → 124 seconds for verification and 7.003 → 0.206 seconds for identical source preparation; verify Node 24 packaging without dependencies.
+- [x] Pass build, unit checks, both local browser suites, final hosted CI, Worker dry-run, 118-file local packaging and formatting. Do not deploy or publish.
+- [ ] Finish the owner's additional idle reload-icon redesign and general visual polish, then refresh the synthetic localhost preview.
+
 # Loading and motion polish — November 12
 
 - [x] Add the shared orbit loader, gesture-driven pull arc and truthful real-work busy state without provider changes or idle loops.
