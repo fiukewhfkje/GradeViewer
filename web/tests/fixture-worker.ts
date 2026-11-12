@@ -80,7 +80,7 @@ export class FixtureVault extends CredentialVault {
     const path = new URL(request.url).pathname;
     if (path === "/api/fixture/gate") {
       const kind = new URL(request.url).searchParams.get("kind") ?? "provider";
-      if (!["provider", "status", "scan"].includes(kind))
+      if (!["provider", "status", "scan", "portal-progress"].includes(kind))
         return Response.json({}, { status: 400 });
       if (request.method === "POST") {
         const { held } = (await request.json()) as { held: boolean };
@@ -123,6 +123,8 @@ export class FixtureVault extends CredentialVault {
         { status: 503 },
       );
     if (path === "/api/scan/start") await this.waitForGate("scan");
+    if (/^\/api\/(campus|carmen)\/progress$/.test(path))
+      await this.waitForGate("portal-progress");
     if (
       path === "/api/scan/start" &&
       (await this.fixtureState.storage.get("synthetic-scan-limit"))

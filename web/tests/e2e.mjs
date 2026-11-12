@@ -148,15 +148,32 @@ async function setTheme(page, theme) {
   const toggle = page.getByRole("switch", { name: "Dark mode", exact: true });
   if ((await toggle.isChecked()) !== (theme === "dark")) await toggle.click();
 }
-async function completeCarmenSignIn(page, client) {
-  await page
-    .getByRole("link", { name: "Open CarmenCanvas", exact: true })
-    .click();
-  await client.post(base + "/api/fixture/carmen", { data: { signedIn: true } });
-  await page
-    .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
-    .waitFor();
-  await page.waitForFunction(() => !document.querySelector(".portal-progress"));
+async function completeCarmenSignIn(page, client, reconnect = false) {
+  const progress = await holdFixture(client, "portal-progress");
+  try {
+    await page
+      .getByRole("button", {
+        name: reconnect ? "Reconnect CarmenCanvas" : "Connect CarmenCanvas",
+        exact: true,
+      })
+      .click();
+    await progress.received();
+    await page
+      .getByRole("link", { name: "Open CarmenCanvas", exact: true })
+      .click();
+    await client.post(base + "/api/fixture/carmen", {
+      data: { signedIn: true },
+    });
+    await progress.release();
+    await page
+      .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
+      .waitFor();
+    await page.waitForFunction(
+      () => !document.querySelector(".portal-progress"),
+    );
+  } finally {
+    await progress.close();
+  }
 }
 async function check(name, run) {
   const filter = process.env.GRADEVIEWER_E2E_CHECK;
@@ -2597,9 +2614,10 @@ try {
       await context.request.post(base + "/api/fixture/campus", {
         data: { startLimited: false },
       });
-      let progress = await holdRequest(page, "**/api/campus/progress");
+      let progress = await holdFixture(context.request, "portal-progress");
       try {
         await connect.click();
+        await progress.received();
         await openSignIn.waitFor();
         assert.equal(
           await page.locator("body").getAttribute("data-campus-popup"),
@@ -2621,7 +2639,7 @@ try {
         await context.request.post(base + "/api/fixture/campus", {
           data: { signedIn: true },
         });
-        progress.release();
+        await progress.release();
         await page
           .getByRole("heading", { name: "Choose your classes", exact: true })
           .waitFor();
@@ -2756,7 +2774,7 @@ try {
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();
-      progress = await holdRequest(page, "**/api/campus/progress");
+      progress = await holdFixture(context.request, "portal-progress");
       try {
         await page
           .getByRole("button", { name: "Settings", exact: true })
@@ -2771,13 +2789,14 @@ try {
             exact: true,
           })
           .click();
+        await progress.received();
         await openSignIn.click();
         const signedIn = await context.request.post(
           base + "/api/fixture/portal-window?provider=campus",
           { headers: { Origin: base } },
         );
         assert.equal(signedIn.ok(), true);
-        progress.release();
+        await progress.release();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
           .locator('[data-health="connected"]')
@@ -2829,9 +2848,6 @@ try {
         name: "Copy compatibility report",
       });
       assert.equal(await copyReport.isEnabled(), false);
-      await page
-        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
-        .click();
       await completeCarmenSignIn(page, context.request);
       const otherConnections = page.locator(".connection-heading > strong", {
         hasText: /^(Schoology|Infinite Campus)$/,
@@ -3053,9 +3069,6 @@ try {
         await page.getByLabel("Schoology API key", { exact: true }).count(),
         0,
       );
-      await page
-        .getByRole("button", { name: "Connect CarmenCanvas", exact: true })
-        .click();
       await completeCarmenSignIn(page, context.request);
       await page.screenshot({ path: directory + "/settings-carmen.png" });
       const status = await (
@@ -3113,10 +3126,7 @@ try {
         data: { failure: false },
       });
       await page.getByRole("button", { name: "Settings", exact: true }).click();
-      await page
-        .getByRole("button", { name: "Reconnect CarmenCanvas", exact: true })
-        .click();
-      await completeCarmenSignIn(page, context.request);
+      await completeCarmenSignIn(page, context.request, true);
       assert.equal(
         (await (await context.request.get(base + "/api/status")).json())
           .account,
