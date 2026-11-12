@@ -1,5 +1,7 @@
 # CI and release preparation measurements — November 12, 2026
 
+This is the first CI pass. The later [follow-up report](FURTHER_PERFORMANCE_REPORT.md) records native locked browsers, focused WebKit coverage, isolated browser-check overlap and a fresh deployed-code baseline. The figures and container decision below remain the historical measurements for this first pass.
+
 This pass changes development verification and source packaging. It does not change provider traffic, publish a release or deploy a Worker. The loading/motion preview is separate and remains available on synthetic localhost.
 
 ## Changes retained

@@ -1,0 +1,1327 @@
+{
+  "method": "Actual GitHub Actions workflow dispatches on the same development branch; local synthetic Workers, no live provider requests. Runner/pull/setup variability retained. No publication jobs run.",
+  "runs": [
+    {
+      "stage": "Fresh deployed-code baseline",
+      "runId": 43286371588,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43286371588",
+      "source": "5a52b6b991ca9fbf93369486023616d964de85fa",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T19:04:25Z",
+      "updatedAt": "2026-11-12T19:06:21Z",
+      "dispatchSeconds": 116,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:04:29Z",
+          "completedAt": "2026-11-12T19:06:20Z",
+          "seconds": 111,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 21
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 6
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 67
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:04:28Z",
+          "completedAt": "2026-11-12T19:06:19Z",
+          "seconds": 111,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 32
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 61
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:04:27Z",
+          "completedAt": "2026-11-12T19:04:26Z",
+          "seconds": -1,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:06:21Z",
+          "completedAt": "2026-11-12T19:06:20Z",
+          "seconds": -1,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "Chromium native plus WebKit container with platform coverage",
+      "runId": 43292441203,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43292441203",
+      "source": "cdb216eecfe16446507b431e3ae9bdc80d7bfcc4",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T19:39:45Z",
+      "updatedAt": "2026-11-12T19:41:53Z",
+      "dispatchSeconds": 128,
+      "jobs": [
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:39:49Z",
+          "completedAt": "2026-11-12T19:41:53Z",
+          "seconds": 124,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 21
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 9
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 8
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 71
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:39:49Z",
+          "completedAt": "2026-11-12T19:41:13Z",
+          "seconds": 84,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Check preinstalled browser compatibility",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "success",
+              "seconds": 15
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 54
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:39:47Z",
+          "completedAt": "2026-11-12T19:39:47Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:41:53Z",
+          "completedAt": "2026-11-12T19:41:53Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "Both browsers native",
+      "runId": 43293399742,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43293399742",
+      "source": "77a761466396d80bba6383a768b8c69c4693a528",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T19:45:22Z",
+      "updatedAt": "2026-11-12T19:47:02Z",
+      "dispatchSeconds": 100,
+      "jobs": [
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:45:26Z",
+          "completedAt": "2026-11-12T19:47:02Z",
+          "seconds": 96,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "success",
+              "seconds": 28
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 52
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:45:26Z",
+          "completedAt": "2026-11-12T19:46:54Z",
+          "seconds": 88,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "success",
+              "seconds": 12
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 64
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:45:24Z",
+          "completedAt": "2026-11-12T19:45:24Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:47:02Z",
+          "completedAt": "2026-11-12T19:47:02Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "Representative screenshots, sequential browsers",
+      "runId": 43293735912,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43293735912",
+      "source": "5dbdf7668f91257c308056207f546d1034cba052",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T19:47:21Z",
+      "updatedAt": "2026-11-12T19:49:21Z",
+      "dispatchSeconds": 120,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:47:24Z",
+          "completedAt": "2026-11-12T19:48:52Z",
+          "seconds": 88,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "success",
+              "seconds": 13
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 63
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:47:24Z",
+          "completedAt": "2026-11-12T19:49:20Z",
+          "seconds": 116,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "success",
+              "seconds": 31
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 7
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 67
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:47:22Z",
+          "completedAt": "2026-11-12T19:47:22Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:49:20Z",
+          "completedAt": "2026-11-12T19:49:20Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "Both native, overlapping motion/functional checks (WebKit installation outlier)",
+      "runId": 43294843774,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43294843774",
+      "source": "3c5304534491bea5f80b0af68105e60043675bbe",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T19:53:58Z",
+      "updatedAt": "2026-11-12T19:57:02Z",
+      "dispatchSeconds": 184,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:54:01Z",
+          "completedAt": "2026-11-12T19:55:19Z",
+          "seconds": 78,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "success",
+              "seconds": 14
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 50
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e:ci",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T19:54:02Z",
+          "completedAt": "2026-11-12T19:57:01Z",
+          "seconds": 179,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 6
+            },
+            {
+              "name": "Install locked Chromium headless shell",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Install locked WebKit",
+              "conclusion": "success",
+              "seconds": 88
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 8
+            },
+            {
+              "name": "Run npm run test:e2e:ci",
+              "conclusion": "success",
+              "seconds": 67
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:54:00Z",
+          "completedAt": "2026-11-12T19:53:59Z",
+          "seconds": -1,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T19:57:02Z",
+          "completedAt": "2026-11-12T19:57:01Z",
+          "seconds": -1,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "WebKit container and sequential checks, rejected early unit/browser setup race",
+      "runId": 43297638994,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43297638994",
+      "source": "5351908f67ce1d1df4bcb38bfefb439beb3eb0e5",
+      "conclusion": "failure",
+      "createdAt": "2026-11-12T20:10:32Z",
+      "updatedAt": "2026-11-12T20:12:34Z",
+      "dispatchSeconds": 122,
+      "jobs": [
+        {
+          "name": "verify (chromium)",
+          "conclusion": "failure",
+          "startedAt": "2026-11-12T20:10:36Z",
+          "completedAt": "2026-11-12T20:11:03Z",
+          "seconds": 27,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Check preinstalled WebKit compatibility",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "failure",
+              "seconds": 15
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T20:10:36Z",
+          "completedAt": "2026-11-12T20:12:34Z",
+          "seconds": 118,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 20
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 5
+            },
+            {
+              "name": "Check preinstalled WebKit compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 7
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 73
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T20:10:34Z",
+          "completedAt": "2026-11-12T20:10:33Z",
+          "seconds": -1,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T20:12:34Z",
+          "completedAt": "2026-11-12T20:12:34Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ]
+    },
+    {
+      "stage": "Accepted: native Chromium with isolated groups and install/build overlap; sequential platform WebKit in pinned container; reversible Schoology visibility included",
+      "runId": 43298124887,
+      "url": "https://github.com/fiukewhfkje/GradeViewer/actions/runs/43298124887",
+      "source": "69211f5d7e5ee287f93a39b2fdc27fd9fab4247e",
+      "conclusion": "success",
+      "createdAt": "2026-11-12T20:13:25Z",
+      "updatedAt": "2026-11-12T20:15:28Z",
+      "dispatchSeconds": 123,
+      "jobs": [
+        {
+          "name": "verify (webkit)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T20:13:28Z",
+          "completedAt": "2026-11-12T20:15:28Z",
+          "seconds": 120,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Initialize containers",
+              "conclusion": "success",
+              "seconds": 20
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 3
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Check preinstalled WebKit compatibility",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "success",
+              "seconds": 8
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "success",
+              "seconds": 74
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Stop containers",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "verify (chromium)",
+          "conclusion": "success",
+          "startedAt": "2026-11-12T20:13:28Z",
+          "completedAt": "2026-11-12T20:14:44Z",
+          "seconds": 76,
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 2
+            },
+            {
+              "name": "Run npm ci --no-audit --no-fund",
+              "conclusion": "success",
+              "seconds": 4
+            },
+            {
+              "name": "Check preinstalled WebKit compatibility",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Build, unit and browser checks",
+              "conclusion": "success",
+              "seconds": 63
+            },
+            {
+              "name": "Run npm run build",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npm run test:e2e",
+              "conclusion": "skipped",
+              "seconds": 0
+            },
+            {
+              "name": "Run npx wrangler deploy --dry-run --outdir .local-test/production",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Run actions/upload-artifact@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/setup-node@v4",
+              "conclusion": "success",
+              "seconds": 1
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success",
+              "seconds": 0
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success",
+              "seconds": 0
+            }
+          ]
+        },
+        {
+          "name": "release-verification",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T20:13:27Z",
+          "completedAt": "2026-11-12T20:13:26Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "release",
+          "conclusion": "skipped",
+          "startedAt": "2026-11-12T20:15:28Z",
+          "completedAt": "2026-11-12T20:15:28Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ]
+    }
+  ]
+}
