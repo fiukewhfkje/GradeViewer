@@ -12,6 +12,19 @@ export class RequestError extends Error {
     super(code);
   }
 }
+export type ApiResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string; status: number; retryAfter?: number };
+export function resultValue<T>(result: ApiResult<T>, provider?: string): T {
+  if (!result.ok)
+    throw new RequestError(
+      result.error,
+      result.retryAfter,
+      result.status,
+      provider,
+    );
+  return result.value;
+}
 export interface PortalStatus {
   connected: boolean;
   needsReconnect: boolean;

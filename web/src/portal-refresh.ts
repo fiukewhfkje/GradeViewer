@@ -1,18 +1,22 @@
-import { api, type PortalStatus } from "./api";
+import { api, resultValue, type ApiResult, type PortalStatus } from "./api";
 import type { SavedState, SourceCourse } from "./core/model";
 import { reconcile } from "./core/reconcile";
 import * as repository from "./repository";
+export interface PortalSnapshot {
+  account: string;
+  courses: SourceCourse[];
+}
 export async function refreshCampus(
   previous: SavedState,
   status?: PortalStatus,
   provider: "campus" | "carmen" = "campus",
+  prefetched?: ApiResult<PortalSnapshot>,
 ): Promise<SavedState> {
   let courses: SourceCourse[] = [];
   if (status?.connected)
-    ({ courses } = await api<{ account: string; courses: SourceCourse[] }>(
-      provider + "/snapshot",
-      {},
-    ));
+    ({ courses } = prefetched
+      ? resultValue(prefetched, provider)
+      : await api<PortalSnapshot>(provider + "/snapshot", {}));
   const latest = await repository.load(),
     base = latest.account === previous.account ? latest : previous;
   const next = {

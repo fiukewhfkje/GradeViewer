@@ -34,7 +34,12 @@ import {
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
 import type { RefreshRetry } from "./refresh-retry";
-import { readSnapshot } from "./refresh";
+import {
+  beginRefresh,
+  readSnapshot,
+  type RefreshScope,
+  type RefreshStart,
+} from "./refresh";
 import {
   type Course,
   type Assignment,
@@ -297,7 +302,7 @@ export default function App() {
   async function refresh(
     credentials?: { key: string; secret: string },
     manual = false,
-    scope: "active" | "all" | "campus" | "carmen" | "schoology-only" = "active",
+    scope: RefreshScope = "active",
     automaticRetry = false,
   ) {
     if (flight.current) return flight.current;
@@ -308,12 +313,34 @@ export default function App() {
       setBusy(true);
       setError("");
       try {
-        const [s, latest, recovered, access] = await Promise.all([
-          api<Status>("status"),
+        const [latest, recovered, access] = await Promise.all([
           repository.load(),
           repository.pending(),
           repository.access(),
         ]);
+        // Check local Lock and cross-tab coalescing before starting provider work.
+        // The one-shot cooldown retry must claim its allowance after status first.
+        const mayCoalesce =
+          !manual &&
+          latest.courses.length > 0 &&
+          latest.courses.every((c) => c.fetched >= queuedAt);
+        const primaryLms = latest.primaryLms ?? stateRef.current.primaryLms;
+        const target = credentials
+          ? "schoology"
+          : scope === "active"
+            ? primaryLms === "carmen"
+              ? "carmen"
+              : "schoology"
+            : scope;
+        const startup: RefreshStart =
+          credentials ||
+          automaticRetry ||
+          access?.locked ||
+          mayCoalesce ||
+          recovered
+            ? { status: await api<Status>("status") }
+            : await beginRefresh({ ...latest, primaryLms }, manual, scope);
+        const s = startup.status;
         setStatus(s);
         account = s.account;
         if (
@@ -322,6 +349,10 @@ export default function App() {
           (generation !== cacheGeneration.current &&
             (await repository.access())?.locked)
         ) {
+          if (startup.schoology?.ok)
+            await api("scan/cancel", {
+              scan: startup.schoology.value.scan,
+            }).catch(() => {});
           hideCache();
           setStatus({ ...s, authenticated: false });
           await repository.lock();
@@ -400,13 +431,6 @@ export default function App() {
           setFresh(true);
           return;
         }
-        const target = credentials
-          ? "schoology"
-          : scope === "active"
-            ? (latest.primaryLms ?? stateRef.current.primaryLms) === "carmen"
-              ? "carmen"
-              : "schoology"
-            : scope;
         const portalOnly = target === "campus" || target === "carmen";
         let schoologyError: unknown;
         let next = stateRef.current;
@@ -414,12 +438,18 @@ export default function App() {
           next = await readSnapshot(next, { ...s, schoologyConnected: false });
         try {
           if (!portalOnly) {
-            if (s.cooldown && s.cooldown > Date.now())
+            if (!startup.schoology && s.cooldown && s.cooldown > Date.now())
               throw new RequestError(
                 "rateLimited",
                 Math.ceil((s.cooldown - Date.now()) / 1000),
               );
-            next = await readSnapshot(stateRef.current, s, credentials, manual);
+            next = await readSnapshot(
+              stateRef.current,
+              s,
+              credentials,
+              manual,
+              startup.schoology,
+            );
             if (s.account) await repository.finishRetry(s.account, true);
             setRefreshRetry(undefined);
           }
@@ -443,7 +473,12 @@ export default function App() {
             next.courses.some((c) => c.fields.provider === "campus"))
         ) {
           try {
-            next = await refreshCampus(next, portalStatus.portals?.campus);
+            next = await refreshCampus(
+              next,
+              portalStatus.portals?.campus,
+              "campus",
+              startup.campus,
+            );
             apply(next);
           } catch (e) {
             portalFailed = true;
@@ -460,6 +495,7 @@ export default function App() {
               next,
               portalStatus.portals?.carmen,
               "carmen",
+              startup.carmen,
             );
             apply(next);
           } catch (e) {
@@ -485,7 +521,13 @@ export default function App() {
         setCachedUnlocked(true);
         channel.current?.postMessage("saved");
         setStatus({
-          ...(credentials || portalFailed || target === "carmen"
+          ...(credentials ||
+          ((portalFailed || target === "carmen") &&
+            !(target === "carmen"
+              ? startup.carmen
+              : target === "all"
+                ? undefined
+                : startup.campus))
             ? await api<Status>("status")
             : portalStatus),
           connected: true,

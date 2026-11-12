@@ -1,7 +1,7 @@
 import { canvasCourses, canvasDetails, canvasState } from "./canvas-fixture";
 import { PortalService } from "../worker/portal";
 import type { PortalBrowser } from "../worker/portal-browser";
-import { ApiError } from "../worker/provider";
+import { ApiError, type Fetcher } from "../worker/provider";
 import {
   campusSummary,
   campusDetail,
@@ -36,7 +36,10 @@ export class FixtureVault extends CredentialVault {
   ) {
     super(fixtureState, fixtureEnv);
   }
-  protected override portals(kind: "campus" | "carmen" = "campus") {
+  protected override portals(
+    kind: "campus" | "carmen" = "campus",
+    upstream: Fetcher = this.upstream,
+  ) {
     const storage = this.fixtureState.storage;
     class FixturePortal extends PortalService {
       protected override async browser(): Promise<PortalBrowser> {
@@ -69,7 +72,7 @@ export class FixtureVault extends CredentialVault {
       this.fixtureState.storage,
       this.fixtureEnv.APP_PASSWORD,
       undefined,
-      this.upstream,
+      upstream,
       kind,
     );
   }
@@ -96,11 +99,23 @@ export class FixtureVault extends CredentialVault {
     if (path === "/api/fixture/rate-limit" && request.method === "POST") {
       const { enabled } = (await request.json()) as { enabled: boolean };
       await this.fixtureState.storage.put("synthetic-scan-limit", !!enabled);
+      if (!enabled) {
+        // UI time is virtual; the Worker clock is real. Ending this fixture
+        // also ends its artificial cooldown. Worker tests verify real expiry.
+        const vault = await this.fixtureState.storage.get<{ cooldown: number }>(
+          "vault",
+        );
+        if (vault) {
+          vault.cooldown = 0;
+          await this.fixtureState.storage.put("vault", vault);
+        }
+      }
       return Response.json({ ok: true });
     }
-    if (path === "/api/status") await this.waitForGate("status");
+    if (["/api/status", "/api/refresh/start"].includes(path))
+      await this.waitForGate("status");
     if (
-      path === "/api/status" &&
+      ["/api/status", "/api/refresh/start"].includes(path) &&
       (await this.fixtureState.storage.get("synthetic-status-failure"))
     )
       return Response.json(
@@ -295,6 +310,11 @@ export class FixtureVault extends CredentialVault {
 
     if (new URL(request.url).pathname.endsWith("/users/me")) {
       await this.waitForGate("provider");
+      if (await this.fixtureState.storage.get("synthetic-scan-limit"))
+        return new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "1" },
+        });
       const delay = await this.fixtureState.storage.get<number>(
         "synthetic-provider-delay",
       );

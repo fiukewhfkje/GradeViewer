@@ -17,9 +17,12 @@ import {
   rows,
   validID,
   nextPage,
+  retryAfterSeconds,
+  origin as schoologyOrigin,
   type Fetcher,
 } from "./provider";
 import { latestRelease } from "./updates";
+import { pooledFetcher } from "./request-pool";
 export interface Env {
   APP_PASSWORD: string;
   APP_PASSWORD_RESET?: string;
@@ -175,6 +178,32 @@ async function body(request: Request): Promise<Record<string, unknown>> {
     throw new ApiError(400, "invalidRequest");
   }
 }
+function scanOptions(b: Record<string, unknown>) {
+  const reuse = b.reuse ?? [];
+  ensure(
+    Array.isArray(reuse) &&
+      reuse.length <= 32 &&
+      reuse.every(validID) &&
+      new Set(reuse).size === reuse.length,
+  );
+  const prefetch = b.prefetch ?? [];
+  ensure(
+    Array.isArray(prefetch) &&
+      prefetch.length <= 32 &&
+      prefetch.every(
+        (job) =>
+          job &&
+          typeof job === "object" &&
+          ["section", "items", "categories", "periods", "scales"].includes(
+            job.resource,
+          ) &&
+          validID(job.section) &&
+          job.extra === undefined &&
+          !job.next,
+      ),
+  );
+  return { reuse, prefetch };
+}
 export class CredentialVault {
   private queue: Promise<unknown> = Promise.resolve();
   constructor(
@@ -182,12 +211,15 @@ export class CredentialVault {
     private env: Env,
   ) {}
   protected upstream: Fetcher = fetch;
-  protected portals(kind: "campus" | "carmen" = "campus") {
+  protected portals(
+    kind: "campus" | "carmen" = "campus",
+    upstream: Fetcher = this.upstream,
+  ) {
     return new PortalService(
       this.ctx.storage,
       this.env.APP_PASSWORD,
       this.env.BROWSER,
-      this.upstream,
+      upstream,
       kind,
     );
   }
@@ -273,6 +305,7 @@ export class CredentialVault {
     now: number,
     upstream: Fetcher = this.upstream,
     prefetched?: Record<string, unknown>,
+    verifiedCredentials?: Credentials,
   ) {
     const resource = String(b.resource),
       section = String(b.section ?? ""),
@@ -339,16 +372,18 @@ export class CredentialVault {
         "rateLimited",
         Math.ceil((vault.cooldown - now) / 1000),
       );
-    const credentials = await unseal<Credentials>(
-      scan.credentials,
-      this.env.APP_PASSWORD,
-    );
+    const credentials =
+      verifiedCredentials ??
+      (await unseal<Credentials>(scan.credentials, this.env.APP_PASSWORD));
     let data: Record<string, unknown>;
     try {
       data = prefetched ?? (await readProvider(path, credentials, upstream));
     } catch (e) {
       if (e instanceof ApiError && e.code === "rateLimited")
-        vault.cooldown = Date.now() + (e.retryAfter ?? 60) * 1000;
+        vault.cooldown = Math.max(
+          vault.cooldown,
+          Date.now() + (e.retryAfter ?? 60) * 1000,
+        );
       if (e instanceof ApiError && e.status === 403) {
         if (resource === "grades" && section)
           scan.done.push("gradesDenied:" + section);
@@ -456,7 +491,10 @@ export class CredentialVault {
         r.reason instanceof ApiError &&
         r.reason.code === "rateLimited"
       )
-        vault.cooldown = Date.now() + (r.reason.retryAfter ?? 60) * 1000;
+        vault.cooldown = Math.max(
+          vault.cooldown,
+          Date.now() + (r.reason.retryAfter ?? 60) * 1000,
+        );
     if (sectionResult.status === "rejected") throw sectionResult.reason;
     // Completed reads may be processed even if the other root hit a cooldown.
     const sections = await this.read(
@@ -466,6 +504,7 @@ export class CredentialVault {
       now,
       this.upstream,
       sectionResult.value,
+      credentials,
     );
     let grades;
     try {
@@ -479,6 +518,7 @@ export class CredentialVault {
           now,
           this.upstream,
           gradeResult.value,
+          credentials,
         ),
       };
     } catch (error) {
@@ -500,6 +540,7 @@ export class CredentialVault {
     now: number,
     provider: Fetcher = this.upstream,
     responseBudget = 4000000,
+    verifiedCredentials?: Credentials,
   ) {
     ensure(Array.isArray(input) && input.length > 0 && input.length <= 32);
     const jobs = input as Record<string, unknown>[];
@@ -532,6 +573,13 @@ export class CredentialVault {
         ),
       ).size === jobs.length,
     );
+    // Decrypt once for this invocation. Identity, enrollment, scope and each
+    // signed GET are still verified normally; no plaintext survives the call.
+    const credentials =
+      now < vault.cooldown
+        ? undefined
+        : (verifiedCredentials ??
+          (await unseal<Credentials>(scan.credentials, this.env.APP_PASSWORD)));
     const results: unknown[] = new Array(jobs.length);
     // Optional scale reads must wait for all required data, including
     // pagination and authoritative alias resolution. Keep their original
@@ -562,6 +610,8 @@ export class CredentialVault {
             jobs[index],
             now,
             upstream,
+            undefined,
+            credentials,
           );
           const bytes = new TextEncoder().encode(JSON.stringify(value)).length;
           if (responseBytes + bytes > responseBudget)
@@ -599,6 +649,311 @@ export class CredentialVault {
           status: 502,
         };
     return { results };
+  }
+  private async startScan(
+    vault: Vault,
+    b: Record<string, unknown>,
+    now: number,
+    provider: Fetcher = this.upstream,
+    requestBudget = 44,
+  ) {
+    const { reuse, prefetch } = scanOptions(b);
+    // The initial identity, roots and any prefetched metadata share one
+    // invocation budget, including every redirect.
+    let subrequests = 0;
+    const upstream: Fetcher = (request) => {
+      if (subrequests >= requestBudget)
+        throw new ApiError(502, "batchDeferred");
+      subrequests++;
+      return provider(request);
+    };
+    let credentials: Credentials;
+    if (b.key !== undefined || b.secret !== undefined) {
+      ensure(
+        typeof b.key === "string" &&
+          typeof b.secret === "string" &&
+          b.key.trim().length > 0 &&
+          b.key.length < 1000 &&
+          b.secret.trim().length > 0 &&
+          b.secret.length < 1000,
+      );
+      credentials = {
+        key: (b.key as string).trim(),
+        secret: (b.secret as string).trim(),
+        account: "",
+      };
+    } else {
+      if (!vault.credentials) throw new ApiError(409, "connectRequired");
+      try {
+        credentials = await unseal<Credentials>(
+          vault.credentials,
+          this.env.APP_PASSWORD,
+        );
+      } catch {
+        throw new ApiError(409, "reenterSchoologyKeys");
+      }
+    }
+    if (now < vault.cooldown)
+      throw new ApiError(
+        429,
+        "rateLimited",
+        Math.ceil((vault.cooldown - now) / 1000),
+      );
+    const me = await readProvider("users/me", credentials, upstream),
+      account = String(me.uid ?? me.id ?? "");
+    if (!validID(account)) throw new ApiError(502, "malformedProvider");
+    if (vault.account && vault.account !== account)
+      throw new ApiError(409, "disconnectBeforeSwitchingAccounts");
+    credentials.account = account;
+    const id = random();
+    if (Object.keys(vault.scans).length >= 3)
+      delete vault.scans[Object.keys(vault.scans)[0]];
+    vault.scans[id] = {
+      id,
+      expires: now + 15 * 60 * 1000,
+      account,
+      credentials: await seal(credentials, this.env.APP_PASSWORD),
+      sections: [],
+      owners: {},
+      done: [],
+      cursors: {},
+      pages: {},
+      fingerprints: {},
+      reused: [],
+      replacement: b.key !== undefined,
+      freshMetadata: b.refreshMetadata === true || b.key !== undefined,
+      cachedOwners: [],
+    };
+    const scan = vault.scans[id];
+    const roots =
+      b.includeRoots === true
+        ? await this.roots(scan, vault, Date.now(), credentials, upstream)
+        : undefined;
+    // Fresh roots establish owners/fingerprints before the same fixed-expiry
+    // receipt checks used by scan/reuse. Browser metadata is never trusted.
+    if (roots)
+      for (const section of reuse)
+        if (reusableMetadata(scan, vault, section, Date.now()))
+          reuseMetadata(scan, vault, section);
+    let prefetched;
+    if (
+      b.prefetchMetadata === true &&
+      roots &&
+      !roots.sections.next &&
+      roots.grades.ok &&
+      !roots.grades.value.next
+    ) {
+      const jobs = new Map<string, { resource: string; section: string }>();
+      const add = (resource: string, section: string) =>
+        jobs.set(resource + ":" + section, { resource, section });
+      for (const section of scan.sections)
+        if (!scan.owners[section]) add("grades", section);
+      // Unique fresh bulk owners are exactly the client's selected scopes.
+      // Ambiguous aliases wait for the existing client selection/read path.
+      for (const section of scan.sections)
+        if (
+          scan.owners[section] &&
+          scan.owners[section] !== "empty" &&
+          !metadataReady(scan, section) &&
+          Object.values(scan.owners).filter(
+            (owner) => owner === scan.owners[section],
+          ).length === 1
+        )
+          for (const resource of ["section", "items", "categories", "periods"])
+            add(resource, section);
+      for (const job of prefetch)
+        if (
+          scan.sections.includes(job.section) &&
+          !scan.done.includes(job.resource + ":" + job.section + ":")
+        )
+          add(job.resource, job.section);
+      const selected = [...jobs.values()]
+        .sort(
+          (a, b) =>
+            Number(a.resource === "scales") - Number(b.resource === "scales"),
+        )
+        .slice(0, 32);
+      const responseBudget =
+        4000000 - new TextEncoder().encode(JSON.stringify(roots)).length;
+      if (selected.length && responseBudget > 0)
+        prefetched = {
+          jobs: selected,
+          ...(await this.readBatch(
+            scan,
+            vault,
+            selected,
+            Date.now(),
+            upstream,
+            responseBudget,
+            credentials,
+          )),
+        };
+    }
+    return {
+      scan: id,
+      account,
+      revision: vault.revision,
+      ...(roots ? { roots, reused: scan.reused } : {}),
+      ...(prefetched ? { prefetched } : {}),
+    };
+  }
+  private async status(vault: Vault, authenticated: boolean, session: string) {
+    const campus = authenticated ? await this.portals().status() : undefined;
+    const carmen = authenticated
+      ? await this.portals("carmen").status()
+      : undefined;
+    if (carmen?.connected && !vault.workspace)
+      vault.workspace = vault.account ?? "workspace:" + random();
+    return {
+      ...(authenticated ? { portals: { campus, carmen } } : {}),
+      authenticated,
+      connected: authenticated && (!!vault.credentials || !!carmen?.connected),
+      schoologyConnected: authenticated && !!vault.credentials,
+      account: authenticated ? (vault.workspace ?? vault.account) : undefined,
+      sessionExpires: authenticated ? vault.sessions[session] : undefined,
+      revision: authenticated ? vault.revision : undefined,
+      cooldown: authenticated ? vault.cooldown : undefined,
+    };
+  }
+  private async startRefresh(
+    vault: Vault,
+    b: Record<string, unknown>,
+    authenticated: boolean,
+    session: string,
+  ) {
+    ensure(
+      ["schoology", "campus", "carmen"].includes(String(b.provider)) &&
+        b.key === undefined &&
+        b.secret === undefined &&
+        (b.previousAccount === undefined ||
+          typeof b.previousAccount === "string"),
+    );
+    scanOptions(b); // Validate the whole request before either provider can run.
+    const status = await this.status(vault, authenticated, session);
+    if (
+      !authenticated ||
+      !status.portals ||
+      (b.previousAccount && b.previousAccount !== status.account)
+    )
+      return { status };
+    const schoology = b.provider === "schoology" && status.schoologyConnected;
+    const campus =
+      !!vault.account &&
+      !!status.portals.campus?.connected &&
+      (b.provider === "campus" ||
+        (b.provider === "schoology" && b.includeCampus === true));
+    const carmen =
+      b.provider === "carmen" && !!status.portals.carmen?.connected;
+    const provider = this.upstream;
+    let campusCooldown = 0;
+    const shared = pooledFetcher(async (request) => {
+      const schoologyRequest = new URL(request.url).origin === schoologyOrigin;
+      const cooldown = schoologyRequest ? vault.cooldown : campusCooldown;
+      if (cooldown > Date.now())
+        throw new ApiError(
+          429,
+          schoologyRequest ? "rateLimited" : "portalRateLimited",
+          Math.ceil((cooldown - Date.now()) / 1000),
+        );
+      const response = await provider(request);
+      if (response.status === 429) {
+        const seconds = retryAfterSeconds(response.headers.get("Retry-After"));
+        if (schoologyRequest)
+          vault.cooldown = Math.max(
+            vault.cooldown,
+            Date.now() + seconds * 1000,
+          );
+        else
+          campusCooldown = Math.max(
+            campusCooldown,
+            Date.now() + Math.min(3600, seconds) * 1000,
+          );
+      }
+      return response;
+    });
+    // IC uses one roster, one summary and at most one detail per selection;
+    // it has no HTTP pagination or automatic browser recovery. Reserve that
+    // allowance so it cannot be starved by Schoology's redirect/prefetch work.
+    const campusBudget = campus
+      ? 2 + Math.min(20, status.portals.campus!.selected.length)
+      : 0;
+    let campusRequests = 0;
+    const campusUpstream: Fetcher = (request) => {
+      if (++campusRequests > campusBudget)
+        throw new ApiError(502, "portalTooLarge");
+      return shared(request);
+    };
+    const attempt = async (operation?: () => Promise<unknown>) => {
+      if (!operation) return;
+      try {
+        return { ok: true as const, value: await operation() };
+      } catch (error) {
+        const e =
+          error instanceof ApiError
+            ? error
+            : new ApiError(500, "requestFailed");
+        if (e.code === "rateLimited")
+          vault.cooldown = Math.max(
+            vault.cooldown,
+            Date.now() + (e.retryAfter ?? 60) * 1000,
+          );
+        const retryAfter =
+          e.code === "rateLimited"
+            ? Math.max(
+                e.retryAfter ?? 60,
+                Math.ceil((vault.cooldown - Date.now()) / 1000),
+              )
+            : e.retryAfter;
+        return {
+          ok: false as const,
+          error: e.code,
+          status: e.status,
+          retryAfter,
+        };
+      }
+    };
+    const [scanResult, campusResult, carmenResult] = await Promise.all([
+      attempt(
+        schoology
+          ? () =>
+              this.startScan(vault, b, Date.now(), shared, 44 - campusBudget)
+          : undefined,
+      ),
+      attempt(
+        campus
+          ? () =>
+              this.portals("campus", campusUpstream).handle(
+                "snapshot",
+                {},
+                false,
+                (updated) => {
+                  status.portals!.campus = updated;
+                },
+              )
+          : undefined,
+      ),
+      attempt(
+        carmen
+          ? () =>
+              this.portals("carmen").handle(
+                "snapshot",
+                {},
+                false,
+                (updated) => {
+                  status.portals!.carmen = updated;
+                },
+              )
+          : undefined,
+      ),
+    ]);
+    // Return the saved post-check health without a second app round trip.
+    status.cooldown = vault.cooldown;
+    return {
+      status,
+      schoology: scanResult,
+      campus: campusResult,
+      carmen: carmenResult,
+    };
   }
   private async handle(request: Request) {
     let vault: Vault | undefined;
@@ -675,27 +1030,16 @@ export class CredentialVault {
         if (ids.length > 10) delete vault.sessions[ids[0]];
         result = json({ ok: true }, 200, { "Set-Cookie": setCookie(id) });
       } else if (route === "status" && !post) {
-        const campus = authenticated
-          ? await this.portals().status()
-          : undefined;
-        const carmen = authenticated
-          ? await this.portals("carmen").status()
-          : undefined;
-        if (carmen?.connected && !vault.workspace)
-          vault.workspace = vault.account ?? "workspace:" + random();
-        result = json({
-          ...(authenticated ? { portals: { campus, carmen } } : {}),
-          authenticated,
-          connected:
-            authenticated && (!!vault.credentials || !!carmen?.connected),
-          schoologyConnected: authenticated && !!vault.credentials,
-          account: authenticated
-            ? (vault.workspace ?? vault.account)
-            : undefined,
-          sessionExpires: authenticated ? vault.sessions[session] : undefined,
-          revision: authenticated ? vault.revision : undefined,
-          cooldown: authenticated ? vault.cooldown : undefined,
-        });
+        result = json(await this.status(vault, authenticated, session));
+      } else if (route === "refresh/start" && post) {
+        result = json(
+          await this.startRefresh(
+            vault,
+            await body(request),
+            authenticated,
+            session,
+          ),
+        );
       } else {
         if (!authenticated) throw new ApiError(401, "unlockRequired");
         if (route === "password" && post) {
@@ -767,180 +1111,7 @@ export class CredentialVault {
           vault.passwordHash = fingerprint;
           result = json({ ok: true }, 200, { "Set-Cookie": setCookie("", 0) });
         } else if (route === "scan/start" && post) {
-          const b = await body(request);
-          const reuse = b.reuse ?? [];
-          ensure(
-            Array.isArray(reuse) &&
-              reuse.length <= 32 &&
-              reuse.every(validID) &&
-              new Set(reuse).size === reuse.length,
-          );
-          const prefetch = b.prefetch ?? [];
-          ensure(
-            Array.isArray(prefetch) &&
-              prefetch.length <= 32 &&
-              prefetch.every(
-                (job) =>
-                  job &&
-                  typeof job === "object" &&
-                  [
-                    "section",
-                    "items",
-                    "categories",
-                    "periods",
-                    "scales",
-                  ].includes(job.resource) &&
-                  validID(job.section) &&
-                  job.extra === undefined &&
-                  !job.next,
-              ),
-          );
-          // The initial identity, roots and any prefetched metadata share one
-          // invocation budget, including every redirect.
-          let subrequests = 0;
-          const provider = this.upstream;
-          const upstream: Fetcher = (request) => {
-            if (subrequests >= 44) throw new ApiError(502, "batchDeferred");
-            subrequests++;
-            return provider(request);
-          };
-          let credentials: Credentials;
-          if (b.key !== undefined || b.secret !== undefined) {
-            ensure(
-              typeof b.key === "string" &&
-                typeof b.secret === "string" &&
-                b.key.trim().length > 0 &&
-                b.key.length < 1000 &&
-                b.secret.trim().length > 0 &&
-                b.secret.length < 1000,
-            );
-            credentials = {
-              key: (b.key as string).trim(),
-              secret: (b.secret as string).trim(),
-              account: "",
-            };
-          } else {
-            if (!vault.credentials) throw new ApiError(409, "connectRequired");
-            try {
-              credentials = await unseal<Credentials>(
-                vault.credentials,
-                this.env.APP_PASSWORD,
-              );
-            } catch {
-              throw new ApiError(409, "reenterSchoologyKeys");
-            }
-          }
-          if (now < vault.cooldown)
-            throw new ApiError(
-              429,
-              "rateLimited",
-              Math.ceil((vault.cooldown - now) / 1000),
-            );
-          const me = await readProvider("users/me", credentials, upstream),
-            account = String(me.uid ?? me.id ?? "");
-          if (!validID(account)) throw new ApiError(502, "malformedProvider");
-          if (vault.account && vault.account !== account)
-            throw new ApiError(409, "disconnectBeforeSwitchingAccounts");
-          credentials.account = account;
-          const id = random();
-          if (Object.keys(vault.scans).length >= 3)
-            delete vault.scans[Object.keys(vault.scans)[0]];
-          vault.scans[id] = {
-            id,
-            expires: now + 15 * 60 * 1000,
-            account,
-            credentials: await seal(credentials, this.env.APP_PASSWORD),
-            sections: [],
-            owners: {},
-            done: [],
-            cursors: {},
-            pages: {},
-            fingerprints: {},
-            reused: [],
-            replacement: b.key !== undefined,
-            freshMetadata: b.refreshMetadata === true || b.key !== undefined,
-            cachedOwners: [],
-          };
-          const scan = vault.scans[id];
-          const roots =
-            b.includeRoots === true
-              ? await this.roots(scan, vault, Date.now(), credentials, upstream)
-              : undefined;
-          // Fresh roots establish owners/fingerprints before the same fixed-expiry
-          // receipt checks used by scan/reuse. Browser metadata is never trusted.
-          if (roots)
-            for (const section of reuse)
-              if (reusableMetadata(scan, vault, section, Date.now()))
-                reuseMetadata(scan, vault, section);
-          let prefetched;
-          if (
-            b.prefetchMetadata === true &&
-            roots &&
-            !roots.sections.next &&
-            roots.grades.ok &&
-            !roots.grades.value.next
-          ) {
-            const jobs = new Map<
-              string,
-              { resource: string; section: string }
-            >();
-            const add = (resource: string, section: string) =>
-              jobs.set(resource + ":" + section, { resource, section });
-            for (const section of scan.sections)
-              if (!scan.owners[section]) add("grades", section);
-            // Unique fresh bulk owners are exactly the client's selected scopes.
-            // Ambiguous aliases wait for the existing client selection/read path.
-            for (const section of scan.sections)
-              if (
-                scan.owners[section] &&
-                scan.owners[section] !== "empty" &&
-                !metadataReady(scan, section) &&
-                Object.values(scan.owners).filter(
-                  (owner) => owner === scan.owners[section],
-                ).length === 1
-              )
-                for (const resource of [
-                  "section",
-                  "items",
-                  "categories",
-                  "periods",
-                ])
-                  add(resource, section);
-            for (const job of prefetch)
-              if (
-                scan.sections.includes(job.section) &&
-                !scan.done.includes(job.resource + ":" + job.section + ":")
-              )
-                add(job.resource, job.section);
-            const selected = [...jobs.values()]
-              .sort(
-                (a, b) =>
-                  Number(a.resource === "scales") -
-                  Number(b.resource === "scales"),
-              )
-              .slice(0, 32);
-            const responseBudget =
-              4000000 - new TextEncoder().encode(JSON.stringify(roots)).length;
-            if (selected.length && responseBudget > 0)
-              prefetched = {
-                jobs: selected,
-                ...(await this.readBatch(
-                  scan,
-                  vault,
-                  selected,
-                  Date.now(),
-                  upstream,
-                  responseBudget,
-                )),
-              };
-          }
-          result = json({
-            scan: id,
-            account,
-            revision: vault.revision,
-            ...(roots ? { roots, reused: scan.reused } : {}),
-            ...(prefetched ? { prefetched } : {}),
-          });
+          result = json(await this.startScan(vault, await body(request), now));
         } else if (route === "scan/reuse" && post) {
           const b = await body(request),
             scan = vault.scans[String(b.scan)];
@@ -1029,7 +1200,10 @@ export class CredentialVault {
         error instanceof ApiError ? error : new ApiError(500, "requestFailed");
       if (vault) {
         if (e.code === "rateLimited")
-          vault.cooldown = Date.now() + (e.retryAfter ?? 60) * 1000;
+          vault.cooldown = Math.max(
+            vault.cooldown,
+            Date.now() + (e.retryAfter ?? 60) * 1000,
+          );
         await this.ctx.storage.put("vault", vault);
       }
       return json(

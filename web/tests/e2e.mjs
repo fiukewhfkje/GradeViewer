@@ -182,6 +182,19 @@ async function check(name, run) {
 }
 // Hold the response until the UI assertion completes instead of sleeping for
 // seconds and hoping a slow CI runner reaches the assertion before it arrives.
+function startsProvider(request, provider = "schoology") {
+  return (
+    request
+      .url()
+      .endsWith(
+        provider === "schoology"
+          ? "/api/scan/start"
+          : "/api/" + provider + "/snapshot",
+      ) ||
+    (request.url().endsWith("/api/refresh/start") &&
+      request.postDataJSON()?.provider === provider)
+  );
+}
 async function holdRequest(page, pattern) {
   let release, received;
   const gate = new Promise((resolve) => {
@@ -883,8 +896,12 @@ try {
       let statuses = 0,
         scans = 0;
       const count = (request) => {
-        if (request.url().endsWith("/api/status")) statuses++;
-        if (request.url().endsWith("/api/scan/start")) scans++;
+        if (
+          request.url().endsWith("/api/status") ||
+          request.url().endsWith("/api/refresh/start")
+        )
+          statuses++;
+        if (startsProvider(request)) scans++;
       };
       page.on("request", count);
       try {
@@ -977,7 +994,7 @@ try {
       let scans = 0,
         manual = false;
       const request = (r) => {
-        if (r.url().endsWith("/api/scan/start")) {
+        if (startsProvider(r)) {
           scans++;
           manual = r.postDataJSON().refreshMetadata === true;
         }
@@ -1374,9 +1391,7 @@ try {
       const held = await holdFixture(context.request, "provider");
       const started = Date.now();
       try {
-        const refreshing = page.waitForRequest((r) =>
-          r.url().endsWith("/api/scan/start"),
-        );
+        const refreshing = page.waitForRequest((r) => startsProvider(r));
         await page.evaluate(() => {
           for (const value of ["hidden", "visible"]) {
             Object.defineProperty(document, "visibilityState", {
@@ -2254,7 +2269,7 @@ try {
         };
         let scans = 0;
         appPage.on("request", (r) => {
-          if (r.url().endsWith("/api/scan/start")) scans++;
+          if (startsProvider(r)) scans++;
         });
         const pull = async () => {
           await appPage
@@ -2406,7 +2421,7 @@ try {
         .check();
       let schoologyScans = 0;
       const countSchoology = (request) => {
-        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+        if (startsProvider(request)) schoologyScans++;
       };
       page.on("request", countSchoology);
       await page
@@ -2586,7 +2601,7 @@ try {
       ).json();
       let schoologyScans = 0;
       const countSchoology = (request) => {
-        if (request.url().endsWith("/api/scan/start")) schoologyScans++;
+        if (startsProvider(request)) schoologyScans++;
       };
       page.on("request", countSchoology);
       await page
@@ -2704,7 +2719,7 @@ try {
       });
       const refreshed = page.waitForResponse(
         (response) =>
-          response.url().endsWith("/api/carmen/snapshot") && response.ok(),
+          startsProvider(response.request(), "carmen") && response.ok(),
       );
       await page
         .getByRole("button", { name: "Refresh grades", exact: true })
@@ -3141,7 +3156,9 @@ try {
               };
             }),
         );
-        await blank.route("**/api/status", (route) => route.abort("failed"));
+        await blank.route(/\/api\/(?:status|refresh\/start)$/, (route) =>
+          route.abort("failed"),
+        );
         await blank.reload();
         await blank.locator(".courses").waitFor();
         assert.equal(await blank.locator(".courses .course").count(), 5);
@@ -3181,7 +3198,7 @@ try {
         await quiet.clock.pauseAt(new Date());
         let scans = 0;
         quiet.on("request", (request) => {
-          if (request.url().endsWith("/api/scan/start")) scans++;
+          if (startsProvider(request)) scans++;
         });
         const unlocked = await isolated.request.post(base + "/api/login", {
           headers: { Origin: base },

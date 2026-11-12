@@ -1,7 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createHmac } from "node:crypto";
 import { seal, unseal, authorization, encode, hash } from "../worker/crypto";
-import { safeURL, nextPage, readProvider, ApiError } from "../worker/provider";
+import {
+  safeURL,
+  nextPage,
+  readProvider,
+  retryAfterSeconds,
+  ApiError,
+} from "../worker/provider";
 import worker, { CredentialVault, type Env } from "../worker/index";
 const password = "synthetic-password-at-least-20-characters";
 describe("vault cryptography", () => {
@@ -48,6 +54,14 @@ describe("vault cryptography", () => {
   });
 });
 describe("read-only provider transport", () => {
+  it("honors Retry-After seconds and HTTP dates with a safe fallback", () => {
+    const now = Date.parse("2026-11-12T12:00:00Z");
+    expect(retryAfterSeconds("120", now)).toBe(120);
+    expect(retryAfterSeconds("Thu, 12 Nov 2026 12:02:00 GMT", now)).toBe(120);
+    expect(retryAfterSeconds("Thu, 12 Nov 2026 11:00:00 GMT", now)).toBe(1);
+    expect(retryAfterSeconds("invalid", now)).toBe(60);
+    expect(retryAfterSeconds(null, now)).toBe(60);
+  });
   it.each([
     "http://api.schoology.com/v1/users/me",
     "https://evil.test/v1/users/me",

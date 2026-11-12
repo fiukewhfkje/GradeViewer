@@ -1,7 +1,7 @@
 // Synthetic only: runs the real refresh coordinator and Worker with local transports.
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
@@ -34,6 +34,12 @@ const implementation = await hashes([
   "worker/index.ts",
   "worker/portal.ts",
   "worker/provider.ts",
+  "src/api.ts",
+  "src/App.tsx",
+  ...(await access("worker/request-pool.ts").then(
+    () => ["worker/request-pool.ts"],
+    () => [],
+  )),
 ]);
 const harness = await hashes([
   "scripts/benchmark-refresh.mjs",
@@ -59,6 +65,22 @@ report.source = execFileSync("git", ["rev-parse", "HEAD"], {
 report.dirty = !!execFileSync("git", ["status", "--porcelain"], {
   encoding: "utf8",
 }).trim();
+const sourceRef = option("--source-ref");
+if (sourceRef) {
+  report.source = execFileSync("git", ["rev-parse", sourceRef], {
+    encoding: "utf8",
+  }).trim();
+  for (const [path, digest] of Object.entries(implementation)) {
+    const committed = execFileSync(
+      "git",
+      ["show", report.source + ":web/" + path],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    if (createHash("sha256").update(committed).digest("hex") !== digest)
+      throw new Error("Archived implementation differs: " + path);
+  }
+  report.dirty = false;
+}
 report.recordedAt = new Date().toISOString();
 report.node = process.version;
 report.implementation = implementation;
@@ -76,7 +98,14 @@ if (comparison) {
       throw new Error("Snapshot changed: " + result.scenario);
     if (
       result.providerRequests > prior.providerRequests ||
-      result.peakConcurrency > prior.peakConcurrency
+      result.cryptoDecryptions > prior.cryptoDecryptions ||
+      result.peakConcurrency > 5 ||
+      Object.entries(result.peakByKind ?? {}).some(
+        ([kind, peak]) => peak > prior.peakByKind[kind],
+      ) ||
+      Object.entries(result.providerRequestsByKind ?? {}).some(
+        ([kind, count]) => count > prior.providerRequestsByKind[kind],
+      )
     )
       throw new Error("Provider load increased: " + result.scenario);
     result.beforeMedianMs = prior.medianMs;

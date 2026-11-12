@@ -1,3 +1,4 @@
+import type { PortalStatus } from "../src/api";
 import { canvasChoices, canvasStudent, parseCanvas } from "../src/core/canvas";
 import {
   canvasURL,
@@ -12,7 +13,7 @@ import { campusURL, campusLogin, campusHome } from "./campus-url";
 export { campusURL } from "./campus-url";
 import { Cookie, CookieJar } from "tough-cookie";
 import { seal, unseal, hash, random, type Envelope } from "./crypto";
-import { ApiError, type Fetcher } from "./provider";
+import { ApiError, retryAfterSeconds, type Fetcher } from "./provider";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import {
   carmenEvent,
@@ -318,7 +319,23 @@ export class PortalService {
     ].filter((x): x is number => typeof x === "number");
     if (deadlines.length) await this.arm(Math.min(...deadlines));
   }
-  async status() {
+  private connectionStatus(c?: PortalConnection): PortalStatus {
+    return {
+      connected: !!c?.account,
+      needsReconnect: !!c?.needsReconnect || !!(c?.account && !c.jar),
+      selected: c?.selected ?? [],
+      portal: c?.portal,
+      lastVerified: c?.lastVerified,
+      cooldown: c?.cooldown,
+      maintenance: !!c?.keepConnected,
+      nextMaintenance: c?.keepConnected ? c.nextMaintenance : undefined,
+      lastKeepalive: c?.lastKeepalive,
+      diagnostics: c?.diagnostics,
+      compatibilityReportAvailable: !!c?.compatibilityReport,
+      recoveryBlocked: this.kind === "carmen" ? c?.recoveryBlocked : undefined,
+    };
+  }
+  async status(): Promise<PortalStatus> {
     try {
       const s = await this.load(),
         c = s.connection;
@@ -344,21 +361,7 @@ export class PortalService {
         // Reconcile the saved deadline if the shared alarm was lost.
         await this.arm(Math.max(Date.now(), c.nextMaintenance));
       }
-      return {
-        connected: !!c?.account,
-        needsReconnect: !!c?.needsReconnect || !!(c?.account && !c.jar),
-        selected: c?.selected ?? [],
-        portal: c?.portal,
-        lastVerified: c?.lastVerified,
-        cooldown: c?.cooldown,
-        maintenance: !!c?.keepConnected,
-        nextMaintenance: c?.keepConnected ? c.nextMaintenance : undefined,
-        lastKeepalive: c?.lastKeepalive,
-        diagnostics: c?.diagnostics,
-        compatibilityReportAvailable: !!c?.compatibilityReport,
-        recoveryBlocked:
-          this.kind === "carmen" ? c?.recoveryBlocked : undefined,
-      };
+      return this.connectionStatus(c);
     } catch (error) {
       if (error instanceof ApiError && error.code === "portalPasswordChanged")
         return { connected: true, needsReconnect: true, selected: [] };
@@ -726,6 +729,11 @@ export class PortalService {
       const upstream = this.upstream;
       r = await upstream(request);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        ["portalRateLimited", "portalTooLarge"].includes(error.code)
+      )
+        throw error;
       throw new ApiError(
         502,
         request.signal.aborted ||
@@ -771,7 +779,7 @@ export class PortalService {
       throw new ApiError(
         429,
         "portalRateLimited",
-        Math.min(3600, Math.max(1, Number(r.headers.get("Retry-After")) || 60)),
+        Math.min(3600, retryAfterSeconds(r.headers.get("Retry-After"))),
       );
     }
     if (!r.ok) {
@@ -899,6 +907,7 @@ export class PortalService {
     action: string,
     b: Record<string, unknown> = {},
     automatic = false,
+    reportStatus?: (status: PortalStatus) => void,
   ) {
     this.requests = 0;
     this.bytes = 0;
@@ -1424,6 +1433,7 @@ export class PortalService {
       }
       this.compatibility = undefined;
       await this.save(s);
+      reportStatus?.(this.connectionStatus(s.connection));
     }
   }
 }

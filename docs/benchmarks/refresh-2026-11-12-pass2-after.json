@@ -1,0 +1,542 @@
+{
+  "conditions": {
+    "version": 2,
+    "appRoundTripMs": 80,
+    "providerReadMs": 80,
+    "icSkewedDetailMs": [
+      320,
+      40,
+      40,
+      320,
+      40,
+      40
+    ],
+    "slowerCombined": {
+      "appRoundTripMs": 120,
+      "providerReadMs": 250
+    },
+    "storage": "in-memory Durable Object + fake IndexedDB",
+    "network": "local synthetic delays; no provider or Cloudflare requests"
+  },
+  "samples": 9,
+  "results": [
+    {
+      "scenario": "schoology-cold",
+      "samplesMs": [
+        775.4,
+        771.9,
+        772.6,
+        771,
+        776.3,
+        775.9,
+        773.6,
+        771.8,
+        775.5
+      ],
+      "medianMs": 773.6,
+      "p95Ms": 776.3,
+      "apiRequests": 3,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 0,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 767.2,
+      "improvementPercent": -0.8
+    },
+    {
+      "scenario": "schoology-new-browser",
+      "samplesMs": [
+        690.4,
+        686.3,
+        689.1,
+        687.6,
+        691.3,
+        688.3,
+        689.8,
+        685.8,
+        685.4
+      ],
+      "medianMs": 688.3,
+      "p95Ms": 691.3,
+      "apiRequests": 2,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 763.7,
+      "improvementPercent": 9.9
+    },
+    {
+      "scenario": "schoology-warm",
+      "samplesMs": [
+        348.7,
+        346.2,
+        345.7,
+        346.9,
+        346.2,
+        346.7,
+        346.2,
+        348.1,
+        344.2
+      ],
+      "medianMs": 346.2,
+      "p95Ms": 348.7,
+      "apiRequests": 2,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 422.2,
+      "improvementPercent": 18
+    },
+    {
+      "scenario": "schoology-alias-warm",
+      "samplesMs": [
+        348.7,
+        349,
+        347.9,
+        348.4,
+        345.2,
+        350.4,
+        346.6,
+        341.1,
+        345.9
+      ],
+      "medianMs": 347.9,
+      "p95Ms": 350.4,
+      "apiRequests": 2,
+      "providerRequests": 3,
+      "peakConcurrency": 2,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "b9cc433dfe451ca96b3b97b348bcfca24461a507193ff795890926dd58b287e7",
+      "beforeMedianMs": 420.5,
+      "improvementPercent": 17.3
+    },
+    {
+      "scenario": "schoology-expired",
+      "samplesMs": [
+        686.7,
+        684.5,
+        689.2,
+        687.4,
+        687.3,
+        683.5,
+        689.8,
+        693.4,
+        689.3
+      ],
+      "medianMs": 687.4,
+      "p95Ms": 693.4,
+      "apiRequests": 2,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 759,
+      "improvementPercent": 9.4
+    },
+    {
+      "scenario": "schoology-manual",
+      "samplesMs": [
+        688.1,
+        688.2,
+        686.7,
+        686.7,
+        686.8,
+        686.7,
+        685.5,
+        686.6,
+        690.2
+      ],
+      "medianMs": 686.7,
+      "p95Ms": 690.2,
+      "apiRequests": 2,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "c0b01deafbbc6ca4bc84663dba6f8c37e31a16cc7483fb7e9bc518aeebf1d2a9",
+      "beforeMedianMs": 769.9,
+      "improvementPercent": 10.8
+    },
+    {
+      "scenario": "schoology-unresolved-title-repeat",
+      "samplesMs": [
+        686.8,
+        683.8,
+        686.3,
+        683.5,
+        684,
+        689.6,
+        687.5,
+        687.3,
+        687.3
+      ],
+      "medianMs": 686.8,
+      "p95Ms": 689.6,
+      "apiRequests": 2,
+      "providerRequests": 23,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 0
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 0
+      },
+      "cryptoDecryptions": 2,
+      "digest": "bad70fb5e65a2ea16e625e83cc6106d727d94c3b6c02c1eb3ff256a1d7f8dffa",
+      "beforeMedianMs": 761.5,
+      "improvementPercent": 9.8
+    },
+    {
+      "scenario": "ic-one",
+      "samplesMs": [
+        336.2,
+        336.2,
+        336.5,
+        335,
+        334.8,
+        335.7,
+        335.3,
+        334.7,
+        336.2
+      ],
+      "medianMs": 335.7,
+      "p95Ms": 336.5,
+      "apiRequests": 1,
+      "providerRequests": 3,
+      "peakConcurrency": 1,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 1
+      },
+      "cryptoDecryptions": 4,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 416.9,
+      "improvementPercent": 19.5
+    },
+    {
+      "scenario": "ic-six-uniform",
+      "samplesMs": [
+        419.2,
+        416.9,
+        416.7,
+        414.1,
+        415.8,
+        419.6,
+        418.1,
+        418.9,
+        418.2
+      ],
+      "medianMs": 418.1,
+      "p95Ms": 419.6,
+      "apiRequests": 1,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "cryptoDecryptions": 4,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b",
+      "beforeMedianMs": 499.3,
+      "improvementPercent": 16.3
+    },
+    {
+      "scenario": "ic-six-skewed",
+      "samplesMs": [
+        617.5,
+        616.4,
+        618.8,
+        616.9,
+        618.4,
+        617.7,
+        615.8,
+        619.3,
+        617.8
+      ],
+      "medianMs": 617.7,
+      "p95Ms": 619.3,
+      "apiRequests": 1,
+      "providerRequests": 8,
+      "peakConcurrency": 3,
+      "providerRequestsByKind": {
+        "schoology": 0,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 0,
+        "campus": 3
+      },
+      "cryptoDecryptions": 4,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b",
+      "beforeMedianMs": 696,
+      "improvementPercent": 11.2
+    },
+    {
+      "scenario": "combined-one-warm",
+      "samplesMs": [
+        431.9,
+        428.9,
+        429,
+        434,
+        432.2,
+        430.5,
+        430.9,
+        433.3,
+        430
+      ],
+      "medianMs": 430.9,
+      "p95Ms": 434,
+      "apiRequests": 2,
+      "providerRequests": 6,
+      "peakConcurrency": 3,
+      "providerRequestsByKind": {
+        "schoology": 3,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 2,
+        "campus": 1
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 759.9,
+      "improvementPercent": 43.3
+    },
+    {
+      "scenario": "combined-one-manual",
+      "samplesMs": [
+        754.2,
+        753.4,
+        748.5,
+        755.8,
+        756,
+        753,
+        747.9,
+        750.2,
+        750.4
+      ],
+      "medianMs": 753,
+      "p95Ms": 756,
+      "apiRequests": 2,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 1104.8,
+      "improvementPercent": 31.8
+    },
+    {
+      "scenario": "combined-six-manual",
+      "samplesMs": [
+        838.3,
+        838.9,
+        841.3,
+        834.8,
+        839.1,
+        836.9,
+        844.3,
+        840,
+        842.6
+      ],
+      "medianMs": 839.1,
+      "p95Ms": 844.3,
+      "apiRequests": 2,
+      "providerRequests": 31,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 8
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 3
+      },
+      "cryptoDecryptions": 6,
+      "digest": "7282ca167a7b2eac90e43f4347586f5f89a385a38100bfe2dbe20fe7e5c95d7b",
+      "beforeMedianMs": 1194.3,
+      "improvementPercent": 29.7
+    },
+    {
+      "scenario": "combined-one-expired",
+      "samplesMs": [
+        762.5,
+        762.3,
+        759.8,
+        760,
+        759.2,
+        758.5,
+        760.6,
+        761.8,
+        758.6
+      ],
+      "medianMs": 760,
+      "p95Ms": 762.5,
+      "apiRequests": 2,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 1110.9,
+      "improvementPercent": 31.6
+    },
+    {
+      "scenario": "combined-one-slower-manual",
+      "samplesMs": [
+        2031.8,
+        2031.6,
+        2037.2,
+        2032.7,
+        2032.9,
+        2027.8,
+        2032.3,
+        2033.9,
+        2030.7
+      ],
+      "medianMs": 2032.3,
+      "p95Ms": 2037.2,
+      "apiRequests": 2,
+      "providerRequests": 26,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 3
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 2798.8,
+      "improvementPercent": 27.4
+    },
+    {
+      "scenario": "combined-profile-bound-slower-manual",
+      "samplesMs": [
+        1795.4,
+        1796.9,
+        1796.9,
+        1796.7,
+        1796.5,
+        1796.2,
+        1793.6,
+        1795.7,
+        1796.2
+      ],
+      "medianMs": 1796.2,
+      "p95Ms": 1796.9,
+      "apiRequests": 2,
+      "providerRequests": 25,
+      "peakConcurrency": 5,
+      "providerRequestsByKind": {
+        "schoology": 23,
+        "campus": 2
+      },
+      "peakByKind": {
+        "schoology": 5,
+        "campus": 1
+      },
+      "cryptoDecryptions": 6,
+      "digest": "c8e214a531d32e2f3f6c455b4ab5a6bdd7fb3eee0b9730aee8761786bb7327a5",
+      "beforeMedianMs": 2549.5,
+      "improvementPercent": 29.5
+    }
+  ],
+  "source": "9fa3f85c54d63188550345dc5ad4520412f1ce03",
+  "dirty": true,
+  "recordedAt": "2026-11-12T14:27:33.216Z",
+  "node": "v26.7.0",
+  "implementation": {
+    "src/refresh.ts": "635790926f400ea52c0574b3fe4b49fb969edf5027edf241771141c7179d370c",
+    "src/portal-refresh.ts": "b40406f54ab342da6f2f7bb9d949b97633e72c15c99b766cb0716d324000fea6",
+    "src/repository.ts": "82c460ca30d3380909644a56190a49141ccea2e5cb05e97e248f753d4b14639a",
+    "worker/index.ts": "d356a3ddfb45392df81257ecddd507f456573c2508af9ce7b3e6926af3c13c4e",
+    "worker/portal.ts": "61f2230d36ad48ece0c5910ef9adcc9519bcaa5879378872194bf963cd1152be",
+    "worker/provider.ts": "d71f1df41da799bda754586eabcaf5fb071734c62fb32ee6827ce08ebdd377a3",
+    "src/api.ts": "3d4ebe11e18146140759de8228631a8f319a770b8448d2b82954506743b9328e",
+    "src/App.tsx": "42ce1ec9ef87831743debccce78c26924aabdd0916a58596c71b6199eca2ddb9",
+    "worker/request-pool.ts": "ba28efe351d2fffb3fd9597d4e412fe0892f553358a41fc10d08ae8b1b67b24b"
+  },
+  "harness": {
+    "scripts/benchmark-refresh.mjs": "86eb7a953409e4a1274428065fc33d64a2b537e08ddf2829f2d7a0f0e2ae11ba",
+    "tests/refresh-benchmark.ts": "c69fc533e88e2852a306008680340d3e91fbd2c1597daa1421398da48a54df83",
+    "tests/fixture-worker.ts": "9a17edabae9533cd9de93d73e94530e6e33aacdd3aff2d2cf463e71907b28d85",
+    "tests/campus-fixture.ts": "7b60cef3ecda83cc0c408fd63e5dcde69be3c67d7a04872a39dd4f68cd8eb191",
+    "tests/schoology-fixture.ts": "65165ef69daafeee955eea449893d6209fda5b53dc101e1c4ca141d4917fca02"
+  }
+}

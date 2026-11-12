@@ -13,6 +13,7 @@ import { seal, hash } from "../worker/crypto";
 import type { Env } from "../worker/index";
 import { api, type Status } from "../src/api";
 import { readSnapshot } from "../src/refresh";
+import * as refreshModule from "../src/refresh";
 import { refreshCampus } from "../src/portal-refresh";
 import { emptyState, type SavedState } from "../src/core/model";
 import * as repository from "../src/repository";
@@ -20,15 +21,23 @@ import { browserJar } from "../worker/portal";
 
 const password = "synthetic-refresh-benchmark-password";
 const conditions = {
-  version: 1,
+  version: 2,
   appRoundTripMs: 80,
   providerReadMs: 80,
   icSkewedDetailMs: [320, 40, 40, 320, 40, 40],
+  slowerCombined: { appRoundTripMs: 120, providerReadMs: 250 },
   storage: "in-memory Durable Object + fake IndexedDB",
   network: "local synthetic delays; no provider or Cloudflare requests",
 };
 
-function harness(icCount = 0, skewed = false, missingTitles = false) {
+function harness(
+  icCount = 0,
+  skewed = false,
+  missingTitles = false,
+  slower = false,
+  profileBound = false,
+) {
+  const latency = slower ? conditions.slowerCombined : conditions;
   const values = new Map<string, unknown>();
   const storage = {
     get: async (key: string) => structuredClone(values.get(key)),
@@ -42,6 +51,9 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
   let providerRequests = 0,
     active = 0,
     peakConcurrency = 0;
+  const providerRequestsByKind = { schoology: 0, campus: 0 };
+  const activeByKind = { schoology: 0, campus: 0 };
+  const peakByKind = { schoology: 0, campus: 0 };
   let apiRequests = 0,
     cookie = "",
     measuring = false;
@@ -61,8 +73,15 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
       const fixture = this.upstream;
       this.upstream = async (request) => {
         const url = new URL(request.url);
+        const kind =
+          url.hostname === "fixture.infinitecampus.org"
+            ? "campus"
+            : "schoology";
         if (measuring) {
           providerRequests++;
+          providerRequestsByKind[kind]++;
+          activeByKind[kind]++;
+          peakByKind[kind] = Math.max(peakByKind[kind], activeByKind[kind]);
           active++;
           peakConcurrency = Math.max(peakConcurrency, active);
         }
@@ -72,7 +91,7 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
             await delay(
               section && skewed
                 ? conditions.icSkewedDetailMs[(Number(section) - 100) % 6]
-                : conditions.providerReadMs,
+                : latency.providerReadMs,
             );
           if (url.hostname === "fixture.infinitecampus.org") {
             if (url.pathname.endsWith("/roster"))
@@ -91,7 +110,10 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
           }
           return response;
         } finally {
-          if (measuring) active--;
+          if (measuring) {
+            active--;
+            activeByKind[kind]--;
+          }
         }
       };
     }
@@ -105,7 +127,7 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
     assert.ok(String(path).startsWith("/api/"));
     if (measuring) {
       apiRequests++;
-      await delay(conditions.appRoundTripMs / 2);
+      await delay(latency.appRoundTripMs / 2);
     }
     const headers = new Headers(init.headers);
     headers.set("Origin", "https://app.test");
@@ -115,7 +137,7 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
     );
     const next = response.headers.get("Set-Cookie");
     if (next) cookie = next.split(";")[0];
-    if (measuring) await delay(conditions.appRoundTripMs / 2);
+    if (measuring) await delay(latency.appRoundTripMs / 2);
     return response;
   };
   return {
@@ -133,6 +155,7 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
             connection: {
               portal: campusPortal,
               account,
+              ...(profileBound ? { profileAccount: account } : {}),
               selected: Array.from(
                 { length: icCount },
                 (_, i) => `1:${100 + i}`,
@@ -151,7 +174,13 @@ function harness(icCount = 0, skewed = false, missingTitles = false) {
       measuring = true;
     },
     stats() {
-      return { apiRequests, providerRequests, peakConcurrency };
+      return {
+        apiRequests,
+        providerRequests,
+        peakConcurrency,
+        providerRequestsByKind: { ...providerRequestsByKind },
+        peakByKind: { ...peakByKind },
+      };
     },
   };
 }
@@ -173,8 +202,17 @@ function digest(state: SavedState) {
 
 export async function benchmarkRefresh(samples: number) {
   const originalFetch = globalThis.fetch;
+  const subtle = crypto.subtle;
+  const originalDecrypt = subtle.decrypt.bind(subtle);
+  let decryptions = 0,
+    countDecryptions = false;
+  subtle.decrypt = (...args: Parameters<SubtleCrypto["decrypt"]>) => {
+    if (countDecryptions) decryptions++;
+    return originalDecrypt(...args);
+  };
   const scenarios = [
     "schoology-cold",
+    "schoology-new-browser",
     "schoology-warm",
     "schoology-alias-warm",
     "schoology-expired",
@@ -183,22 +221,42 @@ export async function benchmarkRefresh(samples: number) {
     "ic-one",
     "ic-six-uniform",
     "ic-six-skewed",
+    "combined-one-warm",
+    "combined-one-manual",
+    "combined-six-manual",
+    "combined-one-expired",
+    "combined-one-slower-manual",
+    "combined-profile-bound-slower-manual",
   ];
   const results = [];
   try {
     for (const scenario of scenarios) {
       const samplesMs: number[] = [];
       let expectedStats:
-        ReturnType<ReturnType<typeof harness>["stats"]> | undefined;
+        | (ReturnType<ReturnType<typeof harness>["stats"]> & {
+            cryptoDecryptions: number;
+          })
+        | undefined;
       let expectedDigest: string | undefined;
       // One unreported warm-up per scenario, then independent, identically seeded samples.
       for (let sample = -1; sample < samples; sample++) {
         await repository.clear();
         const ic = scenario.startsWith("ic-");
+        const combined = scenario.startsWith("combined-");
         const h = harness(
-          ic ? (scenario === "ic-one" ? 1 : 6) : 0,
+          combined
+            ? scenario.includes("six")
+              ? 6
+              : 1
+            : ic
+              ? scenario === "ic-one"
+                ? 1
+                : 6
+              : 0,
           scenario.endsWith("skewed"),
           scenario.includes("unresolved-title"),
+          scenario.includes("slower"),
+          scenario.includes("profile-bound"),
         );
         globalThis.fetch = h.fetcher as typeof fetch;
         await api("login", { password });
@@ -208,8 +266,12 @@ export async function benchmarkRefresh(samples: number) {
             key: scenario.includes("alias") ? "fixture-aliases" : "fixture",
             secret: "fixture-secret",
           });
-        if (ic) await h.connectIC();
-        if (scenario === "schoology-expired") {
+        if (ic || combined) await h.connectIC();
+        if (scenario === "schoology-new-browser") {
+          previous = emptyState();
+          await repository.clear();
+        }
+        if (scenario.endsWith("expired")) {
           for (const metadata of Object.values(previous.metadata ?? {}))
             metadata.fetched = 0;
           const vault = h.values.get("vault") as {
@@ -224,21 +286,49 @@ export async function benchmarkRefresh(samples: number) {
           await repository.save(previous);
         }
         h.start();
+        decryptions = 0;
+        countDecryptions = true;
         const started = performance.now();
-        const status = await api<Status>("status");
-        const next = ic
-          ? await refreshCampus(previous, status.portals?.campus)
+        const manual =
+          scenario.includes("manual") || scenario.includes("unresolved-title");
+        // Runtime discovery lets this exact driver run against original and
+        // first-pass sources, where the combined startup API does not exist.
+        const begin = Reflect.get(refreshModule, "beginRefresh");
+        const startup =
+          typeof begin === "function" && scenario !== "schoology-cold"
+            ? await begin(
+                previous,
+                manual,
+                ic ? "campus" : combined ? "active" : "schoology-only",
+              )
+            : { status: await api<Status>("status") };
+        const status: Status = startup.status;
+        let next = ic
+          ? await refreshCampus(
+              previous,
+              status.portals?.campus,
+              "campus",
+              startup.campus,
+            )
           : await readSnapshot(
               previous,
               status,
               scenario === "schoology-cold"
                 ? { key: "fixture", secret: "fixture-secret" }
                 : undefined,
-              scenario === "schoology-manual" ||
-                scenario.includes("unresolved-title"),
+              manual,
+              startup.schoology,
             );
+        if (combined)
+          next = await refreshCampus(
+            next,
+            status.portals?.campus,
+            "campus",
+            startup.campus,
+          );
         const elapsed = performance.now() - started;
-        const stats = h.stats(),
+        countDecryptions = false;
+        const stats = { ...h.stats(), cryptoDecryptions: decryptions },
           snapshot = digest(next);
         if (sample >= 0) {
           if (expectedStats) assert.deepEqual(stats, expectedStats);
@@ -262,6 +352,7 @@ export async function benchmarkRefresh(samples: number) {
     return { conditions, samples, results };
   } finally {
     globalThis.fetch = originalFetch;
+    subtle.decrypt = originalDecrypt;
     await repository.clear();
   }
 }

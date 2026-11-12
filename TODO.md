@@ -1,3 +1,13 @@
+# Second optimization pass — November 12
+
+- [x] Compare the original implementation, first-pass commit and second pass using one frozen 16-scenario harness with nine samples per stage and matched normalized output hashes.
+- [x] Benchmark the full Schoology + IC path, slower I/O and existing profile-bound IC behavior; retain raw p50/p95, HTTP counts, per-provider/global peaks and decryption counts.
+- [x] Consolidate status/start, overlap independent provider reads and keep five complete bodies/44 subrequests with an IC reserve, no extra normal provider reads and unchanged own-provider caps.
+- [x] Reuse verified credentials only within an invocation; return saved portal health without another decrypt/status call; preserve full manual verification and existing metadata expiry.
+- [x] Verify Lock, prepared-save recovery, coalescing, one-shot retry claims, lost-response no-retry, independent provider failure, queued 429 suppression, longest cooldowns, empty/malformed responses and local-edit preservation.
+- [x] Pass build/type check, 336 tests, both 41-flow browser suites, Worker dry-run, 117-file packaging and isolated template preservation/rollback checks.
+- [ ] Instrument the owner's deployment after separate deployment authorization; no live-speed or physical-device guarantee is inferred from synthetic measurements.
+
 # Grade refresh optimizations — November 12
 
 - [x] Preserve v0.2.4 verification notes on `codex/grade-refresh-optimizations`; delete the old motion branch locally and on GitHub.

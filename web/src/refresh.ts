@@ -1,4 +1,11 @@
-import { api, RequestError, type Status } from "./api";
+import {
+  api,
+  RequestError,
+  resultValue,
+  type ApiResult,
+  type Status,
+} from "./api";
+import type { PortalSnapshot } from "./portal-refresh";
 import {
   type SourceCourse,
   type SavedState,
@@ -16,11 +23,116 @@ import {
 } from "./core/parser";
 import { reconcile } from "./core/reconcile";
 import * as repository from "./repository";
+type Page = { data: Row; next: boolean; owners?: Record<string, string> };
+type ReadResult = ApiResult<Page>;
+export interface SnapshotStart {
+  scan: string;
+  account: string;
+  revision?: string;
+  roots?: { sections: Page; grades: ReadResult };
+  reused?: string[];
+  prefetched?: {
+    jobs: { resource: string; section: string }[];
+    results: ReadResult[];
+  };
+}
+export type RefreshScope =
+  "active" | "all" | "campus" | "carmen" | "schoology-only";
+export interface RefreshStart {
+  status: Status;
+  schoology?: ApiResult<SnapshotStart>;
+  campus?: ApiResult<PortalSnapshot>;
+  carmen?: ApiResult<PortalSnapshot>;
+}
+function snapshotRequest(
+  previous: SavedState,
+  cacheAccount?: string,
+  credentials?: { key: string; secret: string },
+  refreshMetadata = false,
+) {
+  const reuse =
+    !credentials && !refreshMetadata
+      ? Object.entries(previous.metadata ?? {})
+          .filter(
+            ([, cached]) =>
+              cached.account === previous.account &&
+              Date.now() - cached.fetched < 5 * 60000,
+          )
+          .map(([id]) => id)
+          .slice(0, 32)
+      : [];
+  const metadataJobs = Object.entries(previous.metadata ?? {})
+    .filter(
+      ([, cached]) =>
+        cached.account === (cacheAccount ?? previous.account) &&
+        (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000),
+    )
+    .flatMap(([section]) =>
+      [
+        "section",
+        "items",
+        "categories",
+        "periods",
+        ...(previous.courses.some(
+          (c) => c.fields.section_id === section && c.fields.reported_scale_id,
+        )
+          ? ["scales"]
+          : []),
+      ].map((resource) => ({ resource, section })),
+    );
+  return {
+    metadataJobs,
+    body: {
+      ...credentials,
+      refreshMetadata,
+      includeRoots: true,
+      reuse,
+      prefetch: metadataJobs.slice(0, 32),
+      prefetchMetadata: true,
+    },
+  };
+}
+
+export async function beginRefresh(
+  previous: SavedState,
+  manual = false,
+  scope: RefreshScope = "active",
+): Promise<RefreshStart> {
+  const provider =
+    scope === "campus" || scope === "carmen"
+      ? scope
+      : scope === "active" && previous.primaryLms === "carmen"
+        ? "carmen"
+        : "schoology";
+  const body =
+    provider === "schoology"
+      ? snapshotRequest(previous, previous.account, undefined, manual).body
+      : {};
+  try {
+    return await api<RefreshStart>("refresh/start", {
+      ...body,
+      provider,
+      previousAccount: previous.account,
+      includeCampus: provider === "schoology" && scope !== "schoology-only",
+    });
+  } catch (error) {
+    // An older Worker has not performed any provider read for this route.
+    if (
+      !(error instanceof RequestError) ||
+      (![404, 405].includes(error.status ?? 0) &&
+        error.code !== "unlockRequired")
+    )
+      throw error;
+    return { status: await api<Status>("status") };
+  }
+}
+
 export async function readSnapshot(
   previous: SavedState,
   status: Status,
   credentials?: { key: string; secret: string },
   refreshMetadata = false,
+  initial?: ApiResult<SnapshotStart>,
 ): Promise<SavedState> {
   if (status.schoologyConnected === false && !credentials) {
     const latest = await repository.load(),
@@ -52,54 +164,15 @@ export async function readSnapshot(
     await repository.save(next);
     return next;
   }
-  const reuse =
-    !credentials && !refreshMetadata
-      ? Object.entries(previous.metadata ?? {})
-          .filter(
-            ([, cached]) =>
-              cached.account === previous.account &&
-              Date.now() - cached.fetched < 5 * 60000,
-          )
-          .map(([id]) => id)
-          .slice(0, 32)
-      : [];
-  const metadataJobs = Object.entries(previous.metadata ?? {})
-    .filter(
-      ([, cached]) =>
-        cached.account === (status.account ?? previous.account) &&
-        (refreshMetadata || Date.now() - cached.fetched >= 5 * 60000),
-    )
-    .flatMap(([section]) =>
-      [
-        "section",
-        "items",
-        "categories",
-        "periods",
-        ...(previous.courses.some(
-          (c) => c.fields.section_id === section && c.fields.reported_scale_id,
-        )
-          ? ["scales"]
-          : []),
-      ].map((resource) => ({ resource, section })),
-    );
-  const started = await api<{
-    scan: string;
-    account: string;
-    revision?: string;
-    roots?: { sections: Page; grades: ReadResult };
-    reused?: string[];
-    prefetched?: {
-      jobs: { resource: string; section: string }[];
-      results: ReadResult[];
-    };
-  }>("scan/start", {
-    ...credentials,
+  const { metadataJobs, body } = snapshotRequest(
+    previous,
+    status.account,
+    credentials,
     refreshMetadata,
-    includeRoots: true,
-    reuse,
-    prefetch: metadataJobs.slice(0, 32),
-    prefetchMetadata: true,
-  });
+  );
+  const started = initial
+    ? resultValue(initial)
+    : await api<SnapshotStart>("scan/start", body);
   const { scan, account: schoologyAccount } = started;
   const account = status.account ?? schoologyAccount;
   async function fingerprintGrade(row: Row) {
@@ -116,10 +189,6 @@ export async function readSnapshot(
   }
   let committed = false;
   const gradeOwners: Record<string, string> = {};
-  type Page = { data: Row; next: boolean; owners?: Record<string, string> };
-  type ReadResult =
-    | { ok: true; value: Page }
-    | { ok: false; error: string; status: number; retryAfter?: number };
   const prefetched = new Map<string, ReadResult>();
   async function preload(
     jobs: { resource: string; section: string; extra?: string }[],
