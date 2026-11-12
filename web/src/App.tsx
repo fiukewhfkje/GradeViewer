@@ -1,7 +1,7 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
 import { AppearanceSettings, useAppearance } from "./Appearance";
 import { useDisclosureMotion } from "./useDisclosureMotion";
-import { ReloadIcon } from "./ReloadIcon";
+import { LoadingIndicator, RefreshIcon } from "./LoadingIndicator";
 import { refreshCampus } from "./portal-refresh";
 import {
   useState,
@@ -162,6 +162,7 @@ function Dialog({
       return;
     }
     dialog.inert = true;
+    dialog.dataset.closing = "true";
     const animation = dialog.animate(
       [
         { opacity: 1, transform: "translateY(0) scale(1)" },
@@ -251,6 +252,10 @@ export default function App() {
     cacheGeneration = useRef(0),
     app = useRef<HTMLDivElement>(null),
     content = useRef<HTMLElement>(null);
+  const previousNavigation = useRef<
+    | { tab: string; selected?: string; view: string; period?: string }
+    | undefined
+  >(undefined);
   useDisclosureMotion(app);
   function apply(s: SavedState) {
     stateRef.current = s;
@@ -1234,13 +1239,36 @@ export default function App() {
     app.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [tab, selected, view]);
   useLayoutEffect(() => {
+    const previous = previousNavigation.current;
+    previousNavigation.current = { tab, selected, view, period };
     if (!content.current?.animate || appearance.reducedMotion) return;
+    if (
+      previous &&
+      previous.tab === tab &&
+      previous.selected === selected &&
+      previous.view === view &&
+      previous.period === period
+    )
+      return;
     // Animate the existing screen so navigation never remounts open forms or
     // replays on a background refresh, local edit, or chart pointer movement.
+    const returning =
+      previous &&
+      ((previous.selected && !selected) ||
+        (previous.view !== "detail" && view === "detail"));
+    const horizontal =
+      previous &&
+      previous.tab === tab &&
+      (previous.selected !== selected || previous.view !== view);
     const animation = content.current.animate(
       [
-        { opacity: 0.45, transform: "translateY(8px)" },
-        { opacity: 1, transform: "translateY(0)" },
+        {
+          opacity: 0.55,
+          transform: horizontal
+            ? `translateX(${returning ? -8 : 10}px)`
+            : "translateY(6px)",
+        },
+        { opacity: 1, transform: "translate(0)" },
       ],
       { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
@@ -1327,33 +1355,16 @@ export default function App() {
             data-phase={pull.phase}
             style={{ transform: `translateY(${pull.distance - 50}px)` }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              className={pull.phase === "refreshing" ? "spinning" : ""}
+            <LoadingIndicator
+              size={22}
+              active={pull.phase === "refreshing"}
+              progress={pull.progress}
               style={
                 pull.phase === "refreshing"
                   ? undefined
                   : { transform: `rotate(${pull.distance * 4}deg)` }
               }
-            >
-              {Array.from({ length: 12 }, (_, i) => (
-                <line
-                  key={i}
-                  x1="12"
-                  y1="3"
-                  x2="12"
-                  y2="6"
-                  transform={`rotate(${i * 30} 12 12)`}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  opacity={(i + 1) / 12}
-                />
-              ))}
-            </svg>
+            />
             <span className="sr-only">
               {pull.phase === "refreshing" ? "Refreshing grades" : ""}
             </span>
@@ -1400,12 +1411,13 @@ export default function App() {
                 </button>
               ) : (
                 <button
-                  className={"icon desktop-refresh " + (busy ? "spinning" : "")}
+                  className="icon desktop-refresh"
                   aria-label="Refresh grades"
+                  aria-busy={busy}
                   disabled={!canRefresh}
                   onClick={() => void refresh(undefined, true).catch(() => {})}
                 >
-                  <ReloadIcon size={21} />
+                  <RefreshIcon size={22} loading={busy} />
                 </button>
               )}
             </header>
@@ -1414,11 +1426,11 @@ export default function App() {
                 <span>{applyingUpdate ? "Installing…" : "Update ready"}</span>
                 <button
                   aria-label="Reload to update"
-                  className={applyingUpdate ? "spinning" : undefined}
+                  aria-busy={applyingUpdate}
                   disabled={busy || applyingUpdate || !!modal}
                   onClick={activateUpdate}
                 >
-                  <ReloadIcon size={16} />
+                  <RefreshIcon size={16} loading={applyingUpdate} />
                   {applyingUpdate ? "Updating…" : "Reload"}
                 </button>
               </aside>
@@ -1678,11 +1690,13 @@ export default function App() {
                               checkingUpdate || applyingUpdate || !!modal
                             }
                             onClick={() => void checkUpdates()}
+                            aria-busy={checkingUpdate}
                           >
-                            <Download
-                              size={18}
-                              className={checkingUpdate ? "spinning" : ""}
-                            />
+                            {checkingUpdate ? (
+                              <LoadingIndicator size={18} />
+                            ) : (
+                              <Download size={18} />
+                            )}
                             {checkingUpdate
                               ? "Checking for updates…"
                               : "Check for updates"}
@@ -1691,8 +1705,9 @@ export default function App() {
                             <button
                               disabled={busy || applyingUpdate || !!modal}
                               onClick={activateUpdate}
+                              aria-busy={applyingUpdate}
                             >
-                              <ReloadIcon size={18} />{" "}
+                              <RefreshIcon size={18} loading={applyingUpdate} />{" "}
                               {applyingUpdate ? "Updating…" : "Update now"}
                             </button>
                           )}
@@ -1700,11 +1715,13 @@ export default function App() {
                             <button
                               className="secondary full"
                               disabled={!canRefresh}
+                              aria-busy={busy}
                               onClick={() =>
                                 void refresh(undefined, true).catch(() => {})
                               }
                             >
-                              <ReloadIcon size={18} /> Refresh grades
+                              <RefreshIcon size={18} loading={busy} /> Refresh
+                              grades
                             </button>
                           )}
                           {updateMessage && (
@@ -1909,30 +1926,36 @@ export default function App() {
               width={56}
               height={56}
             />
-            <button
-              className={tab === "grades" ? "active" : ""}
-              aria-label="Grades"
-              aria-pressed={tab === "grades"}
-              onClick={() => {
-                setTab("grades");
-                setSelected(undefined);
-              }}
+            <nav
+              className="primary-nav"
+              data-tab={tab}
+              aria-label="Main navigation"
             >
-              <span className="tab-grade">A+</span>
-              <span>grades</span>
-            </button>
-            <button
-              className={tab === "profile" ? "active" : ""}
-              aria-label="Settings"
-              aria-pressed={tab === "profile"}
-              onClick={() => {
-                setTab("profile");
-                setSelected(undefined);
-              }}
-            >
-              <Settings strokeWidth={1.4} />
-              <span>settings</span>
-            </button>
+              <button
+                className={tab === "grades" ? "active" : ""}
+                aria-label="Grades"
+                aria-pressed={tab === "grades"}
+                onClick={() => {
+                  setTab("grades");
+                  setSelected(undefined);
+                }}
+              >
+                <span className="tab-grade">A+</span>
+                <span>grades</span>
+              </button>
+              <button
+                className={tab === "profile" ? "active" : ""}
+                aria-label="Settings"
+                aria-pressed={tab === "profile"}
+                onClick={() => {
+                  setTab("profile");
+                  setSelected(undefined);
+                }}
+              >
+                <Settings strokeWidth={1.4} />
+                <span>settings</span>
+              </button>
+            </nav>
             <div className="sidebar-courses">
               <span className="sidebar-label">Your courses</span>
               {fresh &&

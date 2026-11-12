@@ -22,7 +22,7 @@ import {
 import type { CampusChoice } from "./core/campus";
 import { usePortalHealth, type ConnectionTone } from "./portal-health";
 import { CarmenReport } from "./CarmenReport";
-import { ReloadIcon } from "./ReloadIcon";
+import { LoadingIndicator } from "./LoadingIndicator";
 type Login = { url: string; expires: number; attempt?: string };
 type SignInProgress =
   { state: "waiting" } | { state: "connected"; firstConnection: boolean };
@@ -453,7 +453,7 @@ export function PortalConnection({
         )}
         {busy && !(choosing && courses === undefined) && (
           <div className="portal-progress" role="status">
-            <ReloadIcon size={14} className="spinning" /> {working}
+            <LoadingIndicator size={16} /> {working}
           </div>
         )}
         {message && (

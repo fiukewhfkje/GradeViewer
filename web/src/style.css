@@ -680,15 +680,6 @@ dialog p {
     transform: rotate(25deg);
   }
 }
-.spinning > svg,
-svg.spinning {
-  animation: spin 1.2s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @media (min-width: 700px) {
   .app {
     padding-top: 28px;
@@ -1312,7 +1303,7 @@ svg.spinning {
     margin: 0 4px 12px;
     clip-path: inset(16.2% round 10px);
   }
-  footer > button {
+  .primary-nav > button {
     flex: 0 0 auto;
     flex-direction: row;
     justify-content: flex-start;
@@ -1323,16 +1314,16 @@ svg.spinning {
     font-size: 15px;
     text-transform: capitalize;
   }
-  footer > button.active {
-    background: var(--row);
+  .primary-nav > button.active {
+    background: transparent;
     font-weight: 600;
   }
-  footer > button:hover,
+  .primary-nav > button:hover,
   .sidebar-courses button:hover {
     background: var(--row);
   }
   footer .tab-grade,
-  footer > button svg {
+  .primary-nav > button svg {
     width: 28px;
   }
   .sidebar-courses {
@@ -1977,9 +1968,6 @@ dialog[open]::backdrop {
     opacity: 1;
   }
 }
-footer > button.active > :is(svg, .tab-grade) {
-  animation: nav-select 200ms var(--motion-ease);
-}
 .assignment-group[data-disclosure-open="false"] > summary .group-chevron svg {
   transform: rotate(0);
 }
@@ -1989,17 +1977,179 @@ footer > button.active > :is(svg, .tab-grade) {
 .gpa-card[data-disclosure-open="false"] > summary::before {
   transform: rotate(0);
 }
-@keyframes nav-select {
-  0% {
-    transform: scale(0.85);
+/* Loading follows actual work; a hidden pull indicator never loops. */
+.loading-indicator {
+  display: block;
+  flex-shrink: 0;
+  color: var(--grade);
+}
+.loading-track {
+  opacity: 0.15;
+}
+.loading-tail {
+  opacity: 0.3;
+}
+.loading-orbit,
+.loading-inner {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+.loading-inner {
+  opacity: 0.5;
+  transform: rotate(120deg);
+}
+.loading-indicator[data-active="true"] {
+  animation: loading-enter 140ms ease-out;
+}
+.loading-indicator[data-active="true"] .loading-orbit {
+  animation: loading-orbit 1.2s linear infinite;
+}
+.loading-indicator[data-active="true"] .loading-inner {
+  animation: loading-counter-orbit 1.8s linear infinite;
+}
+@keyframes loading-enter {
+  from {
+    opacity: 0;
   }
-  60% {
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1);
+  to {
+    opacity: 1;
   }
 }
+@keyframes loading-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes loading-counter-orbit {
+  from {
+    transform: rotate(120deg);
+  }
+  to {
+    transform: rotate(-240deg);
+  }
+}
+.desktop-refresh[aria-busy="true"] {
+  opacity: 1;
+  color: var(--grade);
+  background: color-mix(in srgb, var(--grade) 8%, transparent);
+}
+.settings-card button[aria-busy="true"],
+.update button[aria-busy="true"] {
+  opacity: 1;
+}
+@media (max-width: 760px) and (pointer: coarse) {
+  .desktop-refresh .loading-indicator,
+  .desktop-refresh .loading-orbit,
+  .desktop-refresh .loading-inner {
+    animation: none;
+  }
+}
+
+/* The selection surface follows navigation, horizontally on phone and
+   vertically in the desktop sidebar, without moving the focus targets. */
+.primary-nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  position: relative;
+  flex: 1;
+  isolation: isolate;
+}
+.primary-nav::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 4px;
+  width: calc(50% - 8px);
+  border-radius: 14px;
+  background: var(--bg);
+  pointer-events: none;
+  transition: transform 220ms var(--motion-ease);
+}
+.primary-nav[data-tab="profile"]::before {
+  transform: translateX(calc(100% + 8px));
+}
+.primary-nav > button {
+  position: relative;
+  z-index: 1;
+  border-radius: 12px;
+}
+@media (min-width: 1000px) {
+  .primary-nav {
+    flex: 0 0 auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 6px;
+  }
+  .primary-nav::before {
+    inset: 0 0 auto;
+    width: 100%;
+    height: calc((100% - 6px) / 2);
+    border-radius: 12px;
+    background: var(--row);
+  }
+  .primary-nav[data-tab="profile"]::before {
+    transform: translateY(calc(100% + 6px));
+  }
+}
+.settings-column > .settings-group {
+  animation: settings-enter 220ms var(--motion-ease) backwards;
+}
+.settings-column > .settings-group:nth-child(2) {
+  animation-delay: 24ms;
+}
+.settings-column > .settings-group:nth-child(3) {
+  animation-delay: 48ms;
+}
+.settings-column > .settings-group:nth-child(n + 4) {
+  animation-delay: 72ms;
+}
+@keyframes settings-enter {
+  from {
+    opacity: 0.55;
+    translate: 0 6px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.notice,
+.refresh-status,
+.update-result,
+.portal-progress,
+.portal-notice,
+.update {
+  animation: feedback-enter 160ms var(--motion-ease);
+}
+@keyframes feedback-enter {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+dialog[data-closing="true"]::backdrop {
+  animation: backdrop-leave 120ms ease-out forwards;
+}
+@keyframes backdrop-leave {
+  to {
+    opacity: 0;
+  }
+}
+.course > svg:last-child {
+  transition: transform 160ms var(--motion-ease);
+}
+.sidebar-courses button {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .course:hover > svg:last-child {
+    transform: translateX(2px);
+  }
+}
+
 :root[data-motion="reduce"] {
   *,
   *::before,
@@ -2008,6 +2158,7 @@ footer > button.active > :is(svg, .tab-grade) {
     animation: none !important;
     transition: none !important;
   }
+  .course:hover > svg:last-child,
   .course:not(:disabled):is(:hover, :active),
   .icon:not(:disabled):hover > .reload-icon,
   :is(.primary, .secondary, .icon, .back, .pills button, footer button):not(

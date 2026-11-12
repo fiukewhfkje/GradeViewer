@@ -224,6 +224,52 @@ async function holdRequest(page, pattern) {
     },
   };
 }
+async function captureLoadingPreview(page) {
+  // Export the actual SVG/CSS in an isolated synthetic context; no grade UI
+  // enters this small light/dark preview.
+  const frames = directory + "/loading-preview";
+  await mkdir(frames, { recursive: true });
+  await page.evaluate(() => {
+    const icon = document.querySelector(".desktop-refresh .loading-indicator");
+    const panel = document.createElement("div");
+    panel.id = "loading-preview";
+    panel.style.cssText =
+      "position:fixed;left:0;top:0;z-index:9999;width:400px;height:180px;display:grid;grid-template-columns:1fr 1fr";
+    for (const dark of [false, true]) {
+      const cell = document.createElement("div");
+      cell.style.cssText = `display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:${dark ? "#1d1d1c" : "#fcf9f2"};color:${dark ? "#b1afa7" : "#6d6b63"};font:13px system-ui`;
+      cell.style.setProperty("--grade", dark ? "#4dd112" : "#52bd29");
+      const clone = icon.cloneNode(true);
+      clone.setAttribute("width", "52");
+      clone.setAttribute("height", "52");
+      const label = document.createElement("span");
+      label.textContent = "Refreshing grades";
+      cell.append(clone, label);
+      panel.append(cell);
+    }
+    document.body.append(panel);
+    for (const animation of panel.getAnimations({ subtree: true })) {
+      if (animation.effect.getTiming().iterations === Infinity)
+        animation.pause();
+      else animation.finish();
+    }
+  });
+  for (let frame = 0; frame < 72; frame++) {
+    await page.evaluate((time) => {
+      for (const animation of document
+        .querySelector("#loading-preview")
+        .getAnimations({ subtree: true }))
+        if (animation.effect.getTiming().iterations === Infinity)
+          animation.currentTime = time;
+    }, frame * 50);
+    await page.locator("#loading-preview").screenshot({
+      path: frames + `/frame-${String(frame).padStart(3, "0")}.png`,
+    });
+  }
+  await page.evaluate(() =>
+    document.querySelector("#loading-preview").remove(),
+  );
+}
 async function holdFixture(client, kind) {
   const url = base + "/api/fixture/gate?kind=" + kind;
   await client.post(url, { data: { held: true } });
@@ -883,6 +929,173 @@ try {
         } finally {
           await isolated.close();
         }
+      }
+    },
+  );
+  await check(
+    "loading orbit follows real work and navigation surfaces honor reduced motion",
+    async () => {
+      const isolated = await browser.newContext({
+        ignoreHTTPSErrors: true,
+        viewport: { width: 1280, height: 900 },
+        reducedMotion: "no-preference",
+      });
+      try {
+        await isolated.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        const preview = await isolated.newPage();
+        await preview.addInitScript(() => {
+          window.screenMotions = 0;
+          const animate = Element.prototype.animate;
+          Element.prototype.animate = function (...args) {
+            if (this.tagName === "MAIN") window.screenMotions++;
+            return animate.apply(this, args);
+          };
+        });
+        await preview.goto(base);
+        const refresh = preview.locator(".desktop-refresh");
+        await refresh.waitFor({ state: "visible" });
+        await preview.waitForFunction(
+          () => !document.querySelector(".desktop-refresh").disabled,
+        );
+        await settleMotion(preview);
+        assert.equal(await refresh.locator(".reload-icon").count(), 1);
+        const motions = await preview.evaluate(() => window.screenMotions);
+        const held = await holdFixture(isolated.request, "provider");
+        try {
+          await refresh.click();
+          await held.received();
+          const loader = refresh.locator(
+            '.loading-indicator[data-active="true"]',
+          );
+          await loader.waitFor();
+          assert.equal(await refresh.getAttribute("aria-busy"), "true");
+          assert.equal(await refresh.isDisabled(), true);
+          assert.equal(
+            await loader.evaluate(
+              (node) =>
+                node
+                  .getAnimations({ subtree: true })
+                  .filter((a) => a.effect.getTiming().iterations === Infinity)
+                  .length,
+            ),
+            2,
+          );
+          const position = await loader
+            .locator(".loading-orbit")
+            .evaluate((node) => getComputedStyle(node).transform);
+          await preview.waitForFunction(
+            (before) =>
+              getComputedStyle(
+                document.querySelector(".desktop-refresh .loading-orbit"),
+              ).transform !== before,
+            position,
+          );
+          await preview.screenshot({
+            path: directory + "/loading-orbit-light.png",
+          });
+          await preview.emulateMedia({ colorScheme: "dark" });
+          await preview.screenshot({
+            path: directory + "/loading-orbit-dark.png",
+          });
+          if (process.env.GRADEVIEWER_CAPTURE_MOTION === "true")
+            await captureLoadingPreview(preview);
+          await preview.emulateMedia({ reducedMotion: "reduce" });
+          await preview.waitForFunction(
+            () => document.documentElement.dataset.motion === "reduce",
+          );
+          assert.equal(
+            await loader.evaluate(
+              (node) => node.getAnimations({ subtree: true }).length,
+            ),
+            0,
+          );
+          assert.equal(await refresh.getAttribute("aria-busy"), "true");
+          await preview.emulateMedia({ reducedMotion: "no-preference" });
+          await preview.waitForFunction(
+            () => document.documentElement.dataset.motion === "full",
+          );
+          assert.equal(
+            await preview.evaluate(() => window.screenMotions),
+            motions,
+          );
+        } finally {
+          await held.close();
+        }
+        await preview.waitForFunction(
+          () => !document.querySelector(".desktop-refresh").disabled,
+        );
+        assert.equal(await refresh.locator(".reload-icon").count(), 1);
+        assert.equal(await refresh.getAttribute("aria-busy"), "false");
+        assert.equal(
+          await preview.evaluate(
+            () =>
+              document
+                .getAnimations()
+                .filter((a) => a.effect.getTiming().iterations === Infinity)
+                .length,
+          ),
+          0,
+        );
+        for (const width of [1280, 390, 320]) {
+          await preview.setViewportSize({ width, height: 900 });
+          const nav = preview.getByRole("navigation", {
+            name: "Main navigation",
+          });
+          for (const label of ["Settings", "Grades"]) {
+            await nav.getByRole("button", { name: label, exact: true }).click();
+            await preview.waitForFunction(() => {
+              const nav = document.querySelector(".primary-nav"),
+                button = nav.querySelector('[aria-pressed="true"]');
+              const style = getComputedStyle(nav, "::before"),
+                transform = new DOMMatrixReadOnly(
+                  style.transform === "none" ? undefined : style.transform,
+                );
+              const box = nav.getBoundingClientRect(),
+                target = button.getBoundingClientRect();
+              return (
+                Math.abs(
+                  box.x +
+                    parseFloat(style.left) +
+                    transform.e +
+                    parseFloat(style.width) / 2 -
+                    (target.x + target.width / 2),
+                ) < 0.6 &&
+                Math.abs(
+                  box.y +
+                    parseFloat(style.top) +
+                    transform.f +
+                    parseFloat(style.height) / 2 -
+                    (target.y + target.height / 2),
+                ) < 0.6
+              );
+            });
+            assert.equal(
+              await preview.evaluate(
+                () => document.documentElement.scrollWidth <= innerWidth,
+              ),
+              true,
+            );
+            await settleMotion(preview);
+          }
+          if (width === 390)
+            await preview.screenshot({
+              path: directory + "/motion-phone-nav.png",
+            });
+        }
+        await preview.emulateMedia({ reducedMotion: "reduce" });
+        await preview
+          .getByRole("navigation", { name: "Main navigation" })
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        assert.equal(
+          await preview.evaluate(() => document.getAnimations().length),
+          0,
+        );
+      } finally {
+        await isolated.close();
       }
     },
   );
@@ -3292,7 +3505,11 @@ try {
             .filter({ hasText: "Retrying Schoology now" })
             .waitFor();
           assert.equal(
-            await quiet.locator(".desktop-refresh.spinning").count(),
+            await quiet
+              .locator(
+                '.desktop-refresh[aria-busy="true"] .loading-indicator[data-active="true"]',
+              )
+              .count(),
             1,
           );
           await quiet.screenshot({ path: directory + "/retry-running.png" });

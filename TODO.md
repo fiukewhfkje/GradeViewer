@@ -1,3 +1,11 @@
+# Loading and motion polish — November 12
+
+- [x] Add the shared orbit loader, gesture-driven pull arc and truthful real-work busy state without provider changes or idle loops.
+- [x] Add restrained sliding navigation, directional course changes, Settings/feedback entrances and backdrop dismissal while preserving forms and reduced motion.
+- [x] Pass build/type check, 336 tests, both 42-flow browser suites, Worker dry-run, 118-file packaging, isolated template preservation/rollback and formatting; inspect synthetic day/night/phone captures.
+- [x] Start and request the synthetic localhost preview in the browser panel for owner review; keep deployment/merge/tag/release held.
+- [ ] Benchmark CI/release before/after and reduce redundant tests/work without dropping meaningful safety checks.
+
 # Second optimization pass — November 12
 
 - [x] Compare the original implementation, first-pass commit and second pass using one frozen 16-scenario harness with nine samples per stage and matched normalized output hashes.

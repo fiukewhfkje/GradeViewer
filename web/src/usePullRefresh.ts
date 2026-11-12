@@ -152,5 +152,9 @@ export function usePullRefresh(
   useEffect(() => {
     if (!enabled) cancelPull.current();
   }, [enabled]);
-  return { ...state, ready: state.distance >= threshold };
+  return {
+    ...state,
+    ready: state.distance >= threshold,
+    progress: Math.min(1, state.distance / threshold),
+  };
 }
