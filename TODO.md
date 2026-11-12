@@ -1,3 +1,10 @@
+# Stable v0.2.5 — November 12
+
+- [x] Version the approved development branch and pass local build, 292 unit tests, packaging and isolated template verification.
+- [x] Pass Chromium, WebKit and provenance checks on PR #23. Merge to main and publish the signed v0.2.5 tag through the official workflow.
+- [x] Verify all 122 archive files against the tag and apply the published update in an isolated v0.2.4 copy.
+- [x] Verify the existing owner Worker serves the stable release at 100% with matching assets, unchanged bindings, saved diagnostics and locked APIs.
+
 # UI refinement and synced visibility — November 12
 
 - [x] Align the Restore row, normalize Settings and course spacing, improve grade contrast, and consolidate the update notice and action.

@@ -1,3 +1,11 @@
+# Stable v0.2.5 release verification — November 12, 2026
+
+[PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318165348), [main verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318542507) and the [tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318596356) passed. The first tag run timed out after five seconds in the synthetic Carmen CLI guard test. The focused local rerun passed in 1.2 seconds. The failed job reran successfully against the same source and tag with all checks required. Local build, 292 units, 122-file packaging and the isolated template installation, update and rollback checks also passed.
+
+GitHub published v0.2.5 as the latest stable from `5041d8cbbed47cb6c3819b42ea411310c7dd75d6`. Verification accepted the official signer workflow, exact tag, source digest and hosted runner. The manifest, archive and all 122 file hashes verify, and the downloaded archive matches the locally packaged source byte for byte. The real v0.2.4 updater applied the published package in an isolated copy, preserving the Worker name, personal variables, password schema and synthetic secret file.
+
+The owner Worker reports v0.2.5 in the stable channel, with version `16a603e7-27e9-4346-9827-e527c7feadb6` serving all traffic. At 2026-11-12T22:19:34.358Z, all six checked assets matched the tagged build. The five bindings and both saved diagnostics records matched the preservation checks. The new visibility mutation requires owner authentication. Verification used public assets, Worker metadata and the two guarded diagnostic GET routes. It made no live provider requests or cloud browser launches.
+
 # UI refinement and cross-device visibility validation — November 12, 2026
 
 All 292 unit tests pass. Full Chromium coverage passes in its 38 functional and 5 motion checks with the repeated sign-in bootstrap. All 42 WebKit flows pass. The browser checks hide a Schoology course on one browser, verify a second independent context receives the preference, then restore it and refresh the second context. The original context retains its hypothetical edit. Tests also cover locked requests, origin rejection, account and connection checks, stale revisions, safe legacy import, encrypted storage, provider-call counts, and an unreadable preference record.

@@ -1,3 +1,11 @@
+# Stable v0.2.5 published and deployed — November 12, 2026
+
+The owner approved the preview for stable. [PR #23](https://github.com/fiukewhfkje/GradeViewer/pull/23) merged into main as `5041d8cbbed47cb6c3819b42ea411310c7dd75d6`. The matching tag workflow published [v0.2.5](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.5) as the latest stable at 5:22 p.m. Eastern. The release includes the measured grade refresh changes, a single cooldown retry, synced Schoology hide/restore, the updated loading and reload controls, cleaner update feedback and the UI refinements. CarmenCanvas remains Experimental.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves v0.2.5 as version `16a603e7-27e9-4346-9827-e527c7feadb6` at 100% traffic. Six public asset hashes match the clean build of the tagged source. All five binding fingerprints, the vault and saved IC/Carmen diagnostics were preserved. Anonymous access to the visibility mutation and diagnostic APIs remains locked. No live grades or Browser Run sessions were used. Private receipts are stored outside Git as `DeploymentChecks/stable-025-20261112-{before,after}.json`.
+
+All 292 local unit tests, local packaging and isolated install/update/rollback checks passed. GitHub passed the pull request, main and tag workflows, including both browser jobs and release provenance. The first tag attempt hit the five-second timeout in a synthetic Carmen test. The same test passed locally in 1.2 seconds and the rerun passed without any source, test or tag change. All 122 published files match the tagged commit, the official Sigstore policy verifies, and an isolated v0.2.4 copy applied the real signed update while retaining its personal configuration and synthetic secret file. Physical-device and live provider acceptance remain separate.
+
 # UI refinement and synced Schoology visibility — November 12, 2026
 
 The localhost preview fixes the Restore row’s alignment, standardizes Settings padding, and shows a single update action per screen. Grades uses a compact notice. Settings puts the check, installation action and feedback in one App row. Course headers align the close button with the name. Grade numbers use more readable green text, and the course summary and recent assignment controls have a quieter hierarchy.
