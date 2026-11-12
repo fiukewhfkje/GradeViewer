@@ -676,6 +676,8 @@ export async function readSnapshot(
         preserved.account === account || !preserved.account
           ? preserved.primaryLms
           : undefined,
+      hiddenSchoology:
+        preserved.account === account ? preserved.hiddenSchoology : undefined,
       scenarios: preserved.account === account ? preserved.scenarios : {},
       ...(preserved.account === account && preserved.gpa
         ? { gpa: preserved.gpa }

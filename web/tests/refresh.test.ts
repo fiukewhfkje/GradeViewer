@@ -573,7 +573,7 @@ describe("complete snapshot and cache integration", () => {
     expect(requests).toBe(4);
     expect(next.courses).toHaveLength(cold.courses.length);
   });
-  it("preserves the newest local scenario rather than an older in-flight copy", async () => {
+  it("preserves newest local scenarios and hidden-course preferences rather than an older in-flight copy", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {
         key: "fixture",
         secret: "fixture-secret",
@@ -581,9 +581,11 @@ describe("complete snapshot and cache integration", () => {
       latest = structuredClone(cold),
       id = latest.courses[0].id;
     latest.scenarios[id] = { scores: {}, ignored: ["synthetic"], added: [] };
+    latest.hiddenSchoology = ["synthetic-hidden-section"];
     await repository.save(latest);
     const next = await readSnapshot(cold, await status());
     expect(next.scenarios[id].ignored).toEqual(["synthetic"]);
+    expect(next.hiddenSchoology).toEqual(latest.hiddenSchoology);
   });
   it("accepts a verified schema-valid empty account without resurrecting old records", async () => {
     const cold = await readSnapshot(emptyState(), await status(), {

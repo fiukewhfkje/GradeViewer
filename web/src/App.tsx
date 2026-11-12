@@ -65,7 +65,12 @@ import {
   exams,
   estimateQuarter,
   latestGradeUpdate,
+  physicalKey,
 } from "./core/periods";
+import {
+  schoologyHidden,
+  workspaceCourses as selectWorkspaceCourses,
+} from "./core/visibility";
 import { hypothetical, requiredFinal } from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
 import { GradeGraph } from "./GradeGraph";
@@ -749,6 +754,10 @@ export default function App() {
             next.primaryLms !== before.primaryLms
               ? next.primaryLms
               : current.primaryLms,
+          hiddenSchoology:
+            next.hiddenSchoology !== before.hiddenSchoology
+              ? next.hiddenSchoology
+              : current.hiddenSchoology,
           courses: current.courses.map((c) => {
             const edit = local.get(c.id),
               old = previous.get(c.id);
@@ -795,11 +804,30 @@ export default function App() {
     });
   }
   const usingCarmen = state.primaryLms === "carmen";
-  const workspaceCourses = state.courses.filter((c) =>
-    usingCarmen
-      ? c.fields.provider === "carmen"
-      : c.fields.provider !== "carmen",
-  );
+  const workspaceCourses = selectWorkspaceCourses(state);
+  const hiddenSchoology = [
+    ...new Map(
+      state.courses
+        .filter((c) => schoologyHidden(c, state.hiddenSchoology))
+        .map((c) => [physicalKey(c), c]),
+    ).values(),
+  ].sort((a, b) => a.title.localeCompare(b.title));
+  async function setSchoologyHidden(c: Course, hidden: boolean) {
+    const keys = new Set(stateRef.current.hiddenSchoology);
+    if (hidden) keys.add(physicalKey(c));
+    else keys.delete(physicalKey(c));
+    await persist({ ...stateRef.current, hiddenSchoology: [...keys] });
+  }
+  useEffect(() => {
+    if (
+      state.courses.some(
+        (c) => c.id === selected && schoologyHidden(c, state.hiddenSchoology),
+      )
+    ) {
+      setSelected(undefined);
+      setModal(undefined);
+    }
+  }, [selected, state.courses, state.hiddenSchoology]);
   const original = workspaceCourses.find((c) => c.id === selected),
     course = original
       ? ((view !== "detail"
@@ -1094,6 +1122,15 @@ export default function App() {
                 Restore Removed Assignments
               </button>
             )}
+            {(c.fields.provider ?? "schoology") === "schoology" && (
+              <button
+                disabled={busy}
+                title="Hide from Grades and GPA on this browser"
+                onClick={() => void setSchoologyHidden(c, true)}
+              >
+                Hide Schoology course
+              </button>
+            )}
           </Menu>
         </div>
 
@@ -1216,6 +1253,7 @@ export default function App() {
           ),
           metadata: undefined,
           gpa: undefined,
+          hiddenSchoology: undefined,
         };
         await repository.save(next);
         apply(next);
@@ -1579,6 +1617,40 @@ export default function App() {
                         <h2>Preferences</h2>
                         <AppearanceSettings appearance={appearance} />
                       </section>
+                      {!locked &&
+                        !usingCarmen &&
+                        hiddenSchoology.length > 0 && (
+                          <section className="settings-group hidden-courses">
+                            <h2>Hidden Schoology courses</h2>
+                            <div className="settings-card portal-body">
+                              <p>
+                                Hidden from Grades and GPA on this browser.
+                                Choose a replacement under Infinite Campus.
+                              </p>
+                              {hiddenSchoology.map((c) => (
+                                <div
+                                  className="portal-course"
+                                  key={physicalKey(c)}
+                                >
+                                  <span className="portal-course-name">
+                                    <strong>{c.title}</strong>
+                                    {c.teacher && <small>{c.teacher}</small>}
+                                  </span>
+                                  <button
+                                    className="secondary"
+                                    aria-label={"Restore " + c.title}
+                                    disabled={busy}
+                                    onClick={() =>
+                                      void setSchoologyHidden(c, false)
+                                    }
+                                  >
+                                    Restore
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
                     </div>
                     <div className="settings-column settings-preferences">
                       {!locked && (
@@ -1785,9 +1857,7 @@ export default function App() {
                   {!usingCarmen && (
                     <GpaSummary
                       key={state.account}
-                      courses={state.courses.filter(
-                        (c) => c.fields.provider !== "carmen",
-                      )}
+                      courses={workspaceCourses}
                       settings={state.gpa}
                       save={(gpa) => persist({ ...stateRef.current, gpa })}
                     />
@@ -1796,9 +1866,7 @@ export default function App() {
                     <GpaSummary
                       key={state.account + ":carmen"}
                       policy="osu"
-                      courses={state.courses.filter(
-                        (c) => c.fields.provider === "carmen",
-                      )}
+                      courses={workspaceCourses}
                       settings={state.carmenGpa}
                       save={(carmenGpa) =>
                         persist({ ...stateRef.current, carmenGpa })
@@ -1806,6 +1874,14 @@ export default function App() {
                     />
                   )}
                   <div className="courses">
+                    {!usingCarmen &&
+                      hiddenSchoology.length > 0 &&
+                      visibleCourses(workspaceCourses).length === 0 && (
+                        <p className="notice">
+                          No courses shown. Restore Schoology courses in
+                          Settings or choose classes under Infinite Campus.
+                        </p>
+                      )}
                     {visibleCourses(workspaceCourses).map((c, index) => {
                       const grade = overall(c, state.courses).grade,
                         age = updateAge(latestGradeUpdate(c, state.courses));

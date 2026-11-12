@@ -7,6 +7,7 @@ CarmenCanvas is an experimental option in Settings. Its main-LMS switch selects 
 ## Product and ownership
 
 - Schoology discovers courses automatically; personal student API access must be permitted by the school. Optional Infinite Campus classes are selected in Settings. Keep the setup free of course linking, mappings and cross-provider assignment deduplication. IC is currently for owner testing, with district compatibility unverified.
+- A Schoology course can be hidden through Course options when the student prefers its separately selected IC version. Hiding applies to every grading period for that section, excludes it from Grades and GPA on this browser, and preserves source grades, history and local scenarios. Settings lists hidden Schoology courses with Restore. Visibility preferences are account-bound and survive refresh/reload; they never write to providers or automatically associate IC courses.
 - Each user owns their Cloudflare deployment and encrypted credentials. Grade snapshots, history and hypothetical changes stay in that browser.
 - No subscriptions, ads, analytics, central student-data service, Muse dependency, widgets or speculative features.
 - Browser and installed Home Screen modes should feel like the native app. Keep the app fast, restrained and easy to use.

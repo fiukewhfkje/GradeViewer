@@ -309,8 +309,9 @@ export function PortalConnection({
               <div>
                 <h3>Choose your classes</h3>
                 <p>
-                  Choose classes missing from Schoology. Both copies of a class
-                  count toward GPA.
+                  Choose the classes you want from IC. If a class also appears
+                  in Schoology, hide its Schoology copy from Course options to
+                  avoid counting both toward GPA.
                 </p>
               </div>
               <span className="portal-count">{selected.length} selected</span>

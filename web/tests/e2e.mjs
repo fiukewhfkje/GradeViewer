@@ -2755,7 +2755,9 @@ try {
         .getByRole("heading", { name: "Choose your classes", exact: true })
         .waitFor({ timeout: 500 });
       await page.getByText("Loading IC courses…", { exact: true }).waitFor();
-      await page.getByText(/Both copies of a class count toward GPA/).waitFor();
+      await page
+        .getByText(/hide its Schoology copy from Course options/)
+        .waitFor();
       await page
         .getByRole("switch", { name: /Synthetic IC-only course/ })
         .waitFor();
@@ -3329,7 +3331,7 @@ try {
     },
   );
   await check(
-    "blank enrollments stay omitted and retired hide controls are absent",
+    "blank enrollments and legacy hidden flags do not override current visibility preferences",
     async () => {
       const fresh = await browser.newContext({ ignoreHTTPSErrors: true });
       try {
@@ -3360,6 +3362,14 @@ try {
           .locator(".courses .course")
           .filter({ hasText: "AP Biology" })
           .click();
+        await blank.locator(".assignment .menu summary").first().click();
+        await blank
+          .getByRole("button", { name: "Edit Grade", exact: true })
+          .click();
+        await blank.getByLabel("Score", { exact: true }).fill("17.25");
+        await blank.getByRole("button", { name: "Save", exact: true }).click();
+        await blank.getByLabel("What-If grade", { exact: true }).waitFor();
+        const savedRows = await blank.locator(".rows").first().innerText();
         await blank.getByLabel("Course options", { exact: true }).click();
         assert.equal(
           await blank
@@ -3428,6 +3438,92 @@ try {
             .count(),
           0,
         );
+        await blank.unroute(/\/api\/(?:status|refresh\/start)$/);
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .click();
+        await blank.getByLabel("Course options", { exact: true }).click();
+        await blank
+          .getByRole("button", { name: "Hide Schoology course", exact: true })
+          .click();
+        await blank.locator(".courses").waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        assert.doesNotMatch(
+          await blank.locator(".courses").innerText(),
+          /AP Biology/,
+        );
+        const reopened = blank.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await blank.reload();
+        await blank.locator(".courses").waitFor();
+        await reopened;
+        await blank
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        const refreshed = blank.waitForResponse(
+          (r) => r.url().endsWith("/api/scan/commit") && r.ok(),
+        );
+        await blank
+          .getByRole("button", { name: "Refresh grades", exact: true })
+          .click();
+        await refreshed;
+        await blank
+          .locator('header button[aria-label="Refresh grades"]:not([disabled])')
+          .waitFor();
+        assert.equal(await blank.locator(".courses .course").count(), 4);
+        await blank
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        const hidden = blank.locator(".hidden-courses");
+        await hidden
+          .getByRole("heading", {
+            name: "Hidden Schoology courses",
+            exact: true,
+          })
+          .waitFor();
+        assert.equal(
+          await hidden
+            .getByRole("button", { name: "Restore AP Biology", exact: true })
+            .count(),
+          1,
+        );
+        for (const width of [320, 1280]) {
+          await blank.setViewportSize({ width, height: 900 });
+          for (const theme of ["light", "dark"]) {
+            await setTheme(blank, theme);
+            await settleMotion(blank);
+            assert.equal(
+              await hidden.evaluate((el) => el.scrollWidth <= el.clientWidth),
+              true,
+            );
+            await hidden.screenshot({
+              path: `${directory}/hidden-schoology-${width}-${theme}.png`,
+            });
+          }
+        }
+        await hidden
+          .getByRole("button", { name: "Restore AP Biology", exact: true })
+          .click();
+        await hidden.waitFor({ state: "detached" });
+        await blank
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        assert.equal(await blank.locator(".courses .course").count(), 5);
+        await blank
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .click();
+        assert.equal(
+          await blank.locator(".rows").first().innerText(),
+          savedRows,
+        );
+        await blank.getByLabel("Close course", { exact: true }).click();
       } finally {
         await fresh.close();
       }

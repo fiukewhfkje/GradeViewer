@@ -72,6 +72,7 @@ export interface SavedState {
   primaryLms?: "schoology" | "carmen";
   account?: string;
   courses: Course[];
+  hiddenSchoology?: string[];
   scenarios: Record<string, Scenario>;
   gpa?: GpaSettings;
   carmenGpa?: GpaSettings;

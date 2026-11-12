@@ -1742,6 +1742,7 @@ dialog p {
 .portal-course-name {
   min-width: 0;
   flex: 1;
+  overflow-wrap: anywhere;
 }
 .portal-course-name strong {
   display: block;
