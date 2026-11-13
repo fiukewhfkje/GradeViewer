@@ -1,23 +1,44 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { LoadingIndicator } from "./LoadingIndicator";
 
-export const PHONE_TOUCH_QUERY = "(max-width: 760px) and (pointer: coarse)";
+const phoneTouchQuery = "(max-width: 760px) and (pointer: coarse)";
 const threshold = 56;
 type Phase = "idle" | "pulling" | "refreshing" | "settling";
 
-/** Own one vertical gesture in the app's scroll view, just like .refreshable. */
-export function usePullRefresh(
-  container: RefObject<HTMLElement | null>,
-  enabled: boolean,
-  refresh: () => Promise<void>,
-) {
+/** Keep frame-by-frame gesture state out of the grade screen's render tree. */
+export function PullRefresh({
+  container,
+  content,
+  enabled,
+  refresh,
+}: {
+  container: RefObject<HTMLElement | null>;
+  content: RefObject<HTMLDivElement | null>;
+  enabled: boolean;
+  refresh: () => Promise<void>;
+}) {
   const [state, setState] = useState({ distance: 0, phase: "idle" as Phase });
   const latest = useRef({ enabled, refresh });
   const cancelPull = useRef<() => void>(() => {});
   latest.current = { enabled, refresh };
+  useLayoutEffect(() => {
+    const element = content.current;
+    if (!element) return;
+    element.dataset.pulling = String(state.phase === "pulling");
+    element.style.transform = state.distance
+      ? `translateY(${state.distance}px)`
+      : "";
+  }, [content, state]);
   useEffect(() => {
     const element = container.current;
     if (!element) return;
-    const phone = matchMedia(PHONE_TOUCH_QUERY);
+    const phone = matchMedia(phoneTouchQuery);
     let gesture:
       | {
           id: number;
@@ -30,18 +51,34 @@ export function usePullRefresh(
     let phase: Phase = "idle",
       disposed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let frame: number | undefined;
+    const cancelFrame = () => {
+      if (frame === undefined) return;
+      cancelAnimationFrame(frame);
+      frame = undefined;
+    };
     const update = (distance: number, next: Phase) => {
       phase = next;
-      if (!disposed) setState({ distance, phase });
+      setState((current) =>
+        current.distance === distance && current.phase === next
+          ? current
+          : { distance, phase: next },
+      );
     };
     const settle = () => {
       gesture = undefined;
+      cancelFrame();
       clearTimeout(timer);
       update(0, "settling");
       timer = setTimeout(() => update(0, "idle"), 240);
     };
     const cancel = () => {
-      if (phase !== "refreshing") settle();
+      if (phase === "refreshing") return;
+      if (phase === "pulling") settle();
+      else {
+        gesture = undefined;
+        cancelFrame();
+      }
     };
     cancelPull.current = cancel;
     const start = (event: TouchEvent) => {
@@ -93,10 +130,8 @@ export function usePullRefresh(
         element.scrollTop > 1
       )
         return cancel();
-      const touch = Array.from(event.touches).find(
-        (t) => t.identifier === gesture!.id,
-      );
-      if (!touch) return cancel();
+      const touch = event.touches[0];
+      if (touch.identifier !== gesture.id) return cancel();
       const dy = touch.clientY - gesture.y,
         dx = Math.abs(touch.clientX - gesture.x);
       if (!gesture.captured) {
@@ -108,7 +143,11 @@ export function usePullRefresh(
       }
       if (event.cancelable) event.preventDefault();
       gesture.distance = 96 * (1 - Math.exp(-Math.max(0, dy - 6) / 160));
-      update(gesture.distance, "pulling");
+      if (frame === undefined)
+        frame = requestAnimationFrame(() => {
+          frame = undefined;
+          if (gesture) update(gesture.distance, "pulling");
+        });
     };
     const end = () => {
       if (!gesture) return;
@@ -117,6 +156,8 @@ export function usePullRefresh(
         gesture.distance >= threshold &&
         latest.current.enabled;
       gesture = undefined;
+      cancelFrame();
+      if (!ready && phase !== "pulling") return;
       if (!ready) return settle();
       update(54, "refreshing");
       // Retain the spinner and inset until the actual refresh completes.
@@ -139,6 +180,7 @@ export function usePullRefresh(
     document.addEventListener("visibilitychange", visibility);
     return () => {
       disposed = true;
+      cancelFrame();
       clearTimeout(timer);
       element.removeEventListener("touchstart", start);
       element.removeEventListener("touchmove", move);
@@ -152,9 +194,26 @@ export function usePullRefresh(
   useEffect(() => {
     if (!enabled) cancelPull.current();
   }, [enabled]);
-  return {
-    ...state,
-    ready: state.distance >= threshold,
-    progress: Math.min(1, state.distance / threshold),
-  };
+  const { distance, phase } = state;
+  const refreshing = phase === "refreshing";
+  return (
+    <div
+      className="pull-refresh"
+      role="status"
+      aria-live="polite"
+      data-visible={distance > 0}
+      data-phase={phase}
+      style={{ transform: `translateY(${distance - 50}px)` }}
+    >
+      <LoadingIndicator
+        size={22}
+        active={refreshing}
+        progress={Math.min(1, distance / threshold)}
+        style={
+          refreshing ? undefined : { transform: `rotate(${distance * 4}deg)` }
+        }
+      />
+      <span className="sr-only">{refreshing ? "Refreshing grades" : ""}</span>
+    </div>
+  );
 }

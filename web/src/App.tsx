@@ -1,5 +1,9 @@
 import { ConnectionDisclosure, PortalConnection } from "./PortalConnection";
-import { AppearanceSettings, useAppearance } from "./Appearance";
+import {
+  AppearanceSettings,
+  COMPACT_MOTION_QUERY,
+  useAppearance,
+} from "./Appearance";
 import { useDisclosureMotion } from "./useDisclosureMotion";
 import { LoadingIndicator, RefreshIcon } from "./LoadingIndicator";
 import { refreshCampus } from "./portal-refresh";
@@ -87,7 +91,7 @@ import {
   type Installation,
   type OfficialRelease,
 } from "./updates";
-import { usePullRefresh } from "./usePullRefresh";
+import { PullRefresh } from "./PullRefresh";
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<unknown>;
@@ -261,6 +265,7 @@ export default function App() {
     mounted = useRef(false),
     cacheGeneration = useRef(0),
     app = useRef<HTMLDivElement>(null),
+    refreshContent = useRef<HTMLDivElement>(null),
     content = useRef<HTMLElement>(null);
   const previousNavigation = useRef<
     | { tab: string; selected?: string; view: string; period?: string }
@@ -1367,17 +1372,22 @@ export default function App() {
       previous &&
       previous.tab === tab &&
       (previous.selected !== selected || previous.view !== view);
+    const compact = matchMedia(COMPACT_MOTION_QUERY).matches;
+    const from = horizontal
+      ? `translateX(${returning ? -8 : 10}px)`
+      : "translateY(6px)";
+    // On phones, slide one surface. Fading the whole screen while also
+    // animating individual cards makes the same content animate twice.
     const animation = content.current.animate(
-      [
-        {
-          opacity: 0.55,
-          transform: horizontal
-            ? `translateX(${returning ? -8 : 10}px)`
-            : "translateY(6px)",
-        },
-        { opacity: 1, transform: "translate(0)" },
-      ],
-      { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+      compact
+        ? [{ transform: from }, { transform: "translate(0)" }]
+        : [
+            { opacity: 0.55, transform: from },
+            { opacity: 1, transform: "translate(0)" },
+          ],
+      compact
+        ? { duration: 170, easing: "cubic-bezier(0.25, 0.65, 0.35, 1)" }
+        : { duration: 180, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
     return () => animation.cancel();
   }, [tab, selected, view, period, appearance.reducedMotion]);
@@ -1433,11 +1443,6 @@ export default function App() {
       setSwitchingLms(false);
     }
   }
-  const pull = usePullRefresh(
-    app,
-    canRefresh && tab === "grades" && fresh && !modal && !install,
-    () => refresh(undefined, true),
-  );
   return (
     <>
       <div
@@ -1455,33 +1460,15 @@ export default function App() {
             (tab === "grades" && selected && fresh ? " course-screen" : "")
           }
         >
-          <div
-            className="pull-refresh"
-            role="status"
-            aria-live="polite"
-            data-visible={pull.distance > 0}
-            data-phase={pull.phase}
-            style={{ transform: `translateY(${pull.distance - 50}px)` }}
-          >
-            <LoadingIndicator
-              size={22}
-              active={pull.phase === "refreshing"}
-              progress={pull.progress}
-              style={
-                pull.phase === "refreshing"
-                  ? undefined
-                  : { transform: `rotate(${pull.distance * 4}deg)` }
-              }
-            />
-            <span className="sr-only">
-              {pull.phase === "refreshing" ? "Refreshing grades" : ""}
-            </span>
-          </div>
-          <div
-            className="refresh-content"
-            data-pulling={pull.phase === "pulling"}
-            style={{ transform: `translateY(${pull.distance}px)` }}
-          >
+          <PullRefresh
+            container={app}
+            content={refreshContent}
+            enabled={
+              canRefresh && tab === "grades" && fresh && !modal && !install
+            }
+            refresh={() => refresh(undefined, true)}
+          />
+          <div className="refresh-content" ref={refreshContent}>
             <header className={selected ? "course-header" : undefined}>
               <div>
                 {selected && (

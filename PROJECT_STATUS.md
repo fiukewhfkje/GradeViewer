@@ -1,3 +1,9 @@
+# Mobile motion and icon cleanup — November 13, 2026
+
+Compact screens slide the current view and tab indicator without separately fading or staggering the cards. Assignment, GPA and connection sections change layout once and keep an entrance animation and moving chevron. Pull-to-refresh applies the latest drag position once per display frame without rerendering the grade screen. Reduce motion still skips decorative movement. Desktop keeps its existing reversible section slides.
+
+The Home Screen and browser bookmark icons no longer have a pale frame baked into the artwork. The install icons extend the dark background to the edge for system masking; the favicon has transparent corners. These changes are on the development branch only. [Local profiling and validation](docs/PWA_VALIDATION.md#mobile-motion-and-icons--november-13-2026) measure less work per interaction. Perceived smoothness and icon refresh on a physical phone still need confirmation.
+
 # Stable v0.2.5 published and deployed — November 12, 2026
 
 The owner approved the preview for stable. [PR #23](https://github.com/fiukewhfkje/GradeViewer/pull/23) merged into main as `5041d8cbbed47cb6c3819b42ea411310c7dd75d6`. The matching tag workflow published [v0.2.5](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.5) as the latest stable at 5:22 p.m. Eastern. The release includes the measured grade refresh changes, a single cooldown retry, synced Schoology hide/restore, the updated loading and reload controls, cleaner update feedback and the UI refinements. CarmenCanvas remains Experimental.

@@ -1445,7 +1445,7 @@ dialog p {
     display: block;
     flex: 0 0 auto;
     margin: 0 4px 12px;
-    clip-path: inset(16.2% round 10px);
+    padding: 9px;
   }
   .primary-nav > button {
     flex: 0 0 auto;
@@ -2307,6 +2307,25 @@ dialog[data-closing="true"]::backdrop {
   }
   .course:hover > svg:last-child {
     transform: translateX(2px);
+  }
+}
+
+/* Keep one screen slide and the moving tab indicator on compact screens.
+   The cards don't need separate layers, staggered fades or tap color tweens. */
+@media (max-width: 760px) {
+  .course,
+  .settings-column > .settings-group {
+    animation: none;
+  }
+  .primary-nav > button {
+    transition-property: transform;
+  }
+  .preference-reset,
+  .appearance-card > .settings-row {
+    transition: none;
+  }
+  .password-help[open] > ol {
+    animation: disclosure-enter 150ms var(--motion-ease);
   }
 }
 
