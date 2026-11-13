@@ -4,11 +4,13 @@ The progression graph dims the area to the right of the selected point while the
 
 In a synthetic phone trace with roughly 30 Hz animation callbacks, the shaded graph produced 24 median paint events, compared with 23 for the unshaded graph and 66 for the old SVG clip. [Validation details](docs/PWA_VALIDATION.md#graph-selection-shade--november-13-2026). The owner approved testing the graph shade and compact Settings slides on their existing Worker. Physical phone performance remains open.
 
+Development source `b7f8cff` deployed to the existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `323dd2af-325b-44a2-bf5c-2584fcbf779c`. At 7:21 a.m. Eastern, it served 100% of traffic. All ten checked assets, five binding fingerprints and both saved diagnostic records passed verification. The graph shade and Settings slides are on the owner Worker and the development branch. The published release remains v0.2.5.
+
 # Compact Settings connection slides — November 13, 2026
 
 On phones, the Schoology, Infinite Campus and Carmen connection panels now open and close with a short slide. The card reveals or hides the panel while the rows below translate into place. The browser no longer animates the panel's height. Quick taps can reverse the slide, and Reduce Motion still opens and closes the panel immediately.
 
-At 390 × 844 in a local Chromium trace with 4× CPU slowdown, the new slide took three median layout passes to open and three to close. The old height animation took 13 each. Both full local browser suites and the 292 unit tests passed. [Validation details](docs/PWA_VALIDATION.md#compact-settings-connection-slides--november-13-2026). The changes are on the development branch for review. Physical iPhone testing remains open.
+At 390 × 844 in a local Chromium trace with 4× CPU slowdown, the new slide took three median layout passes to open and three to close. The old height animation took 13 each. Both full local browser suites and the 292 unit tests passed. [Validation details](docs/PWA_VALIDATION.md#compact-settings-connection-slides--november-13-2026). The owner Worker deployment above includes these slides. Physical iPhone testing remains open.
 
 # Graph dragging and connection feedback — November 13, 2026
 

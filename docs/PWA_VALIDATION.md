@@ -11,6 +11,8 @@ Compared the old SVG clip, the shipped unshaded graph and the new shade with the
 
 The shade covers the portion of the plot after the marker. Keyboard checks cover both ends and Escape. Touch checks cover alignment with the marker, release and cancellation. These measurements cover renderer workload. Smoothness in Low Power Mode still needs a physical iPhone check.
 
+The production build, 292 unit tests, 42 checks each in Chromium and WebKit, strict Worker dry-run, local source packaging and isolated template verification passed. The clean build matched the profiled assets. The owner-only deployment used `b7f8cff` and served 100% of traffic as version `323dd2af-325b-44a2-bf5c-2584fcbf779c`. The postflight matched ten public asset hashes, all five bindings and both saved diagnostic records. Anonymous APIs remained locked. No provider requests were made during verification. Private receipts are stored outside Git as `DeploymentChecks/graph-shade-20261113-{before,after}.json`.
+
 # Compact Settings connection slides — November 13, 2026
 
 Compared the old height animation, the shipped snap at `d019e5c`, and the new slide against the same synthetic Schoology settings. The old animation used the pre-mobile-optimization disclosure handler with the same current Settings markup. Each median comes from eight opens and eight closes in headless Chromium at 390 × 844 with 3× pixel density and 4× CPU slowdown, measured over 445 ms from each click.
