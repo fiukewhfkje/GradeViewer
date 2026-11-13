@@ -1,3 +1,7 @@
+# Stable v0.2.6 preparation — November 13, 2026
+
+The owner accepted the current mobile presentation and requested a stable release. v0.2.6 collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental. The existing signed PR/main/tag workflow and owner Worker are retained. The versioned build, 292 local unit tests, 123-file package and isolated-template update/preservation/rollback checks passed. Publication and deployment verification are pending; earlier physical-device measurement limits still apply.
+
 # Faster Settings layers and Carmen row clipping — November 13, 2026
 
 The phone connection slide now takes 100 ms instead of 130 ms. Its background and content reveal move as separate transform layers. The connections card no longer animates a clipping mask over the following rows, removing the boundary that could cut off Carmen during the slide. Opening, closing, quick reversal, focus restoration and Reduce Motion retain their behavior.

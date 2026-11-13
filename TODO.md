@@ -1,3 +1,10 @@
+# Stable v0.2.6 — November 13
+
+- [ ] Validate the versioned candidate and pass PR browser and provenance checks.
+- [ ] Merge to main and publish v0.2.6 through the signed tag workflow.
+- [ ] Verify the published archive against its tag and apply the signed update to an isolated v0.2.5 copy with synthetic settings.
+- [ ] Verify the existing owner Worker serves the release with matching assets, preserved bindings and saved diagnostics.
+
 # Faster Settings slide and Carmen row — November 13
 
 - [x] Shorten phone slides to 100 ms and replace card-wide clipping with separate moving content and background layers.
