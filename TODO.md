@@ -1,8 +1,9 @@
 # Mobile motion and icons — November 13
 
 - [x] Trace mobile rendering before and after, keep full and reduced motion options, and verify navigation, disclosures and pull-to-refresh locally.
-- [x] Remove the baked-in pale border from Home Screen and browser bookmark icons. Keep the changes off main and undeployed.
-- [ ] Check motion on a physical phone in regular and Low Power Mode, including the installed app. Confirm how an existing Home Screen icon and saved bookmark refresh after an authorized update.
+- [x] Remove the baked-in pale border from Home Screen and browser bookmark icons.
+- [x] Merge the verified changes to main and confirm deployment to the existing owner Worker.
+- [ ] Check motion on a physical phone in regular and Low Power Mode, including the installed app. Confirm how an existing Home Screen icon and saved bookmark refresh after the update.
 
 # Stable v0.2.5 — November 12
 

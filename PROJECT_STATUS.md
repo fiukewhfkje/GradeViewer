@@ -2,7 +2,9 @@
 
 Compact screens slide the current view and tab indicator without separately fading or staggering the cards. Assignment, GPA and connection sections change layout once and keep an entrance animation and moving chevron. Pull-to-refresh applies the latest drag position once per display frame without rerendering the grade screen. Reduce motion still skips decorative movement. Desktop keeps its existing reversible section slides.
 
-The Home Screen and browser bookmark icons no longer have a pale frame baked into the artwork. The install icons extend the dark background to the edge for system masking; the favicon has transparent corners. These changes are on the development branch only. [Local profiling and validation](docs/PWA_VALIDATION.md#mobile-motion-and-icons--november-13-2026) measure less work per interaction. Perceived smoothness and icon refresh on a physical phone still need confirmation.
+The Home Screen and browser bookmark icons no longer have a pale frame baked into the artwork. The install icons extend the dark background to the edge for system masking, and the favicon has transparent corners. [Local profiling and validation](docs/PWA_VALIDATION.md#mobile-motion-and-icons--november-13-2026) measure less work per interaction. Perceived smoothness and icon refresh on a physical phone still need confirmation.
+
+The owner approved merging and deploying these changes to the existing Worker and retiring the development branch. [PR #24](https://github.com/fiukewhfkje/GradeViewer/pull/24) merged as `e4bfc16` after both browser jobs and provenance verification passed. The [initial Cloudflare build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/1dd9079c-8e0f-4e59-9a15-b014f817ac57) deployed the merge to the [owner's existing GradeViewer address](https://gradeviewer.fiukewhfkje.workers.dev). All ten checked assets matched, including the new icons. All five bindings and saved diagnostic records passed preservation checks. The published stable release remains v0.2.5.
 
 # Stable v0.2.5 published and deployed — November 12, 2026
 
