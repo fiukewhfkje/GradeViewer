@@ -2,8 +2,8 @@ import { useEffect, type RefObject } from "react";
 import { COMPACT_MOTION_QUERY } from "./Appearance";
 
 const phoneSlide = {
-  duration: 180,
-  easing: "cubic-bezier(0.25, 0.6, 0.35, 1)",
+  duration: 130,
+  easing: "cubic-bezier(0.3, 0.15, 0.7, 0.85)",
   fill: "both",
 } as const;
 

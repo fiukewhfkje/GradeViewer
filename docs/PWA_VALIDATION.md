@@ -1,3 +1,13 @@
+# Quicker Settings slides and curve selection — November 13, 2026
+
+The mobile connection animation uses 130 ms for the reveal and chevron, with symmetric easing for opening and closing. The existing browser regression still covers intermediate positions, reversal, focus and Reduce Motion. Graph selection uses a transparent clipping container and a counter-translated bright stroke. There is one filled curve and no shaded background rectangle.
+
+The same synthetic drag harness at 390 × 844, 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks measured 26 median paint events and 10 layout passes across eight repetitions. The original SVG clip measured 66 paint events and 16 layout passes. The base SVG had one recorded mutation when selection began and no repeated geometry changes during the drag.
+
+Captures at 320, 390 and 1280 px in light and dark mode passed alignment and overflow checks in Chromium and WebKit. The duplicate stroke's position and dimensions match the base plot within one pixel. The highlight contains no fill, and its background is transparent. Phone light and dark captures were inspected. These are local synthetic checks. Real-device refresh rate and Low Power Mode acceptance remain open.
+
+The production build, 292 unit tests, 42 browser checks each in Chromium and WebKit, 123-file source packaging and isolated template update, preservation and rollback checks passed. The final build matches the assets used for the trace and captures.
+
 # Graph selection shade — November 13, 2026
 
 Compared the old SVG clip, the shipped unshaded graph and the new shade with the same synthetic course. Headless Chromium used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. The table gives medians from eight repetitions of the same 32-move drag.

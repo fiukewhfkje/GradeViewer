@@ -1,3 +1,9 @@
+# Quicker Settings slides and curve selection — November 13
+
+- [x] Shorten the mobile connection slide to 130 ms and match the chevron timing.
+- [x] Remove the rectangular shade from the graph fill and keep dimming on the curve after the selected point. Check the stroke alignment in both browser engines.
+- [ ] Confirm the revised graph and slide feel on the owner's iPhone.
+
 # Graph selection shade — November 13
 
 - [x] Restore the graph's dimmed side using a moving overlay. Compare drag rendering with the old shade and the unshaded graph.

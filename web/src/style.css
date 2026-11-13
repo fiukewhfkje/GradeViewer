@@ -569,11 +569,11 @@ select {
   vector-effect: non-scaling-stroke;
   stroke-linecap: round;
 }
-/* Move the shade across the rendered plot without changing the SVG. */
-.chart-dim {
+/* Move the clip and counter-move the bright stroke so the curve stays put. */
+.chart-highlight {
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--row) 65%, transparent);
+  overflow: hidden;
   pointer-events: none;
 }
 .chart-marker {
@@ -2345,6 +2345,9 @@ dialog[data-closing="true"]::backdrop {
   }
   .settings-provider[open] > .connection-content {
     animation: none;
+  }
+  .provider-chevron {
+    transition-duration: 130ms;
   }
   .password-help[open] > ol {
     animation: disclosure-enter 150ms var(--motion-ease);

@@ -1,3 +1,9 @@
+# Quicker Settings slides and curve-only selection — November 13, 2026
+
+The phone connection slide now takes 130 ms instead of 180 ms, with a symmetric easing curve and a matching chevron duration. Graph selection dims only the curve after the marker. The fill remains continuous across the plot. The previous rectangular overlay also shaded the fill and produced the vertical edge reported by the owner.
+
+The replacement clips a duplicate bright stroke using two opposite transforms, preserving the curve's position. The local 30 Hz drag benchmark measured 26 median paint events, compared with 66 for the original SVG clip. Light and dark captures at 320, 390 and 1280 px were checked in Chromium and WebKit. Physical iPhone acceptance remains open.
+
 # Graph selection shade — November 13, 2026
 
 The progression graph dims the area to the right of the selected point while the finger, mouse or keyboard moves the selection. A translucent layer moves over the finished plot using a transform. The SVG stays unchanged during the drag. Grade history, grade calculations and the grade/date tooltip retain their existing behavior.

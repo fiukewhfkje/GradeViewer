@@ -880,7 +880,7 @@ try {
               (animation) => "transform" in animation.effect.getKeyframes()[0],
             );
           slide.pause();
-          slide.currentTime = 90;
+          slide.currentTime = Number(slide.effect.getTiming().duration) / 2;
           const middle = following.getBoundingClientRect().top;
           const layoutMotion = details.parentElement
             .getAnimations({ subtree: true })
@@ -1684,7 +1684,9 @@ try {
     assert.equal(await page.locator(".summary .grade").innerText(), homeGrade);
     assert.ok(await page.locator(".chart-line").first().getAttribute("d"));
     assert.equal(
-      await page.locator(".chart svg").getAttribute("preserveAspectRatio"),
+      await page
+        .locator(".chart-plot > svg")
+        .getAttribute("preserveAspectRatio"),
       "none",
     );
     assert.equal((await page.locator(".chart").boundingBox()).height, 154);
@@ -1698,29 +1700,32 @@ try {
     "native graph selection shows grade/date and clears on release",
     async () => {
       const chart = page.getByRole("slider", { name: "Explore grade history" });
-      const shade = chart.locator(".chart-dim");
+      const highlight = chart.locator(".chart-highlight");
       await chart.focus();
       await chart.press("Home");
       assert.equal(await chart.getAttribute("aria-valuenow"), "0");
-      const shadeOffset = () =>
-        shade.evaluate(
-          (node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m41,
+      const highlightEdge = () =>
+        highlight.evaluate(
+          (node) =>
+            node.getBoundingClientRect().right -
+            node.closest(".chart").getBoundingClientRect().left,
         );
-      assert.equal(await shadeOffset(), 0);
+      assert.ok(Math.abs(await highlightEdge()) < 1);
+      assert.equal(await highlight.locator(".chart-area").count(), 0);
       assert.match(
         await page.locator(".chart-tooltip strong").innerText(),
         /^-?\d+\.\d{2}$/,
       );
       await chart.press("ArrowRight");
       assert.equal(await chart.getAttribute("aria-valuenow"), "1");
-      assert.ok((await shadeOffset()) > 0);
+      assert.ok((await highlightEdge()) > 0);
       await page.screenshot({ path: directory + "/chart-selection-light.png" });
       await chart.press("End");
       const width = (await chart.boundingBox()).width;
-      assert.ok(Math.abs((await shadeOffset()) - width) < 1);
+      assert.ok(Math.abs((await highlightEdge()) - width) < 1);
       await chart.press("Escape");
       assert.equal(await page.locator(".chart-tooltip").count(), 0);
-      assert.equal(await shade.count(), 0);
+      assert.equal(await highlight.count(), 0);
       if (engine === "chromium") {
         const touch = await context.newCDPSession(page),
           box = await chart.boundingBox();
@@ -1755,7 +1760,7 @@ try {
               node.closest(".chart").getBoundingClientRect().x
             );
           });
-        assert.ok(Math.abs((await shadeOffset()) - markerCenter) < 1);
+        assert.ok(Math.abs((await highlightEdge()) - markerCenter) < 1);
         assert.equal(
           await page.locator(".app-scroll").evaluate((node) => node.scrollTop),
           scrollTop,
@@ -1769,7 +1774,7 @@ try {
           touchPoints: [],
         });
         await page.locator(".chart-tooltip").waitFor({ state: "detached" });
-        assert.equal(await shade.count(), 0);
+        assert.equal(await highlight.count(), 0);
         await touch.send("Input.dispatchTouchEvent", {
           type: "touchStart",
           touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
@@ -1781,7 +1786,7 @@ try {
         });
         await touch.detach();
         assert.equal(await page.locator(".chart-tooltip").count(), 0);
-        assert.equal(await shade.count(), 0);
+        assert.equal(await highlight.count(), 0);
       }
     },
   );
