@@ -1,3 +1,36 @@
+# Stable v0.2.6 — November 13
+
+- [ ] Validate the versioned candidate and pass PR browser and provenance checks.
+- [ ] Merge to main and publish v0.2.6 through the signed tag workflow.
+- [ ] Verify the published archive against its tag and apply the signed update to an isolated v0.2.5 copy with synthetic settings.
+- [ ] Verify the existing owner Worker serves the release with matching assets, preserved bindings and saved diagnostics.
+
+# Faster Settings slide and Carmen row — November 13
+
+- [x] Shorten phone slides to 100 ms and replace card-wide clipping with separate moving content and background layers.
+- [x] Check Carmen visibility at intermediate frames, quick reversal, focus and Reduce Motion in Chromium and WebKit. Compare rendering cost with the deployed 130 ms slide.
+- [x] Deploy source `6929f29` to the existing owner Worker and verify ten assets, all five binding fingerprints, saved diagnostics and locked APIs at 100% traffic.
+- [ ] Confirm slide smoothness and Carmen row visibility on the owner's physical iPhone, including Low Power Mode.
+
+# Quicker Settings slides and curve selection — November 13
+
+- [x] Shorten the mobile connection slide to 130 ms and match the chevron timing.
+- [x] Remove the rectangular shade from the graph fill and keep dimming on the curve after the selected point. Check the stroke alignment in both browser engines.
+- [x] Deploy the corrections to the existing owner Worker and verify the live assets, vault and bindings.
+- [ ] Confirm the revised graph and slide feel on the owner's iPhone.
+
+# Graph selection shade — November 13
+
+- [x] Restore the graph's dimmed side using a moving overlay. Compare drag rendering with the old shade and the unshaded graph.
+- [x] Deploy the graph shade and Settings slides to the existing owner Worker and verify the live build and saved connections.
+- [ ] Check graph dragging and Settings slides on the owner's phone in normal and Low Power Mode.
+
+# Compact Settings connection slides — November 13
+
+- [x] Restore the open and close slide for connection panels on phones without animating height. Verify quick reversal, focus and Reduce Motion.
+- [x] Compare the current snap, old height slide and new slide with the same local phone trace. Provide a synthetic preview.
+- [ ] Check the slide on a physical iPhone, including Low Power Mode.
+
 # Graph dragging and connection feedback — November 13
 
 - [x] Reduce chart redraws during touch selection and compare the same drag with simulated 30 Hz callbacks.

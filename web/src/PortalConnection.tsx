@@ -64,13 +64,15 @@ export function ConnectionDisclosure({
           <span className="status-dot" />
           {label}
         </span>
-        <ChevronDown
-          size={16}
-          className="provider-chevron"
-          aria-hidden="true"
-        />
+        <span className="provider-chevron" aria-hidden="true">
+          <ChevronDown size={16} />
+        </span>
       </summary>
-      {children}
+      <div className="connection-content">
+        <div className="connection-reveal">
+          <div className="connection-body">{children}</div>
+        </div>
+      </div>
     </details>
   );
 }

@@ -162,8 +162,31 @@ export const GradeGraph = memo(function GradeGraph({
                 d={`${curve.path} L1000,154 L0,154 Z`}
                 fill={`url(#${id}-fill)`}
               />
-              <path className="chart-line" d={curve.path} />
+              <path
+                className="chart-line"
+                d={curve.path}
+                opacity={selection === undefined ? 1 : 0.35}
+              />
             </svg>
+            {selection !== undefined && (
+              <div
+                className="chart-highlight"
+                aria-hidden="true"
+                style={{
+                  transform: `translate3d(${x - selection.width}px, 0, 0)`,
+                }}
+              >
+                <svg
+                  viewBox="0 0 1000 154"
+                  preserveAspectRatio="none"
+                  style={{
+                    transform: `translate3d(${selection.width - x}px, 0, 0)`,
+                  }}
+                >
+                  <path className="chart-line" d={curve.path} />
+                </svg>
+              </div>
+            )}
           </div>
           {selection !== undefined && (
             <>

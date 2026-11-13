@@ -1,12 +1,132 @@
 import { useEffect, type RefObject } from "react";
 import { COMPACT_MOTION_QUERY } from "./Appearance";
 
-/** Keep native details/summary behavior. Only wide screens slide the layout. */
+const phoneSlide = {
+  duration: 100,
+  easing: "cubic-bezier(0.3, 0.15, 0.7, 0.85)",
+  fill: "both",
+} as const;
+
+function* followingSettingsRows(details: HTMLDetailsElement, layout: Element) {
+  // Only following siblings move. Animating a parent would also shift the
+  // summary the user tapped, or animate descendants a second time.
+  for (let node: Element | null = details; node; node = node.parentElement) {
+    for (
+      let next = node.nextElementSibling;
+      next;
+      next = next.nextElementSibling
+    )
+      yield next;
+    if (node === layout) break;
+  }
+}
+
+/** Keep native details/summary behavior and let compact Settings slide without animating height. */
 export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const container = root.current;
     if (!container) return;
     const compact = matchMedia(COMPACT_MOTION_QUERY);
+    let settingsSlide:
+      | {
+          details: HTMLDetailsElement;
+          open: boolean;
+          animations: Animation[];
+          finish: () => void;
+        }
+      | undefined;
+    function slideSettings(details: HTMLDetailsElement, summary: HTMLElement) {
+      const card = details.parentElement;
+      const body = details.querySelector<HTMLElement>(
+        ":scope > .connection-content",
+      );
+      const layout = details.closest(".settings-layout");
+      const surface = card?.querySelector(":scope > .connection-card-surface");
+      const reveal = body?.querySelector(":scope > .connection-reveal");
+      const content = reveal?.querySelector(":scope > .connection-body");
+      if (
+        !card?.matches(".settings-card") ||
+        !body ||
+        !layout ||
+        !surface ||
+        !reveal ||
+        !content
+      )
+        return false;
+
+      const previous = settingsSlide;
+      const open = !(previous?.details === details
+        ? previous.open
+        : details.open);
+      if (!open && details.contains(document.activeElement))
+        summary.focus({ preventScroll: true });
+      if (previous?.details === details) {
+        previous.open = open;
+        details.dataset.disclosureOpen = String(open);
+        body.inert = !open;
+        for (const animation of previous.animations) animation.reverse();
+        return true;
+      }
+      previous?.finish();
+      details.dataset.disclosureOpen = String(open);
+      details.open = true;
+      const height = body.getBoundingClientRect().height;
+      if (!height) {
+        details.open = open;
+        delete details.dataset.disclosureOpen;
+        return true;
+      }
+      // Keep layout fixed and move separate layers. Opposite translations reveal
+      // stationary content without repainting a clipping mask over every row.
+      // The background scales independently so it cannot clip the Carmen row.
+      const expandedHeight = card.getBoundingClientRect().height;
+      card.dataset.disclosureSlide = "";
+      body.inert = !open;
+      const animate = (target: Element, frames: Keyframe[]) => {
+        const animation = target.animate(frames, phoneSlide);
+        if (!open) animation.reverse();
+        return animation;
+      };
+      const animations = [
+        animate(surface, [
+          {
+            transform: `scaleY(${(expandedHeight - height) / expandedHeight})`,
+          },
+          { transform: "scaleY(1)" },
+        ]),
+        animate(reveal, [
+          { transform: `translateY(-${height}px)` },
+          { transform: "translateY(0)" },
+        ]),
+        animate(content, [
+          { transform: `translateY(${height}px)` },
+          { transform: "translateY(0)" },
+        ]),
+        ...Array.from(followingSettingsRows(details, layout), (row) =>
+          animate(row, [
+            { transform: `translateY(-${height}px)` },
+            { transform: "translateY(0)" },
+          ]),
+        ),
+      ];
+      const slide = {
+        details,
+        open,
+        animations,
+        finish: () => {
+          if (settingsSlide !== slide) return;
+          settingsSlide = undefined;
+          details.open = slide.open;
+          body.inert = false;
+          delete details.dataset.disclosureOpen;
+          delete card.dataset.disclosureSlide;
+          for (const animation of animations) animation.cancel();
+        },
+      };
+      settingsSlide = slide;
+      void animations[0].finished.then(slide.finish, slide.finish);
+      return true;
+    }
     const active = new Map<
       HTMLDetailsElement,
       {
@@ -35,7 +155,8 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
         return;
       if (event.target.closest("a, button, input, select, textarea")) return;
       if (compact.matches) {
-        if (details.open && details.contains(document.activeElement))
+        if (slideSettings(details, summary!)) event.preventDefault();
+        else if (details.open && details.contains(document.activeElement))
           summary!.focus({ preventScroll: true });
         return;
       }
@@ -77,6 +198,7 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
       void animation.finished.then(finish, finish);
     };
     const finishActive = () => {
+      settingsSlide?.finish();
       for (const entry of [...active.values()]) {
         entry.finish();
         entry.animation.cancel();

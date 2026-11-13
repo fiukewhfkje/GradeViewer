@@ -38,7 +38,7 @@ const bootstrap = "owner unlock and complete Schoology connection";
 // scenario untouched. CI runs them on a separate Worker and asset copy.
 const motionChecks = new Set([
   "appearance controls follow the device, persist overrides, and reduce motion",
-  "disclosure motion preserves desktop reversal and avoids phone layout animation",
+  "connection disclosures slide and reverse without animating phone layout",
   "navigation motion preserves open edits and honors reduced motion",
   "loading orbit follows real work and navigation surfaces honor reduced motion",
 ]);
@@ -775,7 +775,7 @@ try {
     },
   );
   await check(
-    "disclosure motion preserves desktop reversal and avoids phone layout animation",
+    "connection disclosures slide and reverse without animating phone layout",
     async () => {
       const isolated = await browser.newContext({
         viewport: { width: 1280, height: 900 },
@@ -868,35 +868,116 @@ try {
           () => document.documentElement.dataset.motion === "full",
         );
         await summary.press("Space"); // Close the section opened above.
+        await settleMotion(preview);
         const phone = await summary.evaluate((node) => {
           const details = node.parentElement;
+          const following = details.nextElementSibling;
+          const start = following.getBoundingClientRect().top;
           node.click();
+          const slide = following
+            .getAnimations()
+            .find(
+              (animation) => "transform" in animation.effect.getKeyframes()[0],
+            );
+          const animations = details
+            .closest(".settings-layout")
+            .getAnimations({ subtree: true });
+          const layoutMotion = animations.some((animation) =>
+            animation.effect
+              .getKeyframes()
+              .some(
+                (frame) =>
+                  "height" in frame ||
+                  "maxHeight" in frame ||
+                  "clipPath" in frame,
+              ),
+          );
+          const positions = [];
+          let rowVisible = true;
+          for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+            for (const animation of animations) {
+              animation.pause();
+              animation.currentTime =
+                Number(animation.effect.getTiming().duration) * progress;
+            }
+            positions.push(following.getBoundingClientRect().top);
+            const summary = following.querySelector("summary");
+            const rect = summary.getBoundingClientRect();
+            // Check the full Carmen row, including its icon and lower edge,
+            // while the preceding panel is sliding into place.
+            const points = [
+              [rect.left + rect.width / 2, rect.top + 2],
+              [rect.left + rect.width / 2, rect.bottom - 2],
+              ...Array.from(summary.children, (child) => {
+                const bounds = child.getBoundingClientRect();
+                return [
+                  bounds.left + bounds.width / 2,
+                  bounds.top + bounds.height / 2,
+                ];
+              }),
+            ];
+            rowVisible &&= points.every(([x, y]) =>
+              summary.contains(document.elementFromPoint(x, y)),
+            );
+          }
+          for (const animation of animations) animation.finish();
           return {
             open: details.open,
-            layoutMotion: details.getAnimations().length,
-            entrance: details
-              .getAnimations({ subtree: true })
-              .some(
-                (animation) => animation.animationName === "disclosure-enter",
-              ),
+            layoutMotion,
+            rowVisible,
+            slidDown:
+              Math.abs(start - positions[0]) < 1 &&
+              positions.every((top, i) => !i || top > positions[i - 1]),
+            duration: slide.effect.getTiming().duration,
           };
         });
         assert.deepEqual(phone, {
           open: true,
-          layoutMotion: 0,
-          entrance: true,
+          layoutMotion: false,
+          rowVisible: true,
+          slidDown: true,
+          duration: 100,
         });
+        await settleMotion(preview);
         const connect = preview.getByRole("button", {
           name: "Connect Infinite Campus",
           exact: true,
         });
         await connect.focus();
-        await summary.evaluate((node) => node.click());
+        const reversedPhone = await summary.evaluate((node) => {
+          const details = node.parentElement;
+          const body = details.querySelector(".connection-content");
+          node.click();
+          const closing =
+            details.dataset.disclosureOpen === "false" &&
+            body.inert &&
+            document.activeElement === node;
+          node.click();
+          return (
+            closing && details.dataset.disclosureOpen === "true" && !body.inert
+          );
+        });
+        assert.equal(reversedPhone, true);
+        await settleMotion(preview);
+        await connect.waitFor();
+        await summary.evaluate((node) => {
+          node.click();
+          document.querySelector('[aria-label="Reduce motion"]').click();
+        });
+        await preview.waitForFunction(
+          () => document.documentElement.dataset.motion === "reduce",
+        );
+        await settleMotion(preview);
         assert.equal(
-          await summary.evaluate(
-            (node) =>
-              !node.parentElement.open && document.activeElement === node,
-          ),
+          await summary.evaluate((node) => {
+            const details = node.parentElement;
+            return (
+              !details.open &&
+              !details.querySelector(".connection-content").inert &&
+              !details.hasAttribute("data-disclosure-open") &&
+              !details.parentElement.hasAttribute("data-disclosure-slide")
+            );
+          }),
           true,
         );
       } finally {
@@ -1640,7 +1721,9 @@ try {
     assert.equal(await page.locator(".summary .grade").innerText(), homeGrade);
     assert.ok(await page.locator(".chart-line").first().getAttribute("d"));
     assert.equal(
-      await page.locator(".chart svg").getAttribute("preserveAspectRatio"),
+      await page
+        .locator(".chart-plot > svg")
+        .getAttribute("preserveAspectRatio"),
       "none",
     );
     assert.equal((await page.locator(".chart").boundingBox()).height, 154);
@@ -1654,18 +1737,32 @@ try {
     "native graph selection shows grade/date and clears on release",
     async () => {
       const chart = page.getByRole("slider", { name: "Explore grade history" });
+      const highlight = chart.locator(".chart-highlight");
       await chart.focus();
       await chart.press("Home");
       assert.equal(await chart.getAttribute("aria-valuenow"), "0");
+      const highlightEdge = () =>
+        highlight.evaluate(
+          (node) =>
+            node.getBoundingClientRect().right -
+            node.closest(".chart").getBoundingClientRect().left,
+        );
+      assert.ok(Math.abs(await highlightEdge()) < 1);
+      assert.equal(await highlight.locator(".chart-area").count(), 0);
       assert.match(
         await page.locator(".chart-tooltip strong").innerText(),
         /^-?\d+\.\d{2}$/,
       );
       await chart.press("ArrowRight");
       assert.equal(await chart.getAttribute("aria-valuenow"), "1");
+      assert.ok((await highlightEdge()) > 0);
       await page.screenshot({ path: directory + "/chart-selection-light.png" });
+      await chart.press("End");
+      const width = (await chart.boundingBox()).width;
+      assert.ok(Math.abs((await highlightEdge()) - width) < 1);
       await chart.press("Escape");
       assert.equal(await page.locator(".chart-tooltip").count(), 0);
+      assert.equal(await highlight.count(), 0);
       if (engine === "chromium") {
         const touch = await context.newCDPSession(page),
           box = await chart.boundingBox();
@@ -1690,6 +1787,17 @@ try {
               document.querySelector(".chart").getAttribute("aria-valuenow"),
             ) > 0,
         );
+        const markerCenter = await chart
+          .locator(".chart-marker")
+          .evaluate((node) => {
+            const marker = node.getBoundingClientRect();
+            return (
+              marker.x +
+              marker.width / 2 -
+              node.closest(".chart").getBoundingClientRect().x
+            );
+          });
+        assert.ok(Math.abs((await highlightEdge()) - markerCenter) < 1);
         assert.equal(
           await page.locator(".app-scroll").evaluate((node) => node.scrollTop),
           scrollTop,
@@ -1703,6 +1811,7 @@ try {
           touchPoints: [],
         });
         await page.locator(".chart-tooltip").waitFor({ state: "detached" });
+        assert.equal(await highlight.count(), 0);
         await touch.send("Input.dispatchTouchEvent", {
           type: "touchStart",
           touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
@@ -1714,6 +1823,7 @@ try {
         });
         await touch.detach();
         assert.equal(await page.locator(".chart-tooltip").count(), 0);
+        assert.equal(await highlight.count(), 0);
       }
     },
   );

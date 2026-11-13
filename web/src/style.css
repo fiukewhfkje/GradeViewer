@@ -551,6 +551,7 @@ select {
   outline-offset: 4px;
 }
 .chart-plot {
+  position: relative;
   height: 100%;
   overflow: hidden;
   border-radius: inherit;
@@ -567,6 +568,13 @@ select {
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
   stroke-linecap: round;
+}
+/* Move the clip and counter-move the bright stroke so the curve stays put. */
+.chart-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 .chart-marker {
   position: absolute;
@@ -945,6 +953,36 @@ dialog p {
   background: var(--row);
   overflow: hidden;
 }
+.connection-card-surface {
+  display: none;
+}
+.settings-card[data-disclosure-slide] {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.settings-card[data-disclosure-slide] > .connection-card-surface {
+  display: block;
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid var(--line);
+  border-radius: inherit;
+  background: var(--row);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.025);
+  transform-origin: top;
+}
+.connection-content,
+.connection-reveal {
+  overflow: hidden;
+}
+.connection-body {
+  display: flow-root;
+}
 .settings-icon {
   width: 36px;
   height: 36px;
@@ -1007,6 +1045,7 @@ dialog p {
   overflow-wrap: anywhere;
 }
 .provider-chevron {
+  display: grid;
   color: var(--muted);
   flex: none;
 }
@@ -2072,7 +2111,7 @@ footer button,
     border-color 180ms ease;
 }
 .assignment-group[open] > .rows,
-.settings-provider[open] > :not(summary),
+.settings-provider[open] > .connection-content,
 .gpa-card[open] > .gpa-content {
   animation: disclosure-enter 150ms var(--motion-ease);
 }
@@ -2334,6 +2373,12 @@ dialog[data-closing="true"]::backdrop {
   .preference-reset,
   .appearance-card > .settings-row {
     transition: none;
+  }
+  .settings-provider[open] > .connection-content {
+    animation: none;
+  }
+  .provider-chevron {
+    transition-duration: 100ms;
   }
   .password-help[open] > ol {
     animation: disclosure-enter 150ms var(--motion-ease);

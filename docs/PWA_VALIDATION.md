@@ -1,3 +1,63 @@
+# Faster Settings layers and Carmen visibility — November 13, 2026
+
+The 100 ms phone slide uses opposite content translations inside fixed overflow containers, with an independently scaled background. No card-wide clipping mask or animated height remains in the phone slide. The chevron rotates on an HTML wrapper. Native disclosure state, focus correction, inert closing contents, reversal and Reduce Motion are preserved. The graph implementation is unchanged in this pass.
+
+The same synthetic headless Chromium harness used a 390 × 844 touch viewport, 3× pixel density and 4× CPU slowdown, with ten open/close repetitions per revision. The baseline was the previously deployed 130 ms slide; values are medians. No extra layer-promotion hints were retained: a local experiment increased opening paint cost.
+
+| Metric | Previous slide | New slide |
+| --- | ---: | ---: |
+| Opening paint time | 2.70 ms | 2.65 ms |
+| Closing paint time | 4.57 ms | 3.20 ms |
+| Opening paint events | 9 | 14 |
+| Closing paint events | 24 | 17 |
+| Layout passes, opening / closing | 3 / 3 | 3 / 3 |
+
+Opening paint cost was roughly unchanged; closing paint time fell about 30%. These desktop renderer measurements do not establish physical iPhone frame rate or Low Power Mode behavior. The previous center-line hit tests did not reproduce the owner's clipping report. The replacement removes the shared animated clip entirely, and expanded regressions verify the following row's icon, title, badge, chevron and top/bottom edges at five animation positions. A separate 320/390 px light/dark matrix passed in Chromium and WebKit, and intermediate captures were inspected.
+
+The production build, 292 unit tests, 42 full browser checks per engine, 123-file source package and isolated-template install/build/dry-run/update/preservation/rollback checks passed. No provider calls or real-account browser sessions were used for these tests.
+
+The strict deployment dry-run passed. Owner Worker source `6929f29` deployed as `c0751f9c-7eb9-4d93-a48c-0302b1c1f0f6`, serving 100% of traffic at 7:44 a.m. Eastern. All ten checked asset SHA-256 hashes matched the local build, all five binding fingerprints matched preflight, both saved diagnostic records were retained and anonymous APIs stayed locked. Verification used zero provider requests. Private receipts remain outside Git as `DeploymentChecks/settings-clip-20261113-{before,after}.json`. Main and stable v0.2.5 remain unchanged.
+
+# Quicker Settings slides and curve selection — November 13, 2026
+
+The mobile connection animation uses 130 ms for the reveal and chevron, with symmetric easing for opening and closing. The existing browser regression still covers intermediate positions, reversal, focus and Reduce Motion. Graph selection uses a transparent clipping container and a counter-translated bright stroke. There is one filled curve and no shaded background rectangle.
+
+The same synthetic drag harness at 390 × 844, 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks measured 26 median paint events and 10 layout passes across eight repetitions. The original SVG clip measured 66 paint events and 16 layout passes. The base SVG had one recorded mutation when selection began and no repeated geometry changes during the drag.
+
+Captures at 320, 390 and 1280 px in light and dark mode passed alignment and overflow checks in Chromium and WebKit. The duplicate stroke's position and dimensions match the base plot within one pixel. The highlight contains no fill, and its background is transparent. Phone light and dark captures were inspected. These are local synthetic checks. Real-device refresh rate and Low Power Mode acceptance remain open.
+
+The production build, 292 unit tests, 42 browser checks each in Chromium and WebKit, 123-file source packaging and isolated template update, preservation and rollback checks passed. The final build matches the assets used for the trace and captures.
+
+The strict Worker dry-run passed before uploading source `4dec1cb`. At 7:29 a.m. Eastern, the owner Worker served version `dfe7892c-4bb3-4f96-a4e0-ff798b952771` at 100% traffic. All ten checked public assets matched the clean build by SHA-256, all five binding fingerprints matched preflight, and both saved diagnostic records were retained. Anonymous APIs remained locked. Verification made zero provider requests. Private receipts are outside Git as `DeploymentChecks/graph-stroke-20261113-{before,after}.json`.
+
+# Graph selection shade — November 13, 2026
+
+Compared the old SVG clip, the shipped unshaded graph and the new shade with the same synthetic course. Headless Chromium used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. The table gives medians from eight repetitions of the same 32-move drag.
+
+| Metric | Old SVG clip | Unshaded graph | New shade |
+| --- | ---: | ---: | ---: |
+| Chart SVG mutations | 19 | 0 | 0 |
+| Layout passes | 16 | 10 | 10 |
+| Paint events | 66 | 23 | 24 |
+| Time in traced paint events | 4.22 ms | 1.84 ms | 2.43 ms |
+
+The shade covers the portion of the plot after the marker. Keyboard checks cover both ends and Escape. Touch checks cover alignment with the marker, release and cancellation. These measurements cover renderer workload. Smoothness in Low Power Mode still needs a physical iPhone check.
+
+The production build, 292 unit tests, 42 checks each in Chromium and WebKit, strict Worker dry-run, local source packaging and isolated template verification passed. The clean build matched the profiled assets. The owner-only deployment used `b7f8cff` and served 100% of traffic as version `323dd2af-325b-44a2-bf5c-2584fcbf779c`. The postflight matched ten public asset hashes, all five bindings and both saved diagnostic records. Anonymous APIs remained locked. No provider requests were made during verification. Private receipts are stored outside Git as `DeploymentChecks/graph-shade-20261113-{before,after}.json`.
+
+# Compact Settings connection slides — November 13, 2026
+
+Compared the old height animation, the shipped snap at `d019e5c`, and the new slide against the same synthetic Schoology settings. The old animation used the pre-mobile-optimization disclosure handler with the same current Settings markup. Each median comes from eight opens and eight closes in headless Chromium at 390 × 844 with 3× pixel density and 4× CPU slowdown, measured over 445 ms from each click.
+
+| Metric | Old height slide | Shipped snap | New slide |
+| --- | ---: | ---: | ---: |
+| Open layout passes | 13 | 1 | 3 |
+| Close layout passes | 13 | 2 | 3 |
+| Open paint time | 10.76 ms | 1.57 ms | 3.13 ms |
+| Close paint time | 11.80 ms | 2.14 ms | 4.10 ms |
+
+All three builds had zero median missed frames on the desktop host. The results measure rendering work, and Low Power Mode on a physical iPhone still needs a check. Browser tests verify that following rows pass through intermediate positions, the slide reverses on a second tap, focus returns to the summary on close, and turning on Reduce Motion cancels and settles an active slide. Inspected intermediate and open states at 390 px in the local synthetic preview. The production build, 292 unit tests, 42 browser checks each in Chromium and WebKit, Worker dry-run and 123-file source package passed.
+
 # Graph dragging and connection feedback — November 13, 2026
 
 Compared the build at `6f99986` with the development build using a synthetic Schoology course in headless Chromium. The trace used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. Over eight measured repetitions of the same 32-move drag, median chart SVG mutations dropped from 19 to 0, layout passes from 16 to 10, and paint events from 66 to 23. Median time in traced paint events dropped from 4.89 ms to 1.59 ms. This is a renderer workload measurement. Device frame rate in Low Power Mode still needs physical iPhone testing.

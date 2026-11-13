@@ -1,3 +1,37 @@
+# Stable v0.2.6 preparation — November 13, 2026
+
+The owner accepted the current mobile presentation and requested a stable release. v0.2.6 collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental. The existing signed PR/main/tag workflow and owner Worker are retained. The versioned build, 292 local unit tests, 123-file package and isolated-template update/preservation/rollback checks passed. Publication and deployment verification are pending; earlier physical-device measurement limits still apply.
+
+# Faster Settings layers and Carmen row clipping — November 13, 2026
+
+The phone connection slide now takes 100 ms instead of 130 ms. Its background and content reveal move as separate transform layers. The connections card no longer animates a clipping mask over the following rows, removing the boundary that could cut off Carmen during the slide. Opening, closing, quick reversal, focus restoration and Reduce Motion retain their behavior.
+
+In the same synthetic 390 × 844 Chromium trace with 4× CPU slowdown, median paint time was 2.65 ms opening and 3.20 ms closing, versus 2.70 ms and 4.57 ms before. Both paths still took three layout passes. All 292 unit tests, 42 browser checks in each engine, source packaging and isolated-template checks passed. Chromium and WebKit checks at 320 and 390 px in both themes kept the Carmen row visible at five intermediate positions. Physical iPhone performance remains acceptance work.
+
+Source `6929f29` deployed to the existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `c0751f9c-7eb9-4d93-a48c-0302b1c1f0f6`. At 7:44 a.m. Eastern, it served 100% of traffic. All ten checked assets, five binding fingerprints and both saved diagnostic records passed verification. Anonymous APIs remained locked. Main and stable v0.2.5 remain unchanged.
+
+# Quicker Settings slides and curve-only selection — November 13, 2026
+
+The phone connection slide now takes 130 ms instead of 180 ms, with a symmetric easing curve and a matching chevron duration. Graph selection dims only the curve after the marker. The fill remains continuous across the plot. The previous rectangular overlay also shaded the fill and produced the vertical edge reported by the owner.
+
+The replacement clips a duplicate bright stroke using two opposite transforms, preserving the curve's position. The local 30 Hz drag benchmark measured 26 median paint events, compared with 66 for the original SVG clip. Light and dark captures at 320, 390 and 1280 px were checked in Chromium and WebKit. Physical iPhone acceptance remains open.
+
+Source `4dec1cb` deployed to the [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `dfe7892c-4bb3-4f96-a4e0-ff798b952771`. At 7:29 a.m. Eastern, it served 100% of traffic. The ten checked public assets matched, and all five bindings and both saved diagnostic records passed preservation checks. The source remains on the development branch, and the latest published stable release is v0.2.5.
+
+# Graph selection shade — November 13, 2026
+
+The progression graph dims the area to the right of the selected point while the finger, mouse or keyboard moves the selection. A translucent layer moves over the finished plot using a transform. The SVG stays unchanged during the drag. Grade history, grade calculations and the grade/date tooltip retain their existing behavior.
+
+In a synthetic phone trace with roughly 30 Hz animation callbacks, the shaded graph produced 24 median paint events, compared with 23 for the unshaded graph and 66 for the old SVG clip. [Validation details](docs/PWA_VALIDATION.md#graph-selection-shade--november-13-2026). The owner approved testing the graph shade and compact Settings slides on their existing Worker. Physical phone performance remains open.
+
+Development source `b7f8cff` deployed to the existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `323dd2af-325b-44a2-bf5c-2584fcbf779c`. At 7:21 a.m. Eastern, it served 100% of traffic. All ten checked assets, five binding fingerprints and both saved diagnostic records passed verification. The graph shade and Settings slides are on the owner Worker and the development branch. The published release remains v0.2.5.
+
+# Compact Settings connection slides — November 13, 2026
+
+On phones, the Schoology, Infinite Campus and Carmen connection panels now open and close with a short slide. The card reveals or hides the panel while the rows below translate into place. The browser no longer animates the panel's height. Quick taps can reverse the slide, and Reduce Motion still opens and closes the panel immediately.
+
+At 390 × 844 in a local Chromium trace with 4× CPU slowdown, the new slide took three median layout passes to open and three to close. The old height animation took 13 each. Both full local browser suites and the 292 unit tests passed. [Validation details](docs/PWA_VALIDATION.md#compact-settings-connection-slides--november-13-2026). The owner Worker deployment above includes these slides. Physical iPhone testing remains open.
+
 # Graph dragging and connection feedback — November 13, 2026
 
 The grade graph stays still during a drag while the marker and tooltip follow the finger using transforms. In a local Chromium trace with a simulated 30 Hz callback cadence, a touch drag went from 66 paint events to 23. Physical iPhone behavior in Low Power Mode still needs a retest.
