@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import { Accessibility, SunMoon } from "lucide-react";
 
+export const COMPACT_MOTION_QUERY = "(max-width: 760px)";
+
 type Theme = "system" | "light" | "dark";
 type Motion = "system" | "reduce" | "full";
 

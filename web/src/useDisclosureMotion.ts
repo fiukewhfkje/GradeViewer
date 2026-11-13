@@ -1,10 +1,12 @@
 import { useEffect, type RefObject } from "react";
+import { COMPACT_MOTION_QUERY } from "./Appearance";
 
-/** Keep native details/summary behavior, with a brief slide in either direction. */
+/** Keep native details/summary behavior. Only wide screens slide the layout. */
 export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
   useEffect(() => {
     const container = root.current;
     if (!container) return;
+    const compact = matchMedia(COMPACT_MOTION_QUERY);
     const active = new Map<
       HTMLDetailsElement,
       {
@@ -32,6 +34,11 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
       )
         return;
       if (event.target.closest("a, button, input, select, textarea")) return;
+      if (compact.matches) {
+        if (details.open && details.contains(document.activeElement))
+          summary!.focus({ preventScroll: true });
+        return;
+      }
       event.preventDefault();
       const previous = active.get(details);
       const open = !(previous?.open ?? details.open);
@@ -69,13 +76,18 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
       active.set(details, { animation, open, finish });
       void animation.finished.then(finish, finish);
     };
-    container.addEventListener("click", click);
-    return () => {
-      container.removeEventListener("click", click);
+    const finishActive = () => {
       for (const entry of [...active.values()]) {
         entry.finish();
         entry.animation.cancel();
       }
+    };
+    compact.addEventListener("change", finishActive);
+    container.addEventListener("click", click);
+    return () => {
+      container.removeEventListener("click", click);
+      compact.removeEventListener("change", finishActive);
+      finishActive();
     };
   }, [root]);
 }

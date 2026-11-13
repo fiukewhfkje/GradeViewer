@@ -1,3 +1,20 @@
+# Mobile motion and icons — November 13, 2026
+
+Compared the production build of `1875692` with the development fix in headless Chromium using the same five synthetic Schoology courses, a 390 × 844 touch viewport at 3× pixel density, full motion, and 4× CPU slowdown. Each result is the median of eight repetitions. Traces counted renderer events from the start of each action through a fixed 445 ms window (500 ms for the 24-event pull and cancel).
+
+| Action and metric | Before | After |
+| --- | ---: | ---: |
+| Open an assignment section: layout passes | 13 | 2 |
+| Close the section: layout passes | 13 | 2 |
+| Settings → Grades: paint events | 139 | 7 |
+| Close a course: paint events | 120 | 5 |
+| Pull to refresh: content transform writes | 24 | 12 |
+| Pull to refresh: time in traced renderer callbacks | 34.09 ms | 8.40 ms |
+
+This measures rendering work, not a phone's refresh rate. Neither build showed a median missed frame in this desktop trace, even with CPU slowdown. The owner's reported stutter, exact display cadence and Low Power Mode behavior need a physical-device retest. The functional checks cover full and reduced motion, desktop disclosure reversal, phone disclosure focus and animated entrance, pull threshold/cancel, standalone settling, and local edit preservation. Both engines decode all four served icon assets: transparent favicon corners and dark opaque corners on the Apple and maskable install icons. This verifies the artwork, not the operating system's icon cache. All checks use local synthetic data; no deployment or stable release was made.
+
+Production build/type check, all 292 unit tests, 42 browser checks in each of Chromium and WebKit, Worker dry-run, 123-file source packaging and isolated template update/preservation/rollback passed. Run the full browser suites sequentially: their simulated app update writes to the shared `dist` shell during the test.
+
 # Stable v0.2.5 release verification — November 12, 2026
 
 [PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318165348), [main verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318542507) and the [tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43318596356) passed. The first tag run timed out after five seconds in the synthetic Carmen CLI guard test. The focused local rerun passed in 1.2 seconds. The failed job reran successfully against the same source and tag with all checks required. Local build, 292 units, 122-file packaging and the isolated template installation, update and rollback checks also passed.

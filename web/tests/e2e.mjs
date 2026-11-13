@@ -38,7 +38,7 @@ const bootstrap = "owner unlock and complete Schoology connection";
 // scenario untouched. CI runs them on a separate Worker and asset copy.
 const motionChecks = new Set([
   "appearance controls follow the device, persist overrides, and reduce motion",
-  "disclosure slides reverse cleanly and reduced motion remains immediate",
+  "disclosure motion preserves desktop reversal and avoids phone layout animation",
   "navigation motion preserves open edits and honors reduced motion",
   "loading orbit follows real work and navigation surfaces honor reduced motion",
 ]);
@@ -775,7 +775,7 @@ try {
     },
   );
   await check(
-    "disclosure slides reverse cleanly and reduced motion remains immediate",
+    "disclosure motion preserves desktop reversal and avoids phone layout animation",
     async () => {
       const isolated = await browser.newContext({
         viewport: { width: 1280, height: 900 },
@@ -857,6 +857,47 @@ try {
         assert.equal(
           await preview.evaluate(() => document.getAnimations().length),
           0,
+        );
+        await preview.setViewportSize({ width: 390, height: 844 });
+        await preview
+          .getByRole("button", {
+            name: "Use device motion setting",
+          })
+          .click();
+        await preview.waitForFunction(
+          () => document.documentElement.dataset.motion === "full",
+        );
+        await summary.press("Space"); // Close the section opened above.
+        const phone = await summary.evaluate((node) => {
+          const details = node.parentElement;
+          node.click();
+          return {
+            open: details.open,
+            layoutMotion: details.getAnimations().length,
+            entrance: details
+              .getAnimations({ subtree: true })
+              .some(
+                (animation) => animation.animationName === "disclosure-enter",
+              ),
+          };
+        });
+        assert.deepEqual(phone, {
+          open: true,
+          layoutMotion: 0,
+          entrance: true,
+        });
+        const connect = preview.getByRole("button", {
+          name: "Connect Infinite Campus",
+          exact: true,
+        });
+        await connect.focus();
+        await summary.evaluate((node) => node.click());
+        assert.equal(
+          await summary.evaluate(
+            (node) =>
+              !node.parentElement.open && document.activeElement === node,
+          ),
+          true,
         );
       } finally {
         await isolated.close();
@@ -1120,10 +1161,38 @@ try {
             );
             await settleMotion(preview);
           }
-          if (width === 390)
+          if (width === 390) {
+            const phoneMotion = await nav.evaluate((node) => {
+              node.querySelector('[aria-label="Settings"]').click();
+              return new Promise((resolve) =>
+                requestAnimationFrame(() => {
+                  const animations = document
+                    .querySelector("main")
+                    .getAnimations({ subtree: true });
+                  resolve({
+                    screen: animations.some(
+                      (a) =>
+                        a.effect.target.tagName === "MAIN" &&
+                        a.effect
+                          .getKeyframes()
+                          .every(
+                            (frame) =>
+                              "transform" in frame && !("opacity" in frame),
+                          ),
+                    ),
+                    staggered: animations.some(
+                      (a) => a.animationName === "settings-enter",
+                    ),
+                  });
+                }),
+              );
+            });
+            assert.deepEqual(phoneMotion, { screen: true, staggered: false });
+            await settleMotion(preview);
             await preview.screenshot({
               path: directory + "/motion-phone-nav.png",
             });
+          }
         }
         await preview.emulateMedia({ reducedMotion: "reduce" });
         await preview
@@ -1288,6 +1357,8 @@ try {
             );
       };
       try {
+        await page.emulateMedia({ reducedMotion: "no-preference" });
+        await settleMotion(page);
         await page.evaluate(() =>
           document.querySelector(".app-scroll").scrollTo(0, 0),
         );
@@ -1398,13 +1469,13 @@ try {
         await page.waitForFunction(
           () =>
             getComputedStyle(document.querySelector(".refresh-content"))
-              .transform === "matrix(1, 0, 0, 1, 0, 0)",
+              .transform === "none",
         );
         assert.equal(
           await page
             .locator(".refresh-content")
             .evaluate((el) => getComputedStyle(el).transform),
-          "matrix(1, 0, 0, 1, 0, 0)",
+          "none",
         );
         assert.equal(scans, 1);
         assert.equal(manual, true);
@@ -1422,6 +1493,7 @@ try {
       } finally {
         page.off("request", request);
         await touch?.detach();
+        await page.emulateMedia({ reducedMotion: "reduce" });
       }
     },
   );
@@ -2586,13 +2658,7 @@ try {
         await appPage.waitForFunction(
           () =>
             getComputedStyle(document.querySelector(".refresh-content"))
-              .transform === "matrix(1, 0, 0, 1, 0, 0)",
-        );
-        assert.equal(
-          await appPage
-            .locator(".refresh-content")
-            .evaluate((el) => getComputedStyle(el).transform),
-          "matrix(1, 0, 0, 1, 0, 0)",
+              .transform === "none",
         );
       } finally {
         await context.request.post(base + "/api/fixture/failure", {
