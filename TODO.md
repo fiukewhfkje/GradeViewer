@@ -2,7 +2,7 @@
 
 - [x] Shorten phone slides to 100 ms and replace card-wide clipping with separate moving content and background layers.
 - [x] Check Carmen visibility at intermediate frames, quick reversal, focus and Reduce Motion in Chromium and WebKit. Compare rendering cost with the deployed 130 ms slide.
-- [ ] Deploy to the existing owner Worker and verify its assets and preserved bindings.
+- [x] Deploy source `6929f29` to the existing owner Worker and verify ten assets, all five binding fingerprints, saved diagnostics and locked APIs at 100% traffic.
 - [ ] Confirm slide smoothness and Carmen row visibility on the owner's physical iPhone, including Low Power Mode.
 
 # Quicker Settings slides and curve selection — November 13

@@ -14,7 +14,9 @@ The same synthetic headless Chromium harness used a 390 × 844 touch viewport, 3
 
 Opening paint cost was roughly unchanged; closing paint time fell about 30%. These desktop renderer measurements do not establish physical iPhone frame rate or Low Power Mode behavior. The previous center-line hit tests did not reproduce the owner's clipping report. The replacement removes the shared animated clip entirely, and expanded regressions verify the following row's icon, title, badge, chevron and top/bottom edges at five animation positions. A separate 320/390 px light/dark matrix passed in Chromium and WebKit, and intermediate captures were inspected.
 
-The production build, 292 unit tests, 42 full browser checks per engine, 123-file source package and isolated-template install/build/dry-run/update/preservation/rollback checks passed. Owner Worker deployment verification is pending. No provider calls or real-account browser sessions were used for these tests.
+The production build, 292 unit tests, 42 full browser checks per engine, 123-file source package and isolated-template install/build/dry-run/update/preservation/rollback checks passed. No provider calls or real-account browser sessions were used for these tests.
+
+The strict deployment dry-run passed. Owner Worker source `6929f29` deployed as `c0751f9c-7eb9-4d93-a48c-0302b1c1f0f6`, serving 100% of traffic at 7:44 a.m. Eastern. All ten checked asset SHA-256 hashes matched the local build, all five binding fingerprints matched preflight, both saved diagnostic records were retained and anonymous APIs stayed locked. Verification used zero provider requests. Private receipts remain outside Git as `DeploymentChecks/settings-clip-20261113-{before,after}.json`. Main and stable v0.2.5 remain unchanged.
 
 # Quicker Settings slides and curve selection — November 13, 2026
 

@@ -2,7 +2,9 @@
 
 The phone connection slide now takes 100 ms instead of 130 ms. Its background and content reveal move as separate transform layers. The connections card no longer animates a clipping mask over the following rows, removing the boundary that could cut off Carmen during the slide. Opening, closing, quick reversal, focus restoration and Reduce Motion retain their behavior.
 
-In the same synthetic 390 × 844 Chromium trace with 4× CPU slowdown, median paint time was 2.65 ms opening and 3.20 ms closing, versus 2.70 ms and 4.57 ms before. Both paths still took three layout passes. All 292 unit tests, 42 browser checks in each engine, source packaging and isolated-template checks passed. Chromium and WebKit checks at 320 and 390 px in both themes kept the Carmen row visible at five intermediate positions. Physical iPhone performance remains acceptance work. Owner-only deployment is pending verification; main and stable v0.2.5 remain unchanged.
+In the same synthetic 390 × 844 Chromium trace with 4× CPU slowdown, median paint time was 2.65 ms opening and 3.20 ms closing, versus 2.70 ms and 4.57 ms before. Both paths still took three layout passes. All 292 unit tests, 42 browser checks in each engine, source packaging and isolated-template checks passed. Chromium and WebKit checks at 320 and 390 px in both themes kept the Carmen row visible at five intermediate positions. Physical iPhone performance remains acceptance work.
+
+Source `6929f29` deployed to the existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `c0751f9c-7eb9-4d93-a48c-0302b1c1f0f6`. At 7:44 a.m. Eastern, it served 100% of traffic. All ten checked assets, five binding fingerprints and both saved diagnostic records passed verification. Anonymous APIs remained locked. Main and stable v0.2.5 remain unchanged.
 
 # Quicker Settings slides and curve-only selection — November 13, 2026
 
