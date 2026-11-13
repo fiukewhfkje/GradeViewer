@@ -145,13 +145,13 @@ const messages: Record<string, string> = {
   deploymentPasswordRequired:
     "Set an app password of at least 12 characters in your Cloudflare deployment.",
   schoologyCredentialsRejected:
-    "Schoology did not accept these API keys. Get a new key and secret and try again.",
+    "Schoology did not accept the API keys. Verify your key and secret in Schoology and try again.",
   schoologyAccessDenied:
     "Schoology denied API access. Check that your school allows personal API keys.",
   disconnectBeforeSwitchingAccounts:
     "Disconnect before connecting a different Schoology account.",
   reenterSchoologyKeys:
-    "Your app password changed. Enter your Schoology keys again to restore the connection.",
+    "GradeViewer couldn’t read the saved Schoology keys. Enter your key and secret again to reconnect.",
   rateLimited: "Schoology is limiting requests. Your saved data is retained.",
   providerUnavailable: "Schoology is unavailable. Your saved data is retained.",
   malformedProvider:

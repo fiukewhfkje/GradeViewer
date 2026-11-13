@@ -1684,6 +1684,12 @@ try {
           });
           assert.equal(await page.locator(".chart-tooltip").count(), 1);
         }
+        await page.waitForFunction(
+          () =>
+            Number(
+              document.querySelector(".chart").getAttribute("aria-valuenow"),
+            ) > 0,
+        );
         assert.equal(
           await page.locator(".app-scroll").evaluate((node) => node.scrollTop),
           scrollTop,
@@ -1692,6 +1698,16 @@ try {
           type: "touchMove",
           touchPoints: [{ x: box.x + box.width - 30, y: box.y + 70 }],
         });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchCancel",
+          touchPoints: [],
+        });
+        await page.locator(".chart-tooltip").waitFor({ state: "detached" });
+        await touch.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
+        });
+        await page.locator(".chart-tooltip").waitFor();
         await touch.send("Input.dispatchTouchEvent", {
           type: "touchEnd",
           touchPoints: [],
@@ -2447,6 +2463,17 @@ try {
           exact: true,
         })
         .waitFor();
+      const schoology = page.locator(".settings-provider").filter({
+        has: page.locator("summary").filter({ hasText: "Schoology" }),
+      });
+      assert.equal(
+        await schoology.locator("summary .connection").innerText(),
+        "Check failed",
+      );
+      assert.equal(
+        await page.getByLabel("Schoology API key", { exact: true }).count(),
+        0,
+      );
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       assert.equal(await page.locator(".course").count(), 5);
       await page.reload();
@@ -2774,6 +2801,74 @@ try {
         "IC selection must not refresh Schoology",
       );
       assert.match(await ic.innerText(), /90/);
+      const phone = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        ignoreHTTPSErrors: true,
+        reducedMotion: "reduce",
+      });
+      try {
+        await phone.request.post(base + "/api/login", {
+          headers: { Origin: base },
+          data: { password: "synthetic-owner-password-for-tests-only" },
+        });
+        await context.request.post(base + "/api/fixture/failure", {
+          data: { enabled: true, rejectKeys: true },
+        });
+        const freshInstall = await phone.newPage();
+        await freshInstall.goto(base);
+        await freshInstall
+          .getByRole("heading", { name: "Settings", exact: true })
+          .waitFor();
+        const schoology = freshInstall.locator(".settings-provider").filter({
+          has: freshInstall.locator("summary").filter({ hasText: "Schoology" }),
+        });
+        assert.equal(
+          await schoology.locator("summary .connection").innerText(),
+          "Reconnect",
+        );
+        await freshInstall
+          .getByLabel("Schoology API key", { exact: true })
+          .waitFor();
+        await openConnection(freshInstall, "Infinite Campus");
+        await freshInstall
+          .getByRole("button", { name: "Grades", exact: true })
+          .click();
+        await freshInstall
+          .locator(".courses .course")
+          .filter({ hasText: "Synthetic IC-only course" })
+          .waitFor();
+        assert.equal(await freshInstall.locator(".courses .course").count(), 1);
+        await context.request.post(base + "/api/fixture/failure", {
+          data: { enabled: false },
+        });
+        await freshInstall
+          .getByRole("button", { name: "Settings", exact: true })
+          .click();
+        await freshInstall
+          .getByLabel("Schoology API key", { exact: true })
+          .fill("fixture");
+        await freshInstall
+          .getByLabel("Schoology API secret", { exact: true })
+          .fill("fixture-secret");
+        await freshInstall
+          .getByRole("button", { name: "Reconnect Schoology", exact: true })
+          .click();
+        await freshInstall
+          .locator(".courses .course")
+          .filter({ hasText: "AP Biology" })
+          .waitFor();
+        await freshInstall
+          .locator(".courses .course")
+          .filter({ hasText: "Synthetic IC-only course" })
+          .waitFor();
+      } finally {
+        await phone.close();
+        await context.request.post(base + "/api/fixture/failure", {
+          data: { enabled: false },
+        });
+      }
       await page.locator(".gpa-card").evaluate((card) => {
         card.open = true;
       });
@@ -2874,6 +2969,10 @@ try {
         .locator(".portal-actions .primary", {
           hasText: "Reconnect Infinite Campus",
         })
+        .waitFor();
+      await page
+        .locator(".portal-connection[open] .portal-phone-sign-in")
+        .filter({ hasText: "Use a computer to sign in if the phone keyboard" })
         .waitFor();
       await page.getByRole("button", { name: "Grades", exact: true }).click();
       await ic.waitFor();

@@ -247,10 +247,13 @@ export class FixtureVault extends CredentialVault {
       new URL(request.url).pathname === "/api/fixture/failure" &&
       request.method === "POST"
     ) {
-      const { enabled } = (await request.json()) as { enabled: boolean };
+      const { enabled, rejectKeys } = (await request.json()) as {
+        enabled: boolean;
+        rejectKeys?: boolean;
+      };
       await this.fixtureState.storage.put(
         "synthetic-provider-failure",
-        enabled === true,
+        enabled === true ? (rejectKeys === true ? 401 : 502) : false,
       );
       return Response.json({ ok: true });
     }
@@ -322,8 +325,11 @@ export class FixtureVault extends CredentialVault {
       );
       if (delay) await new Promise((r) => setTimeout(r, delay));
     }
-    if (await this.fixtureState.storage.get("synthetic-provider-failure"))
-      return Response.json({}, { status: 502 });
+    const failure = await this.fixtureState.storage.get<number | boolean>(
+      "synthetic-provider-failure",
+    );
+    if (failure)
+      return Response.json({}, { status: failure === 401 ? 401 : 502 });
     const auth = request.headers.get("Authorization") ?? "",
       key = decodeURIComponent(
         auth.match(/oauth_consumer_key="([^"]+)"/)?.[1] ?? "",

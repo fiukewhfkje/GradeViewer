@@ -97,6 +97,15 @@ type InstallEvent = Event & {
   userChoice: Promise<unknown>;
 };
 type Modal = { kind: "add" | "edit"; assignment?: Assignment } | undefined;
+type SchoologyCheck = "verified" | "failed" | "reconnect";
+function schoologyFailure(error: unknown): SchoologyCheck {
+  return error instanceof RequestError &&
+    ["schoologyCredentialsRejected", "reenterSchoologyKeys"].includes(
+      error.code,
+    )
+    ? "reconnect"
+    : "failed";
+}
 const changed = (s: Scenario) =>
   !!(s.added.length || s.ignored.length || Object.keys(s.scores).length);
 function Grade({
@@ -225,6 +234,10 @@ export default function App() {
   const [state, setState] = useState<SavedState>(emptyState),
     stateRef = useRef(state),
     [status, setStatus] = useState<Status>(),
+    [schoologyCheck, setSchoologyCheck] = useState<{
+      account?: string;
+      result: SchoologyCheck;
+    }>(),
     [tab, setTab] = useState("grades"),
     [busy, setBusy] = useState(true),
     [fresh, setFresh] = useState(false),
@@ -309,6 +322,7 @@ export default function App() {
   }
   function hideCache() {
     cacheGeneration.current++;
+    setSchoologyCheck(undefined);
     setCachedUnlocked(false);
     setFresh(false);
     setRefreshRetry(undefined);
@@ -473,7 +487,8 @@ export default function App() {
           return;
         }
         const portalOnly = target === "campus" || target === "carmen";
-        let schoologyError: unknown;
+        let schoologyError:
+          { cause: unknown; result: SchoologyCheck } | undefined;
         let next = stateRef.current;
         if (portalOnly && latest.account !== s.account)
           next = await readSnapshot(next, { ...s, schoologyConnected: false });
@@ -491,12 +506,30 @@ export default function App() {
               manual,
               startup.schoology,
             );
+            if (credentials || (s.schoologyConnected ?? s.connected))
+              setSchoologyCheck({ account: next.account, result: "verified" });
             if (s.account) await repository.finishRetry(s.account, true);
             setRefreshRetry(undefined);
           }
         } catch (e) {
-          if (credentials || stateRef.current.account !== s.account) throw e;
-          schoologyError = e;
+          if (credentials) throw e;
+          const result = schoologyFailure(e);
+          schoologyError = { cause: e, result };
+          setSchoologyCheck({ account: s.account, result });
+          if (result === "reconnect") {
+            setOpenConnections((previous) => ({
+              ...previous,
+              schoology: true,
+            }));
+          }
+          // The combined request may have fetched IC successfully even when
+          // Schoology rejected its keys. Give it an account-matched workspace.
+          if (next.account !== s.account)
+            next = {
+              ...emptyState(),
+              account: s.account,
+              primaryLms: !latest.account ? primaryLms : undefined,
+            };
         }
         if (
           generation !== cacheGeneration.current &&
@@ -504,7 +537,7 @@ export default function App() {
         )
           return;
         apply(next);
-        setFresh(true);
+        setFresh(!schoologyError || next.courses.length > 0);
         const portalStatus = s;
         let portalFailed = false;
         setStatus(portalStatus);
@@ -521,6 +554,7 @@ export default function App() {
               startup.campus,
             );
             apply(next);
+            if (next.courses.length > 0) setFresh(true);
           } catch (e) {
             portalFailed = true;
             setError(errorMessage(e));
@@ -539,19 +573,26 @@ export default function App() {
               startup.carmen,
             );
             apply(next);
+            if (next.courses.length > 0) setFresh(true);
           } catch (e) {
             portalFailed = true;
             setError(errorMessage(e));
           }
         }
         if (schoologyError) {
-          setError(errorMessage(schoologyError));
-          await recordRefreshFailure(schoologyError, s.account, automaticRetry);
+          const { cause, result } = schoologyError;
+          setError(errorMessage(cause));
           if (
-            schoologyError instanceof RequestError &&
-            schoologyError.retryAfter
+            result === "reconnect" &&
+            !next.courses.some(
+              (c) => (c.fields.provider ?? "schoology") === "schoology",
+            )
           )
-            setDeadline(Date.now() + schoologyError.retryAfter * 1000);
+            setTab("profile");
+          await recordRefreshFailure(cause, s.account, automaticRetry);
+          if (cause instanceof RequestError && cause.retryAfter)
+            setDeadline(Date.now() + cause.retryAfter * 1000);
+          else setDeadline(0);
         } else if (!portalOnly) setDeadline(0);
         if (
           generation !== cacheGeneration.current &&
@@ -560,7 +601,8 @@ export default function App() {
           return;
         await repository.rememberAccess(next.account, s.sessionExpires);
         setCachedUnlocked(true);
-        channel.current?.postMessage("saved");
+        if (!schoologyError || next.courses.length > 0)
+          channel.current?.postMessage("saved");
         const finalStatus = {
           ...(credentials ||
           ((portalFailed || target === "carmen") &&
@@ -1395,6 +1437,10 @@ export default function App() {
   const schoologyConnected = !!(
     status?.schoologyConnected ?? status?.connected
   );
+  const schoologyHealth =
+    schoologyCheck?.account === status?.account
+      ? schoologyCheck?.result
+      : undefined;
   const disclose = (kind: keyof typeof openConnections, open: boolean) =>
     setOpenConnections((previous) =>
       previous[kind] === open ? previous : { ...previous, [kind]: open },
@@ -1402,6 +1448,7 @@ export default function App() {
   const schoologyForm = (
     <Connection
       connected={schoologyConnected}
+      needsReconnect={schoologyHealth === "reconnect"}
       busy={busy}
       connect={async (credentials) => {
         await refresh(credentials);
@@ -1559,12 +1606,25 @@ export default function App() {
             {fresh && tab === "grades" && error && (
               <div className="refresh-status" role="status">
                 Showing saved grades.{" "}
-                <button
-                  disabled={!canRefresh}
-                  onClick={() => void refresh(undefined, true).catch(() => {})}
-                >
-                  Retry
-                </button>
+                {!usingCarmen && schoologyHealth === "reconnect" ? (
+                  <button
+                    onClick={() => {
+                      disclose("schoology", true);
+                      setTab("profile");
+                    }}
+                  >
+                    Reconnect Schoology
+                  </button>
+                ) : (
+                  <button
+                    disabled={!canRefresh}
+                    onClick={() =>
+                      void refresh(undefined, true).catch(() => {})
+                    }
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
             <main
@@ -1604,8 +1664,24 @@ export default function App() {
                                   <ConnectionDisclosure
                                     title="Schoology"
                                     icon={<User size={20} />}
-                                    label="Connected"
-                                    tone="connected"
+                                    label={
+                                      schoologyHealth === "reconnect"
+                                        ? "Reconnect"
+                                        : schoologyHealth === "failed"
+                                          ? "Check failed"
+                                          : schoologyHealth === "verified"
+                                            ? "Connected"
+                                            : busy
+                                              ? "Checking…"
+                                              : "Keys saved"
+                                    }
+                                    tone={
+                                      schoologyHealth === "verified"
+                                        ? "connected"
+                                        : schoologyHealth
+                                          ? "error"
+                                          : "neutral"
+                                    }
                                     open={openConnections.schoology}
                                     onToggle={(open) =>
                                       disclose("schoology", open)
@@ -1919,8 +1995,9 @@ export default function App() {
                           : "Fresh grades unavailable"}
                       </h2>
                       <p>
-                        Your saved data is retained. Retry or check your
-                        connection in Settings.
+                        {state.courses.length > 0
+                          ? "Your saved data is retained. Retry or check your connection in Settings."
+                          : "Retry to load grades or check your connection in Settings."}
                       </p>
                       {deadline > Date.now() && (
                         <p>
@@ -2384,25 +2461,27 @@ function Unlock({
 }
 function Connection({
   connected,
+  needsReconnect,
   busy,
   connect,
   disconnect,
   retainsCarmen = false,
 }: {
   connected: boolean;
+  needsReconnect: boolean;
   busy: boolean;
   connect: (c: { key: string; secret: string }) => Promise<void>;
   disconnect: () => Promise<void>;
   retainsCarmen?: boolean;
 }) {
-  const [editing, setEditing] = useState(!connected),
+  const [editing, setEditing] = useState(!connected || needsReconnect),
     [key, setKey] = useState(""),
     [secret, setSecret] = useState(""),
     [error, setError] = useState(""),
     [confirm, setConfirm] = useState(false);
   useEffect(() => {
-    setEditing(!connected);
-  }, [connected]);
+    setEditing(!connected || needsReconnect);
+  }, [connected, needsReconnect]);
   return (
     <>
       {editing ? (
@@ -2463,7 +2542,11 @@ function Connection({
             className="primary full"
             disabled={busy || !key.trim() || !secret.trim()}
           >
-            {busy ? "Verifying grades…" : "Connect Schoology"}
+            {busy
+              ? "Verifying grades…"
+              : needsReconnect
+                ? "Reconnect Schoology"
+                : "Connect Schoology"}
           </button>
           {connected && (
             <button
@@ -2486,7 +2569,8 @@ function Connection({
             disabled={busy}
             onClick={() => setEditing(true)}
           >
-            Update connection <ChevronRight size={17} />
+            {needsReconnect ? "Reconnect Schoology" : "Update connection"}{" "}
+            <ChevronRight size={17} />
           </button>
           <button
             className="settings-action danger"

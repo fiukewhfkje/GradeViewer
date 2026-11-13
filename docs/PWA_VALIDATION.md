@@ -1,3 +1,11 @@
+# Graph dragging and connection feedback — November 13, 2026
+
+Compared the build at `6f99986` with the development build using a synthetic Schoology course in headless Chromium. The trace used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. Over eight measured repetitions of the same 32-move drag, median chart SVG mutations dropped from 19 to 0, layout passes from 16 to 10, and paint events from 66 to 23. Median time in traced paint events dropped from 4.89 ms to 1.59 ms. This is a renderer workload measurement. Device frame rate in Low Power Mode still needs physical iPhone testing.
+
+Browser checks cover mouse, keyboard, touch movement with vertical drift, release and cancellation. A fresh browser fixture confirms that valid shared keys work without re-entry. It also covers explicit Schoology credential rejection with a working IC session, loading only the selected IC class, and recovery after a successful credential submission. A transient provider failure keeps saved grades visible and shows Check failed without opening the key form. The original owner refresh error was not captured. Only the guarded, read-only IC diagnostics were used to check the owner's saved connection health.
+
+The production build, 292 unit tests and both 42-flow browser suites passed. After removing the proposed timestamp from Settings, the build and focused Chromium and WebKit reconnect flows passed again, including the phone keyboard tip. Worker dry-run and local source packaging passed.
+
 # Mobile motion and icons — November 13, 2026
 
 Compared the production build of `1875692` with the development fix in headless Chromium using the same five synthetic Schoology courses, a 390 × 844 touch viewport at 3× pixel density, full motion, and 4× CPU slowdown. Each result is the median of eight repetitions. Traces counted renderer events from the start of each action through a fixed 445 ms window (500 ms for the 24-event pull and cancel).
