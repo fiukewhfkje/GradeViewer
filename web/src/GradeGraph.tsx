@@ -164,6 +164,13 @@ export const GradeGraph = memo(function GradeGraph({
               />
               <path className="chart-line" d={curve.path} />
             </svg>
+            {selection !== undefined && (
+              <span
+                className="chart-dim"
+                aria-hidden="true"
+                style={{ transform: `translate3d(${x}px, 0, 0)` }}
+              />
+            )}
           </div>
           {selection !== undefined && (
             <>

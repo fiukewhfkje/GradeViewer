@@ -1,3 +1,16 @@
+# Graph selection shade — November 13, 2026
+
+Compared the old SVG clip, the shipped unshaded graph and the new shade with the same synthetic course. Headless Chromium used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. The table gives medians from eight repetitions of the same 32-move drag.
+
+| Metric | Old SVG clip | Unshaded graph | New shade |
+| --- | ---: | ---: | ---: |
+| Chart SVG mutations | 19 | 0 | 0 |
+| Layout passes | 16 | 10 | 10 |
+| Paint events | 66 | 23 | 24 |
+| Time in traced paint events | 4.22 ms | 1.84 ms | 2.43 ms |
+
+The shade covers the portion of the plot after the marker. Keyboard checks cover both ends and Escape. Touch checks cover alignment with the marker, release and cancellation. These measurements cover renderer workload. Smoothness in Low Power Mode still needs a physical iPhone check.
+
 # Compact Settings connection slides — November 13, 2026
 
 Compared the old height animation, the shipped snap at `d019e5c`, and the new slide against the same synthetic Schoology settings. The old animation used the pre-mobile-optimization disclosure handler with the same current Settings markup. Each median comes from eight opens and eight closes in headless Chromium at 390 × 844 with 3× pixel density and 4× CPU slowdown, measured over 445 ms from each click.

@@ -1,3 +1,8 @@
+# Graph selection shade — November 13
+
+- [x] Restore the graph's dimmed side using a moving overlay. Compare drag rendering with the old shade and the unshaded graph.
+- [ ] Check graph dragging and Settings slides on the owner's phone in normal and Low Power Mode.
+
 # Compact Settings connection slides — November 13
 
 - [x] Restore the open and close slide for connection panels on phones without animating height. Verify quick reversal, focus and Reduce Motion.

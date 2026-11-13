@@ -1698,18 +1698,29 @@ try {
     "native graph selection shows grade/date and clears on release",
     async () => {
       const chart = page.getByRole("slider", { name: "Explore grade history" });
+      const shade = chart.locator(".chart-dim");
       await chart.focus();
       await chart.press("Home");
       assert.equal(await chart.getAttribute("aria-valuenow"), "0");
+      const shadeOffset = () =>
+        shade.evaluate(
+          (node) => new DOMMatrixReadOnly(getComputedStyle(node).transform).m41,
+        );
+      assert.equal(await shadeOffset(), 0);
       assert.match(
         await page.locator(".chart-tooltip strong").innerText(),
         /^-?\d+\.\d{2}$/,
       );
       await chart.press("ArrowRight");
       assert.equal(await chart.getAttribute("aria-valuenow"), "1");
+      assert.ok((await shadeOffset()) > 0);
       await page.screenshot({ path: directory + "/chart-selection-light.png" });
+      await chart.press("End");
+      const width = (await chart.boundingBox()).width;
+      assert.ok(Math.abs((await shadeOffset()) - width) < 1);
       await chart.press("Escape");
       assert.equal(await page.locator(".chart-tooltip").count(), 0);
+      assert.equal(await shade.count(), 0);
       if (engine === "chromium") {
         const touch = await context.newCDPSession(page),
           box = await chart.boundingBox();
@@ -1734,6 +1745,17 @@ try {
               document.querySelector(".chart").getAttribute("aria-valuenow"),
             ) > 0,
         );
+        const markerCenter = await chart
+          .locator(".chart-marker")
+          .evaluate((node) => {
+            const marker = node.getBoundingClientRect();
+            return (
+              marker.x +
+              marker.width / 2 -
+              node.closest(".chart").getBoundingClientRect().x
+            );
+          });
+        assert.ok(Math.abs((await shadeOffset()) - markerCenter) < 1);
         assert.equal(
           await page.locator(".app-scroll").evaluate((node) => node.scrollTop),
           scrollTop,
@@ -1747,6 +1769,7 @@ try {
           touchPoints: [],
         });
         await page.locator(".chart-tooltip").waitFor({ state: "detached" });
+        assert.equal(await shade.count(), 0);
         await touch.send("Input.dispatchTouchEvent", {
           type: "touchStart",
           touchPoints: [{ x: box.x + 30, y: box.y + 70 }],
@@ -1758,6 +1781,7 @@ try {
         });
         await touch.detach();
         assert.equal(await page.locator(".chart-tooltip").count(), 0);
+        assert.equal(await shade.count(), 0);
       }
     },
   );

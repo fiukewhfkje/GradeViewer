@@ -1,3 +1,9 @@
+# Graph selection shade — November 13, 2026
+
+The progression graph dims the area to the right of the selected point while the finger, mouse or keyboard moves the selection. A translucent layer moves over the finished plot using a transform. The SVG stays unchanged during the drag. Grade history, grade calculations and the grade/date tooltip retain their existing behavior.
+
+In a synthetic phone trace with roughly 30 Hz animation callbacks, the shaded graph produced 24 median paint events, compared with 23 for the unshaded graph and 66 for the old SVG clip. [Validation details](docs/PWA_VALIDATION.md#graph-selection-shade--november-13-2026). The owner approved testing the graph shade and compact Settings slides on their existing Worker. Physical phone performance remains open.
+
 # Compact Settings connection slides — November 13, 2026
 
 On phones, the Schoology, Infinite Campus and Carmen connection panels now open and close with a short slide. The card reveals or hides the panel while the rows below translate into place. The browser no longer animates the panel's height. Quick taps can reverse the slide, and Reduce Motion still opens and closes the panel immediately.

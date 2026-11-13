@@ -551,6 +551,7 @@ select {
   outline-offset: 4px;
 }
 .chart-plot {
+  position: relative;
   height: 100%;
   overflow: hidden;
   border-radius: inherit;
@@ -567,6 +568,13 @@ select {
   stroke-width: 3;
   vector-effect: non-scaling-stroke;
   stroke-linecap: round;
+}
+/* Move the shade across the rendered plot without changing the SVG. */
+.chart-dim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--row) 65%, transparent);
+  pointer-events: none;
 }
 .chart-marker {
   position: absolute;
