@@ -70,7 +70,7 @@ export function ConnectionDisclosure({
           aria-hidden="true"
         />
       </summary>
-      {children}
+      <div className="connection-content">{children}</div>
     </details>
   );
 }

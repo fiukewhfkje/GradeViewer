@@ -1,3 +1,9 @@
+# Compact Settings connection slides — November 13, 2026
+
+On phones, the Schoology, Infinite Campus and Carmen connection panels now open and close with a short slide. The card reveals or hides the panel while the rows below translate into place. The browser no longer animates the panel's height. Quick taps can reverse the slide, and Reduce Motion still opens and closes the panel immediately.
+
+At 390 × 844 in a local Chromium trace with 4× CPU slowdown, the new slide took three median layout passes to open and three to close. The old height animation took 13 each. Both full local browser suites and the 292 unit tests passed. [Validation details](docs/PWA_VALIDATION.md#compact-settings-connection-slides--november-13-2026). The changes are on the development branch for review. Physical iPhone testing remains open.
+
 # Graph dragging and connection feedback — November 13, 2026
 
 The grade graph stays still during a drag while the marker and tooltip follow the finger using transforms. In a local Chromium trace with a simulated 30 Hz callback cadence, a touch drag went from 66 paint events to 23. Physical iPhone behavior in Low Power Mode still needs a retest.

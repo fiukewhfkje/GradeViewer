@@ -1,3 +1,16 @@
+# Compact Settings connection slides — November 13, 2026
+
+Compared the old height animation, the shipped snap at `d019e5c`, and the new slide against the same synthetic Schoology settings. The old animation used the pre-mobile-optimization disclosure handler with the same current Settings markup. Each median comes from eight opens and eight closes in headless Chromium at 390 × 844 with 3× pixel density and 4× CPU slowdown, measured over 445 ms from each click.
+
+| Metric | Old height slide | Shipped snap | New slide |
+| --- | ---: | ---: | ---: |
+| Open layout passes | 13 | 1 | 3 |
+| Close layout passes | 13 | 2 | 3 |
+| Open paint time | 10.76 ms | 1.57 ms | 3.13 ms |
+| Close paint time | 11.80 ms | 2.14 ms | 4.10 ms |
+
+All three builds had zero median missed frames on the desktop host. The results measure rendering work, and Low Power Mode on a physical iPhone still needs a check. Browser tests verify that following rows pass through intermediate positions, the slide reverses on a second tap, focus returns to the summary on close, and turning on Reduce Motion cancels and settles an active slide. Inspected intermediate and open states at 390 px in the local synthetic preview. The production build, 292 unit tests, 42 browser checks each in Chromium and WebKit, Worker dry-run and 123-file source package passed.
+
 # Graph dragging and connection feedback — November 13, 2026
 
 Compared the build at `6f99986` with the development build using a synthetic Schoology course in headless Chromium. The trace used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. Over eight measured repetitions of the same 32-move drag, median chart SVG mutations dropped from 19 to 0, layout passes from 16 to 10, and paint events from 66 to 23. Median time in traced paint events dropped from 4.89 ms to 1.59 ms. This is a renderer workload measurement. Device frame rate in Low Power Mode still needs physical iPhone testing.

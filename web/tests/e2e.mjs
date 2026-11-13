@@ -38,7 +38,7 @@ const bootstrap = "owner unlock and complete Schoology connection";
 // scenario untouched. CI runs them on a separate Worker and asset copy.
 const motionChecks = new Set([
   "appearance controls follow the device, persist overrides, and reduce motion",
-  "disclosure motion preserves desktop reversal and avoids phone layout animation",
+  "connection disclosures slide and reverse without animating phone layout",
   "navigation motion preserves open edits and honors reduced motion",
   "loading orbit follows real work and navigation surfaces honor reduced motion",
 ]);
@@ -775,7 +775,7 @@ try {
     },
   );
   await check(
-    "disclosure motion preserves desktop reversal and avoids phone layout animation",
+    "connection disclosures slide and reverse without animating phone layout",
     async () => {
       const isolated = await browser.newContext({
         viewport: { width: 1280, height: 900 },
@@ -868,35 +868,79 @@ try {
           () => document.documentElement.dataset.motion === "full",
         );
         await summary.press("Space"); // Close the section opened above.
+        await settleMotion(preview);
         const phone = await summary.evaluate((node) => {
           const details = node.parentElement;
+          const following = details.nextElementSibling;
+          const start = following.getBoundingClientRect().top;
           node.click();
+          const slide = following
+            .getAnimations()
+            .find(
+              (animation) => "transform" in animation.effect.getKeyframes()[0],
+            );
+          slide.pause();
+          slide.currentTime = 90;
+          const middle = following.getBoundingClientRect().top;
+          const layoutMotion = details.parentElement
+            .getAnimations({ subtree: true })
+            .some((animation) =>
+              animation.effect
+                .getKeyframes()
+                .some((frame) => "height" in frame || "maxHeight" in frame),
+            );
+          slide.finish();
+          const end = following.getBoundingClientRect().top;
           return {
             open: details.open,
-            layoutMotion: details.getAnimations().length,
-            entrance: details
-              .getAnimations({ subtree: true })
-              .some(
-                (animation) => animation.animationName === "disclosure-enter",
-              ),
+            layoutMotion,
+            slidDown: start < middle && middle < end,
           };
         });
         assert.deepEqual(phone, {
           open: true,
-          layoutMotion: 0,
-          entrance: true,
+          layoutMotion: false,
+          slidDown: true,
         });
+        await settleMotion(preview);
         const connect = preview.getByRole("button", {
           name: "Connect Infinite Campus",
           exact: true,
         });
         await connect.focus();
-        await summary.evaluate((node) => node.click());
+        const reversedPhone = await summary.evaluate((node) => {
+          const details = node.parentElement;
+          const body = details.querySelector(".connection-content");
+          node.click();
+          const closing =
+            details.dataset.disclosureOpen === "false" &&
+            body.inert &&
+            document.activeElement === node;
+          node.click();
+          return (
+            closing && details.dataset.disclosureOpen === "true" && !body.inert
+          );
+        });
+        assert.equal(reversedPhone, true);
+        await settleMotion(preview);
+        await connect.waitFor();
+        await summary.evaluate((node) => {
+          node.click();
+          document.querySelector('[aria-label="Reduce motion"]').click();
+        });
+        await preview.waitForFunction(
+          () => document.documentElement.dataset.motion === "reduce",
+        );
+        await settleMotion(preview);
         assert.equal(
-          await summary.evaluate(
-            (node) =>
-              !node.parentElement.open && document.activeElement === node,
-          ),
+          await summary.evaluate((node) => {
+            const details = node.parentElement;
+            return (
+              !details.open &&
+              !details.querySelector(".connection-content").inert &&
+              !details.hasAttribute("data-disclosure-open")
+            );
+          }),
           true,
         );
       } finally {

@@ -2072,7 +2072,7 @@ footer button,
     border-color 180ms ease;
 }
 .assignment-group[open] > .rows,
-.settings-provider[open] > :not(summary),
+.settings-provider[open] > .connection-content,
 .gpa-card[open] > .gpa-content {
   animation: disclosure-enter 150ms var(--motion-ease);
 }
@@ -2334,6 +2334,9 @@ dialog[data-closing="true"]::backdrop {
   .preference-reset,
   .appearance-card > .settings-row {
     transition: none;
+  }
+  .settings-provider[open] > .connection-content {
+    animation: none;
   }
   .password-help[open] > ol {
     animation: disclosure-enter 150ms var(--motion-ease);

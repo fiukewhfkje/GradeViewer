@@ -1,3 +1,9 @@
+# Compact Settings connection slides — November 13
+
+- [x] Restore the open and close slide for connection panels on phones without animating height. Verify quick reversal, focus and Reduce Motion.
+- [x] Compare the current snap, old height slide and new slide with the same local phone trace. Provide a synthetic preview.
+- [ ] Check the slide on a physical iPhone, including Low Power Mode.
+
 # Graph dragging and connection feedback — November 13
 
 - [x] Reduce chart redraws during touch selection and compare the same drag with simulated 30 Hz callbacks.
