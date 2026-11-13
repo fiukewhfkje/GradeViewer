@@ -2,6 +2,7 @@
 
 - [x] Shorten the mobile connection slide to 130 ms and match the chevron timing.
 - [x] Remove the rectangular shade from the graph fill and keep dimming on the curve after the selected point. Check the stroke alignment in both browser engines.
+- [x] Deploy the corrections to the existing owner Worker and verify the live assets, vault and bindings.
 - [ ] Confirm the revised graph and slide feel on the owner's iPhone.
 
 # Graph selection shade — November 13

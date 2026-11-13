@@ -4,6 +4,8 @@ The phone connection slide now takes 130 ms instead of 180 ms, with a symmetric 
 
 The replacement clips a duplicate bright stroke using two opposite transforms, preserving the curve's position. The local 30 Hz drag benchmark measured 26 median paint events, compared with 66 for the original SVG clip. Light and dark captures at 320, 390 and 1280 px were checked in Chromium and WebKit. Physical iPhone acceptance remains open.
 
+Source `4dec1cb` deployed to the [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) as version `dfe7892c-4bb3-4f96-a4e0-ff798b952771`. At 7:29 a.m. Eastern, it served 100% of traffic. The ten checked public assets matched, and all five bindings and both saved diagnostic records passed preservation checks. The source remains on the development branch, and the latest published stable release is v0.2.5.
+
 # Graph selection shade — November 13, 2026
 
 The progression graph dims the area to the right of the selected point while the finger, mouse or keyboard moves the selection. A translucent layer moves over the finished plot using a transform. The SVG stays unchanged during the drag. Grade history, grade calculations and the grade/date tooltip retain their existing behavior.

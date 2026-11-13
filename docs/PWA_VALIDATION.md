@@ -8,6 +8,8 @@ Captures at 320, 390 and 1280 px in light and dark mode passed alignment and ove
 
 The production build, 292 unit tests, 42 browser checks each in Chromium and WebKit, 123-file source packaging and isolated template update, preservation and rollback checks passed. The final build matches the assets used for the trace and captures.
 
+The strict Worker dry-run passed before uploading source `4dec1cb`. At 7:29 a.m. Eastern, the owner Worker served version `dfe7892c-4bb3-4f96-a4e0-ff798b952771` at 100% traffic. All ten checked public assets matched the clean build by SHA-256, all five binding fingerprints matched preflight, and both saved diagnostic records were retained. Anonymous APIs remained locked. Verification made zero provider requests. Private receipts are outside Git as `DeploymentChecks/graph-stroke-20261113-{before,after}.json`.
+
 # Graph selection shade — November 13, 2026
 
 Compared the old SVG clip, the shipped unshaded graph and the new shade with the same synthetic course. Headless Chromium used a 390 × 844 touch viewport at 3× pixel density, 4× CPU slowdown and approximately 30 Hz JavaScript animation callbacks. The table gives medians from eight repetitions of the same 32-move drag.
