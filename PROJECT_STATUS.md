@@ -1,6 +1,10 @@
-# Stable v0.2.6 preparation — November 13, 2026
+# Stable v0.2.6 published and deployed — November 13, 2026
 
-The owner accepted the current mobile presentation and requested a stable release. v0.2.6 collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental. The existing signed PR/main/tag workflow and owner Worker are retained. The versioned build, 292 local unit tests, 123-file package and isolated-template update/preservation/rollback checks passed. Publication and deployment verification are pending; earlier physical-device measurement limits still apply.
+The owner accepted the current mobile presentation and requested a stable release. [PR #26](https://github.com/fiukewhfkje/GradeViewer/pull/26) merged into main as `fcf04a053665963e1973fbc186ee809a55df6b9f`. The matching tag workflow published [v0.2.6](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.6) as the latest stable at 1:22 p.m. Eastern. It collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves the release as version `97f7ce6f-d3bd-4956-817c-699bac12bd3d` at 100% traffic. All ten checked assets match the clean tagged-source build. All five binding fingerprints and both saved diagnostic records passed preservation checks; anonymous APIs remain locked. No provider requests or Browser Run sessions were used for verification. Private receipts remain outside Git as `DeploymentChecks/stable-026-20261113-{before,after}.json`.
+
+The versioned build, 292 local unit tests, source package and isolated-template update/preservation/rollback checks passed. GitHub passed PR, main and tag verification, including both browser jobs and release provenance. All 123 published source files match the tagged commit, the exact official workflow signature verifies, and the v0.2.5 updater applied the real signed v0.2.6 release to an isolated copy while preserving its personal configuration and synthetic secret file. Earlier physical-device measurement and independent-account acceptance limits still apply.
 
 # Faster Settings layers and Carmen row clipping — November 13, 2026
 

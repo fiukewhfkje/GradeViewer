@@ -1,9 +1,9 @@
 # Stable v0.2.6 — November 13
 
-- [ ] Validate the versioned candidate and pass PR browser and provenance checks.
-- [ ] Merge to main and publish v0.2.6 through the signed tag workflow.
-- [ ] Verify the published archive against its tag and apply the signed update to an isolated v0.2.5 copy with synthetic settings.
-- [ ] Verify the existing owner Worker serves the release with matching assets, preserved bindings and saved diagnostics.
+- [x] Validate the versioned candidate and pass PR browser and provenance checks.
+- [x] Merge PR #26 to main and publish v0.2.6 through the signed tag workflow; main and tag checks passed.
+- [x] Verify all 123 published source files against the tag and apply the real signed update to an isolated v0.2.5 copy with personal settings and a synthetic secret file preserved.
+- [x] Verify the existing owner Worker serves the release at 100% with ten matching assets, all five binding fingerprints and saved diagnostics preserved.
 
 # Faster Settings slide and Carmen row — November 13
 
