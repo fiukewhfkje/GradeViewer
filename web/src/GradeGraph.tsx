@@ -17,7 +17,9 @@ export const GradeGraph = memo(function GradeGraph({
     () => gradeCurve(recentProgression(course, all)),
     [course, all],
   );
-  const [selection, setSelection] = useState<number>();
+  const [selection, setSelection] = useState<
+    { fraction: number; width: number; height: number } | undefined
+  >();
   const pointer = useRef<{ id: number; rect: DOMRect } | undefined>(undefined),
     frame = useRef<number | undefined>(undefined),
     pendingX = useRef(0);
@@ -42,9 +44,24 @@ export const GradeGraph = memo(function GradeGraph({
     [],
   );
   const id = useId().replaceAll(":", "");
-  const index = Math.round((selection ?? 1) * (curve.points.length - 1)),
+  const index = Math.round(
+      (selection?.fraction ?? 1) * (curve.points.length - 1),
+    ),
     { date, value } = labels[index] ?? {},
     basis = overall(course, all);
+  function select(fraction: number, rect: DOMRect) {
+    setSelection((previous) =>
+      previous?.fraction === fraction &&
+      previous.width === rect.width &&
+      previous.height === rect.height
+        ? previous
+        : { fraction, width: rect.width, height: rect.height },
+    );
+  }
+  const x = selection ? selection.fraction * selection.width : 0;
+  const y = selection
+    ? ((curve.trace(selection.fraction) ?? 77) / 154) * selection.height
+    : 0;
   return (
     <section className="graph-section">
       <div className="section-heading">
@@ -63,9 +80,7 @@ export const GradeGraph = memo(function GradeGraph({
           aria-label="Explore grade history"
           aria-valuemin={0}
           aria-valuemax={curve.points.length - 1}
-          aria-valuenow={Math.round(
-            (selection ?? 1) * (curve.points.length - 1),
-          )}
+          aria-valuenow={index}
           aria-valuetext={`${value}% on ${date}`}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse" || e.button !== 0 || pointer.current)
@@ -74,7 +89,7 @@ export const GradeGraph = memo(function GradeGraph({
             e.currentTarget.setPointerCapture(e.pointerId);
             const rect = e.currentTarget.getBoundingClientRect();
             pointer.current = { id: e.pointerId, rect };
-            setSelection(position(e.clientX, rect));
+            select(position(e.clientX, rect), rect);
           }}
           onPointerMove={(e) => {
             const held = pointer.current;
@@ -86,12 +101,8 @@ export const GradeGraph = memo(function GradeGraph({
             if (frame.current === undefined)
               frame.current = requestAnimationFrame(() => {
                 frame.current = undefined;
-                setSelection(
-                  position(
-                    pendingX.current,
-                    held?.rect ?? target.getBoundingClientRect(),
-                  ),
-                );
+                const rect = held?.rect ?? target.getBoundingClientRect();
+                select(position(pendingX.current, rect), rect);
               });
           }}
           onPointerLeave={(e) => {
@@ -109,7 +120,7 @@ export const GradeGraph = memo(function GradeGraph({
           onBlur={clearSelection}
           onKeyDown={(e) => {
             const step = 1 / Math.max(1, curve.points.length - 1);
-            let next = selection ?? 1;
+            let next = selection?.fraction ?? 1;
             if (e.key === "ArrowLeft" || e.key === "ArrowDown") next -= step;
             else if (e.key === "ArrowRight" || e.key === "ArrowUp")
               next += step;
@@ -120,7 +131,10 @@ export const GradeGraph = memo(function GradeGraph({
               return;
             } else return;
             e.preventDefault();
-            setSelection(Math.max(0, Math.min(1, next)));
+            select(
+              Math.max(0, Math.min(1, next)),
+              e.currentTarget.getBoundingClientRect(),
+            );
           }}
         >
           <div className="chart-plot">
@@ -142,27 +156,13 @@ export const GradeGraph = memo(function GradeGraph({
                     stopOpacity="0"
                   />
                 </linearGradient>
-                <clipPath id={`${id}-selection`}>
-                  <rect width={(selection ?? 1) * 1000} height="154" />
-                </clipPath>
               </defs>
               <path
                 className="chart-area"
                 d={`${curve.path} L1000,154 L0,154 Z`}
                 fill={`url(#${id}-fill)`}
               />
-              <path
-                className="chart-line"
-                d={curve.path}
-                opacity={selection === undefined ? 1 : 0.25}
-              />
-              {selection !== undefined && (
-                <path
-                  className="chart-line"
-                  d={curve.path}
-                  clipPath={`url(#${id}-selection)`}
-                />
-              )}
+              <path className="chart-line" d={curve.path} />
             </svg>
           </div>
           {selection !== undefined && (
@@ -170,14 +170,13 @@ export const GradeGraph = memo(function GradeGraph({
               <span
                 className="chart-marker"
                 style={{
-                  left: `${selection * 100}%`,
-                  top: `${((curve.trace(selection) ?? 77) / 154) * 100}%`,
+                  transform: `translate(calc(${x}px - 50%), calc(${y}px - 50%))`,
                 }}
               />
               <output
                 className="chart-tooltip"
                 style={{
-                  left: `clamp(52px, ${selection * 100}%, calc(100% - 52px))`,
+                  transform: `translateX(calc(${Math.max(52, Math.min(selection.width - 52, x))}px - 50%))`,
                 }}
               >
                 <strong>{value}</strong>

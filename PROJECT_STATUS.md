@@ -1,3 +1,11 @@
+# Graph dragging and connection feedback — November 13, 2026
+
+The grade graph stays still during a drag while the marker and tooltip follow the finger using transforms. In a local Chromium trace with a simulated 30 Hz callback cadence, a touch drag went from 66 paint events to 23. Physical iPhone behavior in Low Power Mode still needs a retest.
+
+Schoology now shows Connected after a successful refresh. Saved keys awaiting a check and failed checks have their own labels. Explicit key rejection or unreadable saved keys offer Reconnect and open Settings when there are no Schoology grades to show. The same Worker still shares working connections across devices. Cached grades and successful Infinite Campus reads remain usable if Schoology fails. The mobile IC and Carmen sign-in flow suggests using a computer if the phone keyboard does not open.
+
+The owner's saved IC diagnostics showed a successful course read at 6:34 a.m. Eastern on November 13 and no active failure at the time of the read. The original Schoology error was not captured. A fresh install explains why there were no cached grades to show, and re-entering the same keys established that the next check succeeded. Changes are on the development branch.
+
 # Mobile motion and icon cleanup — November 13, 2026
 
 Compact screens slide the current view and tab indicator without separately fading or staggering the cards. Assignment, GPA and connection sections change layout once and keep an entrance animation and moving chevron. Pull-to-refresh applies the latest drag position once per display frame without rerendering the grade screen. Reduce motion still skips decorative movement. Desktop keeps its existing reversible section slides.

@@ -215,6 +215,12 @@ export function PortalConnection({
     >
       <div aria-busy={busy}>
         {children}
+        {!disabled && (login || needsReconnect || !status?.connected) && (
+          <p className="portal-description portal-phone-sign-in">
+            Use a computer to sign in if the phone keyboard doesn’t open. Then
+            reopen GradeViewer here to use the same connection.
+          </p>
+        )}
         {login ? (
           <div className="portal-body">
             <div className="portal-login-note">
