@@ -4,7 +4,9 @@ The grade graph stays still during a drag while the marker and tooltip follow th
 
 Schoology now shows Connected after a successful refresh. Saved keys awaiting a check and failed checks have their own labels. Explicit key rejection or unreadable saved keys offer Reconnect and open Settings when there are no Schoology grades to show. The same Worker still shares working connections across devices. Cached grades and successful Infinite Campus reads remain usable if Schoology fails. The mobile IC and Carmen sign-in flow suggests using a computer if the phone keyboard does not open.
 
-The owner's saved IC diagnostics showed a successful course read at 6:34 a.m. Eastern on November 13 and no active failure at the time of the read. The original Schoology error was not captured. A fresh install explains why there were no cached grades to show, and re-entering the same keys established that the next check succeeded. Changes are on the development branch.
+The owner's saved IC diagnostics showed a successful course read at 6:34 a.m. Eastern on November 13 and no active failure at the time of the read. The original Schoology error was not captured. A fresh install explains why there were no cached grades to show, and re-entering the same keys established that the next check succeeded.
+
+[PR #25](https://github.com/fiukewhfkje/GradeViewer/pull/25) merged as `ae6d286` after Chromium, WebKit and provenance checks passed. [Cloudflare Builds](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/714eec61-27d0-407b-b18f-cd16f6f021f4) deployed the changes to the owner's existing Worker. Ten live assets matched the tested build, and all five binding fingerprints and both saved diagnostic records passed preservation checks. The latest published stable release remains v0.2.5.
 
 # Mobile motion and icon cleanup — November 13, 2026
 

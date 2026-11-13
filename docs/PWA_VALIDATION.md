@@ -6,6 +6,8 @@ Browser checks cover mouse, keyboard, touch movement with vertical drift, releas
 
 The production build, 292 unit tests and both 42-flow browser suites passed. After removing the proposed timestamp from Settings, the build and focused Chromium and WebKit reconnect flows passed again, including the phone keyboard tip. Worker dry-run and local source packaging passed.
 
+[PR verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43420855075) passed Chromium, WebKit and provenance checks. The merge `ae6d286` triggered the owner Worker build. At 6:58 a.m. Eastern, version `f30a3ce8-158f-422e-aea8-6368505ee2c2` served 100% of traffic at the existing address. Ten live assets matched the local build by SHA-256. All five binding fingerprints, including the vault and both secret bindings, matched preflight. Saved IC and Carmen diagnostic records were preserved, and anonymous APIs remained locked. Private receipts are stored outside Git as `DeploymentChecks/graph-scrubbing-20261113-{before,after}.json`. The published release remains v0.2.5.
+
 # Mobile motion and icons — November 13, 2026
 
 Compared the production build of `1875692` with the development fix in headless Chromium using the same five synthetic Schoology courses, a 390 × 844 touch viewport at 3× pixel density, full motion, and 4× CPU slowdown. Each result is the median of eight repetitions. Traces counted renderer events from the start of each action through a fixed 445 ms window (500 ms for the 24-event pull and cancel).

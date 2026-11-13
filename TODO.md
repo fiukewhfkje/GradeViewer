@@ -3,6 +3,7 @@
 - [x] Reduce chart redraws during touch selection and compare the same drag with simulated 30 Hz callbacks.
 - [x] Distinguish saved Schoology keys from verified grades and route confirmed credential rejection to the reconnect form. Verify that a fresh install can still load the shared IC connection independently.
 - [x] Show the computer sign-in tip when mobile users are setting up or reconnecting IC or Carmen.
+- [x] Merge the approved changes to main and verify the owner Worker deployment while keeping v0.2.5 as the latest published release.
 - [ ] Compare chart dragging on a physical iPhone with Low Power Mode enabled.
 
 # Mobile motion and icons — November 13
