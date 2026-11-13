@@ -2,7 +2,7 @@ import { useEffect, type RefObject } from "react";
 import { COMPACT_MOTION_QUERY } from "./Appearance";
 
 const phoneSlide = {
-  duration: 130,
+  duration: 100,
   easing: "cubic-bezier(0.3, 0.15, 0.7, 0.85)",
   fill: "both",
 } as const;
@@ -41,7 +41,18 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
         ":scope > .connection-content",
       );
       const layout = details.closest(".settings-layout");
-      if (!card?.matches(".settings-card") || !body || !layout) return false;
+      const surface = card?.querySelector(":scope > .connection-card-surface");
+      const reveal = body?.querySelector(":scope > .connection-reveal");
+      const content = reveal?.querySelector(":scope > .connection-body");
+      if (
+        !card?.matches(".settings-card") ||
+        !body ||
+        !layout ||
+        !surface ||
+        !reveal ||
+        !content
+      )
+        return false;
 
       const previous = settingsSlide;
       const open = !(previous?.details === details
@@ -65,8 +76,11 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
         delete details.dataset.disclosureOpen;
         return true;
       }
-      // Use the expanded layout throughout the slide. The card's edge and
-      // content reveal track the rows below it while the DOM stays in place.
+      // Keep layout fixed and move separate layers. Opposite translations reveal
+      // stationary content without repainting a clipping mask over every row.
+      // The background scales independently so it cannot clip the Carmen row.
+      const expandedHeight = card.getBoundingClientRect().height;
+      card.dataset.disclosureSlide = "";
       body.inert = !open;
       const animate = (target: Element, frames: Keyframe[]) => {
         const animation = target.animate(frames, phoneSlide);
@@ -74,13 +88,19 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
         return animation;
       };
       const animations = [
-        animate(card, [
-          { clipPath: `inset(0 0 ${height}px 0 round 18px)` },
-          { clipPath: "inset(0 0 0 0 round 18px)" },
+        animate(surface, [
+          {
+            transform: `scaleY(${(expandedHeight - height) / expandedHeight})`,
+          },
+          { transform: "scaleY(1)" },
         ]),
-        animate(body, [
-          { clipPath: "inset(0 0 100% 0)", opacity: 0.6 },
-          { clipPath: "inset(0 0 0% 0)", opacity: 1 },
+        animate(reveal, [
+          { transform: `translateY(-${height}px)` },
+          { transform: "translateY(0)" },
+        ]),
+        animate(content, [
+          { transform: `translateY(${height}px)` },
+          { transform: "translateY(0)" },
         ]),
         ...Array.from(followingSettingsRows(details, layout), (row) =>
           animate(row, [
@@ -99,6 +119,7 @@ export function useDisclosureMotion(root: RefObject<HTMLElement | null>) {
           details.open = slide.open;
           body.inert = false;
           delete details.dataset.disclosureOpen;
+          delete card.dataset.disclosureSlide;
           for (const animation of animations) animation.cancel();
         },
       };

@@ -1658,6 +1658,10 @@ export default function App() {
                         <section className="settings-group">
                           <h2>Connections</h2>
                           <div className="settings-card">
+                            <div
+                              className="connection-card-surface"
+                              aria-hidden="true"
+                            />
                             {!usingCarmen && (
                               <>
                                 {schoologyConnected ? (

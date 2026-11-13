@@ -1,3 +1,21 @@
+# Faster Settings layers and Carmen visibility — November 13, 2026
+
+The 100 ms phone slide uses opposite content translations inside fixed overflow containers, with an independently scaled background. No card-wide clipping mask or animated height remains in the phone slide. The chevron rotates on an HTML wrapper. Native disclosure state, focus correction, inert closing contents, reversal and Reduce Motion are preserved. The graph implementation is unchanged in this pass.
+
+The same synthetic headless Chromium harness used a 390 × 844 touch viewport, 3× pixel density and 4× CPU slowdown, with ten open/close repetitions per revision. The baseline was the previously deployed 130 ms slide; values are medians. No extra layer-promotion hints were retained: a local experiment increased opening paint cost.
+
+| Metric | Previous slide | New slide |
+| --- | ---: | ---: |
+| Opening paint time | 2.70 ms | 2.65 ms |
+| Closing paint time | 4.57 ms | 3.20 ms |
+| Opening paint events | 9 | 14 |
+| Closing paint events | 24 | 17 |
+| Layout passes, opening / closing | 3 / 3 | 3 / 3 |
+
+Opening paint cost was roughly unchanged; closing paint time fell about 30%. These desktop renderer measurements do not establish physical iPhone frame rate or Low Power Mode behavior. The previous center-line hit tests did not reproduce the owner's clipping report. The replacement removes the shared animated clip entirely, and expanded regressions verify the following row's icon, title, badge, chevron and top/bottom edges at five animation positions. A separate 320/390 px light/dark matrix passed in Chromium and WebKit, and intermediate captures were inspected.
+
+The production build, 292 unit tests, 42 full browser checks per engine, 123-file source package and isolated-template install/build/dry-run/update/preservation/rollback checks passed. Owner Worker deployment verification is pending. No provider calls or real-account browser sessions were used for these tests.
+
 # Quicker Settings slides and curve selection — November 13, 2026
 
 The mobile connection animation uses 130 ms for the reveal and chevron, with symmetric easing for opening and closing. The existing browser regression still covers intermediate positions, reversal, focus and Reduce Motion. Graph selection uses a transparent clipping container and a counter-translated bright stroke. There is one filled curve and no shaded background rectangle.

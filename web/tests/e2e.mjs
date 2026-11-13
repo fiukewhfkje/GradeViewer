@@ -879,28 +879,64 @@ try {
             .find(
               (animation) => "transform" in animation.effect.getKeyframes()[0],
             );
-          slide.pause();
-          slide.currentTime = Number(slide.effect.getTiming().duration) / 2;
-          const middle = following.getBoundingClientRect().top;
-          const layoutMotion = details.parentElement
-            .getAnimations({ subtree: true })
-            .some((animation) =>
-              animation.effect
-                .getKeyframes()
-                .some((frame) => "height" in frame || "maxHeight" in frame),
+          const animations = details
+            .closest(".settings-layout")
+            .getAnimations({ subtree: true });
+          const layoutMotion = animations.some((animation) =>
+            animation.effect
+              .getKeyframes()
+              .some(
+                (frame) =>
+                  "height" in frame ||
+                  "maxHeight" in frame ||
+                  "clipPath" in frame,
+              ),
+          );
+          const positions = [];
+          let rowVisible = true;
+          for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+            for (const animation of animations) {
+              animation.pause();
+              animation.currentTime =
+                Number(animation.effect.getTiming().duration) * progress;
+            }
+            positions.push(following.getBoundingClientRect().top);
+            const summary = following.querySelector("summary");
+            const rect = summary.getBoundingClientRect();
+            // Check the full Carmen row, including its icon and lower edge,
+            // while the preceding panel is sliding into place.
+            const points = [
+              [rect.left + rect.width / 2, rect.top + 2],
+              [rect.left + rect.width / 2, rect.bottom - 2],
+              ...Array.from(summary.children, (child) => {
+                const bounds = child.getBoundingClientRect();
+                return [
+                  bounds.left + bounds.width / 2,
+                  bounds.top + bounds.height / 2,
+                ];
+              }),
+            ];
+            rowVisible &&= points.every(([x, y]) =>
+              summary.contains(document.elementFromPoint(x, y)),
             );
-          slide.finish();
-          const end = following.getBoundingClientRect().top;
+          }
+          for (const animation of animations) animation.finish();
           return {
             open: details.open,
             layoutMotion,
-            slidDown: start < middle && middle < end,
+            rowVisible,
+            slidDown:
+              Math.abs(start - positions[0]) < 1 &&
+              positions.every((top, i) => !i || top > positions[i - 1]),
+            duration: slide.effect.getTiming().duration,
           };
         });
         assert.deepEqual(phone, {
           open: true,
           layoutMotion: false,
+          rowVisible: true,
           slidDown: true,
+          duration: 100,
         });
         await settleMotion(preview);
         const connect = preview.getByRole("button", {
@@ -938,7 +974,8 @@ try {
             return (
               !details.open &&
               !details.querySelector(".connection-content").inert &&
-              !details.hasAttribute("data-disclosure-open")
+              !details.hasAttribute("data-disclosure-open") &&
+              !details.parentElement.hasAttribute("data-disclosure-slide")
             );
           }),
           true,
