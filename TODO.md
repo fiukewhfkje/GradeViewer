@@ -1,3 +1,10 @@
+# Category weights and hypothetical rows — November 18
+
+- [x] Show each added grade at the top of its saved category and open the category after saving.
+- [x] Show provider category weights and cover the unweighted fallback in the Schoology and Infinite Campus fixtures.
+- [x] Verify category placement after refresh and reload in synthetic browser checks.
+- [x] Deploy to the owner Worker and verify the served assets, bindings and anonymous API behavior.
+
 # What-if grade controls — November 18
 
 - [x] Reproduce simultaneous menus, the semester-only what-if display, the Course options Add Grade item and the fixed total-points field.

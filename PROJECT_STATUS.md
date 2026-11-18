@@ -1,3 +1,11 @@
+# Category weights and hypothetical rows — November 18, 2026
+
+Hypothetical grades appear at the top of their original category, newest first. Saving an addition opens that category. Existing browser scenarios use their saved category IDs. Category headings show configured Schoology and Infinite Campus weights. When the provider supplies no evidence of custom weighting, the app leaves the weight label off and uses the available unweighted rules for calculation.
+
+The production build, 295 unit tests, 43 Chromium checks, 43 WebKit checks, source packaging and strict Worker dry-run passed. [Validation details](docs/PWA_VALIDATION.md#category-weights-and-hypothetical-rows--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `e8464a0` as version `c9aef4ee-3407-4199-a9c5-55c2f00afc56` at 100% traffic. The ten checked assets, all five binding fingerprints and the saved diagnostic state passed verification. Anonymous protected APIs stayed locked.
+
 # What-if grade controls on the owner Worker — November 18, 2026
 
 Course and assignment option menus open one at a time. Under View All Assignments, each grading category that accepts local grades has a + button, including the Total Points group when a course has no categories. Edit Grade accepts earned and total points side by side. What-if shows the quarter result and, when the semester calculation supports it, the semester result. Both kinds of score changes remain browser-local and Reset Assignment clears them together.

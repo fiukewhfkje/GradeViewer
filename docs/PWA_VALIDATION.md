@@ -1,3 +1,11 @@
+# Category weights and hypothetical rows — November 18, 2026
+
+The synthetic Schoology and Infinite Campus grades show 30%/70% and 40%/60% category weights respectively. The app expresses complete provider weights as percentage shares and labels known weights individually when some are missing. Courses without weighting evidence omit weight labels. Explicit provider grading rules still determine which what-if calculations are available. [Schoology grading categories](https://developers.schoology.com/api-documentation/rest-api-v1/grading-categories/) · [Infinite Campus category weights](https://kb.infinitecampus.com/help/categories-instruction).
+
+The scenario continues to store each hypothetical grade’s original category ID. Browser regression checks cover placement during refresh, removal, and automatically opening the destination after adding a grade. A 320 px Chromium walkthrough also confirmed two saved additions reappeared at the top of their category, newest first, after reloading.
+
+The production build, 295 unit tests, 43 checks in each of Chromium and WebKit, 123-file source packaging and strict Worker dry-run passed. Live verification at 2:40 p.m. Eastern matched all ten public assets to the local build. Worker version `c9aef4ee-3407-4199-a9c5-55c2f00afc56` from source `e8464a0` served 100% of traffic. All five binding fingerprints and the prior diagnostics state matched preflight. Anonymous protected routes returned HTTP 401. Verification used zero provider requests and no Browser Run sessions. Private receipts remain outside Git under `DeploymentChecks/category-weights-20261118`.
+
 # What-if grade controls — November 18, 2026
 
 On the previous app shell, the synthetic course menu and two adjacent assignment menus stayed open together. The same fixture reproduced the semester-only projection, the Add Grade item in Course options and the read-only total in Edit Grade.
