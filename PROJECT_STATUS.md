@@ -1,3 +1,11 @@
+# What-if label and spacing polish — November 18, 2026
+
+Projected grade cards put the What-if badge beside the period heading and show the change in muted text below the percentage. The two grade cards sit closer together.
+
+The production build, six affected browser checks each in Chromium and WebKit, source packaging and strict Worker dry-run passed. Synthetic screenshots confirmed the layout in both themes at 320 px and 1280 px. [Validation details](docs/PWA_VALIDATION.md#what-if-label-and-spacing-polish--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `1467d75` as version `8de1b6ce-8b26-49c7-9f3c-8638e02ae66d` at 100% traffic. All ten checked assets, five binding fingerprints and saved diagnostics passed verification. Anonymous protected APIs stayed locked.
+
 # What-if grades in the existing cards — November 18, 2026
 
 When a scenario can be calculated, its projected percentage takes the place of the reported percentage in the corresponding semester or quarter card. A small What-if line identifies the projection and shows the change when available. Clearing the scenario restores the reported display. When only the quarter can be projected, its card shows the projection and the semester card retains its reported value.

@@ -1,3 +1,9 @@
+# What-if label and spacing polish — November 18
+
+- [x] Move the What-if badge beside the period, align the percentage change below the grade and tighten the space between grade cards.
+- [x] Verify edits and reset in both browser engines and inspect both themes at phone and desktop widths.
+- [x] Deploy to the existing owner Worker and verify served assets, bindings and anonymous API behavior.
+
 # What-if grades in the existing cards — November 18
 
 - [x] Replace the standalone projections with what-if values in the semester and quarter cards.

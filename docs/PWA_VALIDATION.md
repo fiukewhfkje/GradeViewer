@@ -1,3 +1,9 @@
+# What-if label and spacing polish — November 18, 2026
+
+The production build, six affected browser checks each in Chromium and WebKit, 123-file source packaging and strict Worker dry-run passed. A synthetic Chromium walkthrough at 320 px and 1280 px verified the badge placement, numeric alignment and 12 px separation between grade cards. Light- and dark-mode screenshots were inspected.
+
+At 3:00 p.m. Eastern the owner Worker served version `8de1b6ce-8b26-49c7-9f3c-8638e02ae66d` from source `1467d75` at 100% traffic. All ten checked live assets matched the build. All five binding fingerprints and the previous diagnostics state matched preflight, and anonymous protected routes returned HTTP 401. Verification used no provider requests or Browser Run sessions. Private receipts remain outside Git under `DeploymentChecks/what-if-polish-20261118`.
+
 # What-if grades in the existing cards — November 18, 2026
 
 The production build, 295 unit tests, ten affected browser checks each in Chromium and WebKit, 123-file source packaging and strict Worker dry-run passed. The existing straight-points regression checked that each projection occupied its own card, the previous separate rows were gone, and Reset Assignment restored the reported value. A separate synthetic Chromium walkthrough at 320 px and 1280 px verified both grade cards in View All Assignments and confirmed that Reset All Changes restored both reported percentages.
