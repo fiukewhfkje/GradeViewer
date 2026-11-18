@@ -1,3 +1,9 @@
+# What-if grades in the existing cards — November 18
+
+- [x] Replace the standalone projections with what-if values in the semester and quarter cards.
+- [x] Verify both card values and restoration on reset with synthetic grades.
+- [x] Deploy to the owner Worker and verify assets, bindings and anonymous API behavior.
+
 # Category weights and hypothetical rows — November 18
 
 - [x] Show each added grade at the top of its saved category and open the category after saving.

@@ -1,3 +1,9 @@
+# What-if grades in the existing cards — November 18, 2026
+
+The production build, 295 unit tests, ten affected browser checks each in Chromium and WebKit, 123-file source packaging and strict Worker dry-run passed. The existing straight-points regression checked that each projection occupied its own card, the previous separate rows were gone, and Reset Assignment restored the reported value. A separate synthetic Chromium walkthrough at 320 px and 1280 px verified both grade cards in View All Assignments and confirmed that Reset All Changes restored both reported percentages.
+
+At 2:48 p.m. Eastern, all ten checked live assets matched the build. Worker version `46902932-fa48-49c8-95d9-3ea4b6ac39b6` from source `91d72c7` served 100% of traffic. All five binding fingerprints and the previous diagnostics state matched preflight, and anonymous protected routes returned HTTP 401. Production verification used no provider requests or Browser Run sessions. Private receipts remain outside Git under `DeploymentChecks/inline-what-if-20261118`.
+
 # Category weights and hypothetical rows — November 18, 2026
 
 The synthetic Schoology and Infinite Campus grades show 30%/70% and 40%/60% category weights respectively. The app expresses complete provider weights as percentage shares and labels known weights individually when some are missing. Courses without weighting evidence omit weight labels. Explicit provider grading rules still determine which what-if calculations are available. [Schoology grading categories](https://developers.schoology.com/api-documentation/rest-api-v1/grading-categories/) · [Infinite Campus category weights](https://kb.infinitecampus.com/help/categories-instruction).

@@ -1,3 +1,11 @@
+# What-if grades in the existing cards — November 18, 2026
+
+When a scenario can be calculated, its projected percentage takes the place of the reported percentage in the corresponding semester or quarter card. A small What-if line identifies the projection and shows the change when available. Clearing the scenario restores the reported display. When only the quarter can be projected, its card shows the projection and the semester card retains its reported value.
+
+The production build, 295 unit tests, ten affected browser checks each in Chromium and WebKit, source packaging and strict Worker dry-run passed. [Validation details](docs/PWA_VALIDATION.md#what-if-grades-in-the-existing-cards--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `91d72c7` as version `46902932-fa48-49c8-95d9-3ea4b6ac39b6` at 100% traffic. The ten checked assets, five binding fingerprints and saved diagnostics state passed verification. Anonymous protected APIs stayed locked.
+
 # Category weights and hypothetical rows — November 18, 2026
 
 Hypothetical grades appear at the top of their original category, newest first. Saving an addition opens that category. Existing browser scenarios use their saved category IDs. Category headings show configured Schoology and Infinite Campus weights. When the provider supplies no evidence of custom weighting, the app leaves the weight label off and uses the available unweighted rules for calculation.
