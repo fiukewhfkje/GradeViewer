@@ -186,25 +186,28 @@ function Menu({ label, children }: { label: string; children: ReactNode }) {
 }
 function WhatIfGrade({
   label,
-  period,
   percent,
   delta,
 }: {
   label: string;
-  period: string;
   percent: number;
   delta?: number;
 }) {
   return (
-    <div className="scenario-grade what-if" aria-label={label}>
-      <small>What-if · {period}</small>
-      <strong>{percentText(percent)}</strong>
-      {delta !== undefined && (
-        <small className="scenario-delta">
-          {delta >= 0 ? "+" : ""}
-          {delta.toFixed(2)}%
-        </small>
-      )}
+    <div className="grade what-if" role="group" aria-label={label}>
+      <span>{percentText(percent)}</span>
+      <small>
+        What-if
+        {delta !== undefined && (
+          <>
+            {" · "}
+            <span className="scenario-delta">
+              {delta >= 0 ? "+" : ""}
+              {delta.toFixed(2)}%
+            </span>
+          </>
+        )}
+      </small>
     </div>
   );
 }
@@ -1244,50 +1247,31 @@ export default function App() {
       <p className="muted">No assignments in this period.</p>
     );
   }
-  function quarterSummary(c: Course) {
-    if (descriptor(c).kind !== "quarter") return null;
-    const estimate = estimateQuarter(c, state.courses),
-      label = descriptor(c).label;
-    return (
-      <section className="quarter-summary row">
-        <div className="section-heading">
-          <h2>{label} Grade</h2>
-          {estimate ? (
-            <span className="grade">
-              {percentText(estimate.percent, estimate.digits)}*
-            </span>
-          ) : (
-            <Grade {...c.grade} />
-          )}
-        </div>
-        {estimate && (
-          <p className="muted">
-            *Estimated from {estimate.semester} and reported period weights.
-            {estimate.blankExam ? " Blank exam omitted." : ""} Rounded totals
-            limit precision. Replaced when grades are available.
-          </p>
-        )}
-      </section>
-    );
-  }
-  function summary(c: Course, whole: boolean) {
+  function summary(c: Course, showQuarter: boolean) {
     const scope = descriptor(c),
-      base = whole ? overall(c, state.courses) : c,
+      base = overall(c, state.courses),
+      separateSemester = base.id !== c.id,
       est = estimateQuarter(c, state.courses),
       s = scenario(c),
       hasChanges = changed(s),
-      q = hasChanges ? hypothetical(calculationSource(c), s) : undefined,
-      scale =
-        base.id === c.id ? undefined : semesterScale(c, base, state.courses),
+      periodProjection = hasChanges
+        ? hypothetical(calculationSource(c), s)
+        : undefined,
+      scale = separateSemester
+        ? semesterScale(c, base, state.courses)
+        : undefined,
       semesterDelta =
-        q?.delta !== undefined && scale !== undefined
-          ? q.delta * scale
+        periodProjection?.delta !== undefined && scale !== undefined
+          ? periodProjection.delta * scale
           : undefined,
-      projected =
-        semesterDelta !== undefined && base.grade.percent !== undefined,
-      sim = projected ? base.grade.percent! + semesterDelta : q?.percent,
-      delta = projected ? semesterDelta : q?.delta,
-      simulatedPeriod = projected ? descriptor(base).label : scope.label;
+      courseProjection = separateSemester
+        ? semesterDelta !== undefined && base.grade.percent !== undefined
+          ? {
+              percent: base.grade.percent + semesterDelta,
+              delta: semesterDelta,
+            }
+          : undefined
+        : periodProjection;
     const age = updateAge(latestGradeUpdate(c, state.courses));
     return (
       <>
@@ -1295,9 +1279,9 @@ export default function App() {
           <div className="row-text">
             <strong>Course Grade</strong>
             <small>
-              {whole && base.id !== c.id
+              {separateSemester
                 ? descriptor(base).label + " overall"
-                : descriptor(c).label}
+                : scope.label}
             </small>
             {base.fields.overall_override === "true" && (
               <small>
@@ -1311,12 +1295,16 @@ export default function App() {
               </small>
             )}
           </div>
-          <Grade
-            percent={base.grade.percent ?? est?.percent}
-            letter={base.grade.letter}
-            estimate={base.grade.percent === undefined && !!est}
-            digits={base.grade.percent === undefined && est ? est.digits : 2}
-          />
+          {courseProjection ? (
+            <WhatIfGrade label="What-If grade" {...courseProjection} />
+          ) : (
+            <Grade
+              percent={base.grade.percent ?? est?.percent}
+              letter={base.grade.letter}
+              estimate={base.grade.percent === undefined && !!est}
+              digits={base.grade.percent === undefined && est ? est.digits : 2}
+            />
+          )}
           <Menu label="Course options">
             <button
               onClick={() => {
@@ -1364,35 +1352,53 @@ export default function App() {
           </Menu>
         </div>
 
-        {sim !== undefined && (
-          <WhatIfGrade
-            label="What-If grade"
-            period={simulatedPeriod}
-            percent={sim}
-            delta={delta}
-          />
-        )}
-        {projected && scope.kind === "quarter" && q && (
-          <WhatIfGrade
-            label="What-If quarter grade"
-            period={scope.label}
-            percent={q.percent}
-            delta={q.delta}
-          />
-        )}
-        {hasChanges && sim === undefined && (
+        {hasChanges && !periodProjection && (
           <p className="muted">
             Changes apply to assignments only. A what-if course grade is
             unavailable.
           </p>
         )}
-        {base.grade.percent === undefined && est && (
+        {!courseProjection && base.grade.percent === undefined && est && (
           <p className="muted">
             * Estimated from {est.semester} and reported period weights. Rounded
             inputs limit precision.
             {est.blankExam ? " Blank exam excluded." : ""}
           </p>
         )}
+        {separateSemester &&
+          (periodProjection || (showQuarter && scope.kind === "quarter")) && (
+            <section className="quarter-summary row">
+              <div className="section-heading">
+                <h2>{scope.label} Grade</h2>
+                {periodProjection ? (
+                  <WhatIfGrade
+                    label={
+                      scope.kind === "quarter"
+                        ? "What-If quarter grade"
+                        : "What-If period grade"
+                    }
+                    {...periodProjection}
+                  />
+                ) : est ? (
+                  <Grade
+                    percent={est.percent}
+                    digits={est.digits}
+                    estimate
+                    parentheses={false}
+                  />
+                ) : (
+                  <Grade {...c.grade} />
+                )}
+              </div>
+              {!periodProjection && est && (
+                <p className="muted">
+                  *Estimated from {est.semester} and reported period weights.
+                  {est.blankExam ? " Blank exam omitted." : ""} Rounded totals
+                  limit precision. Replaced when grades are available.
+                </p>
+              )}
+            </section>
+          )}
       </>
     );
   }
@@ -2247,7 +2253,6 @@ export default function App() {
                     ))}
                   </div>
                   {summary(course, true)}
-                  {quarterSummary(course)}
                   {groupedAssignments(course)}
                   {exams(course, state.courses).map((exam) => (
                     <section key={exam.id}>
@@ -2263,7 +2268,7 @@ export default function App() {
               ) : (
                 <>
                   <div className="course-overview">
-                    {summary(course, true)}
+                    {summary(course, false)}
                     <GradeGraph
                       key={course.id}
                       course={course}

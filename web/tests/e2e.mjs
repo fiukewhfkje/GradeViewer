@@ -1631,7 +1631,7 @@ try {
     await page.getByLabel("Close course", { exact: true }).click();
   });
   await check(
-    "straight-points edits project alongside an official semester override",
+    "straight-points edits replace the semester and quarter values in their cards",
     async () => {
       await page
         .locator(".courses")
@@ -1660,16 +1660,23 @@ try {
       await page.keyboard.press("Backspace");
       assert.equal(await input.inputValue(), initial.slice(0, -1));
       await page.getByRole("button", { name: "Save", exact: true }).click();
-      const whatIf = page.getByLabel("What-If grade", { exact: true });
+      const whatIf = page
+        .locator(".summary")
+        .getByLabel("What-If grade", { exact: true });
       await whatIf.waitFor();
-      assert.match(await whatIf.innerText(), /What-if · S1/);
+      assert.match(await page.locator(".summary").innerText(), /S1 overall/);
       const pointsChange = Number(initial.slice(0, -1)) - Number(initial);
       assert.equal(
         await whatIf.locator(".scenario-delta").innerText(),
         ((pointsChange / 320) * 100 * 0.5).toFixed(2) + "%",
       );
-      const quarter = page.getByLabel("What-If quarter grade", { exact: true });
-      assert.match(await quarter.innerText(), /What-if · Q2/);
+      const quarterCard = page.locator(".quarter-summary");
+      const quarter = quarterCard.getByLabel("What-If quarter grade", {
+        exact: true,
+      });
+      await quarterCard
+        .getByRole("heading", { name: "Q2 Grade", exact: true })
+        .waitFor();
       assert.equal(
         await quarter.locator(".scenario-delta").innerText(),
         ((pointsChange / 320) * 100).toFixed(2) + "%",
@@ -1682,7 +1689,13 @@ try {
         await score.innerText(),
         new RegExp("^" + initial.slice(0, -1) + "/"),
       );
-      assert.equal(await page.locator(".summary .grade").innerText(), baseline);
+      assert.equal(await page.locator(".what-if").count(), 2);
+      assert.equal(await page.locator(".summary .grade").count(), 1);
+      assert.equal(await quarterCard.locator(".grade").count(), 1);
+      assert.notEqual(
+        await whatIf.locator(":scope > span").innerText(),
+        baseline.replace(/[()]/g, ""),
+      );
       await menu.click();
       await page
         .getByRole("button", { name: "Drop Assignment", exact: true })
@@ -1694,6 +1707,8 @@ try {
         .click();
       await page.locator(".assignment.dropped").waitFor({ state: "detached" });
       assert.equal(await score.innerText(), original);
+      assert.equal(await page.locator(".summary .grade").innerText(), baseline);
+      assert.equal(await page.locator(".what-if").count(), 0);
       await page.getByLabel("Close course", { exact: true }).click();
     },
   );
