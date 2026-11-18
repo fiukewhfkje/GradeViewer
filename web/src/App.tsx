@@ -196,18 +196,12 @@ function WhatIfGrade({
   return (
     <div className="grade what-if" role="group" aria-label={label}>
       <span>{percentText(percent)}</span>
-      <small>
-        What-if
-        {delta !== undefined && (
-          <>
-            {" · "}
-            <span className="scenario-delta">
-              {delta >= 0 ? "+" : ""}
-              {delta.toFixed(2)}%
-            </span>
-          </>
-        )}
-      </small>
+      {delta !== undefined && (
+        <small className="scenario-delta">
+          {delta >= 0 ? "+" : ""}
+          {delta.toFixed(2)}%
+        </small>
+      )}
     </div>
   );
 }
@@ -1282,6 +1276,9 @@ export default function App() {
               {separateSemester
                 ? descriptor(base).label + " overall"
                 : scope.label}
+              {courseProjection && (
+                <span className="projection-badge">What-if</span>
+              )}
             </small>
             {base.fields.overall_override === "true" && (
               <small>
@@ -1369,7 +1366,12 @@ export default function App() {
           (periodProjection || (showQuarter && scope.kind === "quarter")) && (
             <section className="quarter-summary row">
               <div className="section-heading">
-                <h2>{scope.label} Grade</h2>
+                <div className="period-grade-heading">
+                  <h2>{scope.label} Grade</h2>
+                  {periodProjection && (
+                    <span className="projection-badge">What-if</span>
+                  )}
+                </div>
                 {periodProjection ? (
                   <WhatIfGrade
                     label={

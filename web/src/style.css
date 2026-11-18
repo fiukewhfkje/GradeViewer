@@ -315,6 +315,9 @@ main > section + section {
   min-height: 112px;
   margin-bottom: 28px;
 }
+.summary:has(+ .quarter-summary) {
+  margin-bottom: 12px;
+}
 .summary .grade {
   font-size: 25px;
 }
@@ -813,9 +816,26 @@ dialog p {
 .updated.fresh {
   color: var(--grade-text);
 }
-.grade.what-if,
-.grade.what-if small {
+.grade.what-if {
+  align-items: flex-end;
+  gap: 2px;
   color: var(--blue);
+  line-height: 1.15;
+}
+.grade.what-if .scenario-delta {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.projection-badge {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--blue) 10%, transparent);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
 }
 
 .assignment-category {
@@ -884,6 +904,12 @@ dialog p {
 }
 .quarter-summary .section-heading {
   margin-bottom: 0;
+}
+.period-grade-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .quarter-summary h2 {
   font-size: 17px;
