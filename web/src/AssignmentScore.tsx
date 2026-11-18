@@ -1,24 +1,33 @@
-import { type Score, pointsText, percentText } from "./core/model";
+import {
+  type Score,
+  pointsText,
+  percentText,
+  scenarioScore,
+} from "./core/model";
 
 // Follow native AssignmentRow: numeric scores take precedence over a letter,
 // while excused work retains its status even when a local score is entered.
 export function AssignmentScore({
   score,
   override,
+  possibleOverride,
 }: {
   score: Score;
   override?: number;
+  possibleOverride?: number;
 }) {
   if (score.excused) return <span className="score-label">Excused</span>;
-  const earned = override ?? score.earned;
+  const { earned, possible } = scenarioScore(score, override, possibleOverride);
   if (earned === undefined)
     return <span className="score-label">{score.letter || "—"}</span>;
   const percent =
-    (score.possible ?? 0) > 0 ? (earned / score.possible!) * 100 : undefined;
+    possible !== undefined && possible > 0
+      ? (earned / possible) * 100
+      : undefined;
   return (
     <>
       <strong>
-        {pointsText(earned)}/{pointsText(score.possible)}
+        {pointsText(earned)}/{pointsText(possible)}
       </strong>
       <small>{percentText(percent)}</small>
     </>

@@ -1,3 +1,33 @@
+# What-if label and spacing polish — November 18, 2026
+
+Projected grade cards put the What-if badge beside the period heading and show the change in muted text below the percentage. The two grade cards sit closer together.
+
+The production build, six affected browser checks each in Chromium and WebKit, source packaging and strict Worker dry-run passed. Synthetic screenshots confirmed the layout in both themes at 320 px and 1280 px. [Validation details](docs/PWA_VALIDATION.md#what-if-label-and-spacing-polish--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `1467d75` as version `8de1b6ce-8b26-49c7-9f3c-8638e02ae66d` at 100% traffic. All ten checked assets, five binding fingerprints and saved diagnostics passed verification. Anonymous protected APIs stayed locked.
+
+# What-if grades in the existing cards — November 18, 2026
+
+When a scenario can be calculated, its projected percentage takes the place of the reported percentage in the corresponding semester or quarter card. A small What-if line identifies the projection and shows the change when available. Clearing the scenario restores the reported display. When only the quarter can be projected, its card shows the projection and the semester card retains its reported value.
+
+The production build, 295 unit tests, ten affected browser checks each in Chromium and WebKit, source packaging and strict Worker dry-run passed. [Validation details](docs/PWA_VALIDATION.md#what-if-grades-in-the-existing-cards--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `91d72c7` as version `46902932-fa48-49c8-95d9-3ea4b6ac39b6` at 100% traffic. The ten checked assets, five binding fingerprints and saved diagnostics state passed verification. Anonymous protected APIs stayed locked.
+
+# Category weights and hypothetical rows — November 18, 2026
+
+Hypothetical grades appear at the top of their original category, newest first. Saving an addition opens that category. Existing browser scenarios use their saved category IDs. Category headings show configured Schoology and Infinite Campus weights. When the provider supplies no evidence of custom weighting, the app leaves the weight label off and uses the available unweighted rules for calculation.
+
+The production build, 295 unit tests, 43 Chromium checks, 43 WebKit checks, source packaging and strict Worker dry-run passed. [Validation details](docs/PWA_VALIDATION.md#category-weights-and-hypothetical-rows--november-18-2026).
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `e8464a0` as version `c9aef4ee-3407-4199-a9c5-55c2f00afc56` at 100% traffic. The ten checked assets, all five binding fingerprints and the saved diagnostic state passed verification. Anonymous protected APIs stayed locked.
+
+# What-if grade controls on the owner Worker — November 18, 2026
+
+Course and assignment option menus open one at a time. Under View All Assignments, each grading category that accepts local grades has a + button, including the Total Points group when a course has no categories. Edit Grade accepts earned and total points side by side. What-if shows the quarter result and, when the semester calculation supports it, the semester result. Both kinds of score changes remain browser-local and Reset Assignment clears them together.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `3422d5a` as version `f0319c7e-0ad9-4477-8ebd-a74a17422d44` at 100% traffic. All ten checked assets and the five binding fingerprints matched. The existing diagnostics state was preserved and anonymous API checks passed. Production verification used public assets and read-only checks without signing in or contacting providers. Main and the published stable release remain at v0.2.6. [Local and live validation](docs/PWA_VALIDATION.md#what-if-grade-controls--november-18-2026).
+
 # Stable v0.2.6 published and deployed — November 13, 2026
 
 The owner accepted the current mobile presentation and requested a stable release. [PR #26](https://github.com/fiukewhfkje/GradeViewer/pull/26) merged into main as `fcf04a053665963e1973fbc186ee809a55df6b9f`. The matching tag workflow published [v0.2.6](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.6) as the latest stable at 1:22 p.m. Eastern. It collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental.

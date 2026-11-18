@@ -1,3 +1,28 @@
+# What-if label and spacing polish — November 18
+
+- [x] Move the What-if badge beside the period, align the percentage change below the grade and tighten the space between grade cards.
+- [x] Verify edits and reset in both browser engines and inspect both themes at phone and desktop widths.
+- [x] Deploy to the existing owner Worker and verify served assets, bindings and anonymous API behavior.
+
+# What-if grades in the existing cards — November 18
+
+- [x] Replace the standalone projections with what-if values in the semester and quarter cards.
+- [x] Verify both card values and restoration on reset with synthetic grades.
+- [x] Deploy to the owner Worker and verify assets, bindings and anonymous API behavior.
+
+# Category weights and hypothetical rows — November 18
+
+- [x] Show each added grade at the top of its saved category and open the category after saving.
+- [x] Show provider category weights and cover the unweighted fallback in the Schoology and Infinite Campus fixtures.
+- [x] Verify category placement after refresh and reload in synthetic browser checks.
+- [x] Deploy to the owner Worker and verify the served assets, bindings and anonymous API behavior.
+
+# What-if grade controls — November 18
+
+- [x] Reproduce simultaneous menus, the semester-only what-if display, the Course options Add Grade item and the fixed total-points field.
+- [x] Make menus exclusive, add category + buttons and support editing both earned and total points with quarter and semester projections.
+- [x] Verify browser-local persistence, reset and refresh behavior in Chromium and WebKit. Deploy only to the owner Worker and verify the served assets, binding fingerprints and anonymous API behavior.
+
 # Stable v0.2.6 — November 13
 
 - [x] Validate the versioned candidate and pass PR browser and provenance checks.

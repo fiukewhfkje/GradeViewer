@@ -4,6 +4,7 @@ import {
   type Scenario,
   emptyScenario,
   graded,
+  scenarioScore,
   scorePercent,
 } from "./model";
 export class CalculationError extends Error {
@@ -46,15 +47,50 @@ export function normalizeScenario(c: SourceCourse, h: Scenario): Scenario {
   return {
     ...h,
     scores: Object.fromEntries(
-      Object.entries(h.scores).filter(
-        ([id, v]) =>
-          rows.has(id) &&
-          Number.isFinite(v) &&
-          (rows.get(id)!.score.earned === undefined ||
-            Math.abs(rows.get(id)!.score.earned! - v) > 1e-9),
-      ),
+      Object.entries(h.scores).filter(([id, value]) => {
+        const row = rows.get(id);
+        return (
+          row &&
+          Number.isFinite(value) &&
+          (row.score.earned === undefined ||
+            Math.abs(row.score.earned - value) > 1e-9)
+        );
+      }),
     ),
+    possiblePoints:
+      h.possiblePoints &&
+      Object.fromEntries(
+        Object.entries(h.possiblePoints).filter(
+          ([id, value]) =>
+            rows.has(id) &&
+            Number.isFinite(value) &&
+            value >= 0 &&
+            rows.get(id)!.score.possible !== value,
+        ),
+      ),
     ignored: h.ignored.filter((id) => rows.has(id)),
+  };
+}
+function validCategoryWeight(weight: number | undefined): weight is number {
+  return weight !== undefined && Number.isFinite(weight) && weight >= 0;
+}
+export function configuredCategoryWeights(c: SourceCourse) {
+  const weights = new Map<string, number>();
+  const categories =
+    c.method === "weightedCategories"
+      ? c.categories.filter((category) => !category.excluded)
+      : [];
+  let total = 0;
+  for (const { id, weight } of categories) {
+    if (!validCategoryWeight(weight)) continue;
+    weights.set(id, weight);
+    total += weight;
+  }
+  if (total === 0) weights.clear();
+  return {
+    weights,
+    total:
+      weights.size === categories.length && Number.isFinite(total) ? total : 0,
   };
 }
 function calculationRows(c: SourceCourse, h: Scenario) {
@@ -67,12 +103,14 @@ function calculationRows(c: SourceCourse, h: Scenario) {
         !c.categories.some((k) => k.id === a.categoryID && k.excluded),
     )
     .map((a) => {
-      const earned = h.scores[a.id] ?? a.score.earned;
+      const score = scenarioScore(
+        a.score,
+        h.scores[a.id],
+        h.possiblePoints?.[a.id],
+      );
       // Most calculations (including every graph prefix) have no edited
       // score. Keep those immutable inputs instead of cloning both objects.
-      return Object.is(earned, a.score.earned)
-        ? a
-        : { ...a, score: { ...a.score, earned } };
+      return score === a.score ? a : { ...a, score };
     });
   if (included.some((a) => graded(a) && a.score.earned === undefined))
     throw new CalculationError("incompleteData");
@@ -113,8 +151,7 @@ export function calculate(
       .slice(category.dropLowest);
     if (!group.length) continue;
     const w = c.method === "equalCategories" ? 1 : category.weight;
-    if (w === undefined || !Number.isFinite(w) || w < 0)
-      throw new CalculationError("unknownRules");
+    if (!validCategoryWeight(w)) throw new CalculationError("unknownRules");
     if (w === 0) continue;
     sum += aggregate(group, category.method) * w;
     weight += w;
