@@ -1,3 +1,11 @@
+# What-if grade controls — November 18, 2026
+
+On the previous app shell, the synthetic course menu and two adjacent assignment menus stayed open together. The same fixture reproduced the semester-only projection, the Add Grade item in Course options and the read-only total in Edit Grade.
+
+The production build, 293 unit tests, 43 Chromium checks, 43 WebKit checks, 123-file source package and strict Worker dry-run passed. The browser checks cover menu switching and dismissal, quarter and semester deltas, category-specific additions, signed earned points, total-point validation, reset, refresh and reload. A separate Chromium walkthrough checked the category buttons and dialogs at 320 px and the projected grades at 320 px and 1280 px. These checks used synthetic grades.
+
+At 2:25 p.m. Eastern, version `f0319c7e-0ad9-4477-8ebd-a74a17422d44` from source `3422d5a` served 100% of traffic on the [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev). All ten checked public assets matched the local build by SHA-256. The five binding fingerprints matched preflight, the Infinite Campus diagnostic record persisted, and Carmen diagnostics returned the same empty state as preflight. Anonymous protected endpoints returned HTTP 401. No provider requests or Browser Run sessions were used to verify this deployment. Private receipts remain outside Git under `DeploymentChecks/what-if-20261118`. Physical-device and real-account behavior were outside this verification.
+
 # Stable v0.2.6 verification — November 13, 2026
 
 The versioned production build, 292 unit tests, 123-file source packaging and isolated-template install/build/dry-run/update/preservation/rollback passed locally. [PR #26 verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43480812042), [main verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43481236613) and the [v0.2.6 tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/43481650302) all passed. The tag points to merge commit `fcf04a053665963e1973fbc186ee809a55df6b9f`.

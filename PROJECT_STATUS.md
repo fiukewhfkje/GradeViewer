@@ -1,3 +1,9 @@
+# What-if grade controls on the owner Worker — November 18, 2026
+
+Course and assignment option menus open one at a time. Under View All Assignments, each grading category that accepts local grades has a + button, including the Total Points group when a course has no categories. Edit Grade accepts earned and total points side by side. What-if shows the quarter result and, when the semester calculation supports it, the semester result. Both kinds of score changes remain browser-local and Reset Assignment clears them together.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) serves development commit `3422d5a` as version `f0319c7e-0ad9-4477-8ebd-a74a17422d44` at 100% traffic. All ten checked assets and the five binding fingerprints matched. The existing diagnostics state was preserved and anonymous API checks passed. Production verification used public assets and read-only checks without signing in or contacting providers. Main and the published stable release remain at v0.2.6. [Local and live validation](docs/PWA_VALIDATION.md#what-if-grade-controls--november-18-2026).
+
 # Stable v0.2.6 published and deployed — November 13, 2026
 
 The owner accepted the current mobile presentation and requested a stable release. [PR #26](https://github.com/fiukewhfkje/GradeViewer/pull/26) merged into main as `fcf04a053665963e1973fbc186ee809a55df6b9f`. The matching tag workflow published [v0.2.6](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.6) as the latest stable at 1:22 p.m. Eastern. It collects the mobile navigation, pull-refresh and graph rendering improvements, 100 ms connection slides, full-bleed icons, truthful Schoology connection states and mobile sign-in guidance added since v0.2.5. Carmen remains Experimental.

@@ -1,3 +1,9 @@
+# What-if grade controls — November 18
+
+- [x] Reproduce simultaneous menus, the semester-only what-if display, the Course options Add Grade item and the fixed total-points field.
+- [x] Make menus exclusive, add category + buttons and support editing both earned and total points with quarter and semester projections.
+- [x] Verify browser-local persistence, reset and refresh behavior in Chromium and WebKit. Deploy only to the owner Worker and verify the served assets, binding fingerprints and anonymous API behavior.
+
 # Stable v0.2.6 — November 13
 
 - [x] Validate the versioned candidate and pass PR browser and provenance checks.
