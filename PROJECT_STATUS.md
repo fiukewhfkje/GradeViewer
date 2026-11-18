@@ -1,3 +1,11 @@
+# Stable v0.2.7 published and deployed — November 18, 2026
+
+[PR #27](https://github.com/fiukewhfkje/GradeViewer/pull/27) merged the approved what-if and category changes as `e616e9d7a7b4ea322996d56dc83f7c9b0c6e6773`. The signed tag workflow published [v0.2.7](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.7) as the latest stable release at 3:12 p.m. Eastern. The release adds compact in-card semester and quarter projections, category-specific grade additions, earned and total point edits, exclusive menus and configured Schoology and Infinite Campus category weights. CarmenCanvas remains Experimental.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) deployed the tagged source as version `83a56ec6-ad77-469d-acac-ef77166df60b`. It served 100% of traffic when all ten checked assets matched the release build at 3:07 p.m. Eastern. All five binding fingerprints and saved diagnostics matched preflight, and anonymous protected routes stayed locked. Production verification used no provider requests or Browser Run sessions.
+
+The versioned build, 295 unit tests, both hosted browser jobs, isolated template update and rollback, exact workflow provenance, and all 123 published source files passed verification. An isolated v0.2.6 installation discovered and applied the real stable release while retaining its synthetic personal configuration and secret file. [Validation details](docs/PWA_VALIDATION.md#stable-v027-verification--november-18-2026).
+
 # What-if label and spacing polish — November 18, 2026
 
 Projected grade cards put the What-if badge beside the period heading and show the change in muted text below the percentage. The two grade cards sit closer together.

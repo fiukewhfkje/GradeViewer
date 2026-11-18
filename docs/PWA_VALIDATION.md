@@ -1,3 +1,11 @@
+# Stable v0.2.7 verification — November 18, 2026
+
+The production build, 295 unit tests, 123-file source package and isolated template install, strict dry-run, update, configuration retention and rollback passed locally. [PR #27 verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44386950220), [main verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44387365007) and the [v0.2.7 tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44387414364) passed. The first tagged Chromium runner was canceled during slow Ubuntu dependency downloads. The Chromium job passed on retry for the same tag and commit.
+
+The tag points to merge commit `e616e9d7a7b4ea322996d56dc83f7c9b0c6e6773`. GitHub published the three expected assets as the latest stable [v0.2.7 release](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.7) at 3:12 p.m. Eastern. The published archive and all 123 files matched their hashes and the tagged Git tree. Sigstore verified the exact workflow identity, tag, source digest and hosted-runner policy. The original v0.2.6 updater discovered and installed the real signed release in an isolated copy, preserving the personal Worker configuration and synthetic secret file.
+
+Cloudflare's [main-branch build](https://dash.cloudflare.com/9c2bc6dd88dd53aae93c31336faa212a/workers/services/view/gradeviewer/production/builds/0ee9eaed-e7fc-450e-bf26-706bb53769ba) deployed the tagged source to the existing owner Worker as version `83a56ec6-ad77-469d-acac-ef77166df60b`. At 3:07 p.m. Eastern, it served 100% of traffic and all ten checked public asset SHA-256 hashes matched the local build. The five binding fingerprints and saved diagnostics matched preflight, and anonymous protected endpoints returned HTTP 401. Verification used no provider requests or Browser Run sessions. Private receipts remain outside Git under `DeploymentChecks/stable-027-20261118`.
+
 # What-if label and spacing polish — November 18, 2026
 
 The production build, six affected browser checks each in Chromium and WebKit, 123-file source packaging and strict Worker dry-run passed. A synthetic Chromium walkthrough at 320 px and 1280 px verified the badge placement, numeric alignment and 12 px separation between grade cards. Light- and dark-mode screenshots were inspected.

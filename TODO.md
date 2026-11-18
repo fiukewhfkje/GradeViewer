@@ -1,3 +1,10 @@
+# Stable v0.2.7 — November 18
+
+- [x] Version and validate the approved what-if and category changes. Merge PR #27 after Chromium, WebKit and provenance pass.
+- [x] Publish through the signed v0.2.7 tag workflow and match the 123 published files to the tagged commit.
+- [x] Apply the real stable release using an isolated v0.2.6 updater and verify personal configuration and synthetic secret retention.
+- [x] Verify the existing owner Worker serves the release build with its bindings and saved diagnostics preserved.
+
 # What-if label and spacing polish — November 18
 
 - [x] Move the What-if badge beside the period, align the percentage change below the grade and tighten the space between grade cards.
