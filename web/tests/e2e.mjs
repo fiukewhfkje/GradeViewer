@@ -1909,7 +1909,16 @@ try {
         );
         await page.getByRole("button", { name: "Add", exact: true }).click();
         await held.release();
-        await page.getByLabel("Added Grades", { exact: true }).waitFor();
+        const practice = page.locator(".assignment-group").filter({
+          has: page.getByLabel("Practice", { exact: true }),
+        });
+        await practice
+          .getByText("Saved while refreshing", { exact: true })
+          .waitFor();
+        assert.match(
+          await practice.locator(".assignment").first().innerText(),
+          /Saved while refreshing/,
+        );
         await page.getByLabel("Back", { exact: true }).click();
         await page
           .getByText("Saved while refreshing", { exact: true })
@@ -2048,6 +2057,12 @@ try {
     assert.equal(await page.locator(".what-if").count(), 0);
   });
   await check("direct Add Grade, extra credit and removal", async () => {
+    const assessments = page.locator(".assignment-group").filter({
+      has: page.getByLabel("Assessments", { exact: true }),
+    });
+    const summary = assessments.getByLabel("Assessments", { exact: true });
+    if (await assessments.evaluate((group) => group.open))
+      await summary.click();
     await openAddGrade(page, "Assessments");
     await page
       .getByRole("dialog", { name: "Add Grade · Assessments" })
@@ -2059,7 +2074,17 @@ try {
     await page.getByLabel("Score", { exact: true }).fill("110.5");
     await page.getByLabel("Total points", { exact: true }).fill("100");
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await page.getByLabel("Added Grades", { exact: true }).waitFor();
+    await assessments
+      .getByText("Synthetic extra credit", { exact: true })
+      .waitFor();
+    assert.match(
+      await assessments.locator(".assignment").first().innerText(),
+      /Synthetic extra credit/,
+    );
+    assert.equal(
+      await page.getByLabel("Added Grades", { exact: true }).count(),
+      0,
+    );
     const quarter = page.getByLabel("What-If quarter grade", { exact: true });
     assert.equal(
       await quarter.locator(".scenario-delta").innerText(),
@@ -2111,7 +2136,8 @@ try {
     await page.getByLabel("Back", { exact: true }).click();
     await page.getByLabel("Course options", { exact: true }).click();
     await page.getByRole("button", { name: "Categories", exact: true }).click();
-    await page.getByLabel("Practice", { exact: true }).waitFor();
+    await page.getByText("30% weight", { exact: true }).waitFor();
+    await page.getByText("70% weight", { exact: true }).waitFor();
     await page.getByLabel("Close course", { exact: true }).click();
     await page
       .locator(".courses")
@@ -2985,6 +3011,14 @@ try {
         "IC selection must not refresh Schoology",
       );
       assert.match(await ic.innerText(), /90/);
+      await ic.click();
+      await page
+        .getByRole("button", { name: "View All Assignments", exact: true })
+        .last()
+        .click();
+      await page.getByText("40% weight", { exact: true }).waitFor();
+      await page.getByText("60% weight", { exact: true }).waitFor();
+      await page.getByLabel("Close course", { exact: true }).click();
       const phone = await browser.newContext({
         viewport: { width: 390, height: 844 },
         isMobile: true,

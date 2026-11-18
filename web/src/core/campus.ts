@@ -241,11 +241,17 @@ export function parseCampus(
           id(cat.categoryID ?? cat.groupID ?? cat._id);
         if (!nonempty(cat.name) || categories.some((c) => c.id === cid))
           return bad();
-        const categoryWeighted = ruleFlag([
+        const weight = number(cat.weight);
+        const weightFlags = [
           cat.isWeighted,
           task.groupWeighted,
           scope.groupWeighted,
-        ]);
+        ];
+        const categoryWeighted =
+          weightFlags.every((value) => value == null) &&
+          (cat.weight == null || weight === 0)
+            ? false
+            : ruleFlag(weightFlags);
         if (categoryWeighted === undefined) unknownRules = true;
         else weighted.push(categoryWeighted);
         const drop = number(cat.dropLowest ?? cat.dropLowestScore) ?? 0;
@@ -276,7 +282,7 @@ export function parseCampus(
         categories.push({
           id: cid,
           name: String(cat.name),
-          weight: number(cat.weight),
+          weight,
           method:
             percent || cat.calculationType === "percent" ? "percent" : "points",
           dropLowest: drop,

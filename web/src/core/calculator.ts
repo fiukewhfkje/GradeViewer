@@ -71,6 +71,28 @@ export function normalizeScenario(c: SourceCourse, h: Scenario): Scenario {
     ignored: h.ignored.filter((id) => rows.has(id)),
   };
 }
+function validCategoryWeight(weight: number | undefined): weight is number {
+  return weight !== undefined && Number.isFinite(weight) && weight >= 0;
+}
+export function configuredCategoryWeights(c: SourceCourse) {
+  const weights = new Map<string, number>();
+  const categories =
+    c.method === "weightedCategories"
+      ? c.categories.filter((category) => !category.excluded)
+      : [];
+  let total = 0;
+  for (const { id, weight } of categories) {
+    if (!validCategoryWeight(weight)) continue;
+    weights.set(id, weight);
+    total += weight;
+  }
+  if (total === 0) weights.clear();
+  return {
+    weights,
+    total:
+      weights.size === categories.length && Number.isFinite(total) ? total : 0,
+  };
+}
 function calculationRows(c: SourceCourse, h: Scenario) {
   const included = [...c.assignments, ...h.added]
     .filter(
@@ -129,8 +151,7 @@ export function calculate(
       .slice(category.dropLowest);
     if (!group.length) continue;
     const w = c.method === "equalCategories" ? 1 : category.weight;
-    if (w === undefined || !Number.isFinite(w) || w < 0)
-      throw new CalculationError("unknownRules");
+    if (!validCategoryWeight(w)) throw new CalculationError("unknownRules");
     if (w === 0) continue;
     sum += aggregate(group, category.method) * w;
     weight += w;

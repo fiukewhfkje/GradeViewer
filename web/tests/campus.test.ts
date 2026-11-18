@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
+import type { Row } from "../src/core/parser";
 import { reconcile } from "../src/core/reconcile";
 import {
   physicalKey,
@@ -8,7 +9,11 @@ import {
   descriptor,
   overall,
 } from "../src/core/periods";
-import { calculate, hypothetical } from "../src/core/calculator";
+import {
+  calculate,
+  configuredCategoryWeights,
+  hypothetical,
+} from "../src/core/calculator";
 import { gpaSemesters, estimateGpa } from "../src/core/gpa";
 import { syntheticCourses } from "./schoology-fixture";
 import { recentProgression } from "../src/core/progression";
@@ -55,6 +60,10 @@ describe("selected IC normalization", () => {
     ]);
     expect([q1.term.weight, q2.term.weight]).toEqual([3, 4]);
     expect([calculate(q1), calculate(q2)]).toEqual([82, 96]);
+    expect(configuredCategoryWeights(q2).total).toBe(1);
+    expect([...configuredCategoryWeights(q2).weights.values()]).toEqual([
+      0.4, 0.6,
+    ]);
     const points = recentProgression(q2, courses, now);
     expect(points.map((p) => p.date)).toEqual(
       ["2026-09-10", "2026-09-20", "2026-09-25", "2026-10-05", "2026-10-20"]
@@ -308,6 +317,23 @@ describe("selected IC normalization", () => {
         ),
         rules,
       ).toBe(45);
+    }
+  });
+  it("uses unweighted points when Campus omits weights and weighting declarations", () => {
+    const detail = structuredClone(campusDetail);
+    const category = detail.details[0].categories[0] as Row;
+    delete category.isWeighted;
+    for (const weight of [undefined, 0, 20]) {
+      category.weight = weight;
+      const course = parseCampus(
+        campusSummary,
+        { "100": detail },
+        ["1:100"],
+        "account",
+      )[0];
+      expect(course.method).toBe(weight === 20 ? "unknown" : "points");
+      expect(configuredCategoryWeights(course).weights.size).toBe(0);
+      if (course.method === "points") expect(calculate(course)).toBe(90);
     }
   });
 });

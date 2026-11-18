@@ -859,8 +859,13 @@ dialog p {
 .assignment-group > summary::-webkit-details-marker {
   display: none;
 }
-.assignment-group > summary > strong {
+.assignment-group-title {
+  display: grid;
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.assignment-group-title > strong {
   font-size: 20px;
 }
 .group-chevron {

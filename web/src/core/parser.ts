@@ -203,20 +203,21 @@ export function parseSection(p: SectionPayload): SourceCourse[] {
     ),
     options = p.section.options ? object(p.section.options) : {},
     weighting = options.weighted_grading_categories,
+    noCustomWeights = categories.every(
+      (category) => category.weight === undefined || category.weight === 0,
+    ),
     // Student responses can use zero placeholders for every unweighted category.
     // Keep the groups for display while calculating their assignment points together.
     pointsOnly =
-      (weighting === false ||
+      (weighting == null ||
+        weighting === false ||
         ["0", "false"].includes(nonempty(weighting)?.toLowerCase() ?? "")) &&
-      categories.length > 0 &&
+      noCustomWeights &&
       categories.every(
-        (category) =>
-          (category.weight === undefined || category.weight === 0) &&
-          category.method === "points" &&
-          category.dropLowest === 0,
+        (category) => category.method === "points" && category.dropLowest === 0,
       ),
     method =
-      !known || weighting == null
+      !known || (weighting == null && !noCustomWeights)
         ? "unknown"
         : weighting === true || flag(weighting)
           ? "weightedCategories"

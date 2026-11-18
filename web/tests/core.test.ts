@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   calculate,
   calculatePrefixes,
+  configuredCategoryWeights,
   hypothetical,
   requiredFinal,
 } from "../src/core/calculator";
@@ -346,23 +347,44 @@ describe("Schoology parsing and replacement", () => {
   }
 
   it("uses straight points with absent or zero category weights", () => {
-    for (const weight of [undefined, 0]) {
-      const p = pointsComparison(null);
-      for (const category of p.categories) {
-        category.weight = weight;
-        delete category.calculation_type;
-        delete category.drop_lowest;
+    for (const weighting of [undefined, 0]) {
+      for (const weight of [undefined, 0]) {
+        const p = pointsComparison(null);
+        p.section.options = { weighted_grading_categories: weighting };
+        for (const category of p.categories) {
+          category.weight = weight;
+          delete category.calculation_type;
+          delete category.drop_lowest;
+        }
+        const c = resolveGrades(parseSection(p))[0];
+        expect(c.method).toBe("points");
+        expect(c.grade.percent).toBeCloseTo((100 * 59) / 110);
+        expect(c.categories).toHaveLength(2);
+        const edit = {
+          ...emptyScenario(),
+          scores: { [c.assignments[1].id]: 60 },
+        };
+        expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
+        expect(configuredCategoryWeights(c).weights.size).toBe(0);
       }
-      const c = resolveGrades(parseSection(p))[0];
-      expect(c.method).toBe("points");
-      expect(c.grade.percent).toBeCloseTo((100 * 59) / 110);
-      expect(c.categories).toHaveLength(2);
-      const edit = {
-        ...emptyScenario(),
-        scores: { [c.assignments[1].id]: 60 },
-      };
-      expect(hypothetical(c, edit)?.delta).toBeCloseTo((100 * 10) / 110);
     }
+  });
+  it("exposes explicit category shares without filling missing weights", () => {
+    const p = payload();
+    const weighted = parseSection(p)[0];
+    expect(configuredCategoryWeights(weighted)).toEqual({
+      weights: new Map(weighted.categories.map((c) => [c.id, c.weight])),
+      total: 100,
+    });
+    expect(
+      configuredCategoryWeights({ ...weighted, method: "equalCategories" })
+        .weights.size,
+    ).toBe(0);
+    delete p.categories[0].weight;
+    expect(configuredCategoryWeights(parseSection(p)[0])).toEqual({
+      weights: new Map([[weighted.categories[1].id, 70]]),
+      total: 0,
+    });
   });
 
   it("preserves explicit category calculation rules when weights are zero", () => {

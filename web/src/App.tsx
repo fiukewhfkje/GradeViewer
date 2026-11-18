@@ -80,7 +80,11 @@ import {
   workspaceCourses as selectWorkspaceCourses,
   parseVisibility,
 } from "./core/visibility";
-import { hypothetical, requiredFinal } from "./core/calculator";
+import {
+  configuredCategoryWeights,
+  hypothetical,
+  requiredFinal,
+} from "./core/calculator";
 import { AssignmentScore } from "./AssignmentScore";
 import { GradeGraph } from "./GradeGraph";
 import { GpaSummary } from "./GpaSummary";
@@ -100,7 +104,7 @@ type InstallEvent = Event & {
   userChoice: Promise<unknown>;
 };
 type Modal =
-  | { kind: "add"; category?: Category }
+  | { kind: "add"; category?: Category; group: HTMLDetailsElement }
   | { kind: "edit"; assignment: Assignment };
 type SchoologyCheck = "verified" | "failed" | "reconnect";
 function schoologyFailure(error: unknown): SchoologyCheck {
@@ -1024,6 +1028,7 @@ export default function App() {
     subset?: Assignment[],
   ) {
     const s = scenario(c),
+      addedIDs = new Set(readOnly ? [] : s.added.map((a) => a.id)),
       rows =
         subset ??
         (readOnly
@@ -1032,12 +1037,15 @@ export default function App() {
               ...s.added,
               ...c.assignments.filter((a) => !c.removed.includes(a.id)),
             ]),
+      added = rows.filter((a) => addedIDs.has(a.id)).reverse(),
+      actual = rows.filter((a) => !addedIDs.has(a.id)),
       items = readOnly
         ? recent(rows)
         : all
           ? [
-              ...recent(rows),
-              ...rows
+              ...added,
+              ...recent(actual),
+              ...actual
                 .filter((a) => !graded(a) && hasTitle(a))
                 .sort(
                   (a, b) =>
@@ -1046,12 +1054,7 @@ export default function App() {
                     a.id.localeCompare(b.id),
                 ),
             ]
-          : [
-              ...[...s.added].reverse(),
-              ...recent(
-                rows.filter((a) => !s.added.some((added) => added.id === a.id)),
-              ),
-            ].slice(0, 5);
+          : [...added, ...recent(actual)].slice(0, 5);
     return items.length ? (
       <div className="rows">
         {items.map((a) => {
@@ -1059,7 +1062,7 @@ export default function App() {
             modified =
               s.scores[a.id] !== undefined ||
               s.possiblePoints?.[a.id] !== undefined ||
-              s.added.some((x) => x.id === a.id) ||
+              addedIDs.has(a.id) ||
               dropped,
             age = graded(a) ? updateAge(a.updated) : undefined;
           return (
@@ -1106,7 +1109,7 @@ export default function App() {
                   >
                     {dropped ? "Undrop Assignment" : "Drop Assignment"}
                   </button>
-                  {s.added.some((x) => x.id === a.id) ? (
+                  {addedIDs.has(a.id) ? (
                     <button
                       onClick={() =>
                         saveScenario(c, {
@@ -1154,29 +1157,31 @@ export default function App() {
     );
   }
   function groupedAssignments(c: Course) {
-    const added = scenario(c).added;
-    const actual = c.assignments.filter(
-      (a) => !c.removed.includes(a.id) && (graded(a) || hasTitle(a)),
-    );
+    const assignments = [
+      ...c.assignments.filter(
+        (a) => !c.removed.includes(a.id) && (graded(a) || hasTitle(a)),
+      ),
+      ...scenario(c).added,
+    ];
+    const { weights, total } = configuredCategoryWeights(c);
     const groups: {
       id: string;
       title: string;
       rows: Assignment[];
       add?: { category?: Category };
+      weight?: number;
     }[] = [];
-    if (added.length)
-      groups.push({ id: "added", title: "Added Grades", rows: added });
     if (!c.categories.length) {
       groups.push({
         id: "total",
         title: "Total Points",
-        rows: actual,
+        rows: assignments,
         add: {},
       });
     } else {
       const used = new Set<string>();
       for (const category of c.categories) {
-        const rows = actual.filter((a) => a.categoryID === category.id);
+        const rows = assignments.filter((a) => a.categoryID === category.id);
         rows.forEach((a) => used.add(a.id));
         if (rows.length || !category.excluded)
           groups.push({
@@ -1184,30 +1189,51 @@ export default function App() {
             title: category.name,
             rows,
             add: category.excluded ? undefined : { category },
+            weight: weights.get(category.id),
           });
       }
-      const other = actual.filter((a) => !used.has(a.id));
+      const other = assignments.filter((a) => !used.has(a.id));
       if (other.length)
         groups.push({ id: "other", title: "Other Assignments", rows: other });
     }
     return groups.length ? (
-      groups.map((group) => (
+      groups.map((group, index) => (
         <div key={group.id} className="assignment-category">
           {group.add && (
             <button
               className="icon category-add"
               aria-label={`Add Grade to ${group.title}`}
-              onClick={() => setModal({ kind: "add", ...group.add })}
+              onClick={(event) => {
+                const details = event.currentTarget.nextElementSibling;
+                if (details instanceof HTMLDetailsElement)
+                  setModal({ kind: "add", ...group.add, group: details });
+              }}
             >
               <Plus size={21} />
             </button>
           )}
           <details className="assignment-group">
-            <summary aria-label={group.title}>
+            <summary
+              aria-label={group.title}
+              aria-describedby={
+                group.weight === undefined
+                  ? undefined
+                  : `category-weight-${index}`
+              }
+            >
               <span className="group-chevron">
                 <ChevronRight size={19} />
               </span>
-              <strong>{group.title}</strong>
+              <span className="assignment-group-title">
+                <strong>{group.title}</strong>
+                {group.weight !== undefined && (
+                  <small id={`category-weight-${index}`} className="muted">
+                    {total
+                      ? `${percentText((group.weight / total) * 100)} weight`
+                      : `Weight ${pointsText(group.weight)}`}
+                  </small>
+                )}
+              </span>
               {group.id === "total" && <Grade {...c.grade} />}
             </summary>
             {list(c, true, false, group.rows)}
@@ -2331,6 +2357,7 @@ export default function App() {
           close={() => setModal(undefined)}
           save={(s) => {
             saveScenario(course, s);
+            if (modal.kind === "add") modal.group.open = true;
             setModal(undefined);
           }}
         />
