@@ -35,6 +35,7 @@ import {
   Globe,
   LockKeyhole,
   KeyRound,
+  Plus,
 } from "lucide-react";
 import { api, errorMessage, RequestError, type Status } from "./api";
 import * as repository from "./repository";
@@ -48,6 +49,7 @@ import {
 import {
   type Course,
   type Assignment,
+  type Category,
   type SavedState,
   type Scenario,
   emptyState,
@@ -56,6 +58,7 @@ import {
   percentText,
   pointsText,
   scoreInput,
+  scenarioScore,
   recent,
   hasTitle,
   graded,
@@ -96,7 +99,9 @@ type InstallEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<unknown>;
 };
-type Modal = { kind: "add" | "edit"; assignment?: Assignment } | undefined;
+type Modal =
+  | { kind: "add"; category?: Category }
+  | { kind: "edit"; assignment: Assignment };
 type SchoologyCheck = "verified" | "failed" | "reconnect";
 function schoologyFailure(error: unknown): SchoologyCheck {
   return error instanceof RequestError &&
@@ -107,7 +112,24 @@ function schoologyFailure(error: unknown): SchoologyCheck {
     : "failed";
 }
 const changed = (s: Scenario) =>
-  !!(s.added.length || s.ignored.length || Object.keys(s.scores).length);
+  !!(
+    s.added.length ||
+    s.ignored.length ||
+    Object.keys(s.scores).length ||
+    Object.keys(s.possiblePoints ?? {}).length
+  );
+function resetAssignment(s: Scenario, id: string): Scenario {
+  const scores = { ...s.scores };
+  const possiblePoints = { ...s.possiblePoints };
+  delete scores[id];
+  delete possiblePoints[id];
+  return {
+    ...s,
+    scores,
+    possiblePoints,
+    ignored: s.ignored.filter((ignored) => ignored !== id),
+  };
+}
 function Grade({
   percent,
   letter,
@@ -139,20 +161,47 @@ function Grade({
 }
 function Menu({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <details className="menu">
+    <details className="menu" name="grade-options">
       <summary aria-label={label}>
         <MoreVertical size={20} />
       </summary>
       <div
         className="menu-items"
         onClick={(e) => {
-          if ((e.target as HTMLElement).closest("button"))
-            e.currentTarget.parentElement?.removeAttribute("open");
+          if ((e.target as Element).closest("button")) {
+            const menu = e.currentTarget.parentElement;
+            menu?.removeAttribute("open");
+            menu?.querySelector("summary")?.focus({ preventScroll: true });
+          }
         }}
       >
         {children}
       </div>
     </details>
+  );
+}
+function WhatIfGrade({
+  label,
+  period,
+  percent,
+  delta,
+}: {
+  label: string;
+  period: string;
+  percent: number;
+  delta?: number;
+}) {
+  return (
+    <div className="scenario-grade what-if" aria-label={label}>
+      <small>What-if · {period}</small>
+      <strong>{percentText(percent)}</strong>
+      {delta !== undefined && (
+        <small className="scenario-delta">
+          {delta >= 0 ? "+" : ""}
+          {delta.toFixed(2)}%
+        </small>
+      )}
+    </div>
   );
 }
 function Dialog({
@@ -285,6 +334,27 @@ export default function App() {
     | undefined
   >(undefined);
   useDisclosureMotion(app);
+  useEffect(() => {
+    function dismissOutside(event: MouseEvent) {
+      const menu =
+        app.current?.querySelector<HTMLDetailsElement>(".menu[open]");
+      if (menu && !menu.contains(event.target as Node)) menu.open = false;
+    }
+    function dismissWithEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const menu =
+        app.current?.querySelector<HTMLDetailsElement>(".menu[open]");
+      if (!menu) return;
+      menu.open = false;
+      menu.querySelector("summary")?.focus({ preventScroll: true });
+    }
+    document.addEventListener("click", dismissOutside);
+    document.addEventListener("keydown", dismissWithEscape);
+    return () => {
+      document.removeEventListener("click", dismissOutside);
+      document.removeEventListener("keydown", dismissWithEscape);
+    };
+  }, []);
   function apply(s: SavedState) {
     stateRef.current = s;
     setState(s);
@@ -988,6 +1058,7 @@ export default function App() {
           const dropped = s.ignored.includes(a.id),
             modified =
               s.scores[a.id] !== undefined ||
+              s.possiblePoints?.[a.id] !== undefined ||
               s.added.some((x) => x.id === a.id) ||
               dropped,
             age = graded(a) ? updateAge(a.updated) : undefined;
@@ -1010,7 +1081,11 @@ export default function App() {
                 </small>
               </div>
               <div className={"score " + (modified ? "modified" : "")}>
-                <AssignmentScore score={a.score} override={s.scores[a.id]} />
+                <AssignmentScore
+                  score={a.score}
+                  override={s.scores[a.id]}
+                  possibleOverride={s.possiblePoints?.[a.id]}
+                />
               </div>
               {!readOnly && (
                 <Menu label={"Options for " + a.title}>
@@ -1033,31 +1108,21 @@ export default function App() {
                   </button>
                   {s.added.some((x) => x.id === a.id) ? (
                     <button
-                      onClick={() => {
-                        const scores = { ...s.scores };
-                        delete scores[a.id];
+                      onClick={() =>
                         saveScenario(c, {
-                          ...s,
+                          ...resetAssignment(s, a.id),
                           added: s.added.filter((x) => x.id !== a.id),
-                          scores,
-                          ignored: s.ignored.filter((id) => id !== a.id),
-                        });
-                      }}
+                        })
+                      }
                     >
                       Remove Grade
                     </button>
                   ) : (
                     <>
                       <button
-                        onClick={() => {
-                          const scores = { ...s.scores };
-                          delete scores[a.id];
-                          saveScenario(c, {
-                            ...s,
-                            scores,
-                            ignored: s.ignored.filter((id) => id !== a.id),
-                          });
-                        }}
+                        onClick={() =>
+                          saveScenario(c, resetAssignment(s, a.id))
+                        }
                       >
                         Reset Assignment
                       </button>
@@ -1082,7 +1147,9 @@ export default function App() {
       <p className="muted">
         {readOnly
           ? "No graded exam assignments."
-          : `No ${all ? "assignments" : "graded assignments"} in this period.`}
+          : subset
+            ? "No assignments yet."
+            : `No ${all ? "assignments" : "graded assignments"} in this period.`}
       </p>
     );
   }
@@ -1091,19 +1158,33 @@ export default function App() {
     const actual = c.assignments.filter(
       (a) => !c.removed.includes(a.id) && (graded(a) || hasTitle(a)),
     );
-    const groups: { id: string; title: string; rows: Assignment[] }[] = [];
+    const groups: {
+      id: string;
+      title: string;
+      rows: Assignment[];
+      add?: { category?: Category };
+    }[] = [];
     if (added.length)
       groups.push({ id: "added", title: "Added Grades", rows: added });
     if (!c.categories.length) {
-      if (actual.length)
-        groups.push({ id: "total", title: "Total Points", rows: actual });
+      groups.push({
+        id: "total",
+        title: "Total Points",
+        rows: actual,
+        add: {},
+      });
     } else {
       const used = new Set<string>();
       for (const category of c.categories) {
         const rows = actual.filter((a) => a.categoryID === category.id);
         rows.forEach((a) => used.add(a.id));
-        if (rows.length)
-          groups.push({ id: category.id, title: category.name, rows });
+        if (rows.length || !category.excluded)
+          groups.push({
+            id: "category:" + category.id,
+            title: category.name,
+            rows,
+            add: category.excluded ? undefined : { category },
+          });
       }
       const other = actual.filter((a) => !used.has(a.id));
       if (other.length)
@@ -1111,16 +1192,27 @@ export default function App() {
     }
     return groups.length ? (
       groups.map((group) => (
-        <details key={group.id} className="assignment-group">
-          <summary aria-label={group.title}>
-            <span className="group-chevron">
-              <ChevronRight size={19} />
-            </span>
-            <strong>{group.title}</strong>
-            {group.id === "total" && <Grade {...c.grade} />}
-          </summary>
-          {list(c, true, false, group.rows)}
-        </details>
+        <div key={group.id} className="assignment-category">
+          {group.add && (
+            <button
+              className="icon category-add"
+              aria-label={`Add Grade to ${group.title}`}
+              onClick={() => setModal({ kind: "add", ...group.add })}
+            >
+              <Plus size={21} />
+            </button>
+          )}
+          <details className="assignment-group">
+            <summary aria-label={group.title}>
+              <span className="group-chevron">
+                <ChevronRight size={19} />
+              </span>
+              <strong>{group.title}</strong>
+              {group.id === "total" && <Grade {...c.grade} />}
+            </summary>
+            {list(c, true, false, group.rows)}
+          </details>
+        </div>
       ))
     ) : (
       <p className="muted">No assignments in this period.</p>
@@ -1153,7 +1245,8 @@ export default function App() {
     );
   }
   function summary(c: Course, whole: boolean) {
-    const base = whole ? overall(c, state.courses) : c,
+    const scope = descriptor(c),
+      base = whole ? overall(c, state.courses) : c,
       est = estimateQuarter(c, state.courses),
       s = scenario(c),
       hasChanges = changed(s),
@@ -1168,7 +1261,7 @@ export default function App() {
         semesterDelta !== undefined && base.grade.percent !== undefined,
       sim = projected ? base.grade.percent! + semesterDelta : q?.percent,
       delta = projected ? semesterDelta : q?.delta,
-      simulatedPeriod = descriptor(projected ? base : c).label;
+      simulatedPeriod = projected ? descriptor(base).label : scope.label;
     const age = updateAge(latestGradeUpdate(c, state.courses));
     return (
       <>
@@ -1207,7 +1300,6 @@ export default function App() {
             >
               View All Assignments
             </button>
-            <button onClick={() => setModal({ kind: "add" })}>Add Grade</button>
             <button
               onClick={() => {
                 setView("categories");
@@ -1247,16 +1339,20 @@ export default function App() {
         </div>
 
         {sim !== undefined && (
-          <div className="scenario-grade what-if" aria-label="What-If grade">
-            <small>What-if · {simulatedPeriod}</small>
-            <strong>{percentText(sim)}</strong>
-            {delta !== undefined && (
-              <small className="scenario-delta">
-                {delta >= 0 ? "+" : ""}
-                {delta.toFixed(2)}%
-              </small>
-            )}
-          </div>
+          <WhatIfGrade
+            label="What-If grade"
+            period={simulatedPeriod}
+            percent={sim}
+            delta={delta}
+          />
+        )}
+        {projected && scope.kind === "quarter" && q && (
+          <WhatIfGrade
+            label="What-If quarter grade"
+            period={scope.label}
+            percent={q.percent}
+            delta={q.delta}
+          />
         )}
         {hasChanges && sim === undefined && (
           <p className="muted">
@@ -2229,9 +2325,8 @@ export default function App() {
       </div>
       {modal && course && (
         <ScoreDialog
-          key={modal.kind + (modal.assignment?.id ?? "")}
+          key={modal.kind === "edit" ? modal.assignment.id : modal.category?.id}
           modal={modal}
-          course={course}
           scenario={scenario(course)}
           close={() => setModal(undefined)}
           save={(s) => {
@@ -2608,51 +2703,64 @@ function Connection({
 }
 function ScoreDialog({
   modal,
-  course,
   scenario,
   close,
   save,
 }: {
-  modal: NonNullable<Modal>;
-  course: Course;
+  modal: Modal;
   scenario: Scenario;
   close: () => void;
   save: (s: Scenario) => void;
 }) {
-  const a = modal.assignment,
+  const a = modal.kind === "edit" ? modal.assignment : undefined,
+    category = modal.kind === "add" ? modal.category : undefined,
+    score =
+      a &&
+      scenarioScore(
+        a.score,
+        scenario.scores[a.id],
+        scenario.possiblePoints?.[a.id],
+      ),
     [title, setTitle] = useState(""),
-    [earned, setEarned] = useState(
-      a ? String(scenario.scores[a.id] ?? a.score.earned ?? "") : "",
-    ),
-    [possible, setPossible] = useState("100"),
-    [category, setCategory] = useState(
-      course.categories.find((c) => !c.excluded)?.id ?? "",
+    [earned, setEarned] = useState(score?.earned?.toString() ?? ""),
+    [possible, setPossible] = useState(
+      a ? (score?.possible?.toString() ?? "") : "100",
     ),
     scoreField = useRef<HTMLInputElement>(null);
   const n = scoreInput(earned),
     p = scoreInput(possible),
     valid =
       n !== undefined &&
-      (a ||
-        (title.trim() &&
-          p !== undefined &&
-          p > 0 &&
-          (course.method === "points" ||
-            category ||
-            !course.categories.some((c) => !c.excluded))));
+      (a
+        ? (p !== undefined && p >= 0) ||
+          (a.score.possible === undefined && !possible.trim())
+        : !!title.trim() && p !== undefined && p > 0);
   return (
     <Dialog
-      title={a ? "Edit Assignment Grade" : "Add Grade"}
+      title={
+        a
+          ? "Edit Assignment Grade"
+          : category
+            ? `Add Grade · ${category.name}`
+            : "Add Grade"
+      }
       close={close}
       initialInput={a ? scoreField : undefined}
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!valid) return;
-          if (a)
-            save({ ...scenario, scores: { ...scenario.scores, [a.id]: n! } });
-          else
+          if (!valid || n === undefined) return;
+          if (a) {
+            const scores = { ...scenario.scores };
+            const possiblePoints = { ...scenario.possiblePoints };
+            if (n === a.score.earned) delete scores[a.id];
+            else scores[a.id] = n;
+            if (p === undefined || p === a.score.possible)
+              delete possiblePoints[a.id];
+            else possiblePoints[a.id] = p;
+            save({ ...scenario, scores, possiblePoints });
+          } else
             save({
               ...scenario,
               added: [
@@ -2660,7 +2768,7 @@ function ScoreDialog({
                 {
                   id: "local:" + crypto.randomUUID(),
                   title: title.trim(),
-                  categoryID: category || undefined,
+                  categoryID: category?.id,
                   score: { earned: n, possible: p, excused: false },
                   multiplier: 1,
                   excluded: false,
@@ -2682,46 +2790,25 @@ function ScoreDialog({
             />
           </label>
         )}
-        <label>
-          Score
-          <input
-            ref={scoreField}
-            inputMode="decimal"
-            value={earned}
-            onChange={(e) => setEarned(e.target.value)}
-          />
-        </label>
-        {a ? (
-          <p className="muted">Out of {pointsText(a.score.possible)} points</p>
-        ) : (
-          <>
-            <label>
-              Total points
-              <input
-                inputMode="decimal"
-                value={possible}
-                onChange={(e) => setPossible(e.target.value)}
-              />
-            </label>
-            {course.method !== "points" && course.categories.length > 1 && (
-              <label>
-                Category
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  {course.categories
-                    .filter((c) => !c.excluded)
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            )}
-          </>
-        )}
+        <div className="score-fields">
+          <label>
+            Score
+            <input
+              ref={scoreField}
+              inputMode="decimal"
+              value={earned}
+              onChange={(e) => setEarned(e.target.value)}
+            />
+          </label>
+          <label>
+            Total points
+            <input
+              inputMode="decimal"
+              value={possible}
+              onChange={(e) => setPossible(e.target.value)}
+            />
+          </label>
+        </div>
         <button className="primary full" disabled={!valid}>
           {a ? "Save" : "Add"}
         </button>

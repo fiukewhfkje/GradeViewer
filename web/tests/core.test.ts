@@ -286,6 +286,22 @@ describe("native calculator rules", () => {
     c.grade.percent = undefined;
     expect(hypothetical(c, edit)?.percent).toBe(90);
   });
+  it("calculates a local total-points change alongside existing earned-points edits", () => {
+    const c = source();
+    expect(
+      hypothetical(c, { ...emptyScenario(), possiblePoints: { a: 200 } }),
+    ).toEqual({ percent: 40, delta: -40 });
+    const both = {
+      ...emptyScenario(),
+      scores: { a: 90 },
+      possiblePoints: { a: 75 },
+    };
+    expect(hypothetical(c, both)).toEqual({ percent: 120, delta: 40 });
+    expect(
+      hypothetical(c, { ...both, possiblePoints: { a: -1 } })?.percent,
+    ).toBe(90);
+    expect(c.assignments[0].score).toMatchObject({ earned: 80, possible: 100 });
+  });
   it("final calculator accepts actual weights and extra-credit results", () => {
     expect(requiredFinal(80, 90, 0.2)).toBe(130);
     expect(() => requiredFinal(80, 90, 0)).toThrow();

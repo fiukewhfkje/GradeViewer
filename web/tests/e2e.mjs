@@ -161,6 +161,18 @@ async function openConnection(page, title) {
   if (!(await summary.evaluate((node) => node.parentElement.open)))
     await summary.click();
 }
+async function openAddGrade(page, category = "Practice") {
+  const add = page.getByRole("button", {
+    name: "Add Grade to " + category,
+    exact: true,
+  });
+  if (!(await add.isVisible()))
+    await page
+      .getByRole("button", { name: "View All Assignments", exact: true })
+      .last()
+      .click();
+  await add.click();
+}
 async function settleMotion(page) {
   // Closed disclosures can retain suspended color transitions. Only rendered
   // finite motion affects the layout assertions and screenshots below.
@@ -1021,14 +1033,14 @@ try {
           }
           await card.click();
           await settleMotion(preview);
-          const motions = await preview.evaluate(() => window.screenMotions);
-          assert.equal(motions > 0, reducedMotion === "no-preference");
+          assert.equal(
+            (await preview.evaluate(() => window.screenMotions)) > 0,
+            reducedMotion === "no-preference",
+          );
           await preview.getByRole("slider").press("Home");
           await preview.getByRole("slider").press("End");
-          await preview.getByLabel("Course options", { exact: true }).click();
-          await preview
-            .getByRole("button", { name: "Add Grade", exact: true })
-            .click();
+          await openAddGrade(preview);
+          const motions = await preview.evaluate(() => window.screenMotions);
           const name = preview.getByLabel("Name", { exact: true });
           await name.fill("Unsubmitted motion check");
           await name.evaluate((node) => {
@@ -1584,6 +1596,40 @@ try {
         await group.locator(":scope > summary").click();
   }
   let cId, assignmentTitle;
+  await check("course and assignment menus open one at a time", async () => {
+    await page
+      .locator(".courses")
+      .getByRole("button", { name: /AP Biology/ })
+      .click();
+    const courseOptions = page.getByLabel("Course options", { exact: true });
+    const assignmentOptions = page.locator(".assignment .menu summary");
+    const first = assignmentOptions.first();
+    const second = assignmentOptions.nth(1);
+    await courseOptions.click();
+    await first.press("Enter");
+    const courseAndAssignment = await page.locator(".menu[open]").count();
+    await second.click();
+    const adjacentAssignments = await page.locator(".menu[open]").count();
+    assert.deepEqual([courseAndAssignment, adjacentAssignments], [1, 1]);
+    await page.keyboard.press("Escape");
+    assert.equal(await page.locator(".menu[open]").count(), 0);
+    assert.equal(
+      await second.evaluate((button) => document.activeElement === button),
+      true,
+    );
+    await courseOptions.click();
+    assert.equal(
+      await page
+        .getByRole("button", { name: "Add Grade", exact: true })
+        .count(),
+      0,
+    );
+    const menuBox = await page.locator(".menu[open] .menu-items").boundingBox();
+    assert.ok(menuBox && menuBox.x >= 0);
+    await page.getByRole("heading", { name: "Recently graded" }).click();
+    assert.equal(await page.locator(".menu[open]").count(), 0);
+    await page.getByLabel("Close course", { exact: true }).click();
+  });
   await check(
     "straight-points edits project alongside an official semester override",
     async () => {
@@ -1621,6 +1667,12 @@ try {
       assert.equal(
         await whatIf.locator(".scenario-delta").innerText(),
         ((pointsChange / 320) * 100 * 0.5).toFixed(2) + "%",
+      );
+      const quarter = page.getByLabel("What-If quarter grade", { exact: true });
+      assert.match(await quarter.innerText(), /What-if · Q2/);
+      assert.equal(
+        await quarter.locator(".scenario-delta").innerText(),
+        ((pointsChange / 320) * 100).toFixed(2) + "%",
       );
       assert.equal(
         await page.getByText("Teacher override", { exact: true }).count(),
@@ -1830,10 +1882,7 @@ try {
   await check(
     "a grade saved during foreground refresh retains both the edit and new snapshot",
     async () => {
-      await page.getByLabel("Course options", { exact: true }).click();
-      await page
-        .getByRole("button", { name: "Add Grade", exact: true })
-        .click();
+      await openAddGrade(page);
       await page
         .getByLabel("Name", { exact: true })
         .fill("Saved while refreshing");
@@ -1860,6 +1909,8 @@ try {
         );
         await page.getByRole("button", { name: "Add", exact: true }).click();
         await held.release();
+        await page.getByLabel("Added Grades", { exact: true }).waitFor();
+        await page.getByLabel("Back", { exact: true }).click();
         await page
           .getByText("Saved while refreshing", { exact: true })
           .waitFor();
@@ -1897,7 +1948,7 @@ try {
     },
   );
   await check(
-    "signed decimal local edit shared by assignment views",
+    "earned and total points edits are shared by assignment views",
     async () => {
       await page
         .getByLabel("Options for " + assignmentTitle, { exact: true })
@@ -1906,10 +1957,23 @@ try {
         .getByRole("button", { name: "Edit Grade", exact: true })
         .click();
       await page.getByLabel("Score", { exact: true }).fill("-1.25");
+      const total = page.getByLabel("Total points", { exact: true });
+      assert.ok(Number(await total.inputValue()) > 0);
+      await total.fill("-1");
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Save", exact: true })
+          .isDisabled(),
+        true,
+      );
+      await total.fill("25.5");
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByLabel("What-If grade", { exact: true }).waitFor();
       assert.match(
-        await page.locator(".scenario-delta").innerText(),
+        await page
+          .getByLabel("What-If grade", { exact: true })
+          .locator(".scenario-delta")
+          .innerText(),
         /^-\d+\.\d{2}%$/,
       );
       await page
@@ -1924,7 +1988,7 @@ try {
       await expandAssignmentGroups();
       assert.match(
         (await page.locator(".rows").allInnerTexts()).join("\n"),
-        /-1.25/,
+        /-1\.25\/25\.5/,
       );
       assert.equal(
         await page.getByRole("button", { name: "Q1", exact: true }).count(),
@@ -1979,12 +2043,16 @@ try {
     );
     assert.doesNotMatch(
       await page.locator(".rows").first().innerText(),
-      /-1.25/,
+      /-1\.25|\/25\.5/,
     );
+    assert.equal(await page.locator(".what-if").count(), 0);
   });
   await check("direct Add Grade, extra credit and removal", async () => {
-    await page.getByLabel("Course options", { exact: true }).click();
-    await page.getByRole("button", { name: "Add Grade", exact: true }).click();
+    await openAddGrade(page, "Assessments");
+    await page
+      .getByRole("dialog", { name: "Add Grade · Assessments" })
+      .waitFor();
+    assert.equal(await page.getByLabel("Category", { exact: true }).count(), 0);
     await page
       .getByLabel("Name", { exact: true })
       .fill("Synthetic extra credit");
@@ -1992,6 +2060,11 @@ try {
     await page.getByLabel("Total points", { exact: true }).fill("100");
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByLabel("Added Grades", { exact: true }).waitFor();
+    const quarter = page.getByLabel("What-If quarter grade", { exact: true });
+    assert.equal(
+      await quarter.locator(".scenario-delta").innerText(),
+      "+2.68%",
+    );
     await expandAssignmentGroups();
     await page
       .getByLabel("Options for Synthetic extra credit", { exact: true })
@@ -2225,6 +2298,7 @@ try {
         .getByRole("button", { name: "Edit Grade", exact: true })
         .click();
       await page.getByLabel("Score", { exact: true }).fill("102.25");
+      await page.getByLabel("Total points", { exact: true }).fill("110.5");
       await page.getByRole("button", { name: "Save", exact: true }).click();
       await page.getByLabel("What-If grade", { exact: true }).waitFor();
       await page.reload();
@@ -2236,7 +2310,10 @@ try {
         .locator(".courses")
         .getByRole("button", { name: /AP Biology/ })
         .click();
-      assert.match(await page.locator(".rows").first().innerText(), /102.25/);
+      assert.match(
+        await page.locator(".rows").first().innerText(),
+        /102\.25\/110\.5/,
+      );
       await page.getByLabel("Close course", { exact: true }).click();
     },
   );
@@ -2609,10 +2686,7 @@ try {
     "a second tab refresh preserves the open course and unsaved grade form",
     async () => {
       await page.locator(".courses .course").first().click();
-      await page.getByLabel("Course options", { exact: true }).click();
-      await page
-        .getByRole("button", { name: "Add Grade", exact: true })
-        .click();
+      await openAddGrade(page);
       await page
         .getByLabel("Name", { exact: true })
         .fill("Keep this unsaved form");

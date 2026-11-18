@@ -64,6 +64,7 @@ export interface Course extends SourceCourse {
 }
 export interface Scenario {
   scores: Record<string, number>;
+  possiblePoints?: Record<string, number>;
   ignored: string[];
   added: Assignment[];
 }
@@ -114,6 +115,15 @@ export const hasTitle = (a: Assignment) =>
   !/^(untitled assignment|assignment(?: \d+)?)$/i.test(a.title.trim());
 export const graded = (a: Assignment) =>
   a.score.earned !== undefined || !!a.score.letter;
+export function scenarioScore(
+  score: Score,
+  earned = score.earned,
+  possible = score.possible,
+): Score {
+  return earned === score.earned && possible === score.possible
+    ? score
+    : { ...score, earned, possible };
+}
 export const scorePercent = (a: Assignment) =>
   !a.score.excused &&
   a.score.earned !== undefined &&
