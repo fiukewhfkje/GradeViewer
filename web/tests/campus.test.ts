@@ -347,7 +347,7 @@ function harness(withBinding = false) {
   let identity: string | undefined = "101",
     studentNumber: string | undefined,
     failure = false,
-    rosterFailure: (() => Response) | undefined,
+    rosterFailure: ((request: Request) => Response) | undefined,
     unavailable = false,
     malformed = false;
   let alarmAt: number | undefined;
@@ -372,7 +372,7 @@ function harness(withBinding = false) {
     expect(req.redirect).toBe("manual");
     if (failure) return Response.json({}, { status: 401 });
     if (u.pathname.endsWith("/roster")) {
-      if (rosterFailure) return rosterFailure();
+      if (rosterFailure) return rosterFailure(req);
       return Response.json(
         identity ? { personID: identity } : [{ sectionID: 100 }],
       );
@@ -439,7 +439,7 @@ function harness(withBinding = false) {
     setUnavailable: (value: boolean) => {
       unavailable = value;
     },
-    setRosterFailure: (response?: () => Response) => {
+    setRosterFailure: (response?: (request: Request) => Response) => {
       rosterFailure = response;
     },
     selectPortal: (url?: string) => {
@@ -516,7 +516,13 @@ describe("encrypted IC session and selected snapshots", () => {
     await h.service.handle("select", { selected: ["1:100"] });
     const browsers = h.browserCalls();
     h.calls.length = 0;
-    h.setRosterFailure(() => new Response(null, { status: 502 }));
+    h.setRosterFailure(
+      () =>
+        new Response(null, {
+          status: 502,
+          headers: { "Set-Cookie": "JSESSIONID=; Path=/campus; Max-Age=0" },
+        }),
+    );
     // The saved alarm must advance even with no tab calling status or refresh.
     for (const [due, next] of [
       [20, 25],
@@ -546,7 +552,11 @@ describe("encrypted IC session and selected snapshots", () => {
     vi.setSystemTime(now + 75 * 60000);
     await h.service.expire();
     expect(h.alarmAt()).toBe(now + 105 * 60000);
-    h.setRosterFailure();
+    h.setRosterFailure((request) =>
+      request.headers.get("Cookie") === "JSESSIONID=synthetic-session"
+        ? Response.json({ personID: "101" })
+        : new Response(null, { status: 401 }),
+    );
     vi.setSystemTime(now + 105 * 60000);
     await h.service.expire();
     expect(await h.service.status()).toMatchObject({
@@ -556,6 +566,7 @@ describe("encrypted IC session and selected snapshots", () => {
       nextMaintenance: now + 125 * 60000,
     });
     expect(h.browserCalls()).toBe(browsers);
+    h.setRosterFailure();
     for (let due = 125; due <= 765; due += 20) {
       vi.setSystemTime(now + due * 60000);
       await h.service.expire();

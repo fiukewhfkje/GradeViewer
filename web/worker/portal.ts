@@ -787,6 +787,44 @@ export class PortalService {
     const resource = this.compatibility && compatibilityResource(u.pathname);
     if (this.compatibility && resource)
       observeCompatibility(this.compatibility, resource, r.status);
+    if (
+      this.kind === "campus" &&
+      (r.ok || r.status >= 500) &&
+      r.headers.get("Content-Type")?.includes("text/html") &&
+      r.body
+    ) {
+      // Only classify explicit headings. Provider page text stays out of diagnostics.
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let heading = "";
+      let remaining = 4096;
+      try {
+        while (remaining > 0) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          heading += decoder.decode(value.subarray(0, remaining), {
+            stream: true,
+          });
+          remaining -= value.length;
+        }
+      } catch {
+        // The HTTP status is still available if the response body fails.
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+      if (
+        /<(?:title|h1)\b[^>]*>\s*(?:infinite campus[ :–-]+)?(?:scheduled maintenance|maintenance in progress|(?:currently )?(?:down for|undergoing) maintenance)\b/i.test(
+          heading,
+        )
+      )
+        throw new ApiError(503, "campusMaintenance");
+      throw new ApiError(502, r.ok ? "malformedCampus" : "portalUnavailable");
+    }
+    if (this.kind === "campus" && r.status >= 500) {
+      // An outage response cannot replace cookies from a verified sign-in.
+      await r.body?.cancel();
+      throw new ApiError(502, "portalUnavailable");
+    }
     for (const cookie of r.headers.getSetCookie()) {
       try {
         jar.setCookieSync(cookie, u.href);
@@ -821,39 +859,6 @@ export class PortalService {
         "portalRateLimited",
         Math.min(3600, retryAfterSeconds(r.headers.get("Retry-After"))),
       );
-    }
-    if (
-      this.kind === "campus" &&
-      (r.ok || r.status >= 500) &&
-      r.headers.get("Content-Type")?.includes("text/html") &&
-      r.body
-    ) {
-      // Only classify explicit headings. Provider page text stays out of diagnostics.
-      const reader = r.body.getReader();
-      const decoder = new TextDecoder();
-      let heading = "";
-      let remaining = 4096;
-      try {
-        while (remaining > 0) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          heading += decoder.decode(value.subarray(0, remaining), {
-            stream: true,
-          });
-          remaining -= value.length;
-        }
-      } catch {
-        // The HTTP status is still available if the response body fails.
-      } finally {
-        await reader.cancel().catch(() => {});
-      }
-      if (
-        /<(?:title|h1)\b[^>]*>\s*(?:infinite campus[ :–-]+)?(?:scheduled maintenance|maintenance in progress|(?:currently )?(?:down for|undergoing) maintenance)\b/i.test(
-          heading,
-        )
-      )
-        throw new ApiError(503, "campusMaintenance");
-      throw new ApiError(502, r.ok ? "malformedCampus" : "portalUnavailable");
     }
     if (!r.ok) {
       if (r.status === 403 && this.kind === "carmen") {
