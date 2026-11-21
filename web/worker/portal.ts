@@ -20,6 +20,7 @@ import {
   carmenFailure,
   newCarmenDiagnostics,
   type CarmenDiagnostics,
+  type CarmenEvent,
   type CarmenStage,
   type CarmenTrigger,
   type CarmenRecoveryStep,
@@ -49,6 +50,7 @@ export interface PortalConnection {
   lastIdentityVerified?: number;
   lastKeepalive?: number;
   diagnostics?: CarmenDiagnostics;
+  incidentHistory?: CarmenEvent[];
   compatibilityReport?: CarmenCompatibilityReport;
   recoveryBlocked?: CarmenRecoveryStep;
   maintenancePaused?: boolean;
@@ -131,13 +133,26 @@ export class PortalService {
     type: Parameters<typeof carmenEvent>[1]["type"],
     extra: Partial<Parameters<typeof carmenEvent>[1]> = {},
   ) {
-    carmenEvent(this.diagnostics(c), {
+    const diagnostics = this.diagnostics(c);
+    if (this.kind === "campus")
+      c.incidentHistory ??= diagnostics.events.filter(
+        (event) => event.type === "failure" || event.type === "connected",
+      );
+    const record = carmenEvent(diagnostics, {
       at: Date.now(),
       type,
       trigger: this.trigger,
       stage: this.stage,
       ...extra,
     });
+    if (c.incidentHistory) {
+      const cutoff = record.at - 30 * 86400_000;
+      c.incidentHistory = c.incidentHistory.filter(
+        (event) => event.at >= cutoff,
+      );
+      if (type === "failure" || type === "connected")
+        c.incidentHistory = [...c.incidentHistory.slice(-255), record];
+    }
   }
   private failure(c: PortalConnection, error: unknown) {
     if (this.recordedError === error) return;
@@ -299,12 +314,13 @@ export class PortalService {
   }
   private async save(s: PortalStore) {
     await this.storage.put(`portal-${this.kind}`, await seal(s, this.password));
-    if (s.connection?.diagnostics)
-      await this.storage.put(
-        `${this.kind}-diagnostics`,
-        s.connection.diagnostics,
-      );
-    else await this.storage.delete(`${this.kind}-diagnostics`);
+    if (s.connection?.diagnostics) {
+      const { diagnostics, incidentHistory } = s.connection;
+      await this.storage.put(`${this.kind}-diagnostics`, {
+        ...diagnostics,
+        ...(incidentHistory && { incidentHistory }),
+      });
+    } else await this.storage.delete(`${this.kind}-diagnostics`);
     await this.storage.put("portal-browser-budget", {
       browserDay: s.browserDay,
       browserMs: s.browserMs,
@@ -319,6 +335,18 @@ export class PortalService {
     ].filter((x): x is number => typeof x === "number");
     if (deadlines.length) await this.arm(Math.min(...deadlines));
   }
+  private campusOutage(c?: PortalConnection): PortalStatus["recentOutage"] {
+    if (this.kind !== "campus" || !c?.diagnostics) return;
+    const { lastSuccessAt, sessionStartedAt, events } = c.diagnostics;
+    const since = lastSuccessAt ?? sessionStartedAt;
+    const faults = (c.incidentHistory ?? events).filter(
+      (event) => event.type === "failure" && event.at > since,
+    );
+    if (faults.some((event) => event.category === "maintenance"))
+      return "maintenance";
+    if (faults.some((event) => event.category === "server"))
+      return "unavailable";
+  }
   private connectionStatus(c?: PortalConnection): PortalStatus {
     return {
       connected: !!c?.account,
@@ -330,6 +358,7 @@ export class PortalService {
       maintenance: !!c?.keepConnected,
       nextMaintenance: c?.keepConnected ? c.nextMaintenance : undefined,
       lastKeepalive: c?.lastKeepalive,
+      recentOutage: this.campusOutage(c),
       diagnostics: c?.diagnostics,
       compatibilityReportAvailable: !!c?.compatibilityReport,
       recoveryBlocked: this.kind === "carmen" ? c?.recoveryBlocked : undefined,
@@ -339,27 +368,29 @@ export class PortalService {
     try {
       const s = await this.load(),
         c = s.connection;
+      const deadline = c?.keepConnected ? c.nextMaintenance : undefined;
       if (
         c?.account &&
         c.jar &&
-        !c.keepConnected &&
+        !deadline &&
         !c.pending &&
         !c.needsReconnect &&
         !c.maintenancePaused &&
-        (c.maintenanceFailures ?? 0) < 3
+        (this.kind === "campus" ||
+          (!c.keepConnected && (c.maintenanceFailures ?? 0) < 3))
       ) {
-        // Older connections can have saved cookies but no active alarm.
+        // Resume saved IC sessions whose older code stopped after an outage.
         this.startMaintenance(c);
         await this.save(s);
       } else if (
-        c?.keepConnected &&
-        c.nextMaintenance &&
+        c &&
+        deadline &&
         !c.pending &&
         !c.needsReconnect &&
         !c.maintenancePaused
       ) {
         // Reconcile the saved deadline if the shared alarm was lost.
-        await this.arm(Math.max(Date.now(), c.nextMaintenance));
+        await this.arm(Math.max(Date.now(), deadline));
       }
       return this.connectionStatus(c);
     } catch (error) {
@@ -606,19 +637,28 @@ export class PortalService {
           c.lastKeepalive = Date.now();
           return;
         }
-        c.maintenanceFailures = (c.maintenanceFailures ?? 0) + 1;
+        c.maintenanceFailures = Math.min((c.maintenanceFailures ?? 0) + 1, 3);
         if (
           error instanceof ApiError &&
           [401, 403, 409].includes(error.status)
         ) {
           c.needsReconnect = true;
           delete c.nextMaintenance;
-        } else if (c.maintenanceFailures >= 3) delete c.nextMaintenance;
-        else {
-          const delay =
+        } else if (this.kind === "carmen" && c.maintenanceFailures >= 3) {
+          delete c.nextMaintenance;
+        } else {
+          const retryAfter =
             error instanceof ApiError && error.retryAfter
               ? error.retryAfter * 1000
+              : 0;
+          const backoff =
+            c.maintenanceFailures >= 3
+              ? this.maintenanceInterval
               : c.maintenanceFailures * 5 * 60_000;
+          const delay =
+            this.kind === "campus"
+              ? Math.max(backoff, retryAfter)
+              : retryAfter || backoff;
           c.nextMaintenance = Date.now() + Math.max(60_000, delay);
         }
       } finally {
@@ -782,6 +822,39 @@ export class PortalService {
         Math.min(3600, retryAfterSeconds(r.headers.get("Retry-After"))),
       );
     }
+    if (
+      this.kind === "campus" &&
+      (r.ok || r.status >= 500) &&
+      r.headers.get("Content-Type")?.includes("text/html") &&
+      r.body
+    ) {
+      // Only classify explicit headings. Provider page text stays out of diagnostics.
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let heading = "";
+      let remaining = 4096;
+      try {
+        while (remaining > 0) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          heading += decoder.decode(value.subarray(0, remaining), {
+            stream: true,
+          });
+          remaining -= value.length;
+        }
+      } catch {
+        // The HTTP status is still available if the response body fails.
+      } finally {
+        await reader.cancel().catch(() => {});
+      }
+      if (
+        /<(?:title|h1)\b[^>]*>\s*(?:infinite campus[ :–-]+)?(?:scheduled maintenance|maintenance in progress|(?:currently )?(?:down for|undergoing) maintenance)\b/i.test(
+          heading,
+        )
+      )
+        throw new ApiError(503, "campusMaintenance");
+      throw new ApiError(502, r.ok ? "malformedCampus" : "portalUnavailable");
+    }
     if (!r.ok) {
       if (r.status === 403 && this.kind === "carmen") {
         const rejection = await canvasRejection(r),
@@ -895,8 +968,13 @@ export class PortalService {
       this.diagnostics(c).courseCount = choices.length;
       this.diagnostics(c).lastCourseReadAt = Date.now();
       this.event(c, "coursesRead", { stage: "courses", httpStatus: 200 });
-      if (!c.maintenancePaused && (this.kind === "campus" || !c.keepConnected))
+      if (
+        !c.maintenancePaused &&
+        (this.kind === "campus" || !c.keepConnected)
+      ) {
+        if (this.kind === "campus") c.maintenanceFailures = 0;
         this.startMaintenance(c);
+      }
       // Keep request and memory amplification bounded. Discovery does not request assignment details.
       return { account, summary, choices, details, jar };
     } finally {
@@ -982,6 +1060,37 @@ export class PortalService {
             : this.portalURL(requested ?? "https://osu.instructure.com").href;
         if (c?.account && c.portal !== portal)
           throw new ApiError(409, "portalDisconnectFirst");
+        if (this.kind === "campus" && c?.account && c.jar) {
+          if (c.cooldown && c.cooldown > Date.now())
+            throw new ApiError(
+              429,
+              "portalRateLimited",
+              Math.ceil((c.cooldown - Date.now()) / 1000),
+            );
+          // One reachability check for an explicit reconnect, before leasing a
+          // browser. Discard this jar so a failed check cannot replace the session.
+          try {
+            await this.read(
+              c,
+              c.profileAccount ? this.summaryPath : "resources/portal/roster",
+              CookieJar.deserializeSync(c.jar),
+            );
+          } catch (error) {
+            if (
+              !(error instanceof ApiError) ||
+              [
+                "campusMaintenance",
+                "portalUnavailable",
+                "portalRateLimited",
+                "portalTimeout",
+              ].includes(error.code)
+            )
+              throw error;
+            // An authentication response still means the service is reachable.
+          }
+        }
+        this.stage = "browser";
+        this.httpStatus = undefined;
         if (c?.pending) await this.close(s);
         if (s.browserMs + 240_000 > 540_000)
           throw new ApiError(
@@ -1023,8 +1132,12 @@ export class PortalService {
             expires: c.pending.expires,
             attempt: c.pending.attempt,
           };
-        } catch {
+        } catch (error) {
           await this.close(s);
+          if (error instanceof ApiError && error.code === "portalUnavailable") {
+            this.httpStatus = error.status;
+            throw error;
+          }
           throw new ApiError(502, "browserUnavailable");
         }
       }

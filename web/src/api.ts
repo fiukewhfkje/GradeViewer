@@ -33,6 +33,7 @@ export interface PortalStatus {
   maintenance?: boolean;
   nextMaintenance?: number;
   lastKeepalive?: number;
+  recentOutage?: "maintenance" | "unavailable";
   diagnostics?: CarmenDiagnostics;
   compatibilityReportAvailable?: boolean;
   recoveryBlocked?: CarmenRecoveryStep;
@@ -112,7 +113,9 @@ const messages: Record<string, string> = {
   portalSessionUnverified:
     "Campus Student opened, but GradeViewer couldn’t verify its session. Retry the connection check.",
   portalVerificationUnavailable:
-    "GradeViewer reached Campus Student, but its grade service didn’t respond successfully. Retry the connection check.",
+    "Infinite Campus is temporarily unavailable. Your saved grades are still available. Retry the connection check when Campus is back.",
+  campusMaintenance:
+    "Infinite Campus is undergoing maintenance. Try again after maintenance ends. Your saved grades are still available.",
   portalAccountChanged:
     "This is a different Infinite Campus student. Disconnect Infinite Campus before switching students.",
   portalDisconnectFirst:
@@ -122,7 +125,7 @@ const messages: Record<string, string> = {
   malformedCampus:
     "Infinite Campus returned an unsupported response. Your saved grades are retained.",
   portalUnavailable:
-    "Infinite Campus could not be reached. Your saved grades are retained.",
+    "Infinite Campus is temporarily unavailable. Try again when Campus is back. Your saved grades are still available.",
   portalAccessDenied:
     "Infinite Campus denied access. Your saved grades are retained.",
   portalRateLimited:

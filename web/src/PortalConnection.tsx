@@ -109,7 +109,12 @@ export function PortalConnection({
     [selected, setSelected] = useState(status?.selected ?? []);
   const signInWindow = useRef<Window | null>(null);
   const busy = !!working;
-  const health = usePortalHealth(status, disabled || busy, refreshStatus);
+  const health = usePortalHealth(
+    status,
+    disabled || busy,
+    refreshStatus,
+    provider,
+  );
   const needsReconnect = health.tone === "error";
   async function run(task: () => Promise<void>, label = "Working…") {
     setWorking(label);
@@ -117,7 +122,6 @@ export function PortalConnection({
     try {
       await task();
     } catch (e) {
-      setMessage(errorMessage(e));
       if (
         e instanceof RequestError &&
         (e.code === "portalSignInRequired" ||
@@ -125,8 +129,13 @@ export function PortalConnection({
           e.code === "portalAccountChanged")
       ) {
         setChoosing(false);
-        await refreshStatus().catch(() => {});
+        const current = await refreshStatus().then(
+          () => true,
+          () => false,
+        );
+        if (current && !carmen && e.code === "portalSignInRequired") return;
       }
+      setMessage(errorMessage(e));
     } finally {
       setWorking("");
     }
@@ -247,22 +256,9 @@ export function PortalConnection({
                 </p>
               </div>
             </div>
-            <div className="button-row">
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await api("campus/cancel", { attempt: login.attempt });
-                    closeSignIn();
-                    await refresh();
-                  })
-                }
-              >
-                Cancel sign-in
-              </button>
+            <div className="portal-actions">
               <a
-                className="primary"
+                className="portal-command"
                 href={login.url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -284,11 +280,23 @@ export function PortalConnection({
                 }}
               >
                 {carmen ? "Open CarmenCanvas" : "Open Campus Student"}{" "}
-                <ExternalLink size={14} />
+                <ExternalLink size={15} aria-hidden="true" />
               </a>
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    await api("campus/cancel", { attempt: login.attempt });
+                    closeSignIn();
+                    await refresh();
+                  })
+                }
+              >
+                Cancel sign-in
+              </button>
               {(!login.attempt || message) && (
                 <button
-                  className="primary"
+                  className="portal-command"
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
@@ -407,32 +415,44 @@ export function PortalConnection({
                 <ChevronRight size={18} />
               </button>
             )}
-            <div className="portal-actions">
-              <button
-                className={needsReconnect ? "primary" : undefined}
-                aria-label={`Reconnect ${title}`}
-                disabled={disabled || busy}
-                onClick={() =>
-                  void run(start, "Preparing the sign-in browser…")
-                }
-              >
-                {needsReconnect ? `Reconnect ${title}` : "Reconnect"}
-              </button>
-              <button
-                className="danger"
-                aria-label={`Disconnect ${title}`}
-                disabled={disabled || busy}
-                onClick={() =>
-                  void run(async () => {
-                    await api("campus/disconnect", {});
-                    setCourses(undefined);
-                    setChoosing(false);
-                    await refresh();
-                  })
-                }
-              >
-                Disconnect
-              </button>
+            <div className="portal-body">
+              {!carmen && needsReconnect && !message && (
+                <p className="portal-reconnect-note" role="alert">
+                  {status.recentOutage === "maintenance"
+                    ? "Campus recently reported maintenance. Sign in again to resume grade updates."
+                    : status.recentOutage === "unavailable"
+                      ? "Campus recently stopped responding. This can happen during maintenance. Sign in again to refresh grades."
+                      : "Sign in again to refresh grades. Your saved grades are still available."}
+                </p>
+              )}
+              <div className="portal-actions">
+                <button
+                  className="portal-command"
+                  aria-label={`Reconnect ${title}`}
+                  disabled={disabled || busy}
+                  onClick={() =>
+                    void run(start, "Preparing the sign-in browser…")
+                  }
+                >
+                  <LogIn size={17} aria-hidden="true" />
+                  Reconnect
+                </button>
+                <button
+                  className="danger"
+                  aria-label={`Disconnect ${title}`}
+                  disabled={disabled || busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await api("campus/disconnect", {});
+                      setCourses(undefined);
+                      setChoosing(false);
+                      await refresh();
+                    })
+                  }
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
           </>
         ) : (

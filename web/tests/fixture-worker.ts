@@ -291,9 +291,18 @@ export class FixtureVault extends CredentialVault {
       const config = await this.fixtureState.storage.get<{
         failure?: boolean;
         expireSession?: boolean;
+        maintenance?: boolean;
         malformed?: boolean;
         courseDelayMs?: number;
       }>("synthetic-campus");
+      if (config?.maintenance)
+        return new Response(
+          "<title>Infinite Campus: Scheduled Maintenance</title>",
+          {
+            status: 503,
+            headers: { "Content-Type": "text/html" },
+          },
+        );
       if (config?.failure || config?.expireSession)
         return Response.json({}, { status: 401 });
       const path = new URL(request.url).pathname;

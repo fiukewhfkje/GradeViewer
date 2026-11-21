@@ -3190,19 +3190,41 @@ try {
         .getByRole("button", { name: "Save IC courses", exact: true })
         .click();
       await page
+        .locator(".portal-connection")
         .getByRole("alert")
-        .filter({
-          hasText: "Reconnect Infinite Campus to refresh your grades.",
-        })
+        .filter({ hasText: "Sign in again to refresh grades." })
         .waitFor();
       await page
         .getByRole("heading", { name: "Choose your classes" })
         .waitFor({ state: "hidden" });
       await page
-        .locator(".portal-actions .primary", {
-          hasText: "Reconnect Infinite Campus",
-        })
+        .getByRole("button", { name: "Reconnect Infinite Campus", exact: true })
         .waitFor();
+      assert.equal(await page.locator(".notice.error").count(), 0);
+      const reconnectCampus = page.getByRole("button", {
+        name: "Reconnect Infinite Campus",
+        exact: true,
+      });
+      assert(
+        (
+          await context.request.post(base + "/api/fixture/campus", {
+            data: { maintenance: true },
+          })
+        ).ok(),
+      );
+      try {
+        await reconnectCampus.click();
+        await page
+          .locator(".portal-connection")
+          .getByRole("alert")
+          .filter({ hasText: "Try again after maintenance ends." })
+          .waitFor();
+        assert.equal(await openSignIn.count(), 0);
+      } finally {
+        await context.request.post(base + "/api/fixture/campus", {
+          data: {},
+        });
+      }
       await page
         .locator(".portal-connection[open] .portal-phone-sign-in")
         .filter({ hasText: "Use a computer to sign in if the phone keyboard" })
@@ -3212,18 +3234,13 @@ try {
       progress = await holdFixture(context.request, "portal-progress");
       try {
         await page
-          .getByRole("button", { name: "Settings", exact: true })
+          .getByRole("button", { name: "Connection settings", exact: true })
           .click();
         await page
           .locator("summary", { hasText: "Infinite Campus" })
-          .getByText("Disconnected", { exact: true })
+          .getByText("Sign-in needed", { exact: true })
           .waitFor();
-        await page
-          .getByRole("button", {
-            name: "Reconnect Infinite Campus",
-            exact: true,
-          })
-          .click();
+        await reconnectCampus.click();
         await progress.received();
         await openSignIn.click();
         const signedIn = await context.request.post(

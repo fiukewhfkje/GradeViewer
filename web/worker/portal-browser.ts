@@ -1,4 +1,4 @@
-import { campusHome, observedCampusPortal } from "./campus-url";
+import { campusHome, campusLogin, observedCampusPortal } from "./campus-url";
 import { ApiError } from "./provider";
 import type {
   BrowserWorker,
@@ -192,10 +192,13 @@ export async function portalBrowser(
         return u.href;
       },
       navigate: async (url, waitUntil = "domcontentloaded") => {
-        await page.goto(url, {
+        const response = await page.goto(url, {
           waitUntil,
           timeout: 20_000,
         });
+        const status = response?.status() ?? 0;
+        if (status >= 500 && (url === campusLogin || observedCampusPortal(url)))
+          throw new ApiError(status, "portalUnavailable");
       },
       url: () => page.url(),
       studentPortal: async () =>

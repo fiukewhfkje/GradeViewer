@@ -2,6 +2,7 @@ import "fake-indexeddb/auto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { campusChoices, campusStudent, parseCampus } from "../src/core/campus";
 import type { Row } from "../src/core/parser";
+import { portalHealth } from "../src/portal-health";
 import { reconcile } from "../src/core/reconcile";
 import {
   physicalKey,
@@ -346,8 +347,10 @@ function harness(withBinding = false) {
   let identity: string | undefined = "101",
     studentNumber: string | undefined,
     failure = false,
+    rosterFailure: (() => Response) | undefined,
     unavailable = false,
     malformed = false;
+  let alarmAt: number | undefined;
   const calls: string[] = [];
   const storage = {
     get: async (k: string) => structuredClone(data.get(k)),
@@ -355,7 +358,9 @@ function harness(withBinding = false) {
       data.set(k, structuredClone(v));
     },
     delete: async (k: string) => data.delete(k),
-    setAlarm: async () => {},
+    setAlarm: async (at: number) => {
+      alarmAt = at;
+    },
   } as unknown as DurableObjectStorage;
   const upstream = async function (this: unknown, req: Request) {
     // Workerd's global fetch rejects a receiver other than the global object.
@@ -366,10 +371,12 @@ function harness(withBinding = false) {
     expect(u.hostname).toBe("fixture.infinitecampus.org");
     expect(req.redirect).toBe("manual");
     if (failure) return Response.json({}, { status: 401 });
-    if (u.pathname.endsWith("/roster"))
+    if (u.pathname.endsWith("/roster")) {
+      if (rosterFailure) return rosterFailure();
       return Response.json(
         identity ? { personID: identity } : [{ sectionID: 100 }],
       );
+    }
     if (u.pathname.endsWith("/grades"))
       return unavailable
         ? Response.json({}, { status: 503 })
@@ -422,6 +429,7 @@ function harness(withBinding = false) {
     data,
     calls,
     navigations,
+    alarmAt: () => alarmAt,
     browserCalls: () => browserCalls,
     closed: () => closed,
     setStudentNumber: (value: string) => {
@@ -430,6 +438,9 @@ function harness(withBinding = false) {
     },
     setUnavailable: (value: boolean) => {
       unavailable = value;
+    },
+    setRosterFailure: (response?: () => Response) => {
+      rosterFailure = response;
     },
     selectPortal: (url?: string) => {
       selectedPortal = url;
@@ -446,9 +457,13 @@ function harness(withBinding = false) {
   };
 }
 describe("encrypted IC session and selected snapshots", () => {
-  it.each([false, undefined])(
-    "schedules existing IC sessions when the old preference was %s",
-    async (keepConnected) => {
+  it.each([
+    [false, 0],
+    [undefined, 0],
+    [true, 3],
+  ] as const)(
+    "reschedules saved IC sessions with keepConnected %s and %i failed checks",
+    async (keepConnected, maintenanceFailures) => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(now);
       const h = harness();
@@ -458,9 +473,14 @@ describe("encrypted IC session and selected snapshots", () => {
       const key = "portal-campus";
       const password = "synthetic-owner-password-123456";
       const legacy = await unseal<{
-        connection: { keepConnected?: boolean; nextMaintenance?: number };
+        connection: {
+          keepConnected?: boolean;
+          nextMaintenance?: number;
+          maintenanceFailures?: number;
+        };
       }>(h.data.get(key) as Envelope, password);
       legacy.connection.keepConnected = keepConnected;
+      legacy.connection.maintenanceFailures = maintenanceFailures;
       delete legacy.connection.nextMaintenance;
       h.data.set(key, await seal(legacy, password));
       h.calls.length = 0;
@@ -487,6 +507,124 @@ describe("encrypted IC session and selected snapshots", () => {
       expect(h.browserCalls()).toBe(browsers);
     },
   );
+  it("keeps the IC alarm scheduled through an outage and resumes the 20-minute cadence", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await h.service.handle("start", { portal: campusPortal });
+    await h.service.handle("finish");
+    await h.service.handle("select", { selected: ["1:100"] });
+    const browsers = h.browserCalls();
+    h.calls.length = 0;
+    h.setRosterFailure(() => new Response(null, { status: 502 }));
+    // The saved alarm must advance even with no tab calling status or refresh.
+    for (const [due, next] of [
+      [20, 25],
+      [25, 35],
+      [35, 55],
+      [55, 75],
+    ]) {
+      vi.setSystemTime(now + due * 60000);
+      await h.service.expire();
+      expect(h.alarmAt()).toBe(now + next * 60000);
+    }
+    expect(h.calls).toEqual(Array(4).fill("/campus/resources/portal/roster"));
+    const delayed = await h.service.status();
+    expect(delayed).toMatchObject({
+      needsReconnect: false,
+      nextMaintenance: now + 75 * 60000,
+      recentOutage: "unavailable",
+    });
+    expect(portalHealth(delayed, "campus").label).toBe("Check delayed");
+    h.setRosterFailure(
+      () =>
+        new Response(null, {
+          status: 429,
+          headers: { "Retry-After": "1800" },
+        }),
+    );
+    vi.setSystemTime(now + 75 * 60000);
+    await h.service.expire();
+    expect(h.alarmAt()).toBe(now + 105 * 60000);
+    h.setRosterFailure();
+    vi.setSystemTime(now + 105 * 60000);
+    await h.service.expire();
+    expect(await h.service.status()).toMatchObject({
+      needsReconnect: false,
+      selected: ["1:100"],
+      lastKeepalive: now + 105 * 60000,
+      nextMaintenance: now + 125 * 60000,
+    });
+    expect(h.browserCalls()).toBe(browsers);
+    for (let due = 125; due <= 765; due += 20) {
+      vi.setSystemTime(now + due * 60000);
+      await h.service.expire();
+    }
+    expect(
+      (await h.service.status()).diagnostics?.events.every(
+        (event) => event.type === "httpSuccess",
+      ),
+    ).toBe(true);
+    expect(h.data.get("campus-diagnostics")).toMatchObject({
+      incidentHistory: [
+        { type: "connected" },
+        ...Array.from({ length: 4 }, () => ({
+          type: "failure",
+          trigger: "alarm",
+          stage: "profile",
+          httpStatus: 502,
+        })),
+        { type: "failure", httpStatus: 429 },
+      ],
+    });
+  });
+  it("reports Campus maintenance and preserves the saved connection if reconnect is attempted during it", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+    const h = harness();
+    await h.service.handle("start", { portal: campusPortal });
+    await h.service.handle("finish");
+    await h.service.handle("select", { selected: ["1:100"] });
+    const browsers = h.browserCalls();
+    h.setRosterFailure(
+      () =>
+        new Response("<title>Infinite Campus: Scheduled Maintenance</title>", {
+          status: 503,
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    vi.setSystemTime(now + 20 * 60000);
+    await h.service.expire();
+    vi.setSystemTime(now + 40 * 60000);
+    await expect(h.service.handle("start")).rejects.toMatchObject({
+      status: 503,
+      code: "campusMaintenance",
+    });
+    expect(h.browserCalls()).toBe(browsers);
+    expect(await h.service.status()).toMatchObject({
+      connected: true,
+      needsReconnect: false,
+      selected: ["1:100"],
+      recentOutage: "maintenance",
+    });
+    h.setRosterFailure(() => new Response(null, { status: 401 }));
+    vi.setSystemTime(now + 41 * 60000);
+    await h.service.expire();
+    expect(await h.service.status()).toMatchObject({
+      needsReconnect: true,
+      recentOutage: "maintenance",
+    });
+    await h.service.handle("start");
+    expect(h.browserCalls()).toBe(browsers + 1);
+    h.setRosterFailure();
+    await h.service.handle("finish");
+    expect(await h.service.status()).toMatchObject({
+      needsReconnect: false,
+      selected: ["1:100"],
+      recentOutage: undefined,
+      nextMaintenance: now + 61 * 60000,
+    });
+  });
   it.each([false, true])(
     "checks IC at 20 minutes without a browser or grade freshness change (profile-bound %s)",
     async (profileBound) => {
