@@ -3,7 +3,7 @@
 - [x] Reconstruct both reconnect timelines with sanitized Worker diagnostics and Cloudflare request metrics. District-level incident attribution remains unavailable from the private and public evidence.
 - [x] Keep the IC alarm scheduled after consecutive temporary failures and preserve the usual 20-minute cadence, server cooldowns and sign-in checks.
 - [x] Keep reconnect feedback in the connection card, handle unavailable or explicitly reported maintenance before launching the browser, and retain a separate private incident history.
-- [ ] Verify delivery to the existing owner Worker.
+- [x] Verify delivery to the existing owner Worker, including the active version, public assets, binding descriptors and saved diagnostics.
 
 # Stable v0.2.7 — November 18
 
