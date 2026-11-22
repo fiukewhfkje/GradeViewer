@@ -1,3 +1,11 @@
+# Infinite Campus outage recovery — November 21, 2026
+
+The outage regression reproduced the old third-failure cutoff before the fix. The synthetic Worker checks cover rescheduling through four 502s, preserving a session cookie when an outage response tries to clear it, honoring a longer 429 cooldown, recovering at the regular 20-minute cadence, resuming older paused connections and retaining failures after the recent-event buffer rotates. A separate maintenance sequence verifies that reconnect returns a clean maintenance error without starting a browser, then succeeds with the same selected courses after service returns.
+
+The production build, 298 unit tests, 123-file source package and strict deploy dry-run passed. Chromium passed the 43-check suite and a focused rerun through the actual Worker maintenance response. WebKit passed the 35-check platform suite and the focused IC flow on the deployed source. Inspected synthetic Settings captures at 320 and 1280 px and checked that the reconnect controls stay inside the viewport.
+
+At 2:22 p.m. Eastern, the [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) served source `5b768d1` as version `641d9bd9-7da0-4450-93d5-7b924ed8723b` at 100% traffic. All ten public assets matched the build. The five binding descriptors, saved Campus and Carmen diagnostics and locked anonymous APIs passed verification. Production verification used no sign-ins, provider requests or Browser Run sessions. Private receipts remain outside Git under `DeploymentChecks/campus-reconnect-20261121`. The owner’s next sign-in and subsequent live alarm are acceptance checks.
+
 # Stable v0.2.7 verification — November 18, 2026
 
 The production build, 295 unit tests, 123-file source package and isolated template install, strict dry-run, update, configuration retention and rollback passed locally. [PR #27 verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44386950220), [main verification](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44387365007) and the [v0.2.7 tag workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/44387414364) passed. The first tagged Chromium runner was canceled during slow Ubuntu dependency downloads. The Chromium job passed on retry for the same tag and commit.

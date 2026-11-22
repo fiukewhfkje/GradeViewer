@@ -104,6 +104,7 @@ export function carmenEvent(
     d.lastSuccessAt = event.at;
     delete d.currentFailure;
   }
+  return record;
 }
 // Never persist arbitrary exception messages, URLs, page text or provider data.
 export function carmenFailure(code: string, status?: number) {
@@ -114,6 +115,8 @@ export function carmenFailure(code: string, status?: number) {
     portalAccountChanged: "accountChanged",
     portalRateLimited: "rateLimit",
     portalTimeout: "timeout",
+    campusMaintenance: "maintenance",
+    portalVerificationUnavailable: "server",
     portalUnavailable: status && status >= 500 ? "server" : "network",
     malformedCanvas: "response",
     malformedCampus: "response",

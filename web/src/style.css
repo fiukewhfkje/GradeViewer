@@ -1461,6 +1461,13 @@ dialog p {
   text-decoration: underline;
   padding: 6px;
 }
+.campus-sign-in {
+  flex-wrap: wrap;
+}
+.campus-sign-in button {
+  min-height: 44px;
+  color: var(--blue);
+}
 .course-overview {
   margin-bottom: 28px;
   min-width: 0;
@@ -1874,16 +1881,34 @@ dialog p {
 }
 .portal-actions {
   display: flex;
-  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
-.portal-actions > button {
-  flex: 1;
-  min-height: 48px;
-  border-radius: 0;
-  font-size: 14px;
+.portal-actions > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
 }
-.portal-actions > button + button {
-  border-left: 1px solid var(--line);
+.portal-actions > .portal-command {
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.portal-actions > .danger {
+  color: light-dark(#a33e33, #f3978a);
+}
+.portal-reconnect-note {
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 13px;
 }
 .portal-connection .gpa-check small {
   display: block;
@@ -2021,8 +2046,7 @@ dialog p {
 @media (hover: hover) {
   .settings-provider > summary:hover,
   .settings-action:hover,
-  .app-actions .settings-card > button:hover,
-  .portal-actions > button:not(.primary):hover {
+  .app-actions .settings-card > button:hover {
     background: color-mix(in srgb, var(--ink) 4%, transparent);
   }
 }
@@ -2091,7 +2115,7 @@ footer button,
 .settings-provider > summary,
 .settings-action,
 .app-actions .settings-card > button,
-.portal-actions > button {
+.portal-actions > :is(button, a) {
   transition:
     transform 180ms var(--motion-ease),
     background-color 160ms ease,
@@ -2375,7 +2399,7 @@ dialog[data-closing="true"]::backdrop {
   .settings-provider > summary:hover,
   .settings-action:not(:disabled):hover,
   .app-actions .settings-card > button:not(:disabled):hover,
-  .portal-actions > button:not(:disabled):hover {
+  .portal-actions > :is(button, a):not(:disabled):hover {
     background: color-mix(in srgb, var(--bg) 55%, var(--row));
   }
   .course:hover > svg:last-child {

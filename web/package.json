@@ -1,6 +1,6 @@
 {
   "name": "gradeviewer-pwa",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "passwordSchema": 1,
   "type": "module",

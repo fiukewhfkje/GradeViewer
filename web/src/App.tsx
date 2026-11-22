@@ -628,7 +628,10 @@ export default function App() {
             if (next.courses.length > 0) setFresh(true);
           } catch (e) {
             portalFailed = true;
-            setError(errorMessage(e));
+            if (!(
+              e instanceof RequestError && e.code === "portalSignInRequired"
+            ))
+              setError(errorMessage(e));
           }
         }
         if (
@@ -1571,6 +1574,8 @@ export default function App() {
     schoologyCheck?.account === status?.account
       ? schoologyCheck?.result
       : undefined;
+  const campusNeedsSignIn =
+    !locked && !usingCarmen && status?.portals?.campus?.needsReconnect;
   const disclose = (kind: keyof typeof openConnections, open: boolean) =>
     setOpenConnections((previous) =>
       previous[kind] === open ? previous : { ...previous, [kind]: open },
@@ -1755,6 +1760,19 @@ export default function App() {
                     Retry
                   </button>
                 )}
+              </div>
+            )}
+            {tab === "grades" && campusNeedsSignIn && (
+              <div className="refresh-status campus-sign-in">
+                <span role="status">Infinite Campus sign-in needed.</span>
+                <button
+                  onClick={() => {
+                    disclose("campus", true);
+                    setTab("profile");
+                  }}
+                >
+                  Connection settings
+                </button>
               </div>
             )}
             <main

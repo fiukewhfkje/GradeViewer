@@ -3,14 +3,21 @@ import type { PortalStatus } from "./api";
 
 export type ConnectionTone = "neutral" | "connected" | "error";
 
-export function portalHealth(status: PortalStatus | undefined): {
+export function portalHealth(
+  status: PortalStatus | undefined,
+  provider: "campus" | "carmen" = "carmen",
+): {
   label: string;
   tone: ConnectionTone;
 } {
   if (!status?.connected) return { label: "Set up", tone: "neutral" };
+  if (status.needsReconnect)
+    return {
+      label: provider === "campus" ? "Sign-in needed" : "Disconnected",
+      tone: "error",
+    };
   const fault = status.diagnostics?.currentFailure;
   if (
-    status.needsReconnect ||
     fault?.category === "accessDenied" ||
     fault?.category === "requestBlocked" ||
     fault?.trigger === "alarm" ||
@@ -20,7 +27,9 @@ export function portalHealth(status: PortalStatus | undefined): {
         fault.category === "timeout")) ||
     fault?.stage === "browser"
   )
-    return { label: "Disconnected", tone: "error" };
+    return provider === "campus"
+      ? { label: "Check delayed", tone: "neutral" }
+      : { label: "Disconnected", tone: "error" };
   return { label: "Connected", tone: "connected" };
 }
 
@@ -28,6 +37,7 @@ export function usePortalHealth(
   status: PortalStatus | undefined,
   busy: boolean,
   refreshStatus: () => Promise<void>,
+  provider: "campus" | "carmen",
 ) {
   const readStatus = useEffectEvent(refreshStatus);
   const dueReads = useRef({ deadline: 0, count: 0 });
@@ -57,5 +67,5 @@ export function usePortalHealth(
       clearTimeout(timer);
     };
   }, [status?.maintenance, deadline, busy]);
-  return portalHealth(status);
+  return portalHealth(status, provider);
 }
