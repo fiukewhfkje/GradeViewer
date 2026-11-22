@@ -1,3 +1,9 @@
+# Stable v0.2.8 published and deployed — November 22, 2026
+
+[PR #28](https://github.com/fiukewhfkje/GradeViewer/pull/28) merged the Infinite Campus outage recovery and reconnect improvements into main as `079d979`. The signed tag workflow published [v0.2.8](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.8) as the latest stable at 8:33 a.m. Eastern. Installations with automatic updates enabled check for the release on their nightly schedule.
+
+The existing [owner Worker](https://gradeviewer.fiukewhfkje.workers.dev) deployed the tagged source as version `2aca3eca-2033-4e13-90e8-bf6b36d3aad3`. All ten checked public assets matched at 100% traffic. The five binding descriptors and both saved diagnostic records matched preflight. The original v0.2.7 updater discovered and installed the signed release in an isolated copy while preserving its personal configuration, vault binding and synthetic secret file. [Validation details](docs/PWA_VALIDATION.md#stable-v028-verification--november-22-2026).
+
 # Infinite Campus outage recovery — November 21, 2026
 
 Cloudflare request metrics recovered the first incident after the Worker’s recent-event buffer rolled over. All times are Eastern. Campus Student checks succeeded through 9:44 p.m. on November 19, got 502 gateway errors at 10:04 and 10:09 p.m., then received a confirmed 401 from the Campus Student host at 10:19 p.m. That alarm ran and handled the rejection. The owner reconnected on November 20 at 4:47 p.m. The new session returned 200 through 1:59 a.m. on November 21. Three 502s at 2:19, 2:24 and 2:34 a.m. triggered the old three-failure stop. The next check was a foreground request at 1:58 p.m. and Campus returned a 401.

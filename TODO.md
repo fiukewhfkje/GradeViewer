@@ -1,3 +1,9 @@
+# Stable v0.2.8 — November 22
+
+- [x] Validate and merge PR #28. Publish the signed stable release from the verified tag.
+- [x] Check the published provenance and match all 123 files to the tag. Verify the v0.2.7 updater installs the public release and preserves the isolated copy’s settings and secret.
+- [x] Verify the existing owner Worker serves the tagged build and confirm its bindings, diagnostics and anonymous access controls.
+
 # Infinite Campus outage recovery — November 21
 
 - [x] Reconstruct both reconnect timelines with sanitized Worker diagnostics and Cloudflare request metrics. District-level incident attribution remains unavailable from the private and public evidence.
