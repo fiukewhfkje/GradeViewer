@@ -2,6 +2,7 @@
 
 - [x] Confirm that scheduled outage retries ran and identify where the subsequent sign-in rejection originated.
 - [x] Add bounded same-student recovery after an alarm confirms Campus rejected the session. Retain the manual reconnect path for district sign-in requirements.
+- [x] Verify the existing owner Worker serves the development build at 100% with its bindings, saved diagnostics and API access controls intact.
 - [ ] Observe silent recovery on the owner's district account after a future rejection. Provider and district sign-in behavior varies.
 
 # Stable v0.2.8 — November 22

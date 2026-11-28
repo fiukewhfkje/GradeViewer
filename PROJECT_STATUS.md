@@ -4,6 +4,8 @@ Private diagnostics and Cloudflare request metrics confirmed that the outage ret
 
 The development Worker now checks again in the background after a sign-in rejection detected during a grade refresh. If Campus confirms the rejection and a saved district single sign-on entry is available, the Worker tries it once per saved session, within the shared browser budget. It adopts new cookies only after verifying the original student and keeps selected classes and saved grades. If the district requires a human sign-in, Settings displays the reconnect prompt.
 
+Development commit `b710da3` serves 100% of traffic on the existing owner Worker as version `5b60cce7-9c38-4ee6-b8a8-53a1ca17253a`. Verification matched ten public assets and all five binding descriptors, preserved both private diagnostic records and confirmed anonymous APIs stayed locked. Stable remains v0.2.8. The latest recorded Campus check requires sign-in. The next grade refresh can try the saved district sign-in when available. [Validation details](docs/PWA_VALIDATION.md#infinite-campus-session-recovery--november-28-2026).
+
 # Stable v0.2.8 published and deployed — November 22, 2026
 
 [PR #28](https://github.com/fiukewhfkje/GradeViewer/pull/28) merged the Infinite Campus outage recovery and reconnect improvements into main as `079d979`. The signed tag workflow published [v0.2.8](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.8) as the latest stable at 8:33 a.m. Eastern. Installations with automatic updates enabled check for the release on their nightly schedule.

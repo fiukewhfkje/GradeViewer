@@ -2,7 +2,9 @@
 
 Two synthetic cases reproduced the previous behavior before the fix. One follows a gateway failure with an authentication rejection and verifies that the alarm can adopt a renewed session for the same student, close the temporary browser and resume checks without changing grade freshness. The other verifies that a foreground rejection schedules recovery without a foreground browser launch, rejects a different student and spends only one recovery attempt while keeping selected classes and manual reconnect available.
 
-The production build, 299 unit tests, the full Chromium browser checks and 35 WebKit platform checks passed. The browser suites ran sequentially after a parallel run showed that their synthetic service-worker upgrade checks modify the same local assets. The recovery regression uses synthetic Browser Run and Campus responses. District SSO acceptance still requires observation on a real session.
+The production build, 299 unit tests, the full Chromium browser checks, 35 WebKit platform checks, the 123-file source package and the strict Worker dry-run passed. The browser suites ran sequentially after a parallel run showed that their synthetic service-worker upgrade checks modify the same local assets. The recovery regression uses synthetic Browser Run and Campus responses. District SSO acceptance still requires observation on a real session.
+
+The existing owner Worker served development version `5b60cce7-9c38-4ee6-b8a8-53a1ca17253a` from `b710da3` at 100% traffic. The ten checked public assets, five binding descriptors, both saved diagnostics and three locked anonymous API requests passed post-deployment checks. Deployment verification used zero provider requests and Browser Run sessions. Private receipts are outside Git under `DeploymentChecks/campus-session-recovery-20261128`.
 
 # Stable v0.2.8 verification — November 22, 2026
 
