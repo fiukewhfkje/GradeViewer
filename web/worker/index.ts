@@ -944,9 +944,8 @@ export class CredentialVault {
       }
       return response;
     });
-    // IC uses one roster, one summary and at most one detail per selection;
-    // it has no HTTP pagination or automatic browser recovery. Reserve that
-    // allowance so it cannot be starved by Schoology's redirect/prefetch work.
+    // Reserve one roster, one summary and at most one detail per IC selection
+    // so Schoology's redirect/prefetch work cannot starve the IC refresh.
     const campusBudget = campus
       ? 2 + Math.min(20, status.portals.campus!.selected.length)
       : 0;

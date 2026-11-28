@@ -18,6 +18,7 @@ export function portalHealth(
     };
   const fault = status.diagnostics?.currentFailure;
   if (
+    (provider === "campus" && fault?.category === "authentication") ||
     fault?.category === "accessDenied" ||
     fault?.category === "requestBlocked" ||
     fault?.trigger === "alarm" ||

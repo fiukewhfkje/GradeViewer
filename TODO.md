@@ -1,3 +1,9 @@
+# Infinite Campus session recovery — November 28
+
+- [x] Confirm that scheduled outage retries ran and identify where the subsequent sign-in rejection originated.
+- [x] Add bounded same-student recovery after an alarm confirms Campus rejected the session. Retain the manual reconnect path for district sign-in requirements.
+- [ ] Observe silent recovery on the owner's district account after a future rejection. Provider and district sign-in behavior varies.
+
 # Stable v0.2.8 — November 22
 
 - [x] Validate and merge PR #28. Publish the signed stable release from the verified tag.

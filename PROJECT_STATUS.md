@@ -1,3 +1,9 @@
+# Infinite Campus session recovery — November 28, 2026
+
+Private diagnostics and Cloudflare request metrics confirmed that the outage retries continued and that Campus subsequently rejected the saved student sessions. The gateway responses carried no origin hostname in Cloudflare’s metrics. A rejected session previously stopped maintenance and required a manual reconnect.
+
+The development Worker now checks again in the background after a sign-in rejection detected during a grade refresh. If Campus confirms the rejection and a saved district single sign-on entry is available, the Worker tries it once per saved session, within the shared browser budget. It adopts new cookies only after verifying the original student and keeps selected classes and saved grades. If the district requires a human sign-in, Settings displays the reconnect prompt.
+
 # Stable v0.2.8 published and deployed — November 22, 2026
 
 [PR #28](https://github.com/fiukewhfkje/GradeViewer/pull/28) merged the Infinite Campus outage recovery and reconnect improvements into main as `079d979`. The signed tag workflow published [v0.2.8](https://github.com/fiukewhfkje/GradeViewer/releases/tag/v0.2.8) as the latest stable at 8:33 a.m. Eastern. Installations with automatic updates enabled check for the release on their nightly schedule.

@@ -61,6 +61,7 @@ export interface PortalConnection {
   needsReconnect?: boolean;
   cooldown?: number;
   lastVerified?: number;
+  // Carmen's retry deadline or the timestamp of the one IC recovery attempt.
   renewalAfter?: number;
   profileAccount?: string;
   completed?: { attempt: string; firstConnection: boolean };
@@ -110,6 +111,14 @@ export function browserJar(state: BrowserState, origin: string) {
   }
   return jar;
 }
+
+async function campusProfileAccount(browser: PortalBrowser, origin: string) {
+  const number = await browser.studentNumber?.(origin);
+  return number
+    ? (await hash(origin + "\0profile\0" + number)).replace(/[^a-zA-Z0-9]/g, "")
+    : undefined;
+}
+
 export class PortalService {
   constructor(
     protected storage: DurableObjectStorage,
@@ -150,7 +159,12 @@ export class PortalService {
       c.incidentHistory = c.incidentHistory.filter(
         (event) => event.at >= cutoff,
       );
-      if (type === "failure" || type === "connected")
+      if (
+        type === "failure" ||
+        type === "connected" ||
+        type === "recovered" ||
+        type === "recoveryFailed"
+      )
         c.incidentHistory = [...c.incidentHistory.slice(-255), record];
     }
   }
@@ -192,22 +206,28 @@ export class PortalService {
       : campusChoices(summary);
   }
   private retainState(state: BrowserState, portal: string): BrowserState {
+    const hostname = this.portalURL(portal).hostname;
     const permitted = (host: string) =>
-      host === this.portalURL(portal).hostname ||
-      /(^|\.)(google\.com|microsoftonline\.com|live\.com|duosecurity\.com|ohio-state\.edu|osu\.edu|instructure\.com)$/.test(
+      host === hostname ||
+      /(^|\.)(google\.com|microsoftonline\.com|live\.com|duosecurity\.com)$/.test(
         host,
-      );
+      ) ||
+      (this.kind === "carmen" &&
+        /(^|\.)(ohio-state\.edu|osu\.edu|instructure\.com)$/.test(host));
     const filtered = {
       cookies: state.cookies.filter((x) =>
         permitted(x.domain.replace(/^\./, "")),
       ),
-      origins: state.origins.filter((x) => {
-        try {
-          return permitted(new URL(x.origin).hostname);
-        } catch {
-          return false;
-        }
-      }),
+      origins:
+        this.kind === "campus"
+          ? []
+          : state.origins.filter((x) => {
+              try {
+                return permitted(new URL(x.origin).hostname);
+              } catch {
+                return false;
+              }
+            }),
     };
     if (JSON.stringify(filtered).length > 1_000_000)
       throw new ApiError(502, "portalTooLarge");
@@ -250,12 +270,13 @@ export class PortalService {
       saved,
       id,
       (entry) => {
-        void this.storage
-          .put(`portal-${this.kind}-entry`, entry)
-          .catch(() => {});
+        if (!recovery)
+          void this.storage
+            .put(`portal-${this.kind}-entry`, entry)
+            .catch(() => {});
       },
       (portal, sessionID) => {
-        if (!id && this.kind === "campus")
+        if (!id && !recovery && this.kind === "campus")
           void this.storage
             .put("portal-campus-discovered", { portal, sessionID })
             .catch(() => {});
@@ -425,9 +446,25 @@ export class PortalService {
       await this.storage.delete("portal-campus-discovered");
     delete s.connection!.pending;
   }
+  private recoveryTarget(c: PortalConnection) {
+    if (
+      !c.keepConnected ||
+      c.maintenancePaused ||
+      c.pending ||
+      !c.entry ||
+      !c.state ||
+      c.recoveryBlocked
+    )
+      return;
+    if (this.kind === "campus") {
+      // One attempt for this saved sign-in, including across tabs and upgrades.
+      if (!c.account || !c.jar || c.renewalAfter !== undefined) return;
+    } else if ((c.renewalAfter ?? 0) > Date.now()) return;
+    return { entry: c.entry, state: c.state };
+  }
   private async recover(s: PortalStore, c: PortalConnection): Promise<boolean> {
-    if (this.kind !== "carmen" || !c.keepConnected || c.maintenancePaused)
-      return false;
+    const target = this.recoveryTarget(c);
+    if (!target) return false;
     this.resetBudget(s);
     s.recoveryHistory ??= s.renewalMs
       ? [{ at: Date.now(), ms: s.renewalMs }]
@@ -435,13 +472,8 @@ export class PortalService {
     s.recoveryHistory = s.recoveryHistory.filter(
       (x) => x.at > Date.now() - 86400000,
     );
-    if (
-      !c.entry ||
-      !c.state ||
-      c.recoveryBlocked ||
-      (c.renewalAfter ?? 0) > Date.now()
-    )
-      return false;
+    const began = Date.now();
+    if (this.kind === "campus") c.renewalAfter = began;
     // Reserve the worst-case short lease before acquiring. Refund only after
     // confirmed closure; a crashed/failed recovery cannot spend the budget twice.
     if (
@@ -454,12 +486,11 @@ export class PortalService {
       });
       return false;
     }
-    const began = Date.now(),
-      reservation = { at: began, ms: 60_000 };
+    const reservation = { at: began, ms: 60_000 };
     s.recoveryHistory.push(reservation);
     s.browserMs += 60_000;
     s.renewalMs = (s.renewalMs ?? 0) + 60_000;
-    c.renewalAfter = began + 5 * 60_000;
+    if (this.kind === "carmen") c.renewalAfter = began + 5 * 60_000;
     this.event(c, "recoveryStarted", { stage: "browser" });
     await this.save(s);
     let browser: PortalBrowser | undefined,
@@ -467,7 +498,7 @@ export class PortalService {
       timer: ReturnType<typeof setTimeout> | undefined;
     this.stage = "browser";
     this.httpStatus = undefined;
-    const opening = this.browser(c.state, undefined, true);
+    const opening = this.browser(target.state, undefined, true);
     void opening.then(
       (late) => {
         if (stopped && !browser) void late.close().catch(() => {});
@@ -479,16 +510,26 @@ export class PortalService {
         const open = await opening;
         if (stopped) throw new ApiError(502, "recoveryTimedOut");
         browser = open;
-        await open.navigate(c.entry!);
-        await open.ready(this.portalURL(c.portal).origin);
+        const origin = this.portalURL(c.portal).origin;
+        await open.navigate(target.entry);
+        await open.ready(origin);
         const state = await open.state(),
-          jar = browserJar(state, this.portalURL(c.portal).origin);
+          jar = browserJar(state, origin);
+        const profile =
+          this.kind === "campus" && c.profileAccount
+            ? await campusProfileAccount(open, origin)
+            : undefined;
         if (stopped) throw new ApiError(502, "recoveryTimedOut");
         const candidate = { ...c };
         this.diagnostics(c).profileChecks++;
         if (this.trigger === "alarm") this.diagnostics(c).backgroundChecks++;
-        await this.verify(candidate, jar, false);
-        return { state, jar, candidate };
+        if (this.kind === "campus" && c.profileAccount) {
+          if (!profile) throw new ApiError(502, "campusIdentityUnsupported");
+          if (profile !== c.profileAccount)
+            throw new ApiError(409, "portalAccountChanged");
+          campusChoices(await this.read(candidate, this.summaryPath, jar));
+        } else await this.verify(candidate, jar, false);
+        return { state: this.retainState(state, c.portal), jar, candidate };
       })();
       const recovered = await Promise.race([
         work,
@@ -500,14 +541,15 @@ export class PortalService {
         }),
       ]);
       Object.assign(c, recovered.candidate);
-      c.state = this.retainState(recovered.state, c.portal);
+      c.state = recovered.state;
       this.retainJar(c, recovered.jar);
       c.needsReconnect = false;
       c.maintenanceFailures = 0;
       delete c.recoveryBlocked;
+      if (this.kind === "campus") delete c.renewalAfter;
       if (c.keepConnected && !c.maintenancePaused)
         c.nextMaintenance = Date.now() + this.maintenanceInterval;
-      this.event(c, "httpSuccess", { stage: "profile", httpStatus: 200 });
+      this.event(c, "httpSuccess", { httpStatus: 200 });
       this.event(c, "recovered", {
         stage: "browser",
         durationMs: Date.now() - began,
@@ -515,6 +557,12 @@ export class PortalService {
       return true;
     } catch (error) {
       stopped = true;
+      if (
+        this.kind === "campus" &&
+        error instanceof ApiError &&
+        error.code === "portalRateLimited"
+      )
+        c.cooldown = Date.now() + (error.retryAfter ?? 60) * 1000;
       let step: CarmenRecoveryStep = "unknown";
       if (browser?.recoveryStep) {
         let stop: ReturnType<typeof setTimeout> | undefined;
@@ -630,7 +678,6 @@ export class PortalService {
         if (
           error instanceof ApiError &&
           error.code === "portalSignInRequired" &&
-          this.kind === "carmen" &&
           (await this.recover(s, c))
         ) {
           jar = CookieJar.deserializeSync(c.jar!);
@@ -825,7 +872,9 @@ export class PortalService {
       await r.body?.cancel();
       throw new ApiError(502, "portalUnavailable");
     }
-    for (const cookie of r.headers.getSetCookie()) {
+    for (const cookie of this.kind === "campus" && !r.ok
+      ? []
+      : r.headers.getSetCookie()) {
       try {
         jar.setCookieSync(cookie, u.href);
       } catch {
@@ -1257,7 +1306,7 @@ export class PortalService {
         } catch {
           throw new ApiError(502, "portalBrowserCaptureFailed");
         }
-        let studentNumber: string | undefined;
+        let profileAccount: string | undefined;
         try {
           const discovered = await this.storage.get<{
             portal: string;
@@ -1284,12 +1333,8 @@ export class PortalService {
           }
           const jar = browserJar(state, origin);
           const candidate = { ...c, portal };
-          let account: string, profileAccount: string | undefined;
-          studentNumber = await browser.studentNumber?.(origin);
-          if (studentNumber)
-            profileAccount = (
-              await hash(origin + "\0profile\0" + studentNumber)
-            ).replace(/[^a-zA-Z0-9]/g, "");
+          let account: string;
+          profileAccount = await campusProfileAccount(browser, origin);
           if (c.profileAccount) {
             if (!profileAccount) {
               if (automatic) return { state: "waiting" };
@@ -1322,19 +1367,7 @@ export class PortalService {
           const courses = campusChoices(
             await this.read(candidate, "resources/portal/grades", jar),
           );
-          const permitted = (host: string) =>
-            host === campusURL(portal).hostname ||
-            /(^|\.)(google\.com|microsoftonline\.com|live\.com|duosecurity\.com)$/.test(
-              host,
-            );
-          const retained = {
-            cookies: state.cookies.filter((x) =>
-              permitted(x.domain.replace(/^\./, "")),
-            ),
-            origins: [],
-          };
-          if (JSON.stringify(retained).length > 1_000_000)
-            throw new ApiError(502, "portalTooLarge");
+          const retained = this.retainState(state, portal);
           const entry = await this.storage.get<string>("portal-campus-entry");
           if (entry && new URL(entry).origin === origin) c.entry = entry;
           const firstConnection = !c.account;
@@ -1347,6 +1380,8 @@ export class PortalService {
           c.lastVerified = Date.now();
           c.maintenanceFailures = 0;
           delete c.maintenancePaused;
+          delete c.renewalAfter;
+          delete c.recoveryBlocked;
           this.startMaintenance(c);
           this.event(c, "connected", { trigger: "manual", stage: "profile" });
           if (p.attempt) c.completed = { attempt: p.attempt, firstConnection };
@@ -1364,7 +1399,7 @@ export class PortalService {
             error instanceof ApiError &&
             error.code === "portalSignInRequired"
           ) {
-            if (automatic && !studentNumber) return { state: "waiting" };
+            if (automatic && !profileAccount) return { state: "waiting" };
             throw new ApiError(401, "portalSessionUnverified");
           }
           if (error instanceof ApiError && error.code === "portalUnavailable")
@@ -1393,7 +1428,7 @@ export class PortalService {
           throw error;
         c.needsReconnect = true;
         this.failure(c, error);
-        if (!(await this.recover(s, c))) throw error;
+        if (this.kind === "campus" || !(await this.recover(s, c))) throw error;
         fresh = await this.fetch(c);
       }
       if (action === "check")
@@ -1519,8 +1554,16 @@ export class PortalService {
           c &&
           ["portalSignInRequired", "portalAccountChanged"].includes(error.code)
         ) {
-          c.needsReconnect = true;
-          delete c.nextMaintenance;
+          // A fresh alarm confirms rejection before trying SSO, keeping
+          // foreground reads within their existing request and latency budgets.
+          const queued =
+            this.kind === "campus" &&
+            error.code === "portalSignInRequired" &&
+            this.stage !== "assignments" &&
+            this.recoveryTarget(c);
+          c.needsReconnect = !queued;
+          if (queued) c.nextMaintenance = Date.now();
+          else delete c.nextMaintenance;
         }
         if (this.kind === "carmen" && error.code === "malformedCampus")
           throw new ApiError(502, "malformedCanvas");

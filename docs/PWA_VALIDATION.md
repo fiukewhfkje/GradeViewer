@@ -1,3 +1,9 @@
+# Infinite Campus session recovery — November 28, 2026
+
+Two synthetic cases reproduced the previous behavior before the fix. One follows a gateway failure with an authentication rejection and verifies that the alarm can adopt a renewed session for the same student, close the temporary browser and resume checks without changing grade freshness. The other verifies that a foreground rejection schedules recovery without a foreground browser launch, rejects a different student and spends only one recovery attempt while keeping selected classes and manual reconnect available.
+
+The production build, 299 unit tests, the full Chromium browser checks and 35 WebKit platform checks passed. The browser suites ran sequentially after a parallel run showed that their synthetic service-worker upgrade checks modify the same local assets. The recovery regression uses synthetic Browser Run and Campus responses. District SSO acceptance still requires observation on a real session.
+
 # Stable v0.2.8 verification — November 22, 2026
 
 The production build, 298 unit tests, 123-file package and isolated-template build, deployment dry-run, update and rollback passed locally. [PR #28](https://github.com/fiukewhfkje/GradeViewer/actions/runs/45027171762), the [main-branch checks](https://github.com/fiukewhfkje/GradeViewer/actions/runs/45027362163), and both tagged browser jobs passed. Three signing attempts received a transparency-log lookup 404, also observed by the [upstream signing monitor](https://github.com/actions/attest/actions/runs/45027500753). The fourth attempt succeeded on the same tag and commit. [Release workflow](https://github.com/fiukewhfkje/GradeViewer/actions/runs/45027365216).

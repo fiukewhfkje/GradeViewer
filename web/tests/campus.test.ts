@@ -31,6 +31,8 @@ import {
   campusBackfillFixture,
 } from "./campus-fixture";
 const now = Date.parse("2026-11-04T17:00:00Z");
+const campusEntry =
+  "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1";
 afterEach(() => vi.useRealTimers());
 const parsed = () =>
   parseCampus(
@@ -341,6 +343,7 @@ describe("selected IC normalization", () => {
 function harness(withBinding = false) {
   const data = new Map<string, unknown>();
   let selectedPortal: string | undefined = campusPortal;
+  let browserState = campusState;
   const navigations: string[] = [];
   let browserCalls = 0,
     closed = 0;
@@ -390,7 +393,7 @@ function harness(withBinding = false) {
       browserCalls++;
       return {
         id: "synthetic-browser",
-        state: async () => structuredClone(campusState),
+        state: async () => structuredClone(browserState),
         live: async () =>
           "https://live.browser.run/ui/view?mode=tab&synthetic=true",
         navigate: async (url) => {
@@ -400,7 +403,9 @@ function harness(withBinding = false) {
         studentNumber: async () => studentNumber,
         url: () => campusPortal,
         ready: async () => {},
-        close: async () => {},
+        close: async () => {
+          closed++;
+        },
       };
     }
   }
@@ -432,6 +437,9 @@ function harness(withBinding = false) {
     alarmAt: () => alarmAt,
     browserCalls: () => browserCalls,
     closed: () => closed,
+    setBrowserState: (value: typeof campusState) => {
+      browserState = value;
+    },
     setStudentNumber: (value: string) => {
       identity = undefined;
       studentNumber = value;
@@ -785,34 +793,85 @@ describe("encrypted IC session and selected snapshots", () => {
     await h.service.handle("disconnect");
     expect((await h.service.status()).connected).toBe(false);
   });
-  it("retains selected courses and avoids browser launches on repeated expired refreshes", async () => {
+  it("silently recovers a rejected IC session after gateway errors without changing grade freshness", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
     const h = harness();
     await h.service.handle("start", { portal: campusPortal });
-    h.data.set(
-      "portal-campus-entry",
-      "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1",
-    );
+    h.data.set("portal-campus-entry", campusEntry);
     await h.service.handle("finish");
     await h.service.handle("select", { selected: ["1:100"] });
-    const before = h.browserCalls();
-    h.expire();
-    await expect(h.service.handle("snapshot")).rejects.toThrow(
-      "portalSignInRequired",
+    const lastVerified = (await h.service.status()).lastVerified;
+    const browsers = h.browserCalls(),
+      closed = h.closed();
+    const recovered = structuredClone(campusState);
+    recovered.cookies[0].value = "synthetic-renewed";
+    h.setBrowserState(recovered);
+    h.setRosterFailure(() => new Response(null, { status: 502 }));
+    vi.setSystemTime(now + 20 * 60000);
+    await h.service.expire();
+    expect(h.browserCalls()).toBe(browsers);
+    h.setRosterFailure((request) =>
+      request.headers.get("Cookie") === "JSESSIONID=synthetic-renewed"
+        ? Response.json({ personID: "101" })
+        : new Response(null, { status: 401 }),
+    );
+    vi.setSystemTime(now + 25 * 60000);
+    await h.service.expire();
+    expect(h.browserCalls()).toBe(browsers + 1);
+    expect(h.closed()).toBe(closed + 1);
+    expect(h.navigations.at(-1)).toBe(campusEntry);
+    expect(await h.service.status()).toMatchObject({
+      needsReconnect: false,
+      selected: ["1:100"],
+      lastVerified,
+      nextMaintenance: now + 45 * 60000,
+      diagnostics: { recoveriesAttempted: 1, recoveriesSucceeded: 1 },
+    });
+    expect(await h.service.handle("snapshot")).toMatchObject({
+      courses: [expect.any(Object)],
+    });
+  });
+  it("defers foreground IC recovery and preserves the connection if SSO returns a different student", async () => {
+    const h = harness();
+    await h.service.handle("start", { portal: campusPortal });
+    h.data.set("portal-campus-entry", campusEntry);
+    await h.service.handle("finish");
+    await h.service.handle("select", { selected: ["1:100"] });
+    const before = h.browserCalls(),
+      closed = h.closed();
+    const wrong = structuredClone(campusState);
+    wrong.cookies[0].value = "synthetic-wrong-account";
+    h.setBrowserState(wrong);
+    h.setRosterFailure((request) =>
+      request.headers.get("Cookie") === "JSESSIONID=synthetic-wrong-account"
+        ? Response.json({ personID: "202" })
+        : new Response(null, { status: 401 }),
     );
     await expect(h.service.handle("snapshot")).rejects.toThrow(
       "portalSignInRequired",
     );
     expect(h.browserCalls()).toBe(before);
     expect(await h.service.status()).toMatchObject({
+      needsReconnect: false,
+      nextMaintenance: expect.any(Number),
+    });
+    await h.service.expire();
+    expect(h.browserCalls()).toBe(before + 1);
+    expect(h.closed()).toBe(closed + 1);
+    await expect(h.service.handle("snapshot")).rejects.toThrow(
+      "portalSignInRequired",
+    );
+    await h.service.expire();
+    expect(h.browserCalls()).toBe(before + 1);
+    expect(await h.service.status()).toMatchObject({
       connected: true,
       needsReconnect: true,
       selected: ["1:100"],
     });
     await h.service.handle("start");
-    expect(h.browserCalls()).toBe(before + 1);
-    expect(h.navigations.at(-1)).toBe(
-      "https://fixture.infinitecampus.org/campus/SSO/fixture/portal/students?configID=1",
-    );
+    expect(h.browserCalls()).toBe(before + 2);
+    expect(h.navigations.at(-1)).toBe(campusEntry);
     await h.service.handle("cancel");
   });
   it("rejects account changes and malformed selected details", async () => {
